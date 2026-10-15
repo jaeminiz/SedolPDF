@@ -1,0 +1,10 @@
+bin/
+obj/
+*.tmp
+*.user
+spikes/out/
+private/
+.vs/
+.superpowers/
+TestResults/
+.omc/

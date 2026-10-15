@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="157.0.8100" />
+  </ItemGroup>
+
+</Project>

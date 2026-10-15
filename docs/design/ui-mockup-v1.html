@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF 에디터 화면 시안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: 문서형 페이지. 시안 3개를 세로로 배치, 각 시안 = 창 목업 + 설명. 목업은 가로 스크롤 컨테이너 안에 둠 */
+:root{
+  --bg:#f5f5f7; --fg:#1d1d1f; --muted:#6e6e73; --line:rgba(0,0,0,.12);
+  --surface:#ffffff; --toolbar:#ececee; --sidebar:rgba(232,232,236,.92); --canvas:#d9d9de;
+  --accent:#007aff; --accent-soft:rgba(0,122,255,.14); --sel:#007aff;
+  --paper:#ffffff; --ink:#2b2b2e; --red:#e5372d; --hl:#ffd60a; --green:#1f9d55;
+  --font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --font-mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#161618; --fg:#f2f2f4; --muted:#9a9aa0; --line:rgba(255,255,255,.12);
+  --surface:#232326; --toolbar:#2c2c2f; --sidebar:rgba(40,40,44,.92); --canvas:#1c1c1e;
+  --accent:#0a84ff; --accent-soft:rgba(10,132,255,.22); --sel:#0a84ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#161618; --fg:#f2f2f4; --muted:#9a9aa0; --line:rgba(255,255,255,.12);
+  --surface:#232326; --toolbar:#2c2c2f; --sidebar:rgba(40,40,44,.92); --canvas:#1c1c1e;
+  --accent:#0a84ff; --accent-soft:rgba(10,132,255,.22); --sel:#0a84ff; color-scheme:dark}
+
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1040px;margin:0 auto;padding-block:40px 64px;display:grid;gap:48px}
+header{display:grid;gap:10px;max-width:68ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-size:30px;line-height:1.2;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:21px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+p{margin:0}
+.lede{color:var(--muted);font-size:15px}
+section.opt{display:grid;gap:16px}
+.opt-head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.letter{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.scroller{overflow-x:auto;padding-bottom:6px}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.notes > div{min-width:0}
+.notes h3{font-size:13px;margin:0 0 6px;color:var(--muted);font-weight:600}
+.notes ul{margin:0;padding-left:18px;font-size:14px;display:grid;gap:4px}
+.decide{border-top:1px solid var(--line);padding-top:28px;display:grid;gap:14px;max-width:72ch}
+.decide ol{margin:0;padding-left:20px;display:grid;gap:8px;font-size:15px}
+
+/* ---------- 창 목업 ---------- */
+.win{min-width:880px;height:500px;border-radius:12px;border:1px solid var(--line);overflow:hidden;
+  background:var(--canvas);display:grid;grid-template-rows:auto auto 1fr;
+  box-shadow:0 20px 50px -20px rgba(0,0,0,.35),0 2px 6px rgba(0,0,0,.08);font-size:12px;color:var(--fg)}
+.tb{display:flex;align-items:center;gap:10px;height:52px;padding:0 0 0 12px;background:var(--toolbar);border-bottom:1px solid var(--line)}
+.doc-title{display:grid;line-height:1.25;margin-right:6px}
+.doc-title b{font-size:13px;font-weight:600}
+.doc-title span{font-size:11px;color:var(--muted)}
+.spacer{flex:1}
+.ib{width:28px;height:26px;border-radius:6px;display:grid;place-items:center;color:var(--fg);opacity:.82}
+.ib.on{background:var(--accent-soft);color:var(--accent);opacity:1}
+.ib svg{width:17px;height:17px}
+.group{display:flex;gap:2px;padding:2px;border-radius:8px;background:rgba(127,127,127,.12)}
+.seg{display:flex;padding:2px;border-radius:7px;background:rgba(127,127,127,.14);gap:2px}
+.seg span{padding:3px 10px;border-radius:5px;font-size:11px;color:var(--muted)}
+.seg span.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.search{width:150px;height:24px;border-radius:6px;background:rgba(127,127,127,.14);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--muted);font-size:11px}
+.search svg{width:13px;height:13px}
+.wctl{display:flex;height:100%}
+.wctl span{width:44px;display:grid;place-items:center;color:var(--muted)}
+.wctl svg{width:11px;height:11px}
+.subbar{display:flex;align-items:center;gap:4px;height:38px;padding:0 12px;background:var(--toolbar);border-bottom:1px solid var(--line)}
+.subbar .sep{width:1px;height:18px;background:var(--line);margin:0 6px}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.body{display:grid;min-height:0}
+.side{background:var(--sidebar);backdrop-filter:blur(20px);border-right:1px solid var(--line);padding:10px;display:grid;align-content:start;gap:12px;overflow:hidden}
+.thumb{display:grid;justify-items:center;gap:4px;color:var(--muted);font-size:10px}
+.thumb i{display:block;width:96px;height:68px;background:var(--paper);border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.thumb.on i{outline:2.5px solid var(--accent);outline-offset:2px}
+.thumb.on{color:var(--accent);font-weight:600}
+.canvas{display:grid;place-items:center;position:relative;min-width:0;overflow:hidden}
+.page{width:470px;aspect-ratio:420/297;max-width:100%;background:var(--paper);box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.page svg{width:100%;height:100%;display:block}
+.insp{background:var(--surface);border-left:1px solid var(--line);padding:12px;display:grid;align-content:start;gap:14px;overflow:hidden}
+.insp h4{margin:0;font-size:12px}
+.row{display:grid;gap:6px}
+.row label{font-size:10.5px;color:var(--muted);font-weight:600}
+.sw{display:flex;gap:6px}
+.sw i{width:18px;height:18px;border-radius:50%;display:block}
+.sw i.on{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent)}
+.slider{height:4px;border-radius:2px;background:rgba(127,127,127,.25);position:relative}
+.slider b{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.slider em{position:absolute;top:-5px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.field{height:24px;border-radius:6px;border:1px solid var(--line);display:flex;align-items:center;padding:0 8px;justify-content:space-between;background:var(--bg)}
+.cmt{display:grid;gap:3px;padding:8px;border-radius:8px;background:var(--bg);border:1px solid var(--line)}
+.cmt b{font-size:11px}.cmt span{color:var(--muted);font-size:10.5px}
+.palette{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:grid;gap:2px;padding:5px;border-radius:12px;
+  background:var(--sidebar);backdrop-filter:blur(20px);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.pop{position:absolute;right:118px;top:58px;width:190px;padding:10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);
+  box-shadow:0 10px 30px rgba(0,0,0,.22);display:grid;gap:10px}
+.pill{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;padding:5px 12px;border-radius:999px;
+  background:var(--sidebar);backdrop-filter:blur(20px);border:1px solid var(--line);color:var(--muted);font-size:11px}
+/* ---------- Windows 11 (Fluent) 변형 ---------- */
+.w11{--mica:#f3f3f3;--card:#fbfbfb;--wline:rgba(0,0,0,.08);--wacc:#005fb8;--wacc-soft:rgba(0,95,184,.1);--wsub:#5c5c5c;
+  font-family:"Segoe UI Variable Text","Segoe UI","Malgun Gothic",sans-serif;background:var(--mica);border-radius:8px;grid-template-rows:auto auto 1fr}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .w11{--mica:#202020;--card:#2b2b2b;--wline:rgba(255,255,255,.08);--wacc:#60cdff;--wacc-soft:rgba(96,205,255,.14);--wsub:#a8a8a8}}
+:root[data-theme="dark"] .w11{--mica:#202020;--card:#2b2b2b;--wline:rgba(255,255,255,.08);--wacc:#60cdff;--wacc-soft:rgba(96,205,255,.14);--wsub:#a8a8a8}
+.w11-title{display:flex;align-items:flex-end;height:40px;padding-left:10px;gap:4px}
+.w11-tab{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:8px 8px 0 0;font-size:12px;color:var(--wsub)}
+.w11-tab.on{background:var(--card);color:var(--fg);box-shadow:0 0 0 1px var(--wline)}
+.w11-tab svg{width:14px;height:14px}
+.w11 .wctl{align-self:stretch;margin-left:auto}
+.w11-cmd{display:flex;align-items:center;gap:2px;height:46px;padding:0 8px;background:var(--card);border-bottom:1px solid var(--wline)}
+.w11-btn{display:flex;align-items:center;gap:6px;height:32px;padding:0 9px;border-radius:4px;font-size:12px;color:var(--fg)}
+.w11-btn svg{width:16px;height:16px}
+.w11-btn.on{background:var(--wacc-soft);color:var(--wacc)}
+.w11-sep{width:1px;height:20px;background:var(--wline);margin:0 6px}
+.w11-body{display:grid;grid-template-columns:180px 1fr 210px;gap:8px;padding:8px;min-height:0}
+.w11-pane{background:var(--card);border:1px solid var(--wline);border-radius:8px;padding:10px;display:grid;align-content:start;gap:10px;overflow:hidden}
+.w11-pivot{display:flex;gap:14px;font-size:12px;color:var(--wsub);border-bottom:1px solid var(--wline)}
+.w11-pivot span{padding-bottom:6px}
+.w11-pivot span.on{color:var(--fg);font-weight:600;box-shadow:inset 0 -3px 0 -0.5px var(--wacc)}
+.w11-item{display:grid;gap:2px;padding:7px 8px;border-radius:4px;font-size:11px;position:relative}
+.w11-item.on{background:var(--wacc-soft)}
+.w11-item.on::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--wacc)}
+.w11-item span{color:var(--wsub);font-size:10.5px}
+.w11-canvas{display:grid;place-items:center;border-radius:8px;background:var(--canvas);min-width:0;overflow:hidden}
+.w11 .row label{color:var(--wsub);font-weight:400;font-size:11px}
+.w11-slider{height:4px;border-radius:2px;background:var(--wline);position:relative;margin:6px 0}
+.w11-slider b{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--wacc)}
+.w11-slider em{position:absolute;top:-6px;width:16px;height:16px;border-radius:50%;background:var(--card);box-shadow:0 0 0 1px var(--wline),0 1px 2px rgba(0,0,0,.2)}
+.w11-slider em::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--wacc)}
+.w11-combo{height:30px;border-radius:4px;border:1px solid var(--wline);border-bottom-color:rgba(127,127,127,.45);display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:12px;background:var(--mica)}
+.w11 .sw i{border-radius:4px}
+.w11 .sw i.on{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--wacc)}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.cmp > div{min-width:0}
+.cmp h3{font-size:13px;margin:0 0 6px;color:var(--muted);font-weight:600}
+.cmp ul{margin:0;padding-left:18px;font-size:14px;display:grid;gap:4px}
+@media (prefers-reduced-motion:no-preference){.ib,.thumb i{transition:background .15s}}
+</style>
+
+<!-- 아이콘·도면 심볼 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <symbol id="i-side" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7.5 3.5v13" stroke="currentColor" stroke-width="1.4"/></symbol>
+  <symbol id="i-select" viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.6 1.2L8.3 15z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 20 20"><path d="M7 10V4.5a1.2 1.2 0 012.4 0V9m0-4.8a1.2 1.2 0 012.4 0V9m0-3.5a1.2 1.2 0 012.4 0V11c0 3.6-2.2 6-5.4 6-2.2 0-3.4-1-4.6-3L4 10.6a1.2 1.2 0 012-1.3L7 10.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-hl" viewBox="0 0 20 20"><path d="M11.5 3.5l5 5-6.5 6.5H5v-5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M3 17.5h14" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 20 20"><path d="M3.5 16.5l1-4L13 4a1.8 1.8 0 012.6 2.6L7.1 15.4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+  <symbol id="i-text" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7 8h6M10 8v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-type" viewBox="0 0 20 20"><path d="M4.5 5h11M10 5v11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-callout" viewBox="0 0 20 20"><rect x="7" y="3.5" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7 9L3 15.5" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="i-shape" viewBox="0 0 20 20"><rect x="3" y="7.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 20 20"><path d="M4 8a2 2 0 013-1.6A2.5 2.5 0 0111.5 5a2.5 2.5 0 014 1.8A2 2 0 0116 11a2 2 0 01-2 3H6a2.3 2.3 0 01-2-3.6A2 2 0 014 8z" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="i-note" viewBox="0 0 20 20"><path d="M4 4h12v8l-4 4H4z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 16v-4h4" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="i-stamp" viewBox="0 0 20 20"><path d="M8 3.5h4v4l2.5 3h-9l2.5-3zM4.5 12.5h11v2.5h-11zM4.5 17h11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 20 20"><path d="M14.5 9l-5.6 5.6a3 3 0 01-4.3-4.3l6-6a2 2 0 012.9 2.9L7.8 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-share" viewBox="0 0 20 20"><path d="M10 12.5V3m0 0L6.5 6.5M10 3l3.5 3.5M6 9.5H5v7.5h10V9.5h-1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12.3 12.3L17 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-zoom" viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12.3 12.3L17 17M6.5 8.5h4M8.5 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-pages" viewBox="0 0 20 20"><rect x="5.5" y="2.5" width="10" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4 5v11.5h9" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="i-insp" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12.5 3.5v13" stroke="currentColor" stroke-width="1.4"/></symbol>
+  <symbol id="w-min" viewBox="0 0 12 12"><path d="M1 6h10" stroke="currentColor" stroke-width="1"/></symbol>
+  <symbol id="w-max" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></symbol>
+  <symbol id="w-close" viewBox="0 0 12 12"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" stroke-width="1"/></symbol>
+
+  <!-- 배관 계통도 샘플 (A3 가로) -->
+  <symbol id="sheet" viewBox="0 0 420 297">
+   <g fill="none" stroke="#2b2b2e" stroke-width=".8">
+    <rect x="10" y="10" width="400" height="277"/>
+    <rect x="290" y="240" width="120" height="47"/>
+    <path d="M290 252h120M290 264h120M350 252v35"/>
+    <path d="M40 90h120m30 0h150v80h-60M60 90v120h110m30 0h110" stroke-width="1.6"/>
+    <path d="M160 82l15 8-15 8zM190 82l-15 8 15 8z"/>
+    <path d="M170 202l15 8-15 8zM200 202l-15 8 15 8z"/>
+    <circle cx="250" cy="60" r="11"/><path d="M250 71v19"/>
+    <circle cx="120" cy="150" r="11"/><path d="M120 161v49"/>
+    <rect x="330" y="150" width="40" height="40" rx="4"/>
+   </g>
+   <g fill="#2b2b2e" font-family="Arial,sans-serif" text-anchor="middle">
+    <text x="250" y="58" font-size="6">PT</text><text x="250" y="65" font-size="6">101</text>
+    <text x="120" y="148" font-size="6">FT</text><text x="120" y="155" font-size="6">102</text>
+    <text x="175" y="110" font-size="6">CV-101 DN50</text>
+    <text x="185" y="230" font-size="6">CV-102 DN25</text>
+    <text x="350" y="173" font-size="6">O2 ANALYZER</text>
+    <text x="350" y="261" font-size="5.5">P&amp;ID  CONTROL VALVE SYSTEM</text>
+    <text x="320" y="279" font-size="5.5">MRS-P-101</text>
+    <text x="380" y="279" font-size="5.5">REV. A</text>
+   </g>
+   <g fill="#2b2b2e" opacity=".55">
+    <rect x="30" y="30" width="150" height="3"/><rect x="30" y="38" width="110" height="3"/><rect x="30" y="46" width="130" height="3"/>
+   </g>
+  </symbol>
+  <!-- 주석 레이어 -->
+  <symbol id="marks" viewBox="0 0 420 297">
+   <rect x="28" y="36" width="114" height="7" fill="#ffd60a" opacity=".5"/>
+   <path d="M150 74a7 7 0 0 1 14 0a7 7 0 0 1 14 0a7 7 0 0 1 14 0a7 7 0 0 1 14 0a7 7 0 0 1 0 14a7 7 0 0 1 0 14a7 7 0 0 1 0 14a7 7 0 0 1 -14 0a7 7 0 0 1 -14 0a7 7 0 0 1 -14 0a7 7 0 0 1 -14 0a7 7 0 0 1 0 -14a7 7 0 0 1 0 -14a7 7 0 0 1 0 -14z" fill="none" stroke="#e5372d" stroke-width="1.4"/>
+   <path d="M206 96L238 128" stroke="#e5372d" stroke-width="1"/>
+   <rect x="238" y="122" width="78" height="22" fill="#fff" stroke="#e5372d" stroke-width="1"/>
+   <text x="243" y="131" font-size="6.5" fill="#e5372d" font-family="Malgun Gothic,Apple SD Gothic Neo,sans-serif">밸브 Cv값 재확인</text>
+   <text x="243" y="140" font-size="5.5" fill="#e5372d" font-family="Malgun Gothic,Apple SD Gothic Neo,sans-serif">설계팀 · 10/15</text>
+   <g transform="rotate(-8 82 252)"><rect x="40" y="238" width="86" height="28" rx="3" fill="none" stroke="#1f9d55" stroke-width="2"/>
+    <text x="83" y="257" font-size="12" font-weight="700" fill="#1f9d55" text-anchor="middle" font-family="Malgun Gothic,Apple SD Gothic Neo,sans-serif">검토 완료</text></g>
+   <g transform="translate(372 52)"><rect width="16" height="16" rx="2" fill="#ffd60a" stroke="#c9a400" stroke-width=".8"/><path d="M4 5h8M4 8h8M4 11h5" stroke="#7a6200" stroke-width=".9"/></g>
+  </symbol>
+  <symbol id="selbox" viewBox="0 0 420 297">
+   <rect x="146" y="68" width="66" height="54" fill="none" stroke="#007aff" stroke-width=".8" stroke-dasharray="3 2"/>
+   <g fill="#fff" stroke="#007aff" stroke-width=".9"><rect x="143" y="65" width="6" height="6"/><rect x="209" y="65" width="6" height="6"/><rect x="143" y="119" width="6" height="6"/><rect x="209" y="119" width="6" height="6"/></g>
+  </symbol>
+ </defs>
+</svg>
+
+<div class="wrap">
+ <header>
+  <span class="eyebrow">PDF Editor · 화면 구성 1차 시안</span>
+  <h1>Mac 스타일 레이아웃 3안</h1>
+  <p class="lede">세 시안 모두 같은 도면(P&amp;ID 샘플)에 클라우드, 설명선, 텍스트 강조, 스탬프, 스티커 메모를 단 상태입니다. 바뀌는 것은 주석 도구와 속성 패널을 어디에 두느냐입니다. 창 조작 버튼은 Windows 위치(오른쪽)로 그렸습니다.</p>
+ </header>
+
+ <!-- A -->
+ <section class="opt" id="a">
+  <div class="opt-head"><span class="letter">A</span><h2>Preview 방식</h2><span class="tag">가장 단순</span></div>
+  <p class="lede">macOS 미리보기 앱과 같은 구조입니다. 툴바의 펜 버튼을 누르면 아래에 마크업 막대가 열립니다. 속성은 막대의 색 점과 메뉴로 바꿉니다.</p>
+  <div class="scroller"><div class="win">
+   <div class="tb">
+    <span class="ib on"><svg><use href="#i-side"/></svg></span>
+    <div class="doc-title"><b>MRS-P-101 배관계통도.pdf</b><span>3 / 12 페이지 · 편집됨</span></div>
+    <div class="spacer"></div>
+    <span class="ib"><svg><use href="#i-zoom"/></svg></span>
+    <span class="ib on"><svg><use href="#i-pen"/></svg></span>
+    <span class="ib"><svg><use href="#i-share"/></svg></span>
+    <div class="search"><svg><use href="#i-search"/></svg>검색</div>
+    <div class="wctl"><span><svg><use href="#w-min"/></svg></span><span><svg><use href="#w-max"/></svg></span><span><svg><use href="#w-close"/></svg></span></div>
+   </div>
+   <div class="subbar">
+    <span class="ib on"><svg><use href="#i-select"/></svg></span><span class="ib"><svg><use href="#i-hl"/></svg></span><span class="ib"><svg><use href="#i-pen"/></svg></span>
+    <span class="ib"><svg><use href="#i-type"/></svg></span><span class="ib"><svg><use href="#i-text"/></svg></span><span class="ib"><svg><use href="#i-callout"/></svg></span>
+    <span class="ib"><svg><use href="#i-shape"/></svg></span><span class="ib"><svg><use href="#i-cloud"/></svg></span><span class="ib"><svg><use href="#i-note"/></svg></span>
+    <span class="ib"><svg><use href="#i-stamp"/></svg></span><span class="ib"><svg><use href="#i-clip"/></svg></span>
+    <span class="sep"></span><span class="dot" style="background:var(--red)"></span><span class="ib" style="font-size:11px;width:auto;padding:0 6px">1.5pt ▾</span>
+   </div>
+   <div class="body" style="grid-template-columns:140px 1fr">
+    <div class="side">
+     <div class="thumb"><i></i>2</div><div class="thumb on"><i></i>3</div><div class="thumb"><i></i>4</div><div class="thumb"><i></i>5</div>
+    </div>
+    <div class="canvas"><div class="page"><svg viewBox="0 0 420 297"><use href="#sheet"/><use href="#marks"/></svg></div></div>
+   </div>
+  </div></div>
+  <div class="notes">
+   <div><h3>장점</h3><ul><li>화면이 가장 깔끔하고 Mac 사용자에게 익숙함</li><li>읽기 위주일 때 마크업 막대를 닫으면 문서만 남음</li></ul></div>
+   <div><h3>고려점</h3><ul><li>속성(선 두께, 불투명도, 글꼴)을 바꿀 때마다 메뉴를 열어야 함</li><li>코멘트 목록을 볼 자리가 없어 별도 창이나 탭이 필요함</li></ul></div>
+  </div>
+ </section>
+
+ <!-- B -->
+ <section class="opt" id="b">
+  <div class="opt-head"><span class="letter">B</span><h2>Pages 방식 · 인스펙터</h2><span class="tag">권장</span></div>
+  <p class="lede">macOS Pages·Keynote처럼 오른쪽에 속성 패널(인스펙터)을 둡니다. 선택한 주석의 속성이 늘 보이고, 왼쪽 사이드바에서 페이지·코멘트·책갈피를 전환합니다. 두 패널 모두 툴바 버튼으로 접을 수 있습니다.</p>
+  <div class="scroller"><div class="win">
+   <div class="tb">
+    <span class="ib on"><svg><use href="#i-side"/></svg></span>
+    <div class="doc-title"><b>MRS-P-101 배관계통도.pdf</b><span>3 / 12 페이지 · 편집됨</span></div>
+    <div class="spacer"></div>
+    <div class="group">
+     <span class="ib"><svg><use href="#i-select"/></svg></span><span class="ib"><svg><use href="#i-hand"/></svg></span>
+    </div>
+    <div class="group">
+     <span class="ib"><svg><use href="#i-hl"/></svg></span><span class="ib"><svg><use href="#i-pen"/></svg></span><span class="ib"><svg><use href="#i-type"/></svg></span>
+     <span class="ib"><svg><use href="#i-text"/></svg></span><span class="ib"><svg><use href="#i-callout"/></svg></span><span class="ib"><svg><use href="#i-shape"/></svg></span>
+     <span class="ib on"><svg><use href="#i-cloud"/></svg></span><span class="ib"><svg><use href="#i-note"/></svg></span><span class="ib"><svg><use href="#i-stamp"/></svg></span>
+    </div>
+    <div class="spacer"></div>
+    <span class="ib"><svg><use href="#i-share"/></svg></span>
+    <span class="ib on"><svg><use href="#i-insp"/></svg></span>
+    <div class="wctl"><span><svg><use href="#w-min"/></svg></span><span><svg><use href="#w-max"/></svg></span><span><svg><use href="#w-close"/></svg></span></div>
+   </div>
+   <div class="body" style="grid-template-columns:170px 1fr 200px">
+    <div class="side">
+     <div class="seg"><span>페이지</span><span class="on">코멘트</span><span>책갈피</span></div>
+     <div class="cmt"><b>클라우드 · 3쪽</b><span>밸브 Cv값 재확인</span><span>미니 · 오늘 14:20</span></div>
+     <div class="cmt"><b>텍스트 강조 · 3쪽</b><span>설계압력 근거 문서 첨부 요망</span></div>
+     <div class="cmt"><b>스탬프 · 3쪽</b><span>검토 완료</span></div>
+     <div class="cmt"><b>스티커 메모 · 3쪽</b><span>O2 분석기 위치 변경 여부</span></div>
+    </div>
+    <div class="canvas"><div class="page"><svg viewBox="0 0 420 297"><use href="#sheet"/><use href="#marks"/><use href="#selbox"/></svg></div></div>
+    <div class="insp">
+     <h4>클라우드</h4>
+     <div class="row"><label>선 색상</label><div class="sw"><i class="on" style="background:var(--red)"></i><i style="background:var(--accent)"></i><i style="background:var(--green)"></i><i style="background:var(--hl)"></i><i style="background:var(--ink)"></i></div></div>
+     <div class="row"><label>선 두께 · 1.5 pt</label><div class="slider"><b style="width:30%"></b><em style="left:calc(30% - 7px)"></em></div></div>
+     <div class="row"><label>불투명도 · 100%</label><div class="slider"><b style="width:100%"></b><em style="left:calc(100% - 14px)"></em></div></div>
+     <div class="row"><label>구름 강도</label><div class="field"><span>보통</span><span>▾</span></div></div>
+     <div class="row"><label>작성자</label><div class="field"><span>미니</span></div></div>
+     <div class="row"><label>상태</label><div class="field"><span>검토 필요</span><span>▾</span></div></div>
+    </div>
+   </div>
+  </div></div>
+  <div class="notes">
+   <div><h3>장점</h3><ul><li>속성을 클릭 한 번으로 바꿈. PDF-XChange의 속성 창 기능을 그대로 옮김</li><li>코멘트 목록, 답글, 상태 관리가 사이드바에 상시 노출</li><li>주석 14종의 속성 UI를 같은 패널 틀로 통일할 수 있어 개발이 단순함</li></ul></div>
+   <div><h3>고려점</h3><ul><li>노트북 화면에서는 문서 영역이 좁아짐. 양쪽 패널 접기로 대응</li><li>툴바 도구가 많아 창 폭이 좁을 때 일부를 "더보기"로 접어야 함</li></ul></div>
+  </div>
+ </section>
+
+ <!-- B (Windows 11) -->
+ <section class="opt" id="bw">
+  <div class="opt-head"><span class="letter">B′</span><h2>B안 · Windows 11 스타일</h2><span class="tag">비교용</span></div>
+  <p class="lede">같은 B안 구조를 Windows 11 디자인 언어(Fluent)로 그린 것입니다. 제목 표시줄에 문서 탭, 그 아래에 글자가 붙은 명령 막대, 반투명 바탕(Mica) 위에 패널을 카드로 띄웁니다. Mac 스타일 B안과 비교해 보세요.</p>
+  <div class="scroller"><div class="win w11">
+   <div class="w11-title">
+    <div class="w11-tab on"><svg><use href="#i-pages"/></svg>MRS-P-101 배관계통도.pdf ✕</div>
+    <div class="w11-tab"><svg><use href="#i-pages"/></svg>POS_Valve_Spec.pdf</div>
+    <div class="w11-tab">+</div>
+    <div class="wctl"><span><svg><use href="#w-min"/></svg></span><span><svg><use href="#w-max"/></svg></span><span><svg><use href="#w-close"/></svg></span></div>
+   </div>
+   <div class="w11-cmd">
+    <span class="w11-btn"><svg><use href="#i-select"/></svg>선택</span><span class="w11-btn"><svg><use href="#i-hand"/></svg>이동</span>
+    <span class="w11-sep"></span>
+    <span class="w11-btn"><svg><use href="#i-hl"/></svg>강조</span><span class="w11-btn"><svg><use href="#i-pen"/></svg>연필</span><span class="w11-btn"><svg><use href="#i-type"/></svg>타자기</span>
+    <span class="w11-btn"><svg><use href="#i-callout"/></svg>설명선</span><span class="w11-btn"><svg><use href="#i-shape"/></svg>도형</span><span class="w11-btn on"><svg><use href="#i-cloud"/></svg>클라우드</span>
+    <span class="w11-btn"><svg><use href="#i-stamp"/></svg>스탬프</span><span class="w11-btn">···</span>
+    <div class="spacer"></div>
+    <span class="w11-btn"><svg><use href="#i-share"/></svg>공유</span>
+   </div>
+   <div class="w11-body">
+    <div class="w11-pane">
+     <div class="w11-pivot"><span>페이지</span><span class="on">코멘트</span><span>책갈피</span></div>
+     <div class="w11-item on"><b>클라우드 · 3쪽</b><span>밸브 Cv값 재확인</span><span>미니 · 오늘 14:20</span></div>
+     <div class="w11-item"><b>텍스트 강조 · 3쪽</b><span>설계압력 근거 문서 첨부 요망</span></div>
+     <div class="w11-item"><b>스탬프 · 3쪽</b><span>검토 완료</span></div>
+     <div class="w11-item"><b>스티커 메모 · 3쪽</b><span>O2 분석기 위치 변경 여부</span></div>
+    </div>
+    <div class="w11-canvas"><div class="page" style="width:440px"><svg viewBox="0 0 420 297"><use href="#sheet"/><use href="#marks"/><use href="#selbox"/></svg></div></div>
+    <div class="w11-pane">
+     <b style="font-size:13px">클라우드 속성</b>
+     <div class="row"><label>선 색상</label><div class="sw"><i class="on" style="background:var(--red)"></i><i style="background:var(--accent)"></i><i style="background:var(--green)"></i><i style="background:var(--hl)"></i><i style="background:var(--ink)"></i></div></div>
+     <div class="row"><label>선 두께 1.5 pt</label><div class="w11-slider"><b style="width:30%"></b><em style="left:calc(30% - 8px)"></em></div></div>
+     <div class="row"><label>불투명도 100%</label><div class="w11-slider"><b style="width:100%"></b><em style="left:calc(100% - 16px)"></em></div></div>
+     <div class="row"><label>구름 강도</label><div class="w11-combo"><span>보통</span><span>⌄</span></div></div>
+     <div class="row"><label>상태</label><div class="w11-combo"><span>검토 필요</span><span>⌄</span></div></div>
+    </div>
+   </div>
+  </div></div>
+  <div class="cmp">
+   <div><h3>Mac 스타일(B)과 다른 점</h3><ul><li>도구 버튼에 글자가 붙어 처음 쓰는 사람도 바로 알아봄. 대신 툴바 폭을 더 차지함</li><li>제목 표시줄의 탭으로 여러 PDF를 한 창에서 전환</li><li>패널이 바탕 위에 떠 있는 카드라 구역 구분이 뚜렷함</li></ul></div>
+   <div><h3>개발 측면</h3><ul><li>Avalonia에 Fluent 테마가 기본 포함되어 B′가 초기 공수가 적음</li><li>Mac 스타일은 테마를 직접 만들어야 함. 대신 한번 만들면 화면 전체에 일관되게 적용됨</li><li>두 테마 모두 같은 화면 구조라 나중에 설정에서 테마 전환 기능으로 제공 가능</li></ul></div>
+  </div>
+ </section>
+
+ <!-- C -->
+ <section class="opt" id="c">
+  <div class="opt-head"><span class="letter">C</span><h2>Freeform 방식 · 떠 있는 팔레트</h2><span class="tag">문서 영역 최대</span></div>
+  <p class="lede">사이드바를 숨기고 도구를 문서 위에 떠 있는 세로 팔레트로 둡니다. 속성은 주석을 선택하면 옆에 뜨는 팝오버로 바꿉니다. 하단 캡슐에 쪽 번호와 배율을 표시합니다.</p>
+  <div class="scroller"><div class="win" style="grid-template-rows:auto 1fr">
+   <div class="tb">
+    <span class="ib"><svg><use href="#i-side"/></svg></span>
+    <div class="doc-title"><b>MRS-P-101 배관계통도.pdf</b><span>편집됨</span></div>
+    <div class="spacer"></div>
+    <span class="ib"><svg><use href="#i-pages"/></svg></span><span class="ib"><svg><use href="#i-share"/></svg></span>
+    <div class="search"><svg><use href="#i-search"/></svg>검색</div>
+    <div class="wctl"><span><svg><use href="#w-min"/></svg></span><span><svg><use href="#w-max"/></svg></span><span><svg><use href="#w-close"/></svg></span></div>
+   </div>
+   <div class="canvas">
+    <div class="page" style="width:560px"><svg viewBox="0 0 420 297"><use href="#sheet"/><use href="#marks"/><use href="#selbox"/></svg></div>
+    <div class="palette">
+     <span class="ib"><svg><use href="#i-select"/></svg></span><span class="ib"><svg><use href="#i-hl"/></svg></span><span class="ib"><svg><use href="#i-pen"/></svg></span>
+     <span class="ib"><svg><use href="#i-type"/></svg></span><span class="ib"><svg><use href="#i-callout"/></svg></span><span class="ib"><svg><use href="#i-shape"/></svg></span>
+     <span class="ib on"><svg><use href="#i-cloud"/></svg></span><span class="ib"><svg><use href="#i-note"/></svg></span><span class="ib"><svg><use href="#i-stamp"/></svg></span><span class="ib"><svg><use href="#i-clip"/></svg></span>
+    </div>
+    <div class="pop" style="left:330px;right:auto;top:40px">
+     <div class="sw"><i class="on" style="background:var(--red)"></i><i style="background:var(--accent)"></i><i style="background:var(--green)"></i><i style="background:var(--hl)"></i></div>
+     <div class="row"><label>선 두께 · 1.5 pt</label><div class="slider"><b style="width:30%"></b><em style="left:calc(30% - 7px)"></em></div></div>
+     <div class="row"><label>불투명도 · 100%</label><div class="slider"><b style="width:100%"></b><em style="left:calc(100% - 14px)"></em></div></div>
+    </div>
+    <div class="pill"><span>3 / 12</span><span>·</span><span>125%</span></div>
+   </div>
+  </div></div>
+  <div class="notes">
+   <div><h3>장점</h3><ul><li>A3·A1 도면을 가장 크게 볼 수 있음</li><li>태블릿·펜 입력과 잘 맞음</li></ul></div>
+   <div><h3>고려점</h3><ul><li>팔레트가 도면 일부를 가림</li><li>코멘트 목록과 페이지 관리가 숨겨져 대량 검토에 불리함</li><li>팝오버 위치 계산 등 UI 개발 공수가 큼</li></ul></div>
+  </div>
+ </section>
+
+ <div class="decide">
+  <h2>이 화면에서 정할 것</h2>
+  <ol>
+   <li><b>기본 레이아웃:</b> A / B / C 중 하나. 권장은 B입니다. 주석 14종의 속성 편집과 코멘트 관리가 핵심이기 때문입니다.</li>
+   <li><b>창 조작 버튼 위치:</b> Windows 관례대로 오른쪽(시안 상태)에 둘지, Mac처럼 왼쪽 신호등(빨강·노랑·초록)으로 바꿀지. Windows 사용자가 헷갈리지 않도록 오른쪽을 권장합니다.</li>
+   <li><b>다크 모드:</b> 1차부터 지원할지. 시안은 시스템 설정을 따라 라이트·다크 모두 그렸습니다.</li>
+  </ol>
+ </div>
+</div>
+
+</html>
