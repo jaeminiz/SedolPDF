@@ -6,6 +6,7 @@
     <InternalsVisibleTo Include="S4.RenderBench.Tests" />
     <InternalsVisibleTo Include="S3.TextReplace" />
     <InternalsVisibleTo Include="PdfEditor.Document" />
+    <InternalsVisibleTo Include="Pdf.Native.Tests" />
   </ItemGroup>
 
 </Project>

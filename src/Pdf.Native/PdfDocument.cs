@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -22,10 +23,13 @@ public sealed unsafe class PdfDocument : IDisposable
 
     /// <summary>파일을 .NET으로 읽어 메모리에서 연다 (한글·공백 경로 대응).</summary>
     public static PdfDocument Open(PdfiumThread t, string path, string? password = null)
+        => OpenBytes(t, File.ReadAllBytes(path), password);
+
+    /// <summary>바이트 배열을 메모리에서 연다. 배열은 문서 수명 동안 고정된다.</summary>
+    public static PdfDocument OpenBytes(PdfiumThread t, byte[] data, string? password = null)
     {
         t.AssertOnThread();
         PdfiumLibrary.EnsureInitialized(t);
-        var data = File.ReadAllBytes(path);
         var pin = GCHandle.Alloc(data, GCHandleType.Pinned);
         IntPtr doc;
         try
@@ -66,9 +70,55 @@ public sealed unsafe class PdfDocument : IDisposable
     public void AddPage(double widthPt, double heightPt)
     {
         Check();
-        var page = NativeMethods.FPDFPage_New(_handle, NativeMethods.FPDF_GetPageCount(_handle), widthPt, heightPt);
+        InsertBlankPage(NativeMethods.FPDF_GetPageCount(_handle), widthPt, heightPt);
+    }
+
+    /// <summary>index 위치에 빈 페이지를 넣는다 (크기는 포인트).</summary>
+    public void InsertBlankPage(int index, double widthPt, double heightPt)
+    {
+        Check();
+        var page = NativeMethods.FPDFPage_New(_handle, index, widthPt, heightPt);
         if (page == IntPtr.Zero) throw PdfiumException.FromLastError("페이지 추가");
         NativeMethods.FPDF_ClosePage(page);
+    }
+
+    /// <summary>source의 sourceIndices 쪽들을 주어진 순서대로 insertAt 위치에 가져온다 (주석 포함).</summary>
+    public void ImportPages(PdfDocument source, IReadOnlyList<int> sourceIndices, int insertAt)
+    {
+        Check();
+        var src = source.Handle;
+        var arr = sourceIndices.ToArray();
+        int ok;
+        fixed (int* p = arr)
+            ok = NativeMethods.FPDF_ImportPagesByIndex(_handle, src, p, (ulong)arr.Length, insertAt);
+        if (ok == 0) throw PdfiumException.FromLastError("페이지 가져오기");
+    }
+
+    public void DeletePage(int index)
+    {
+        Check();
+        NativeMethods.FPDFPage_Delete(_handle, index);
+    }
+
+    /// <summary>옮긴 페이지들이 주어진 순서대로 연속해서 놓이고 첫 페이지의 결과 인덱스가 destIndex가 된다.</summary>
+    public void MovePages(IReadOnlyList<int> indices, int destIndex)
+    {
+        Check();
+        var arr = indices.ToArray();
+        int ok;
+        fixed (int* p = arr)
+            ok = NativeMethods.FPDF_MovePages(_handle, p, (ulong)arr.Length, destIndex);
+        if (ok == 0) throw PdfiumException.FromLastError("페이지 이동");
+    }
+
+    /// <summary>페이지를 로드하지 않고 크기(포인트)를 얻는다. 회전 반영 여부는 테스트로 확인.</summary>
+    public SizeF GetPageSizePt(int index)
+    {
+        Check();
+        FsSizeF s;
+        if (NativeMethods.FPDF_GetPageSizeByIndexF(_handle, index, &s) == 0)
+            throw PdfiumException.FromLastError("페이지 크기");
+        return new SizeF(s.Width, s.Height);
     }
 
     /// <summary>전체 저장 (증분 아님).</summary>
