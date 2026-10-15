@@ -1,0 +1,310 @@
+using System.Collections.ObjectModel;
+using System.Windows.Input;
+using Avalonia.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using PdfEditor.App.Documents;
+using PdfEditor.App.Resources;
+using PdfEditor.App.Shell.Ribbon;
+
+namespace PdfEditor.App.Shell;
+
+/// <summary>앱 셸의 상태. 문서 관련 명령은 자리 표시용(CanExecute false)이고 Task 11~17에서 연결한다.</summary>
+public sealed partial class MainWindowViewModel : ObservableObject
+{
+    private const double MinZoomPercent = 10, MaxZoomPercent = 1600;
+    private static readonly double ZoomLogSpan = Math.Log(MaxZoomPercent / MinZoomPercent);
+    private readonly Dictionary<string, IReadOnlyList<RibbonGroupVm>> _groupCache = new();
+    private bool _syncingZoom;
+
+    public ObservableCollection<DocumentTabViewModel> Documents { get; } = [];
+    public CommandRegistry Commands { get; } = new();
+    public IReadOnlyDictionary<string, IReadOnlyList<RibbonGroupModel>> Ribbon { get; }
+    public IReadOnlyList<RibbonTabVm> RibbonTabs { get; }
+    public IReadOnlyList<PanelButtonVm> PanelButtons { get; }
+    public IReadOnlyList<string> FileMenuCommandIds { get; } =
+        ["file.new", "file.open", "file.save", "file.saveAs", "file.print", "file.prefs", "file.about", "file.exit"];
+    public IReadOnlyList<AppCommand> QuickAccessCommands => QuickAccessCommandIds.Select(i => Commands.Find(i)!).ToList();
+    public ICommand OpenCommand => Commands.Find("file.open")!.Command;
+    public IReadOnlyList<string> QuickAccessCommandIds { get; } =
+        ["file.open", "file.save", "file.print", "edit.undo", "edit.redo"];
+
+    public IRelayCommand<PanelKind> SetPanelCommand { get; }
+    public IRelayCommand<DocumentTabViewModel> CloseDocumentCommand { get; }
+    public IRelayCommand<string> SelectRibbonTabCommand { get; }
+
+    /// <summary>끝내기 명령이 실행되면 창이 닫는다.</summary>
+    public event EventHandler? ExitRequested;
+
+    [ObservableProperty] private DocumentTabViewModel? _activeDocument;
+    [ObservableProperty] private string _selectedRibbonTab = "Home";
+    [ObservableProperty] private PanelKind _activeLeftPanel = PanelKind.Thumbnails;
+    [ObservableProperty] private bool _isLeftPanelVisible = true;
+    [ObservableProperty] private bool _isPropertiesPanelVisible = true;
+    [ObservableProperty] private bool _isFullScreen;
+    [ObservableProperty] private string _quickCommandText = "";
+    [ObservableProperty] private IReadOnlyList<AppCommand> _quickCommandResults = [];
+    [ObservableProperty] private double _zoomPercent = 100;
+    [ObservableProperty] private double _zoomSliderValue = Math.Log(10) / ZoomLogSpan;
+    [ObservableProperty] private double _cursorX;
+    [ObservableProperty] private double _cursorY;
+
+    public MainWindowViewModel()
+    {
+        SetPanelCommand = new RelayCommand<PanelKind>(k => { ActiveLeftPanel = k; IsLeftPanelVisible = true; });
+        SelectRibbonTabCommand = new RelayCommand<string>(t => { if (t is not null) SelectedRibbonTab = t; });
+        CloseDocumentCommand = new RelayCommand<DocumentTabViewModel>(d =>
+        {
+            if (d is null) return;
+            int i = Documents.IndexOf(d);
+            Documents.Remove(d);
+            if (ActiveDocument == d)
+                ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
+        });
+
+        RegisterCommands();
+        Ribbon = BuildRibbon();
+        RibbonTabs =
+        [
+            new("Home", Strings.Tab_Home), new("Annotate", Strings.Tab_Annotate), new("Edit", Strings.Tab_Edit),
+            new("Page", Strings.Tab_Page), new("View", Strings.Tab_View),
+        ];
+        RibbonTabs[0].IsSelected = true;
+        PanelButtons =
+        [
+            new(PanelKind.Thumbnails, Strings.Panel_Thumbnails, "thumbs"), new(PanelKind.Bookmarks, Strings.Panel_Bookmarks, "bookmark"),
+            new(PanelKind.Comments, Strings.Panel_Comments, "comments"), new(PanelKind.Attachments, Strings.Panel_Attachments, "clip"),
+            new(PanelKind.Layers, Strings.Panel_Layers, "layers"), new(PanelKind.Search, Strings.Panel_Search, "search"),
+        ];
+        PanelButtons[0].IsSelected = true;
+    }
+
+    // ---- 화면에 바인딩되는 파생 값 ----
+    public IReadOnlyList<RibbonGroupVm> CurrentRibbonGroups => GroupsFor(SelectedRibbonTab);
+    public string ActivePanelLabel => PanelButtons.First(p => p.Kind == ActiveLeftPanel).Label;
+    public string FileName => ActiveDocument?.Title ?? Strings.Doc_NoneOpen;
+    public bool HasNoDocument => ActiveDocument is null;
+    public bool HasQuickResults => QuickCommandResults.Count > 0;
+    public string ZoomText => $"{ZoomPercent:0}%";
+    public int PageCount => ActiveDocument?.PageCount ?? 0;
+    public string PageCountText => string.Format(Strings.Status_PageCount, PageCount);
+    public string StatusSizeText => string.Format(Strings.Status_PageSize,
+        ActiveDocument?.PageWidthMm ?? 0, ActiveDocument?.PageHeightMm ?? 0, CursorX, CursorY);
+
+    /// <summary>1부터 시작하는 현재 페이지 번호(문서 없으면 0). 쓰면 문서의 현재 페이지가 바뀐다.</summary>
+    public int CurrentPageNumber
+    {
+        get => ActiveDocument is null ? 0 : ActiveDocument.CurrentPageIndex + 1;
+        set
+        {
+            if (ActiveDocument is null) return;
+            ActiveDocument.CurrentPageIndex = Math.Clamp(value - 1, 0, Math.Max(0, ActiveDocument.PageCount - 1));
+            OnPropertyChanged();
+        }
+    }
+
+    partial void OnActiveDocumentChanged(DocumentTabViewModel? oldValue, DocumentTabViewModel? newValue)
+    {
+        if (oldValue is not null) oldValue.PropertyChanged -= OnDocumentPropertyChanged;
+        if (newValue is not null) newValue.PropertyChanged += OnDocumentPropertyChanged;
+        RefreshDocumentStatus();
+        OnPropertyChanged(nameof(FileName));
+        OnPropertyChanged(nameof(HasNoDocument));
+    }
+
+    private void OnDocumentPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        RefreshDocumentStatus();
+        if (e.PropertyName == nameof(DocumentTabViewModel.Title)) OnPropertyChanged(nameof(FileName));
+    }
+
+    private void RefreshDocumentStatus()
+    {
+        OnPropertyChanged(nameof(CurrentPageNumber));
+        OnPropertyChanged(nameof(PageCount));
+        OnPropertyChanged(nameof(PageCountText));
+        OnPropertyChanged(nameof(StatusSizeText));
+    }
+
+    partial void OnCursorXChanged(double value) => OnPropertyChanged(nameof(StatusSizeText));
+    partial void OnCursorYChanged(double value) => OnPropertyChanged(nameof(StatusSizeText));
+
+    partial void OnSelectedRibbonTabChanged(string value)
+    {
+        foreach (var t in RibbonTabs) t.IsSelected = t.Id == value;
+        OnPropertyChanged(nameof(CurrentRibbonGroups));
+    }
+
+    partial void OnActiveLeftPanelChanged(PanelKind value)
+    {
+        foreach (var p in PanelButtons) p.IsSelected = p.Kind == value;
+        OnPropertyChanged(nameof(ActivePanelLabel));
+    }
+
+    partial void OnQuickCommandTextChanged(string value) => QuickCommandResults = Commands.Search(value);
+    partial void OnQuickCommandResultsChanged(IReadOnlyList<AppCommand> value) => OnPropertyChanged(nameof(HasQuickResults));
+
+    // 슬라이더(0..1, 로그 눈금)와 배율(%)을 서로 맞춘다.
+    partial void OnZoomSliderValueChanged(double value)
+    {
+        if (_syncingZoom) return;
+        _syncingZoom = true;
+        ZoomPercent = MinZoomPercent * Math.Exp(Math.Clamp(value, 0, 1) * ZoomLogSpan);
+        _syncingZoom = false;
+    }
+
+    partial void OnZoomPercentChanged(double value)
+    {
+        OnPropertyChanged(nameof(ZoomText));
+        if (_syncingZoom) return;
+        _syncingZoom = true;
+        ZoomSliderValue = Math.Log(Math.Clamp(value, MinZoomPercent, MaxZoomPercent) / MinZoomPercent) / ZoomLogSpan;
+        _syncingZoom = false;
+    }
+
+    private IReadOnlyList<RibbonGroupVm> GroupsFor(string tab)
+    {
+        if (_groupCache.TryGetValue(tab, out var cached)) return cached;
+        var groups = Ribbon[tab].Select(g => new RibbonGroupVm(g.Name,
+            g.Items.Select(i => new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, !g.Compact, i.DisabledTip)).ToList(),
+            g.Compact)).ToList();
+        return _groupCache[tab] = groups;
+    }
+
+    // ---- 명령 등록 ----
+    private static RelayCommand Placeholder() => new(() => { }, () => false);
+    private static KeyGesture G(Key k, KeyModifiers m = KeyModifiers.Control) => new(k, m);
+
+    private void Reg(string id, string label, string? icon, KeyGesture? gesture = null, ICommand? command = null) =>
+        Commands.Register(new AppCommand(id, label, command ?? Placeholder(), gesture, icon));
+
+    private void RegisterCommands()
+    {
+        Reg("file.new", Strings.Cmd_New, "note", G(Key.N));
+        Reg("file.open", Strings.Cmd_Open, "open", G(Key.O));
+        Reg("file.save", Strings.Cmd_Save, "save", G(Key.S));
+        Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift));
+        Reg("file.print", Strings.Cmd_Print, "print", G(Key.P));
+        Reg("file.prefs", Strings.Cmd_Preferences, null);
+        Reg("file.about", Strings.Cmd_About, null);
+        Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
+        Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z));
+        Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y));
+        Reg("doc.close", Strings.Cmd_CloseDoc, null, G(Key.W));
+        Reg("find", Strings.Cmd_Find, "search", G(Key.F));
+
+        Reg("tool.hand", Strings.Cmd_Hand, "hand");
+        Reg("tool.textSelect", Strings.Cmd_TextSelect, "tsel");
+        Reg("zoom.in", Strings.Cmd_ZoomIn, "zin", G(Key.OemPlus));
+        Reg("zoom.out", Strings.Cmd_ZoomOut, "zout", G(Key.OemMinus));
+        Reg("zoom.actual", Strings.Cmd_ActualSize, null, G(Key.D1));
+        Reg("zoom.fitWidth", Strings.Cmd_FitWidth, null, G(Key.D2));
+        Reg("zoom.fitPage", Strings.Cmd_FitPage, null, G(Key.D0));
+        Reg("page.rotateLeft", Strings.Cmd_PageRotateLeft, "rotate");
+        Reg("page.rotateRight", Strings.Cmd_PageRotateRight, "rotate");
+
+        Reg("annot.select", Strings.Cmd_AnnotSelect, "select");
+        Reg("annot.typewriter", Strings.Cmd_Typewriter, "type");
+        Reg("annot.textbox", Strings.Cmd_TextBox, "text");
+        Reg("annot.callout", Strings.Cmd_Callout, "callout");
+        Reg("annot.sticky", Strings.Cmd_StickyNote, "note");
+        Reg("annot.attach", Strings.Cmd_FileAttach, "clip");
+        Reg("annot.hlText", Strings.Cmd_HighlightText, "hl");
+        Reg("annot.hlArea", Strings.Cmd_HighlightArea, "area");
+        Reg("annot.underline", Strings.Cmd_Underline, "under");
+        Reg("annot.strike", Strings.Cmd_Strikeout, "strike");
+        Reg("annot.insertText", Strings.Cmd_InsertText, "caret");
+        Reg("annot.replaceText", Strings.Cmd_ReplaceText, "replace");
+        Reg("annot.line", Strings.Cmd_Line, "line");
+        Reg("annot.arrow", Strings.Cmd_Arrow, "arrow");
+        Reg("annot.rect", Strings.Cmd_Rectangle, "rect");
+        Reg("annot.ellipse", Strings.Cmd_Ellipse, "oval");
+        Reg("annot.polygon", Strings.Cmd_Polygon, "poly");
+        Reg("annot.polyline", Strings.Cmd_Polyline, "pline");
+        Reg("annot.cloud", Strings.Cmd_Cloud, "cloud");
+        Reg("annot.pencil", Strings.Cmd_Pencil, "pen");
+        Reg("annot.eraser", Strings.Cmd_Eraser, "eraser");
+        Reg("annot.stamp", Strings.Cmd_Stamp, "stamp");
+        Reg("annot.commentList", Strings.Cmd_CommentList, "comments");
+        Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers");
+        Reg("annot.importExport", Strings.Cmd_ImportExport, "share");
+        Reg("annot.style", Strings.Cmd_AnnotStyle, "pen");
+
+        Reg("edit.text", Strings.Cmd_EditText, "textedit");
+        Reg("edit.object", Strings.Cmd_EditObject, "objedit");
+        Reg("edit.addText", Strings.Cmd_AddText, "type");
+        Reg("edit.addImage", Strings.Cmd_AddImage, "image");
+        Reg("edit.addShape", Strings.Cmd_AddShape, "rect");
+
+        Reg("page.insertBlank", Strings.Cmd_PageInsertBlank, "note");
+        Reg("page.insertFile", Strings.Cmd_PageInsertFromFile, "open");
+        Reg("page.delete", Strings.Cmd_PageDelete, null);
+        Reg("page.moveForward", Strings.Cmd_PageMoveForward, null);
+        Reg("page.moveBack", Strings.Cmd_PageMoveBack, null);
+        Reg("page.moveTo", Strings.Cmd_PageMoveTo, null);
+        Reg("page.merge", Strings.Cmd_MergeDocuments, "layers");
+
+        Reg("view.continuous", Strings.Cmd_Continuous, null);
+        Reg("view.single", Strings.Cmd_SinglePage, null);
+        Reg("view.leftPanel", Strings.Cmd_LeftPanel, "side", null,
+            new RelayCommand(() => IsLeftPanelVisible = !IsLeftPanelVisible));
+        Reg("view.properties", Strings.Cmd_PropertiesPanel, "insp", null,
+            new RelayCommand(() => IsPropertiesPanelVisible = !IsPropertiesPanelVisible));
+        Reg("view.fullscreen", Strings.Cmd_FullScreen, null, new KeyGesture(Key.F11),
+            new RelayCommand(() => IsFullScreen = !IsFullScreen));
+    }
+
+    // ---- 리본 정의 ----
+    private static IReadOnlyDictionary<string, IReadOnlyList<RibbonGroupModel>> BuildRibbon()
+    {
+        string m23 = Strings.Msg_ComingInM2M3, m45 = Strings.Msg_ComingInM4M5, tbd = Strings.Msg_NotYetConnected;
+        RibbonItemModel I(string id, string label, string? tip = null) => new(id, label, tip);
+        RibbonItemModel A(string id, string label) => new("annot." + id, label, m23);
+        RibbonGroupModel Gr(string name, bool compact, params RibbonItemModel[] items) => new(name, items, compact);
+
+        return new Dictionary<string, IReadOnlyList<RibbonGroupModel>>
+        {
+            ["Home"] =
+            [
+                Gr(Strings.Group_Tools, false, I("tool.hand", Strings.Cmd_Hand, tbd), I("tool.textSelect", Strings.Cmd_TextSelect, tbd)),
+                Gr(Strings.Group_Zoom, false, I("zoom.in", Strings.Cmd_ZoomIn, tbd), I("zoom.out", Strings.Cmd_ZoomOut, tbd),
+                    I("zoom.actual", Strings.Cmd_ActualSize, tbd), I("zoom.fitWidth", Strings.Cmd_FitWidth, tbd), I("zoom.fitPage", Strings.Cmd_FitPage, tbd)),
+                Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft, tbd), I("page.rotateRight", Strings.Cmd_RotateRight, tbd)),
+                Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find, tbd)),
+            ],
+            ["Annotate"] =
+            [
+                Gr(Strings.Group_Tools, false, I("tool.hand", Strings.Cmd_Hand, m23), I("tool.textSelect", Strings.Cmd_TextSelect, m23), A("select", Strings.Cmd_AnnotSelect)),
+                Gr(Strings.Group_Text, false, A("typewriter", Strings.Cmd_Typewriter), A("textbox", Strings.Cmd_TextBox), A("callout", Strings.Cmd_Callout)),
+                Gr(Strings.Group_Note, false, A("sticky", Strings.Cmd_StickyNote), A("attach", Strings.Cmd_FileAttach)),
+                Gr(Strings.Group_TextMarkup, true, A("hlText", Strings.Cmd_HighlightText), A("hlArea", Strings.Cmd_HighlightArea),
+                    A("underline", Strings.Cmd_Underline), A("strike", Strings.Cmd_Strikeout), A("insertText", Strings.Cmd_InsertText), A("replaceText", Strings.Cmd_ReplaceText)),
+                Gr(Strings.Group_Draw, true, A("line", Strings.Cmd_Line), A("arrow", Strings.Cmd_Arrow), A("rect", Strings.Cmd_Rectangle),
+                    A("ellipse", Strings.Cmd_Ellipse), A("polygon", Strings.Cmd_Polygon), A("polyline", Strings.Cmd_Polyline),
+                    A("cloud", Strings.Cmd_Cloud), A("pencil", Strings.Cmd_Pencil), A("eraser", Strings.Cmd_Eraser)),
+                Gr(Strings.Group_Stamp, false, A("stamp", Strings.Cmd_Stamp)),
+                Gr(Strings.Group_AnnotManage, true, A("commentList", Strings.Cmd_CommentList), A("summary", Strings.Cmd_AnnotSummary),
+                    A("importExport", Strings.Cmd_ImportExport), A("style", Strings.Cmd_AnnotStyle)),
+            ],
+            ["Edit"] =
+            [
+                Gr(Strings.Group_EditTools, false, I("edit.text", Strings.Cmd_EditText, m45), I("edit.object", Strings.Cmd_EditObject, m45),
+                    I("edit.addText", Strings.Cmd_AddText, m45), I("edit.addImage", Strings.Cmd_AddImage, m45), I("edit.addShape", Strings.Cmd_AddShape, m45)),
+            ],
+            ["Page"] =
+            [
+                Gr(Strings.Group_Insert, false, I("page.insertBlank", Strings.Cmd_InsertBlank, tbd), I("page.insertFile", Strings.Cmd_InsertFromFile, tbd)),
+                Gr(Strings.Group_Delete, false, I("page.delete", Strings.Cmd_DeletePage, tbd)),
+                Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft, tbd), I("page.rotateRight", Strings.Cmd_RotateRight, tbd)),
+                Gr(Strings.Group_Order, false, I("page.moveForward", Strings.Cmd_MoveForward, tbd), I("page.moveBack", Strings.Cmd_MoveBack, tbd), I("page.moveTo", Strings.Cmd_MoveTo, tbd)),
+                Gr(Strings.Group_Document, false, I("page.merge", Strings.Cmd_Merge, tbd)),
+            ],
+            ["View"] =
+            [
+                Gr(Strings.Group_PageView, false, I("view.continuous", Strings.Cmd_Continuous, tbd), I("view.single", Strings.Cmd_SinglePage, tbd)),
+                Gr(Strings.Group_Panels, false, I("view.leftPanel", Strings.Cmd_LeftPanel), I("view.properties", Strings.Cmd_PropertiesPanel)),
+                Gr(Strings.Group_Screen, false, I("view.fullscreen", Strings.Cmd_FullScreen)),
+            ],
+        };
+    }
+}

@@ -1,7 +1,0 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:res="using:PdfEditor.App.Resources"
-        x:Class="PdfEditor.App.MainWindow"
-        Title="{x:Static res:Strings.App_Name}"
-        Width="1280" Height="800">
-</Window>

@@ -1,0 +1,85 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:rb="using:PdfEditor.App.Shell.Ribbon"
+        xmlns:res="using:PdfEditor.App.Resources">
+  <Styles.Resources>
+    <SolidColorBrush x:Key="WinAccent">#005FB8</SolidColorBrush>
+    <SolidColorBrush x:Key="WinAccentSoft">#1A005FB8</SolidColorBrush>
+    <SolidColorBrush x:Key="WinLine">#17000000</SolidColorBrush>
+    <SolidColorBrush x:Key="WinSub">#5C5C5C</SolidColorBrush>
+    <SolidColorBrush x:Key="WinCard">#FBFBFB</SolidColorBrush>
+    <SolidColorBrush x:Key="WinDisabled">#9A9A9A</SolidColorBrush>
+
+    <ControlTheme x:Key="{x:Type rb:RibbonButton}" TargetType="rb:RibbonButton">
+      <Setter Property="Padding" Value="6,4" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#1A1A1A" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="MinWidth" Value="44" />
+      <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="Root" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}">
+            <StackPanel Name="Panel" Orientation="Vertical" Spacing="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <res:IconView Name="Icon" Key="{TemplateBinding IconKey}" Foreground="{TemplateBinding Foreground}"
+                            Width="22" Height="22" HorizontalAlignment="Center" />
+              <TextBlock Name="Text" Text="{TemplateBinding Label}" Foreground="{TemplateBinding Foreground}"
+                         HorizontalAlignment="Center" TextAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^:small /template/ StackPanel#Panel">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="6" />
+      </Style>
+      <Style Selector="^:small /template/ res|IconView#Icon">
+        <Setter Property="Width" Value="15" />
+        <Setter Property="Height" Value="15" />
+      </Style>
+      <Style Selector="^:small">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Padding" Value="6,2" />
+      </Style>
+      <Style Selector="^:pointerover /template/ Border#Root">
+        <Setter Property="Background" Value="#0F000000" />
+      </Style>
+      <Style Selector="^:pressed /template/ Border#Root">
+        <Setter Property="Background" Value="{StaticResource WinAccentSoft}" />
+      </Style>
+      <Style Selector="^:disabled">
+        <Setter Property="Foreground" Value="{StaticResource WinDisabled}" />
+      </Style>
+    </ControlTheme>
+
+    <ControlTheme x:Key="{x:Type rb:RibbonGroup}" TargetType="rb:RibbonGroup">
+      <Setter Property="Padding" Value="6,0" />
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <StackPanel Orientation="Horizontal" Spacing="2" />
+        </ItemsPanelTemplate>
+      </Setter>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border BorderBrush="{StaticResource WinLine}" BorderThickness="0,0,1,0" Padding="{TemplateBinding Padding}">
+            <Grid RowDefinitions="*,14">
+              <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}"
+                              VerticalAlignment="Center" />
+              <TextBlock Grid.Row="1" Text="{TemplateBinding Header}" FontSize="10"
+                         Foreground="{StaticResource WinSub}" HorizontalAlignment="Center" />
+            </Grid>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^:compact">
+        <Setter Property="ItemsPanel">
+          <ItemsPanelTemplate>
+            <WrapPanel Orientation="Vertical" Height="56" />
+          </ItemsPanelTemplate>
+        </Setter>
+      </Style>
+    </ControlTheme>
+  </Styles.Resources>
+</Styles>

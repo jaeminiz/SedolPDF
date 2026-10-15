@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PdfEditor.App.Resources"
+             xmlns:shell="using:PdfEditor.App.Shell"
+             x:Class="PdfEditor.App.Shell.TitleBar"
+             x:DataType="shell:MainWindowViewModel">
+  <!-- 왼쪽 100px는 Avalonia 12가 그리는 창 제목(앱 이름)이 차지한다(검증 필요: 숨기는 방법). 오른쪽 140px는 시스템 창 조작 버튼(최소화·최대화·닫기)이 차지한다. -->
+  <Grid ColumnDefinitions="Auto,*,140" Height="40">
+    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2" Margin="100,0,0,0" VerticalAlignment="Center">
+      <ItemsControl ItemsSource="{Binding QuickAccessCommands}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="shell:AppCommand">
+            <Button Classes="quick" Command="{Binding Command}" ToolTip.Tip="{Binding Label}" ToolTip.ShowOnDisabled="True">
+              <res:IconView Key="{Binding IconKey}" Width="17" Height="17"
+                            Foreground="{Binding $parent[Button].Foreground}" />
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <TextBlock Text="{Binding FileName}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <Panel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Width="300">
+      <Border Background="#FBFBFB" BorderBrush="#17000000" BorderThickness="1" CornerRadius="4" Height="28" />
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0" VerticalAlignment="Center">
+        <res:IconView Key="search" Width="14" Height="14" Foreground="#5C5C5C" />
+        <TextBox Name="QuickBox" Classes="quickbox" Width="250" Text="{Binding QuickCommandText}"
+                 PlaceholderText="{x:Static res:Strings.Cmd_QuickCommandPlaceholder}" />
+      </StackPanel>
+      <Popup Name="QuickPopup" IsOpen="{Binding HasQuickResults, Mode=OneWay}" PlacementTarget="{Binding #QuickBox}"
+             Placement="Bottom" IsLightDismissEnabled="False" MinWidth="300">
+        <Border Background="#FBFBFB" BorderBrush="#17000000" BorderThickness="1" CornerRadius="6" Padding="4" MaxHeight="320">
+          <ListBox Name="QuickList" ItemsSource="{Binding QuickCommandResults}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="shell:AppCommand">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </Popup>
+    </Panel>
+  </Grid>
+</UserControl>

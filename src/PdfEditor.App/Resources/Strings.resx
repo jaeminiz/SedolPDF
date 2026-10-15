@@ -11,4 +11,120 @@
   <data name="Tab_Edit" xml:space="preserve"><value>편집</value></data>
   <data name="Tab_Page" xml:space="preserve"><value>페이지</value></data>
   <data name="Tab_View" xml:space="preserve"><value>보기</value></data>
+  <data name="Doc_NoneOpen" xml:space="preserve"><value>열린 문서 없음</value></data>
+  <data name="Msg_NoDocument" xml:space="preserve"><value>열린 문서가 없습니다. Ctrl+O로 PDF 파일을 여세요.</value></data>
+  <data name="Msg_ComingInM2M3" xml:space="preserve"><value>주석 기능은 이후 단계에서 제공됩니다.</value></data>
+  <data name="Msg_ComingInM4M5" xml:space="preserve"><value>편집 기능은 이후 단계에서 제공됩니다.</value></data>
+  <data name="Msg_NotYetConnected" xml:space="preserve"><value>아직 연결되지 않은 기능입니다.</value></data>
+  <data name="Cmd_QuickCommandPlaceholder" xml:space="preserve"><value>빠른 실행 (Ctrl+.)</value></data>
+  <data name="Cmd_New" xml:space="preserve"><value>새로 만들기</value></data>
+  <data name="Cmd_Open" xml:space="preserve"><value>열기</value></data>
+  <data name="Cmd_RecentDocs" xml:space="preserve"><value>최근 문서</value></data>
+  <data name="Cmd_NoRecent" xml:space="preserve"><value>최근 문서 없음</value></data>
+  <data name="Cmd_Save" xml:space="preserve"><value>저장</value></data>
+  <data name="Cmd_SaveAs" xml:space="preserve"><value>다른 이름으로 저장</value></data>
+  <data name="Cmd_Print" xml:space="preserve"><value>인쇄</value></data>
+  <data name="Cmd_Preferences" xml:space="preserve"><value>환경 설정</value></data>
+  <data name="Cmd_About" xml:space="preserve"><value>정보</value></data>
+  <data name="Cmd_Exit" xml:space="preserve"><value>끝내기</value></data>
+  <data name="Cmd_Undo" xml:space="preserve"><value>실행 취소</value></data>
+  <data name="Cmd_Redo" xml:space="preserve"><value>다시 실행</value></data>
+  <data name="Cmd_CloseDoc" xml:space="preserve"><value>문서 닫기</value></data>
+  <data name="Cmd_Find" xml:space="preserve"><value>찾기</value></data>
+  <data name="Cmd_Hand" xml:space="preserve"><value>손</value></data>
+  <data name="Cmd_TextSelect" xml:space="preserve"><value>텍스트 선택</value></data>
+  <data name="Cmd_AnnotSelect" xml:space="preserve"><value>주석 선택</value></data>
+  <data name="Cmd_ZoomIn" xml:space="preserve"><value>확대</value></data>
+  <data name="Cmd_ZoomOut" xml:space="preserve"><value>축소</value></data>
+  <data name="Cmd_ActualSize" xml:space="preserve"><value>실제 크기</value></data>
+  <data name="Cmd_FitWidth" xml:space="preserve"><value>폭 맞춤</value></data>
+  <data name="Cmd_FitPage" xml:space="preserve"><value>페이지 맞춤</value></data>
+  <data name="Cmd_RotateLeft" xml:space="preserve"><value>왼쪽으로</value></data>
+  <data name="Cmd_RotateRight" xml:space="preserve"><value>오른쪽으로</value></data>
+  <data name="Cmd_PageRotateLeft" xml:space="preserve"><value>페이지 왼쪽으로 회전</value></data>
+  <data name="Cmd_PageRotateRight" xml:space="preserve"><value>페이지 오른쪽으로 회전</value></data>
+  <data name="Cmd_Typewriter" xml:space="preserve"><value>타자기</value></data>
+  <data name="Cmd_TextBox" xml:space="preserve"><value>텍스트 상자</value></data>
+  <data name="Cmd_Callout" xml:space="preserve"><value>설명선</value></data>
+  <data name="Cmd_StickyNote" xml:space="preserve"><value>스티커 메모</value></data>
+  <data name="Cmd_FileAttach" xml:space="preserve"><value>파일 첨부</value></data>
+  <data name="Cmd_HighlightText" xml:space="preserve"><value>텍스트 강조</value></data>
+  <data name="Cmd_HighlightArea" xml:space="preserve"><value>영역 강조</value></data>
+  <data name="Cmd_Underline" xml:space="preserve"><value>밑줄</value></data>
+  <data name="Cmd_Strikeout" xml:space="preserve"><value>취소선</value></data>
+  <data name="Cmd_InsertText" xml:space="preserve"><value>텍스트 삽입</value></data>
+  <data name="Cmd_ReplaceText" xml:space="preserve"><value>텍스트 바꾸기</value></data>
+  <data name="Cmd_Line" xml:space="preserve"><value>선</value></data>
+  <data name="Cmd_Arrow" xml:space="preserve"><value>화살표</value></data>
+  <data name="Cmd_Rectangle" xml:space="preserve"><value>사각형</value></data>
+  <data name="Cmd_Ellipse" xml:space="preserve"><value>타원</value></data>
+  <data name="Cmd_Polygon" xml:space="preserve"><value>다각형</value></data>
+  <data name="Cmd_Polyline" xml:space="preserve"><value>폴리라인</value></data>
+  <data name="Cmd_Cloud" xml:space="preserve"><value>클라우드</value></data>
+  <data name="Cmd_Pencil" xml:space="preserve"><value>연필</value></data>
+  <data name="Cmd_Eraser" xml:space="preserve"><value>지우개</value></data>
+  <data name="Cmd_Stamp" xml:space="preserve"><value>스탬프 ▾</value></data>
+  <data name="Cmd_CommentList" xml:space="preserve"><value>코멘트 목록</value></data>
+  <data name="Cmd_AnnotSummary" xml:space="preserve"><value>주석 요약</value></data>
+  <data name="Cmd_ImportExport" xml:space="preserve"><value>가져오기·내보내기</value></data>
+  <data name="Cmd_AnnotStyle" xml:space="preserve"><value>주석 스타일</value></data>
+  <data name="Cmd_EditText" xml:space="preserve"><value>텍스트 편집</value></data>
+  <data name="Cmd_EditObject" xml:space="preserve"><value>개체 편집</value></data>
+  <data name="Cmd_AddText" xml:space="preserve"><value>텍스트 추가</value></data>
+  <data name="Cmd_AddImage" xml:space="preserve"><value>이미지 추가</value></data>
+  <data name="Cmd_AddShape" xml:space="preserve"><value>도형 추가</value></data>
+  <data name="Cmd_InsertBlank" xml:space="preserve"><value>빈 페이지</value></data>
+  <data name="Cmd_InsertFromFile" xml:space="preserve"><value>파일에서</value></data>
+  <data name="Cmd_DeletePage" xml:space="preserve"><value>삭제</value></data>
+  <data name="Cmd_PageDelete" xml:space="preserve"><value>페이지 삭제</value></data>
+  <data name="Cmd_MoveForward" xml:space="preserve"><value>앞으로</value></data>
+  <data name="Cmd_MoveBack" xml:space="preserve"><value>뒤로</value></data>
+  <data name="Cmd_MoveTo" xml:space="preserve"><value>위치 지정…</value></data>
+  <data name="Cmd_PageInsertBlank" xml:space="preserve"><value>빈 페이지 삽입</value></data>
+  <data name="Cmd_PageInsertFromFile" xml:space="preserve"><value>파일에서 페이지 삽입</value></data>
+  <data name="Cmd_PageMoveForward" xml:space="preserve"><value>페이지 앞으로 이동</value></data>
+  <data name="Cmd_PageMoveBack" xml:space="preserve"><value>페이지 뒤로 이동</value></data>
+  <data name="Cmd_PageMoveTo" xml:space="preserve"><value>페이지 위치 지정</value></data>
+  <data name="Cmd_Merge" xml:space="preserve"><value>병합</value></data>
+  <data name="Cmd_MergeDocuments" xml:space="preserve"><value>문서 병합</value></data>
+  <data name="Cmd_Continuous" xml:space="preserve"><value>연속</value></data>
+  <data name="Cmd_SinglePage" xml:space="preserve"><value>한 쪽</value></data>
+  <data name="Cmd_LeftPanel" xml:space="preserve"><value>왼쪽 패널</value></data>
+  <data name="Cmd_PropertiesPanel" xml:space="preserve"><value>속성 패널</value></data>
+  <data name="Cmd_FullScreen" xml:space="preserve"><value>전체 화면</value></data>
+  <data name="Group_Tools" xml:space="preserve"><value>도구</value></data>
+  <data name="Group_Zoom" xml:space="preserve"><value>확대/축소</value></data>
+  <data name="Group_Rotate" xml:space="preserve"><value>회전</value></data>
+  <data name="Group_Find" xml:space="preserve"><value>찾기</value></data>
+  <data name="Group_Text" xml:space="preserve"><value>텍스트</value></data>
+  <data name="Group_Note" xml:space="preserve"><value>참고</value></data>
+  <data name="Group_TextMarkup" xml:space="preserve"><value>텍스트 마크업</value></data>
+  <data name="Group_Draw" xml:space="preserve"><value>그리기</value></data>
+  <data name="Group_Stamp" xml:space="preserve"><value>스탬프</value></data>
+  <data name="Group_AnnotManage" xml:space="preserve"><value>주석 관리</value></data>
+  <data name="Group_EditTools" xml:space="preserve"><value>편집</value></data>
+  <data name="Group_Insert" xml:space="preserve"><value>삽입</value></data>
+  <data name="Group_Delete" xml:space="preserve"><value>삭제</value></data>
+  <data name="Group_Order" xml:space="preserve"><value>순서</value></data>
+  <data name="Group_Document" xml:space="preserve"><value>문서</value></data>
+  <data name="Group_PageView" xml:space="preserve"><value>페이지 표시</value></data>
+  <data name="Group_Panels" xml:space="preserve"><value>패널</value></data>
+  <data name="Group_Screen" xml:space="preserve"><value>화면</value></data>
+  <data name="Panel_Thumbnails" xml:space="preserve"><value>썸네일</value></data>
+  <data name="Panel_Bookmarks" xml:space="preserve"><value>책갈피</value></data>
+  <data name="Panel_Comments" xml:space="preserve"><value>코멘트</value></data>
+  <data name="Panel_Attachments" xml:space="preserve"><value>첨부</value></data>
+  <data name="Panel_Layers" xml:space="preserve"><value>레이어</value></data>
+  <data name="Panel_Search" xml:space="preserve"><value>검색</value></data>
+  <data name="Panel_Properties" xml:space="preserve"><value>속성</value></data>
+  <data name="Panel_PropertiesEmpty" xml:space="preserve"><value>선택한 항목이 없습니다.</value></data>
+  <data name="Status_PageSize" xml:space="preserve"><value>W {0:0.0} mm  H {1:0.0} mm  X {2:0.0}  Y {3:0.0}</value></data>
+  <data name="Status_PageCount" xml:space="preserve"><value>/ {0}</value></data>
+  <data name="Tip_CloseTab" xml:space="preserve"><value>탭 닫기</value></data>
+  <data name="Tip_NewTab" xml:space="preserve"><value>문서 열기</value></data>
+  <data name="Tip_FirstPage" xml:space="preserve"><value>첫 페이지</value></data>
+  <data name="Tip_PrevPage" xml:space="preserve"><value>이전 페이지</value></data>
+  <data name="Tip_NextPage" xml:space="preserve"><value>다음 페이지</value></data>
+  <data name="Tip_LastPage" xml:space="preserve"><value>마지막 페이지</value></data>
+  <data name="Tip_Zoom" xml:space="preserve"><value>배율</value></data>
 </root>
