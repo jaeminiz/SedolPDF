@@ -158,6 +158,82 @@ public sealed unsafe class PdfDocument : IDisposable
         return new SizeF(s.Width, s.Height);
     }
 
+    /// <summary>
+    /// 책갈피 트리. 순환(자기 자신을 가리키는 /Next 등)은 방문한 핸들 집합으로 막고, maxNodes를 넘으면 멈춘다.
+    /// </summary>
+    public IReadOnlyList<PdfBookmark> GetBookmarks(int maxNodes = 10_000)
+    {
+        Check();
+        var visited = new HashSet<IntPtr>();
+        int count = 0;
+        return ReadSiblings(IntPtr.Zero, visited, ref count, maxNodes, 0);
+    }
+
+    private List<PdfBookmark> ReadSiblings(IntPtr parent, HashSet<IntPtr> visited, ref int count, int max, int depth)
+    {
+        var list = new List<PdfBookmark>();
+        // 깊이 제한은 스택 보호용 (정상 문서에서 도달하지 않음)
+        if (depth > 256) return list;
+        var node = NativeMethods.FPDFBookmark_GetFirstChild(_handle, parent);
+        while (node != IntPtr.Zero && count < max && visited.Add(node))
+        {
+            count++;
+            var n = node;
+            string title = NativeUtf16.Read((b, len) => NativeMethods.FPDFBookmark_GetTitle(n, b, (uint)len));
+            int c = NativeMethods.FPDFBookmark_GetCount(node);
+            int? page = null;
+            var dest = NativeMethods.FPDFBookmark_GetDest(_handle, node);
+            if (dest == IntPtr.Zero)
+            {
+                var action = NativeMethods.FPDFBookmark_GetAction(node);
+                if (action != IntPtr.Zero) dest = NativeMethods.FPDFAction_GetDest(_handle, action);
+            }
+            if (dest != IntPtr.Zero)
+            {
+                int idx = NativeMethods.FPDFDest_GetDestPageIndex(_handle, dest);
+                if (idx >= 0) page = idx;
+            }
+            var children = ReadSiblings(node, visited, ref count, max, depth + 1);
+            list.Add(new PdfBookmark(title, page, children, c > 0));
+            node = NativeMethods.FPDFBookmark_GetNextSibling(_handle, node);
+        }
+        return list;
+    }
+
+    public IReadOnlyList<PdfAttachmentInfo> GetAttachments()
+    {
+        Check();
+        int n = NativeMethods.FPDFDoc_GetAttachmentCount(_handle);
+        var list = new List<PdfAttachmentInfo>(Math.Max(n, 0));
+        for (int i = 0; i < n; i++)
+        {
+            var att = NativeMethods.FPDFDoc_GetAttachment(_handle, i);
+            if (att == IntPtr.Zero) continue;
+            string name = NativeUtf16.Read((b, len) => NativeMethods.FPDFAttachment_GetName(att, b, (uint)len));
+            uint size = 0;
+            // 파일이 없으면 false — 크기 0으로 둔다
+            if (NativeMethods.FPDFAttachment_GetFile(att, IntPtr.Zero, 0, &size) == 0) size = 0;
+            list.Add(new PdfAttachmentInfo(i, name, size));
+        }
+        return list;
+    }
+
+    public byte[] GetAttachmentData(int index)
+    {
+        Check();
+        var att = NativeMethods.FPDFDoc_GetAttachment(_handle, index);
+        if (att == IntPtr.Zero) throw new ArgumentOutOfRangeException(nameof(index));
+        uint size = 0;
+        if (NativeMethods.FPDFAttachment_GetFile(att, IntPtr.Zero, 0, &size) == 0 || size == 0)
+            return [];
+        var data = new byte[size];
+        uint got = 0;
+        fixed (byte* p = data)
+            if (NativeMethods.FPDFAttachment_GetFile(att, (IntPtr)p, size, &got) == 0)
+                throw PdfiumException.FromLastError("첨부 파일 읽기");
+        return data;
+    }
+
     /// <summary>전체 저장 (증분 아님).</summary>
     public void SaveCopy(string path)
     {
