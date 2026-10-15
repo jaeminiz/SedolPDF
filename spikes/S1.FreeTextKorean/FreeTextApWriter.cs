@@ -26,7 +26,7 @@ public static class FreeTextApWriter
         byte[] sub = FontSubsetter.Subset(fontData, cps);
         int[]? cidByGid = CffCharset.GetCidByGid(sub);
 
-        using var blob = Blob.FromStream(new MemoryStream(sub));
+        using var blob = FontSubsetter.CreateBlob(sub);
         using var face = new Face(blob, 0);
         using var font = new HarfBuzzSharp.Font(face);
         int upem = face.UnitsPerEm;

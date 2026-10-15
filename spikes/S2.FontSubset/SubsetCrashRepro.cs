@@ -1,22 +1,56 @@
+using System.Runtime;
+using System.Runtime.InteropServices;
+
 namespace S2.FontSubset;
 
 /// <summary>
-/// 간헐적인 네이티브 크래시 재현용. hb_subset_or_fail에서 0xC0000005(접근 위반)가 난다.
-/// 2026-10-15 측정: 같은 서브셋을 400회 반복하면 8번 중 약 5번 호스트가 죽는다.
-/// HarfBuzzSharp 8.3.1.3, 14.2.1.301 모두 같음 → 라이브러리 버전 문제가 아니라
-/// FontSubsetter(P/Invoke 사용 방식) 쪽 문제일 가능성이 높다 (원인 미확정, 검증 필요).
-/// 원인을 찾을 때 Skip을 풀어서 쓴다. 평소에는 전체 테스트가 죽지 않도록 건너뛴다.
+/// hb_subset_or_fail 간헐 접근 위반(0xC0000005)의 회귀 테스트.
+/// 원인 (2026-10-15 확인): HarfBuzzSharp의 Blob.FromStream이 고정되지 않은 관리 배열을 가리키는 Blob을 만든다.
+/// GC가 그 배열을 옮기거나 회수하면 HarfBuzz가 해제된 메모리를 읽는다.
+/// Blob.FromStream으로 만든 Blob은 LOH 압축 뒤 데이터를 읽으면 매번 접근 위반이 났다 (CreateBlob은 통과).
+/// FontSubsetter.CreateBlob(네이티브 메모리 복사)으로 고친 뒤에는 GC를 강제해도 죽지 않아야 한다.
 /// </summary>
-public class SubsetCrashRepro
+public unsafe partial class SubsetCrashRepro
 {
-    [Fact(Skip = "간헐 네이티브 크래시 재현용 (원인 조사 때만 실행)")]
-    public void Subset_Repeated_DoesNotCrash()
+    [LibraryImport("libHarfBuzzSharp")] private static partial byte* hb_blob_get_data(IntPtr blob, uint* length);
+
+    private static byte[] LoadFont()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "assets", "fonts", "NotoSansKR-Regular.otf"))) dir = dir.Parent;
-        var font = File.ReadAllBytes(Path.Combine(dir!.FullName, "assets", "fonts", "NotoSansKR-Regular.otf"));
+        return File.ReadAllBytes(Path.Combine(dir!.FullName, "assets", "fonts", "NotoSansKR-Regular.otf"));
+    }
+
+    private static void CompactHeap()
+    {
+        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+        GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+        GC.WaitForPendingFinalizers();
+    }
+
+    [Fact]
+    public void CreateBlob_DataSurvivesHeapCompaction()
+    {
+        var font = LoadFont();
+        using var blob = FontSubsetter.CreateBlob(font);
+        for (int i = 0; i < 3; i++) { CompactHeap(); _ = new byte[1_000_000]; }
+
+        uint len = 0;
+        byte* data = hb_blob_get_data(blob.Handle, &len);
+        Assert.Equal(font.Length, (int)len);
+        Assert.True(new ReadOnlySpan<byte>(data, (int)len).SequenceEqual(font));
+    }
+
+    [Fact]
+    public void Subset_RepeatedWithHeapCompaction_DoesNotCrash()
+    {
+        var font = LoadFont();
         var cps = "ABC123".Select(c => (int)c).ToArray();
+        // 고치기 전에는 이 반복(400회)에서 약 60% 확률로 호스트가 죽었다 (GC가 Subset 도중에 일어나야 죽으므로 확률적)
         for (int i = 0; i < 400; i++)
+        {
+            if (i % 50 == 0) CompactHeap();
             Assert.NotEmpty(FontSubsetter.Subset(font, cps));
+        }
     }
 }

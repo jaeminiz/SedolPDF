@@ -152,7 +152,7 @@ internal static unsafe class TextReplacer
         var data = new byte[len];
         fixed (byte* p = data) TextNative.FPDFFont_GetFontData(font, p, len, &len);
 
-        using var blob = Blob.FromStream(new MemoryStream(data));
+        using var blob = S2.FontSubset.FontSubsetter.CreateBlob(data);
         using var face = new Face(blob, 0);
         using var f = new HarfBuzzSharp.Font(face);
         return text.EnumerateRunes().Select(r => r.Value).Distinct()

@@ -21,10 +21,22 @@ public static unsafe partial class FontSubsetter
     [LibraryImport(Lib)] private static partial void hb_blob_destroy(IntPtr blob);
     [LibraryImport(Lib)] private static partial void hb_face_destroy(IntPtr face);
 
+    /// <summary>
+    /// 폰트 바이트를 네이티브 메모리에 복사해 Blob을 만든다. Blob이 해제될 때 메모리도 해제된다.
+    /// HarfBuzzSharp 8.3.1.3의 Blob.FromStream은 고정되지 않은 관리 배열을 가리키는 Blob을 돌려줘서,
+    /// GC가 그 배열을 옮기거나 회수하면 HarfBuzz가 해제된 메모리를 읽는다 (0xC0000005). 쓰지 않는다.
+    /// </summary>
+    public static Blob CreateBlob(byte[] data)
+    {
+        IntPtr mem = Marshal.AllocHGlobal(data.Length);
+        Marshal.Copy(data, 0, mem, data.Length);
+        return new Blob(mem, data.Length, MemoryMode.ReadOnly, () => Marshal.FreeHGlobal(mem));
+    }
+
     /// <summary>요청한 코드포인트의 글리프만 남긴 폰트(OpenType) 바이트를 돌려준다.</summary>
     public static byte[] Subset(byte[] fontData, IReadOnlyCollection<int> codepoints)
     {
-        using var blob = Blob.FromStream(new MemoryStream(fontData));
+        using var blob = CreateBlob(fontData);
         using var face = new Face(blob, 0);
 
         IntPtr input = hb_subset_input_create_or_fail();

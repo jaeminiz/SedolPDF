@@ -21,7 +21,7 @@ public class FontSubsetterTests
 
     private static bool HasGlyph(byte[] font, int cp)
     {
-        using var blob = Blob.FromStream(new MemoryStream(font));
+        using var blob = FontSubsetter.CreateBlob(font);
         using var face = new Face(blob, 0);
         using var f = new Font(face);
         return f.TryGetGlyph((uint)cp, out _);
@@ -49,7 +49,7 @@ public class FontSubsetterTests
     public void Subset_EmptySet_ReturnsValidFontWithNotdefOnly()
     {
         var sub = FontSubsetter.Subset(LoadFont(), Array.Empty<int>());
-        using var blob = Blob.FromStream(new MemoryStream(sub));
+        using var blob = FontSubsetter.CreateBlob(sub);
         using var face = new Face(blob, 0);
         Assert.Equal(1, face.GlyphCount);
         Assert.False(HasGlyph(sub, 'A'));
