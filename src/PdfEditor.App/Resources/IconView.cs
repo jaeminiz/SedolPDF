@@ -5,7 +5,7 @@ using Avalonia.Media;
 
 namespace PdfEditor.App.Resources;
 
-/// <summary>Icons.axaml의 StreamGeometry("Icon.&lt;Key&gt;")를 20x20 기준 선 아이콘으로 그린다. 키가 없으면 Icon.generic.</summary>
+/// <summary>Icons.axaml의 StreamGeometry("Icon.&lt;Key&gt;", Fluent UI System Icons)를 20x20 기준으로 채워 그린다. 키가 없으면 Icon.generic.</summary>
 public sealed class IconView : Control
 {
     public static readonly StyledProperty<string?> KeyProperty = AvaloniaProperty.Register<IconView, string?>(nameof(Key));
@@ -36,8 +36,7 @@ public sealed class IconView : Control
         var g = Lookup(Key);
         if (g is null) return;
         double s = Math.Min(Bounds.Width, Bounds.Height) / 20.0;
-        var pen = new Pen(Foreground ?? Brushes.Black, 1.4, null, PenLineCap.Round, PenLineJoin.Round);
         using (context.PushTransform(Matrix.CreateScale(s, s)))
-            context.DrawGeometry(null, pen, g);
+            context.DrawGeometry(Foreground ?? Brushes.Black, null, g);
     }
 }
