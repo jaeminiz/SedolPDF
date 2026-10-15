@@ -16,3 +16,14 @@
 
 ## HarfBuzzSharp / PDFsharp (spikes 단계에서 사용)
 - HarfBuzzSharp: MIT, PDFsharp: MIT
+
+## Avalonia (12.1.4)
+- 용도: UI 프레임워크 (`Avalonia`, `Avalonia.Desktop`, `Avalonia.Themes.Fluent`)
+- 라이선스: MIT
+
+## CommunityToolkit.Mvvm (8.4.2)
+- 용도: MVVM 도우미 (소스 생성기 포함)
+- 라이선스: MIT (NuGet 메타데이터 확인)
+
+## 검토했으나 쓰지 않은 패키지
+- Avalonia.Headless.XUnit 12.1.4 (MIT): xUnit v3 전용(`xunit.v3.extensibility.core`)이라 현재 xUnit 2.9.3 테스트와 호환되지 않아 쓰지 않음. 화면 스모크 테스트는 수동 실행으로 대체.

@@ -1,4 +1,4 @@
-using Pdf.Native.Tests.Fixtures;
+using PdfEditor.TestFixtures;
 
 namespace Pdf.Native.Tests;
 
