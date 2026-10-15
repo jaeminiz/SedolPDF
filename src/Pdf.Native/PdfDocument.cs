@@ -56,6 +56,43 @@ public sealed unsafe class PdfDocument : IDisposable
         return new PdfDocument(t, doc, default);
     }
 
+    /// <summary>권한 비트. 암호화되지 않았으면 Raw = 0xFFFFFFFF.</summary>
+    public PdfPermissions Permissions
+    {
+        get
+        {
+            Check();
+            int rev = NativeMethods.FPDF_GetSecurityHandlerRevision(_handle);
+            uint raw = rev == -1 ? 0xFFFFFFFFu : NativeMethods.FPDF_GetDocPermissions(_handle);
+            return new PdfPermissions(raw, rev);
+        }
+    }
+
+    public bool IsEncrypted { get { Check(); return NativeMethods.FPDF_GetSecurityHandlerRevision(_handle) != -1; } }
+
+    /// <summary>false면 PDFium이 xref를 복구해서 연 파일이다 (V8).</summary>
+    public bool HasValidCrossReferenceTable
+    { get { Check(); return NativeMethods.FPDF_DocumentHasValidCrossReferenceTable(_handle) != 0; } }
+
+    /// <summary>예: 17 = PDF 1.7. 얻지 못하면 null.</summary>
+    public int? FileVersion
+    {
+        get
+        {
+            Check();
+            int v;
+            return NativeMethods.FPDF_GetFileVersion(_handle, &v) != 0 ? v : null;
+        }
+    }
+
+    /// <summary>Title, Author, Subject, Creator, Producer 등.</summary>
+    public string GetMetaText(string tag)
+    {
+        Check();
+        var h = _handle;
+        return NativeUtf16.Read((b, n) => NativeMethods.FPDF_GetMetaText(h, tag, b, (uint)n));
+    }
+
     public int PageCount { get { Check(); return NativeMethods.FPDF_GetPageCount(_handle); } }
 
     public PdfPage LoadPage(int index)

@@ -181,6 +181,9 @@ public static class TestPdfFactory
         s.PermitPrint = allowPrint;
         s.PermitFullQualityPrint = allowPrint;
         s.PermitModifyDocument = allowModify;
+        s.PermitAssembleDocument = allowModify;
+        s.PermitAnnotations = allowModify;
+        s.PermitFormsFill = allowModify;
         s.PermitExtractContent = allowCopy;
         Save(doc, path);
     }
