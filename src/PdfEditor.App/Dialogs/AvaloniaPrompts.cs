@@ -1,0 +1,62 @@
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
+using PdfEditor.App.Documents;
+using PdfEditor.App.Resources;
+
+namespace PdfEditor.App.Dialogs;
+
+/// <summary>IUserPrompts의 실제 구현. 대화상자는 소유 창 위에 모달로 띄운다. (화면 동작은 검증 필요: 자동 테스트 없음)</summary>
+public sealed class AvaloniaPrompts(Window owner) : IUserPrompts
+{
+    private static readonly FilePickerFileType PdfType = new(Strings.Dlg_PdfFiles) { Patterns = ["*.pdf"], MimeTypes = ["application/pdf"] };
+
+    public async Task<string?> AskPasswordAsync(string fileName, bool retry)
+        => await new PasswordDialog(fileName, retry).ShowDialog<string?>(owner);
+
+    public async Task<UnsavedChoice> AskSaveChangesAsync(string displayName)
+    {
+        var dlg = new MessageDialog(Strings.Dlg_UnsavedTitle, string.Format(Strings.Dlg_UnsavedMessage, displayName),
+            [Strings.Dlg_Save, Strings.Dlg_Discard, Strings.Dlg_Cancel]);
+        await dlg.ShowDialog(owner);
+        return dlg.Result switch
+        {
+            0 => UnsavedChoice.Save,
+            1 => UnsavedChoice.Discard,
+            _ => UnsavedChoice.Cancel,
+        };
+    }
+
+    public async Task<string?> PickOpenFileAsync() => (await PickOpenFilesCoreAsync(false)).FirstOrDefault();
+
+    public async Task<IReadOnlyList<string>> PickOpenFilesAsync() => await PickOpenFilesCoreAsync(true);
+
+    private async Task<IReadOnlyList<string>> PickOpenFilesCoreAsync(bool multiple)
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Strings.Dlg_OpenTitle,
+            AllowMultiple = multiple,
+            FileTypeFilter = [PdfType],
+        });
+        return files.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Select(p => p!).ToList();
+    }
+
+    public async Task<string?> PickSaveFileAsync(string suggestedName)
+    {
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = Strings.Dlg_SaveTitle,
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "pdf",
+            FileTypeChoices = [PdfType],
+            ShowOverwritePrompt = true,
+        });
+        return file?.TryGetLocalPath();
+    }
+
+    public Task ShowErrorAsync(string message)
+        => new MessageDialog(Strings.Dlg_ErrorTitle, message, [Strings.Dlg_Ok]).ShowDialog(owner);
+
+    public Task ShowInfoAsync(string message)
+        => new MessageDialog(Strings.Dlg_InfoTitle, message, [Strings.Dlg_Ok]).ShowDialog(owner);
+}

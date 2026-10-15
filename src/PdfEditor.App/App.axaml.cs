@@ -1,3 +1,4 @@
+using System.IO;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -11,7 +12,8 @@ public sealed class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new Shell.MainWindow();
+            desktop.MainWindow = new Shell.MainWindow(
+                (desktop.Args ?? []).Where(x => !x.StartsWith("-") && File.Exists(x)).ToList());
         base.OnFrameworkInitializationCompleted();
     }
 }

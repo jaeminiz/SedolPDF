@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia.Threading;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Shell.Ribbon;
@@ -31,6 +32,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IRelayCommand<PanelKind> SetPanelCommand { get; }
     public IRelayCommand<DocumentTabViewModel> CloseDocumentCommand { get; }
+    private FileWorkflow? _workflow;
+    private IUserPrompts? _prompts;
+    private Action<Action> _post = a => a();
+    private AsyncRelayCommand _newCommand = null!, _openCommand = null!, _saveCommand = null!, _saveAsCommand = null!, _closeActiveCommand = null!;
     public IRelayCommand<string> SelectRibbonTabCommand { get; }
 
     /// <summary>끝내기 명령이 실행되면 창이 닫는다.</summary>
@@ -53,14 +58,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         SetPanelCommand = new RelayCommand<PanelKind>(k => { ActiveLeftPanel = k; IsLeftPanelVisible = true; });
         SelectRibbonTabCommand = new RelayCommand<string>(t => { if (t is not null) SelectedRibbonTab = t; });
-        CloseDocumentCommand = new RelayCommand<DocumentTabViewModel>(d =>
-        {
-            if (d is null) return;
-            int i = Documents.IndexOf(d);
-            Documents.Remove(d);
-            if (ActiveDocument == d)
-                ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
-        });
+        CloseDocumentCommand = new RelayCommand<DocumentTabViewModel>(d => { if (d is not null) _ = CloseDocumentAsync(d); });
 
         RegisterCommands();
         Ribbon = BuildRibbon();
@@ -110,6 +108,112 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RefreshDocumentStatus();
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(HasNoDocument));
+        NotifyFileCommands();
+    }
+
+    private void NotifyFileCommands()
+    {
+        _newCommand.NotifyCanExecuteChanged();
+        _openCommand.NotifyCanExecuteChanged();
+        _saveCommand.NotifyCanExecuteChanged();
+        _saveAsCommand.NotifyCanExecuteChanged();
+        _closeActiveCommand.NotifyCanExecuteChanged();
+    }
+
+    // ---- 파일 작업 (Task 11) ----
+
+    /// <summary>파일 작업을 연결한다. post는 전용 스레드에서 오는 세션 이벤트를 UI 스레드로 넘긴다.</summary>
+    public void AttachWorkflow(FileWorkflow workflow, IUserPrompts prompts, Action<Action>? post = null)
+    {
+        _workflow = workflow;
+        _prompts = prompts;
+        _post = post ?? (a => Dispatcher.UIThread.Post(a));
+        NotifyFileCommands();
+    }
+
+    public IReadOnlyList<string> RecentFiles => _workflow?.RecentFiles ?? [];
+
+    private async Task NewDocumentAsync()
+    {
+        if (_workflow is null) return;
+        try { Activate(await _workflow.NewAsync()); }
+        catch (Exception ex) { await ShowErrorAsync(ex); }
+    }
+
+    private async Task OpenFromDialogAsync()
+    {
+        if (_workflow is null || _prompts is null) return;
+        await OpenManyAsync(await _prompts.PickOpenFilesAsync());
+    }
+
+    public async Task OpenManyAsync(IEnumerable<string> paths)
+    {
+        foreach (var p in paths) await OpenAsync(p);
+    }
+
+    /// <summary>파일을 열어 탭으로 보여 준다. 이미 열린 파일이면 그 탭으로 전환한다.</summary>
+    public async Task OpenAsync(string path)
+    {
+        if (_workflow is null) return;
+        var session = await _workflow.OpenAsync(path);
+        if (session is not null) Activate(session);
+    }
+
+    private void Activate(PdfEditor.Document.DocumentSession session)
+    {
+        var tab = Documents.FirstOrDefault(d => ReferenceEquals(d.Session, session));
+        if (tab is null)
+        {
+            tab = new DocumentTabViewModel(session, session.DisplayName, _post);
+            Documents.Add(tab);
+        }
+        ActiveDocument = tab;
+    }
+
+    private async Task SaveActiveAsync()
+    {
+        if (_workflow is null || ActiveDocument?.Session is not { } s) return;
+        await _workflow.SaveAsync(s);
+        ActiveDocument?.RefreshTitle();
+    }
+
+    private async Task SaveActiveAsAsync()
+    {
+        if (_workflow is null || ActiveDocument?.Session is not { } s) return;
+        await _workflow.SaveAsAsync(s);
+        ActiveDocument?.RefreshTitle();
+    }
+
+    /// <summary>탭을 닫는다. 변경이 있으면 먼저 묻고, 취소하면 그대로 둔다.</summary>
+    public async Task<bool> CloseDocumentAsync(DocumentTabViewModel d)
+    {
+        var session = d.Session;
+        if (session is not null && _workflow is not null && !await _workflow.ConfirmCloseAsync(session)) return false;
+        int i = Documents.IndexOf(d);
+        if (i < 0) return true;
+        Documents.RemoveAt(i);
+        if (ActiveDocument == d)
+            ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
+        d.Detach();
+        if (session is not null)
+        {
+            _workflow?.Release(session);
+            await session.DisposeAsync();
+        }
+        return true;
+    }
+
+    /// <summary>앱을 닫아도 되는지: 열린 탭마다 확인하고 하나라도 취소면 false. 닫기로 한 탭은 정리한다.</summary>
+    public async Task<bool> ConfirmExitAsync()
+    {
+        foreach (var d in Documents.ToList())
+            if (!await CloseDocumentAsync(d)) return false;
+        return true;
+    }
+
+    private async Task ShowErrorAsync(Exception ex)
+    {
+        if (_prompts is not null) await _prompts.ShowErrorAsync(ErrorMessages.For(ex));
     }
 
     private void OnDocumentPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
@@ -180,17 +284,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void RegisterCommands()
     {
-        Reg("file.new", Strings.Cmd_New, "note", G(Key.N));
-        Reg("file.open", Strings.Cmd_Open, "open", G(Key.O));
-        Reg("file.save", Strings.Cmd_Save, "save", G(Key.S));
-        Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift));
+        _newCommand = new AsyncRelayCommand(NewDocumentAsync, () => _workflow is not null);
+        _openCommand = new AsyncRelayCommand(OpenFromDialogAsync, () => _workflow is not null);
+        _saveCommand = new AsyncRelayCommand(SaveActiveAsync, () => _workflow is not null && ActiveDocument?.Session is not null);
+        _saveAsCommand = new AsyncRelayCommand(SaveActiveAsAsync, () => _workflow is not null && ActiveDocument?.Session is not null);
+        _closeActiveCommand = new AsyncRelayCommand(() => ActiveDocument is { } d ? CloseDocumentAsync(d) : Task.CompletedTask,
+            () => ActiveDocument is not null);
+        Reg("file.new", Strings.Cmd_New, "note", G(Key.N), _newCommand);
+        Reg("file.open", Strings.Cmd_Open, "open", G(Key.O), _openCommand);
+        Reg("file.save", Strings.Cmd_Save, "save", G(Key.S), _saveCommand);
+        Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift), _saveAsCommand);
         Reg("file.print", Strings.Cmd_Print, "print", G(Key.P));
         Reg("file.prefs", Strings.Cmd_Preferences, null);
         Reg("file.about", Strings.Cmd_About, null);
         Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
         Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z));
         Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y));
-        Reg("doc.close", Strings.Cmd_CloseDoc, null, G(Key.W));
+        Reg("doc.close", Strings.Cmd_CloseDoc, null, G(Key.W), _closeActiveCommand);
         Reg("find", Strings.Cmd_Find, "search", G(Key.F));
 
         Reg("tool.hand", Strings.Cmd_Hand, "hand");

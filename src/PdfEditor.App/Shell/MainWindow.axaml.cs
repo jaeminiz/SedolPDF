@@ -2,7 +2,13 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using System.IO;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Pdf.Native;
+using PdfEditor.App.Dialogs;
+using PdfEditor.App.Settings;
+using PdfEditor.Document.Saving;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
 
@@ -11,13 +17,27 @@ namespace PdfEditor.App.Shell;
 public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _vm = new();
+    private readonly PdfiumThread _pdfium = new();   // 앱 전체에서 PdfiumThread는 하나
+    private bool _exitConfirmed;
+    private MenuItem _recentMenu = null!;
 
-    public MainWindow()
+    public MainWindow() : this([]) { }
+
+    public MainWindow(IReadOnlyList<string> startupFiles)
     {
         InitializeComponent();
         DataContext = _vm;
         BuildKeyBindings();
         FileTabButton.Flyout = BuildFileMenu();
+
+        var prompts = new AvaloniaPrompts(this);
+        _vm.AttachWorkflow(new FileWorkflow(_pdfium, new SaveService([]), new SettingsStore(SettingsStore.DefaultPath), prompts), prompts);
+
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+        // 명령줄 인자로 받은 파일은 창이 뜬 뒤에 연다.
+        if (startupFiles.Count > 0) Opened += async (_, _) => await _vm.OpenManyAsync(startupFiles);
 
         _vm.ExitRequested += (_, _) => Close();
         _vm.PropertyChanged += (_, e) =>
@@ -57,9 +77,9 @@ public sealed partial class MainWindow : Window
 
         flyout.Items.Add(Item("file.new"));
         flyout.Items.Add(Item("file.open"));
-        var recent = new MenuItem { Header = Strings.Cmd_RecentDocs };
-        recent.Items.Add(new MenuItem { Header = Strings.Cmd_NoRecent, IsEnabled = false }); // Task 11에서 최근 문서 목록으로 교체
-        flyout.Items.Add(recent);
+        _recentMenu = new MenuItem { Header = Strings.Cmd_RecentDocs };
+        flyout.Items.Add(_recentMenu);
+        flyout.Opening += (_, _) => RefreshRecentMenu();
         flyout.Items.Add(new Separator());
         flyout.Items.Add(Item("file.save"));
         flyout.Items.Add(Item("file.saveAs"));
@@ -71,6 +91,53 @@ public sealed partial class MainWindow : Window
         flyout.Items.Add(new Separator());
         flyout.Items.Add(Item("file.exit"));
         return flyout;
+    }
+
+    // 파일 메뉴를 열 때마다 최근 문서 목록을 다시 만든다.
+    private void RefreshRecentMenu()
+    {
+        _recentMenu.Items.Clear();
+        var recent = _vm.RecentFiles;
+        if (recent.Count == 0)
+        {
+            _recentMenu.Items.Add(new MenuItem { Header = Strings.Cmd_NoRecent, IsEnabled = false });
+            return;
+        }
+        foreach (var path in recent)
+        {
+            var p = path;
+            var item = new MenuItem { Header = Path.GetFileName(p) };
+            ToolTip.SetTip(item, p);
+            item.Click += async (_, _) => await _vm.OpenAsync(p);
+            _recentMenu.Items.Add(item);
+        }
+    }
+
+    private static IEnumerable<string> PdfPathsOf(DragEventArgs e) =>
+        (e.DataTransfer.TryGetFiles() ?? []).Select(f => f.TryGetLocalPath())
+            .Where(p => p is not null && p.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)).Select(p => p!);
+
+    private static void OnDragOver(object? sender, DragEventArgs e) =>
+        e.DragEffects = PdfPathsOf(e).Any() ? DragDropEffects.Copy : DragDropEffects.None;
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        var paths = PdfPathsOf(e).ToList();
+        if (paths.Count > 0) await _vm.OpenManyAsync(paths);
+    }
+
+    // 닫기: 열린 탭마다 저장 여부를 묻고, 하나라도 취소하면 닫지 않는다.
+    protected override async void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+        if (_exitConfirmed) return;
+        e.Cancel = true;
+        if (await _vm.ConfirmExitAsync())
+        {
+            _exitConfirmed = true;
+            _pdfium.Dispose();
+            Close();
+        }
     }
 
     private void OnRibbonTabClick(object? sender, RoutedEventArgs e)
