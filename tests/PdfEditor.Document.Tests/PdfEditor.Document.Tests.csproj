@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PdfEditor.Document\PdfEditor.Document.csproj" />
     <ProjectReference Include="..\..\src\Pdf.Native\Pdf.Native.csproj" />
+    <ProjectReference Include="..\..\src\PdfEditor.Pages\PdfEditor.Pages.csproj" />
     <ProjectReference Include="..\TestFixtures\TestFixtures.csproj" />
   </ItemGroup>
 

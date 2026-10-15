@@ -22,3 +22,13 @@ PDFium 157 (bblanchon/pdfium-binaries, 소스 브랜치 chromium/8100) 기준. �
 - 암호화 안 된 문서: SecurityRevision = -1, Raw = 0xFFFFFFFF로 처리.
 - 사용자 암호 문서(PDFsharp 기본 설정): rev 4, Raw = 0xFFFFFFFC (권한 전부 허용).
 - 소유자 제한 문서는 PDFsharp에서 `PermitAssembleDocument`까지 꺼야 `CanEditPages`가 false가 된다 (CanAssemble = 0x400 또는 CanModify).
+
+## V6 — 암호 PDF 저장 (Task 8)
+`tests/PdfEditor.Document.Tests/V6EncryptedSaveTests.cs`, PDFium `FPDF_SaveAsCopy`(플래그 0) + 임시 파일 → 검증 → 교체 파이프라인으로 확인.
+- `V6_UserPasswordPdf_SaveAsCopy_StillRequiresPassword`: **통과.** 사용자 암호 PDF를 암호로 열어 쪽을 추가해 저장하면, 저장본은 암호 없이 열 때 `PdfPasswordRequiredException`, 같은 암호로는 열리고 쪽 수가 맞다.
+- `V6_OwnerRestrictedPdf_SaveAsCopy_KeepsPermissions`: **통과.** 소유자 제한 PDF(인쇄 금지)를 저장해도 `IsEncrypted` true, `CanPrint` false 유지.
+- 판정: **PDFium 저장은 암호화(사용자 암호·권한)를 유지한다** → `SavePolicy.PreservesEncryption = true`. 암호 PDF도 덮어쓰기 저장·복구 파일 허용. (검증 필요: 암호 알고리즘 등급 — 예: AES-256 원본이 저장 후 같은 등급인지 — 은 확인하지 않음. 테스트 픽스처는 PDFsharp 기본 설정, rev 4.)
+- `V6_PdfSharpModify_OnEncryptedTemp_KeepsEncryption` (M2 후처리 설계용 조사):
+  - 사용자 암호만으로 `PdfReader.Open(..., Modify)`는 `PdfReaderException` ("owner password is required"). PDFium을 거치지 않은 원본도 같다 (PDFsharp 제약).
+  - 소유자 암호로 Modify로 열어 `Info.Title`만 바꿔 저장하면 **암호화가 사라진다**(PDFium에서 암호 없이 열림). `SecuritySettings.UserPassword/OwnerPassword`를 다시 지정하면 암호화가 유지된다.
+  - M2 후처리 설계로 넘길 사항: (1) 암호 PDF에서 PDFsharp 후처리를 쓰려면 소유자 암호가 필요한데 앱은 사용자 암호만 알 수 있다 → 소유자 암호 없이 열린 암호 PDF는 후처리를 못 하므로 대책 필요(예: 후처리를 건너뛰고 PDFium만으로 저장하거나, 해당 문서의 주석 저장을 막고 안내). (2) 소유자 암호를 아는 경우에도 사용자/소유자 암호와 권한을 다시 지정해야 하고, 원래 권한 비트를 PDFsharp 설정으로 되돌리는 매핑이 필요하다(검증 필요).
