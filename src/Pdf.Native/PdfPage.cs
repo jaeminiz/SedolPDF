@@ -14,6 +14,8 @@ public sealed class PdfPage : IDisposable
         _handle = handle;
     }
 
+    internal IntPtr Handle { get { Check(); return _handle; } }
+
     public SizeF SizePt
     {
         get

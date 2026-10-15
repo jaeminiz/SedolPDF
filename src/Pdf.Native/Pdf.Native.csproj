@@ -2,6 +2,9 @@
 
   <ItemGroup>
     <PackageReference Include="bblanchon.PDFium.Win32" Version="157.0.8100" />
+    <InternalsVisibleTo Include="S1.FreeTextKorean" />
+    <InternalsVisibleTo Include="S4.RenderBench.Tests" />
+    <InternalsVisibleTo Include="S3.TextReplace" />
   </ItemGroup>
 
 </Project>
