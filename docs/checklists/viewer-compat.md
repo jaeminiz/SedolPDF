@@ -20,3 +20,15 @@
 - ② 모양 동일: 글자 크기·위치가 다른 뷰어와 비슷한가
 - ③ 선택 후 이동해도 유지: 주석 도구로 상자를 클릭해 조금 옮겨 보고, 글자가 그대로인가 (뷰어가 모양을 다시 만들어도 한글이 유지되는가)
 - ④ 텍스트 복사: 상자의 글자를 복사해 메모장에 붙여 넣으면 `가나다 도면 검토 ABC`가 나오는가 (뷰어가 복사를 지원하지 않으면 "해당 없음")
+
+## S3 샘플: 폰트 대체 결과 (PDFium 방식)
+- 파일: `spikes/out/s3-fallback.pdf` (PDFium의 `FPDFText_LoadFont`로 Noto Sans KR을 넣은 텍스트 `ABC가`)
+- 점검 일시: 2026-10-15 (사용자 스크린샷)
+
+| 뷰어 | 글자 표시 | 메모 |
+|---|---|---|
+| Adobe Acrobat Pro | × | `ABC` 뒤의 `가`가 네모(□)로 표시됨 |
+| PDF-XChange Editor | × | 같은 현상 (`ABC□`) |
+| Chrome 기반 브라우저 | ○ | `ABC가` 정상 |
+
+결론: PDFium `FPDFText_LoadFont`에 CFF 기반 OpenType(Noto Sans KR)을 넣는 방식은 PDFium·Chrome에서만 보이고 Acrobat·PDF-XChange에서는 깨진다. M4 폰트 대체는 S1 방식(서브셋 + 순수 CFF + CIDFontType0C)으로 해야 한다.
