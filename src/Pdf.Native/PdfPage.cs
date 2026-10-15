@@ -50,6 +50,14 @@ public sealed class PdfPage : IDisposable
         }
     }
 
+    public PdfTextPage LoadText()
+    {
+        Check();
+        IntPtr tp = NativeMethods.FPDFText_LoadPage(_handle);
+        if (tp == IntPtr.Zero) throw PdfiumException.FromLastError("텍스트 페이지");
+        return new PdfTextPage(_t, tp);
+    }
+
     public int AnnotationCount { get { Check(); return NativeMethods.FPDFPage_GetAnnotCount(_handle); } }
 
     public byte[] RenderTile(double scale, int tileX, int tileY, int tileW, int tileH, bool withAnnotations)
