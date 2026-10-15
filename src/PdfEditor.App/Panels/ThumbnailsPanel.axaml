@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PdfEditor.App.Resources"
+             xmlns:panels="using:PdfEditor.App.Panels"
+             x:Class="PdfEditor.App.Panels.ThumbnailsPanel"
+             x:DataType="panels:ThumbnailsViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.thumb">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#33000000" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.thumb.current">
+      <Setter Property="BorderBrush" Value="#005FB8" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="ListBox.thumbs > ListBoxItem">
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+  <ListBox x:Name="List" Classes="thumbs" ItemsSource="{Binding Items}" SelectionMode="Multiple"
+           Background="Transparent" Padding="0,4"
+           ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+    <ListBox.ItemsPanel>
+      <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+    </ListBox.ItemsPanel>
+    <ListBox.ItemTemplate>
+      <DataTemplate x:DataType="panels:ThumbnailItem">
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <Border Classes="thumb" Classes.current="{Binding IsCurrent}"
+                  Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}">
+            <Image Source="{Binding Source}" Stretch="Uniform" />
+          </Border>
+          <TextBlock Text="{Binding PageNumber}" HorizontalAlignment="Center" FontSize="11" Foreground="#5C5C5C" />
+        </StackPanel>
+      </DataTemplate>
+    </ListBox.ItemTemplate>
+    <ListBox.ContextMenu>
+      <ContextMenu x:DataType="panels:ThumbnailsViewModel">
+        <MenuItem Header="{x:Static res:Strings.Cmd_PageDelete}" Command="{Binding Commands.DeleteCommand}" />
+        <MenuItem Header="{x:Static res:Strings.Cmd_PageRotateLeft}" Command="{Binding Commands.RotateLeftCommand}" />
+        <MenuItem Header="{x:Static res:Strings.Cmd_PageRotateRight}" Command="{Binding Commands.RotateRightCommand}" />
+        <MenuItem Header="{x:Static res:Strings.Cmd_PageInsertBlank}" Command="{Binding Commands.InsertBlankCommand}" />
+      </ContextMenu>
+    </ListBox.ContextMenu>
+  </ListBox>
+</UserControl>

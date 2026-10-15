@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:res="using:PdfEditor.App.Resources"
+        x:Class="PdfEditor.App.Dialogs.MovePagesDialog"
+        Title="{x:Static res:Strings.Dlg_MoveTitle}"
+        SizeToContent="Height" Width="380"
+        CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="#F3F3F3">
+  <StackPanel Margin="24,20,24,16" Spacing="10">
+    <TextBlock x:Name="DescText" TextWrapping="Wrap" Foreground="#1A1A1A" FontWeight="SemiBold" />
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <RadioButton x:Name="BeforeRadio" GroupName="dest" IsChecked="True" VerticalAlignment="Center" MinWidth="0" />
+      <NumericUpDown x:Name="PageBox" Minimum="1" Value="1" FormatString="0" Width="120" VerticalAlignment="Center" />
+      <TextBlock Text="{x:Static res:Strings.Dlg_MoveBefore}" VerticalAlignment="Center" />
+    </StackPanel>
+    <RadioButton x:Name="FirstRadio" GroupName="dest" Content="{x:Static res:Strings.Dlg_PosFirst}" />
+    <RadioButton x:Name="LastRadio" GroupName="dest" Content="{x:Static res:Strings.Dlg_PosLast}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Ok}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    </StackPanel>
+  </StackPanel>
+</Window>

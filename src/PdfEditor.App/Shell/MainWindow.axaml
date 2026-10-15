@@ -5,6 +5,7 @@
         xmlns:rb="using:PdfEditor.App.Shell.Ribbon"
         xmlns:docs="using:PdfEditor.App.Documents"
         xmlns:viewer="using:PdfEditor.App.Viewer"
+        xmlns:panels="using:PdfEditor.App.Panels"
         x:Class="PdfEditor.App.Shell.MainWindow"
         x:DataType="shell:MainWindowViewModel"
         Title="{x:Static res:Strings.App_Name}"
@@ -222,7 +223,7 @@
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="{Binding ActivePanelLabel}" FontWeight="SemiBold" Margin="10,8" />
           <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
-          <Panel />
+          <Panel IsVisible="{Binding ShowThumbnails}"><panels:ThumbnailsPanel DataContext="{Binding ActiveThumbnails}" /></Panel>
         </DockPanel>
       </Border>
 
@@ -251,12 +252,15 @@
             </Button>
           </Grid>
           <Border Grid.Row="1" Background="#D4D4D9">
-            <Grid>
-              <ScrollViewer Name="DocScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+            <Grid RowDefinitions="Auto,*">
+              <Border Grid.Row="0" Background="#FFF4CE" Padding="12,6" IsVisible="{Binding ActiveDocument.IsEditRestricted}">
+                <TextBlock Text="{x:Static res:Strings.Msg_EditRestricted}" Foreground="#1A1A1A" TextWrapping="Wrap" />
+              </Border>
+              <ScrollViewer Grid.Row="1" Name="DocScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                             IsVisible="{Binding !HasNoDocument}">
                 <viewer:DocumentView Tab="{Binding ActiveDocument}" />
               </ScrollViewer>
-            <TextBlock Text="{x:Static res:Strings.Msg_NoDocument}" IsVisible="{Binding HasNoDocument}"
+            <TextBlock Grid.Row="1" Text="{x:Static res:Strings.Msg_NoDocument}" IsVisible="{Binding HasNoDocument}"
                        Foreground="#5C5C5C" HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Grid>
           </Border>

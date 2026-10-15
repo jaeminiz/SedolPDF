@@ -24,8 +24,16 @@ public sealed class FakePrompts : IUserPrompts
         return Task.FromResult(Passwords.Count > 0 ? Passwords.Dequeue() : null);
     }
     public Task<UnsavedChoice> AskSaveChangesAsync(string displayName) => Task.FromResult(SaveChoice);
-    public Task<string?> PickOpenFileAsync() => Task.FromResult<string?>(null);
-    public Task<IReadOnlyList<string>> PickOpenFilesAsync() => Task.FromResult<IReadOnlyList<string>>([]);
+    public string? PickedFile { get; set; }
+    public IReadOnlyList<string> PickedFiles { get; set; } = [];
+    public InsertPagesRequest? InsertRequest { get; set; }
+    public MoveTarget? MoveTargetAnswer { get; set; }
+    public IReadOnlyList<string>? MergeOrder { get; set; }
+    public Task<string?> PickOpenFileAsync() => Task.FromResult(PickedFile);
+    public Task<IReadOnlyList<string>> PickOpenFilesAsync() => Task.FromResult(PickedFiles);
+    public Task<InsertPagesRequest?> AskInsertPagesAsync(string fileName, int sourcePageCount) => Task.FromResult(InsertRequest);
+    public Task<MoveTarget?> AskMoveTargetAsync(int pageCount, int movingCount) => Task.FromResult(MoveTargetAnswer);
+    public Task<IReadOnlyList<string>?> AskMergeFilesAsync(IReadOnlyList<string> paths) => Task.FromResult(MergeOrder);
     public Task<string?> PickSaveFileAsync(string suggestedName)
     {
         SavePickCalls++;

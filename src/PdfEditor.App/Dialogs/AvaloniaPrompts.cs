@@ -59,4 +59,13 @@ public sealed class AvaloniaPrompts(Window owner) : IUserPrompts
 
     public Task ShowInfoAsync(string message)
         => new MessageDialog(Strings.Dlg_InfoTitle, message, [Strings.Dlg_Ok]).ShowDialog(owner);
+
+    public async Task<InsertPagesRequest?> AskInsertPagesAsync(string fileName, int sourcePageCount)
+        => await new InsertPagesDialog(fileName, sourcePageCount).ShowDialog<InsertPagesRequest?>(owner);
+
+    public async Task<MoveTarget?> AskMoveTargetAsync(int pageCount, int movingCount)
+        => await new MovePagesDialog(pageCount, movingCount).ShowDialog<MoveTarget?>(owner);
+
+    public async Task<IReadOnlyList<string>?> AskMergeFilesAsync(IReadOnlyList<string> paths)
+        => await new MergeDialog(paths).ShowDialog<List<string>?>(owner);
 }

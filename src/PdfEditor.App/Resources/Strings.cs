@@ -169,4 +169,21 @@ public static class Strings
     public static string Dlg_OpenTitle => Get(nameof(Dlg_OpenTitle));
     public static string Dlg_SaveTitle => Get(nameof(Dlg_SaveTitle));
     public static string Dlg_PdfFiles => Get(nameof(Dlg_PdfFiles));
+    public static string Err_PageRangeInvalid => Get(nameof(Err_PageRangeInvalid));
+    public static string Msg_EditRestricted => Get(nameof(Msg_EditRestricted));
+    public static string Dlg_InsertTitle => Get(nameof(Dlg_InsertTitle));
+    public static string Dlg_InsertSource => Get(nameof(Dlg_InsertSource));
+    public static string Dlg_InsertPosition => Get(nameof(Dlg_InsertPosition));
+    public static string Dlg_PosAfterCurrent => Get(nameof(Dlg_PosAfterCurrent));
+    public static string Dlg_PosFirst => Get(nameof(Dlg_PosFirst));
+    public static string Dlg_PosLast => Get(nameof(Dlg_PosLast));
+    public static string Dlg_InsertRange => Get(nameof(Dlg_InsertRange));
+    public static string Dlg_MoveTitle => Get(nameof(Dlg_MoveTitle));
+    public static string Dlg_MoveDescription => Get(nameof(Dlg_MoveDescription));
+    public static string Dlg_MoveBefore => Get(nameof(Dlg_MoveBefore));
+    public static string Dlg_MergeTitle => Get(nameof(Dlg_MergeTitle));
+    public static string Dlg_MergeHint => Get(nameof(Dlg_MergeHint));
+    public static string Dlg_MoveItemUp => Get(nameof(Dlg_MoveItemUp));
+    public static string Dlg_MoveItemDown => Get(nameof(Dlg_MoveItemDown));
+    public static string Dlg_RemoveItem => Get(nameof(Dlg_RemoveItem));
 }

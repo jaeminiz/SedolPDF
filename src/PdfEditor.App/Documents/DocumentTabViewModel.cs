@@ -42,6 +42,13 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     public DocumentSession? Session { get; }
 
+    /// <summary>쪽 수정 권한이 없는 문서(위쪽 안내 막대를 보인다).</summary>
+    public bool IsEditRestricted => Session is { } s && !s.Permissions.CanEditPages;
+
+    /// <summary>쪽 편집 명령과 썸네일 목록. 탭을 화면에 올릴 때 MainWindowViewModel이 만든다.</summary>
+    public PageCommandsViewModel? PageCommands { get; set; }
+    public PdfEditor.App.Panels.ThumbnailsViewModel? Thumbnails { get; set; }
+
     /// <summary>탭을 닫을 때(Detach) 발생. 화면이 이 탭의 캐시를 정리하는 데 쓴다.</summary>
     public event Action? Detached;
 

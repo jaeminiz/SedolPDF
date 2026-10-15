@@ -8,6 +8,16 @@ namespace PdfEditor.App.Documents;
 
 public enum UnsavedChoice { Save, Discard, Cancel }
 
+public enum InsertPosition { AfterCurrent, First, Last }
+
+/// <summary>파일에서 삽입 대화상자의 결과. RangeText는 사용자가 쓴 쪽 범위(비어 있으면 전체).</summary>
+public sealed record InsertPagesRequest(InsertPosition Position, string RangeText);
+
+public enum MoveTargetKind { BeforePage, First, Last }
+
+/// <summary>위치 지정 이동 대화상자의 결과. BeforePage이면 PageNumber(1부터)쪽 앞으로.</summary>
+public sealed record MoveTarget(MoveTargetKind Kind, int PageNumber);
+
 /// <summary>대화상자를 추상화해서 테스트에서 가짜로 바꿀 수 있게 한다. 실제 구현은 Dialogs/AvaloniaPrompts.</summary>
 public interface IUserPrompts
 {
@@ -19,6 +29,12 @@ public interface IUserPrompts
     Task<string?> PickSaveFileAsync(string suggestedName);
     Task ShowErrorAsync(string message);
     Task ShowInfoAsync(string message);
+    /// <summary>파일에서 삽입 대화상자. 취소하면 null. 쪽 범위가 틀리면 대화상자 안에서 알리고 닫지 않는다.</summary>
+    Task<InsertPagesRequest?> AskInsertPagesAsync(string fileName, int sourcePageCount);
+    /// <summary>위치 지정 이동 대화상자. 취소하면 null.</summary>
+    Task<MoveTarget?> AskMoveTargetAsync(int pageCount, int movingCount);
+    /// <summary>병합 대화상자(순서 바꾸기·빼기). 취소하면 null, 확인하면 병합할 순서의 경로 목록.</summary>
+    Task<IReadOnlyList<string>?> AskMergeFilesAsync(IReadOnlyList<string> paths);
 }
 
 /// <summary>열기·저장·닫기 흐름. UI 스레드에서 부르고, 사용자에게 묻는 일은 IUserPrompts로 한다.</summary>
@@ -32,6 +48,9 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
     private bool CanOverwrite(DocumentSession s) => !s.IsEncrypted || preservesEncryption;
 
     public IReadOnlyList<string> RecentFiles => settings.Load().RecentFiles;
+
+    /// <summary>다른 곳에서 만든 세션(병합 결과)을 열린 세션 목록에 넣는다.</summary>
+    public void Adopt(DocumentSession s) => _open.Add(s);
 
     public string NextUntitledName() => string.Format(Strings.Doc_Untitled, ++_untitledCounter);
 

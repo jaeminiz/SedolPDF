@@ -160,4 +160,21 @@
   <data name="Dlg_OpenTitle" xml:space="preserve"><value>PDF 파일 열기</value></data>
   <data name="Dlg_SaveTitle" xml:space="preserve"><value>다른 이름으로 저장</value></data>
   <data name="Dlg_PdfFiles" xml:space="preserve"><value>PDF 파일</value></data>
+  <data name="Err_PageRangeInvalid" xml:space="preserve"><value>쪽 범위가 올바르지 않습니다. 예: 1-3, 5</value></data>
+  <data name="Msg_EditRestricted" xml:space="preserve"><value>이 문서는 페이지 수정이 제한되어 있습니다.</value></data>
+  <data name="Dlg_InsertTitle" xml:space="preserve"><value>파일에서 페이지 삽입</value></data>
+  <data name="Dlg_InsertSource" xml:space="preserve"><value>{0} (총 {1}쪽)</value></data>
+  <data name="Dlg_InsertPosition" xml:space="preserve"><value>삽입 위치</value></data>
+  <data name="Dlg_PosAfterCurrent" xml:space="preserve"><value>현재 페이지 뒤</value></data>
+  <data name="Dlg_PosFirst" xml:space="preserve"><value>맨 앞</value></data>
+  <data name="Dlg_PosLast" xml:space="preserve"><value>맨 끝</value></data>
+  <data name="Dlg_InsertRange" xml:space="preserve"><value>가져올 쪽 (비워 두면 전체, 예: 1-3, 5)</value></data>
+  <data name="Dlg_MoveTitle" xml:space="preserve"><value>페이지 위치 지정</value></data>
+  <data name="Dlg_MoveDescription" xml:space="preserve"><value>선택한 {0}쪽을 옮길 위치</value></data>
+  <data name="Dlg_MoveBefore" xml:space="preserve"><value>다음 쪽 앞으로</value></data>
+  <data name="Dlg_MergeTitle" xml:space="preserve"><value>문서 병합</value></data>
+  <data name="Dlg_MergeHint" xml:space="preserve"><value>위에서 아래 순서로 합쳐 새 문서로 만듭니다.</value></data>
+  <data name="Dlg_MoveItemUp" xml:space="preserve"><value>위로</value></data>
+  <data name="Dlg_MoveItemDown" xml:space="preserve"><value>아래로</value></data>
+  <data name="Dlg_RemoveItem" xml:space="preserve"><value>빼기</value></data>
 </root>

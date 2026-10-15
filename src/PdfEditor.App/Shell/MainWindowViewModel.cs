@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia.Threading;
 using PdfEditor.App.Documents;
+using PdfEditor.App.Panels;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Shell.Ribbon;
 using PdfEditor.App.Viewer;
@@ -27,6 +28,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         var c = new RelayCommand(() => { if (ActiveDocument is { Session: not null } d) action(d); },
             () => ActiveDocument?.Session is not null);
+        _docCommands.Add(c);
+        return c;
+    }
+
+    /// <summary>활성 문서의 쪽 편집 명령을 그대로 부르는 명령. 실행 가능 여부도 그 명령을 따른다.</summary>
+    private RelayCommand PageCmd(Func<PageCommandsViewModel, IAsyncRelayCommand> pick)
+    {
+        var c = new RelayCommand(
+            () => { if (ActiveDocument?.PageCommands is { } p && pick(p).CanExecute(null)) _ = pick(p).ExecuteAsync(null); },
+            () => ActiveDocument?.PageCommands is { } p && pick(p).CanExecute(null));
         _docCommands.Add(c);
         return c;
     }
@@ -103,6 +114,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string ActivePanelLabel => PanelButtons.First(p => p.Kind == ActiveLeftPanel).Label;
     public string FileName => ActiveDocument?.Title ?? Strings.Doc_NoneOpen;
     public bool HasNoDocument => ActiveDocument is null;
+    public ThumbnailsViewModel? ActiveThumbnails => ActiveDocument?.Thumbnails;
+    public bool ShowThumbnails => ActiveLeftPanel == PanelKind.Thumbnails;
     public bool HasQuickResults => QuickCommandResults.Count > 0;
     public string ZoomText => $"{ZoomPercent:0}%";
     public int PageCount => ActiveDocument?.PageCount ?? 0;
@@ -138,6 +151,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNoDocument));
         NotifyFileCommands();
         foreach (var c in _docCommands) c.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ActiveThumbnails));
         if (newValue is not null) SetZoomFromDocument(newValue.Scale);
     }
 
@@ -195,9 +209,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (tab is null)
         {
             tab = new DocumentTabViewModel(session, session.DisplayName, _post);
+            AttachPageEditing(tab);
             Documents.Add(tab);
         }
         ActiveDocument = tab;
+    }
+
+    /// <summary>탭에 쪽 편집 명령과 썸네일 모델을 붙인다. 탭을 닫을 때(Detached) 함께 해제한다.</summary>
+    private void AttachPageEditing(DocumentTabViewModel tab)
+    {
+        var cmds = new PageCommandsViewModel(tab, _workflow!, _prompts!, _post);
+        cmds.SessionCreated += s => Activate(s);
+        cmds.StateChanged += () => { if (ReferenceEquals(ActiveDocument, tab)) NotifyDocCommands(); };
+        var thumbs = new ThumbnailsViewModel(tab, (data, w, h) => new BitmapHandle(data, w, h), _post);
+        tab.PageCommands = cmds;
+        tab.Thumbnails = thumbs;
+        tab.Detached += () => { thumbs.Dispose(); cmds.Dispose(); };
+    }
+
+    private void NotifyDocCommands()
+    {
+        foreach (var c in _docCommands) c.NotifyCanExecuteChanged();
     }
 
     private async Task SaveActiveAsync()
@@ -279,6 +311,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         foreach (var p in PanelButtons) p.IsSelected = p.Kind == value;
         OnPropertyChanged(nameof(ActivePanelLabel));
+        OnPropertyChanged(nameof(ShowThumbnails));
     }
 
     partial void OnQuickCommandTextChanged(string value) => QuickCommandResults = Commands.Search(value);
@@ -335,8 +368,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("file.prefs", Strings.Cmd_Preferences, null);
         Reg("file.about", Strings.Cmd_About, null);
         Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
-        Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z));
-        Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y));
+        Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z), PageCmd(p => p.UndoCommand));
+        Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y), PageCmd(p => p.RedoCommand));
         Reg("doc.close", Strings.Cmd_CloseDoc, null, G(Key.W), _closeActiveCommand);
         Reg("find", Strings.Cmd_Find, "search", G(Key.F));
 
@@ -347,8 +380,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("zoom.actual", Strings.Cmd_ActualSize, "actual", G(Key.D1), DocCmd(d => d.ActualSize()));
         Reg("zoom.fitWidth", Strings.Cmd_FitWidth, "fitwidth", G(Key.D2), DocCmd(d => d.FitWidth()));
         Reg("zoom.fitPage", Strings.Cmd_FitPage, "fitpage", G(Key.D0), DocCmd(d => d.FitPage()));
-        Reg("page.rotateLeft", Strings.Cmd_PageRotateLeft, "rotateleft");
-        Reg("page.rotateRight", Strings.Cmd_PageRotateRight, "rotate");
+        Reg("page.rotateLeft", Strings.Cmd_PageRotateLeft, "rotateleft", null, PageCmd(p => p.RotateLeftCommand));
+        Reg("page.rotateRight", Strings.Cmd_PageRotateRight, "rotate", null, PageCmd(p => p.RotateRightCommand));
 
         Reg("annot.select", Strings.Cmd_AnnotSelect, "select");
         Reg("annot.typewriter", Strings.Cmd_Typewriter, "type");
@@ -383,13 +416,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("edit.addImage", Strings.Cmd_AddImage, "image");
         Reg("edit.addShape", Strings.Cmd_AddShape, "rect");
 
-        Reg("page.insertBlank", Strings.Cmd_PageInsertBlank, "note");
-        Reg("page.insertFile", Strings.Cmd_PageInsertFromFile, "open");
-        Reg("page.delete", Strings.Cmd_PageDelete, "delete");
-        Reg("page.moveForward", Strings.Cmd_PageMoveForward, "moveup");
-        Reg("page.moveBack", Strings.Cmd_PageMoveBack, "movedown");
-        Reg("page.moveTo", Strings.Cmd_PageMoveTo, "moveto");
-        Reg("page.merge", Strings.Cmd_MergeDocuments, "layers");
+        Reg("page.insertBlank", Strings.Cmd_PageInsertBlank, "pageadd", null, PageCmd(p => p.InsertBlankCommand));
+        Reg("page.insertFile", Strings.Cmd_PageInsertFromFile, "insertfile", null, PageCmd(p => p.InsertFromFileCommand));
+        Reg("page.delete", Strings.Cmd_PageDelete, "delete", null, PageCmd(p => p.DeleteCommand));
+        Reg("page.moveForward", Strings.Cmd_PageMoveForward, "moveup", null, PageCmd(p => p.MoveUpCommand));
+        Reg("page.moveBack", Strings.Cmd_PageMoveBack, "movedown", null, PageCmd(p => p.MoveDownCommand));
+        Reg("page.moveTo", Strings.Cmd_PageMoveTo, "moveto", null, PageCmd(p => p.MoveToCommand));
+        Reg("page.merge", Strings.Cmd_MergeDocuments, "merge", null, PageCmd(p => p.MergeCommand));
 
         Reg("view.continuous", Strings.Cmd_Continuous, "continuous", null, DocCmd(d => d.ViewMode = ViewMode.Continuous));
         Reg("view.single", Strings.Cmd_SinglePage, "single", null, DocCmd(d => d.ViewMode = ViewMode.SinglePage));
@@ -416,7 +449,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Gr(Strings.Group_Tools, false, I("tool.hand", Strings.Cmd_Hand, tbd), I("tool.textSelect", Strings.Cmd_TextSelect, tbd)),
                 Gr(Strings.Group_Zoom, false, I("zoom.in", Strings.Cmd_ZoomIn, tbd), I("zoom.out", Strings.Cmd_ZoomOut, tbd),
                     I("zoom.actual", Strings.Cmd_ActualSize, tbd), I("zoom.fitWidth", Strings.Cmd_FitWidth, tbd), I("zoom.fitPage", Strings.Cmd_FitPage, tbd)),
-                Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft, tbd), I("page.rotateRight", Strings.Cmd_RotateRight, tbd)),
+                Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
                 Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find, tbd)),
             ],
             ["Annotate"] =
@@ -440,11 +473,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ],
             ["Page"] =
             [
-                Gr(Strings.Group_Insert, false, I("page.insertBlank", Strings.Cmd_InsertBlank, tbd), I("page.insertFile", Strings.Cmd_InsertFromFile, tbd)),
-                Gr(Strings.Group_Delete, false, I("page.delete", Strings.Cmd_DeletePage, tbd)),
-                Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft, tbd), I("page.rotateRight", Strings.Cmd_RotateRight, tbd)),
-                Gr(Strings.Group_Order, false, I("page.moveForward", Strings.Cmd_MoveForward, tbd), I("page.moveBack", Strings.Cmd_MoveBack, tbd), I("page.moveTo", Strings.Cmd_MoveTo, tbd)),
-                Gr(Strings.Group_Document, false, I("page.merge", Strings.Cmd_Merge, tbd)),
+                Gr(Strings.Group_Insert, false, I("page.insertBlank", Strings.Cmd_InsertBlank), I("page.insertFile", Strings.Cmd_InsertFromFile)),
+                Gr(Strings.Group_Delete, false, I("page.delete", Strings.Cmd_DeletePage)),
+                Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
+                Gr(Strings.Group_Order, false, I("page.moveForward", Strings.Cmd_MoveForward), I("page.moveBack", Strings.Cmd_MoveBack), I("page.moveTo", Strings.Cmd_MoveTo)),
+                Gr(Strings.Group_Document, false, I("page.merge", Strings.Cmd_Merge)),
             ],
             ["View"] =
             [
