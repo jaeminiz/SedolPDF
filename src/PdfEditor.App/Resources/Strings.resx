@@ -118,7 +118,8 @@
   <data name="Panel_Search" xml:space="preserve"><value>검색</value></data>
   <data name="Panel_Properties" xml:space="preserve"><value>속성</value></data>
   <data name="Panel_PropertiesEmpty" xml:space="preserve"><value>선택한 항목이 없습니다.</value></data>
-  <data name="Status_PageSize" xml:space="preserve"><value>W {0:0.0} mm  H {1:0.0} mm  X {2:0.0}  Y {3:0.0}</value></data>
+  <data name="Status_PageSize" xml:space="preserve"><value>W {0:0.0} mm  H {1:0.0} mm</value></data>
+  <data name="Status_Cursor" xml:space="preserve"><value>X {0:0.0}  Y {1:0.0}</value></data>
   <data name="Status_PageCount" xml:space="preserve"><value>/ {0}</value></data>
   <data name="Tip_CloseTab" xml:space="preserve"><value>탭 닫기</value></data>
   <data name="Tip_NewTab" xml:space="preserve"><value>문서 열기</value></data>

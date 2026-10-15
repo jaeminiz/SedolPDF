@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Shell.Ribbon;
+using PdfEditor.App.Viewer;
 
 namespace PdfEditor.App.Shell;
 
@@ -16,6 +17,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private const double MinZoomPercent = 10, MaxZoomPercent = 1600;
     private static readonly double ZoomLogSpan = Math.Log(MaxZoomPercent / MinZoomPercent);
     private readonly Dictionary<string, IReadOnlyList<RibbonGroupVm>> _groupCache = new();
+    private readonly List<IRelayCommand> _docCommands = [];
+    private bool _syncingDocZoom;
+
+    /// <summary>활성 문서(세션 있는)에만 실행되는 명령. 활성 문서가 바뀌면 CanExecute를 다시 알린다.</summary>
+    private RelayCommand NavCmd(Action<DocumentTabViewModel> a) => DocCmd(a);
+
+    private RelayCommand DocCmd(Action<DocumentTabViewModel> action)
+    {
+        var c = new RelayCommand(() => { if (ActiveDocument is { Session: not null } d) action(d); },
+            () => ActiveDocument?.Session is not null);
+        _docCommands.Add(c);
+        return c;
+    }
+
+    public IRelayCommand FirstPageCommand { get; private set; } = null!;
+    public IRelayCommand PrevPageCommand { get; private set; } = null!;
+    public IRelayCommand NextPageCommand { get; private set; } = null!;
+    public IRelayCommand LastPageCommand { get; private set; } = null!;
     private bool _syncingZoom;
 
     public ObservableCollection<DocumentTabViewModel> Documents { get; } = [];
@@ -51,8 +70,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<AppCommand> _quickCommandResults = [];
     [ObservableProperty] private double _zoomPercent = 100;
     [ObservableProperty] private double _zoomSliderValue = Math.Log(10) / ZoomLogSpan;
-    [ObservableProperty] private double _cursorX;
-    [ObservableProperty] private double _cursorY;
 
     public MainWindowViewModel()
     {
@@ -60,6 +77,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SelectRibbonTabCommand = new RelayCommand<string>(t => { if (t is not null) SelectedRibbonTab = t; });
         CloseDocumentCommand = new RelayCommand<DocumentTabViewModel>(d => { if (d is not null) _ = CloseDocumentAsync(d); });
 
+        FirstPageCommand = NavCmd(d => d.FirstPage());
+        PrevPageCommand = NavCmd(d => d.PrevPage());
+        NextPageCommand = NavCmd(d => d.NextPage());
+        LastPageCommand = NavCmd(d => d.LastPage());
         RegisterCommands();
         Ribbon = BuildRibbon();
         RibbonTabs =
@@ -86,8 +107,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string ZoomText => $"{ZoomPercent:0}%";
     public int PageCount => ActiveDocument?.PageCount ?? 0;
     public string PageCountText => string.Format(Strings.Status_PageCount, PageCount);
-    public string StatusSizeText => string.Format(Strings.Status_PageSize,
-        ActiveDocument?.PageWidthMm ?? 0, ActiveDocument?.PageHeightMm ?? 0, CursorX, CursorY);
+    public string StatusSizeText
+    {
+        get
+        {
+            var d = ActiveDocument;
+            string size = string.Format(Strings.Status_PageSize, d?.PageWidthMm ?? 0, d?.PageHeightMm ?? 0);
+            return d is { CursorXmm: { } x, CursorYmm: { } y } ? size + "  " + string.Format(Strings.Status_Cursor, x, y) : size;
+        }
+    }
 
     /// <summary>1부터 시작하는 현재 페이지 번호(문서 없으면 0). 쓰면 문서의 현재 페이지가 바뀐다.</summary>
     public int CurrentPageNumber
@@ -109,6 +137,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(HasNoDocument));
         NotifyFileCommands();
+        foreach (var c in _docCommands) c.NotifyCanExecuteChanged();
+        if (newValue is not null) SetZoomFromDocument(newValue.Scale);
     }
 
     private void NotifyFileCommands()
@@ -219,6 +249,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void OnDocumentPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         RefreshDocumentStatus();
+        if (e.PropertyName == nameof(DocumentTabViewModel.Scale) && s is DocumentTabViewModel d) SetZoomFromDocument(d.Scale);
         if (e.PropertyName == nameof(DocumentTabViewModel.Title)) OnPropertyChanged(nameof(FileName));
     }
 
@@ -230,8 +261,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(StatusSizeText));
     }
 
-    partial void OnCursorXChanged(double value) => OnPropertyChanged(nameof(StatusSizeText));
-    partial void OnCursorYChanged(double value) => OnPropertyChanged(nameof(StatusSizeText));
+
+    private void SetZoomFromDocument(double scale)
+    {
+        _syncingDocZoom = true;
+        try { ZoomPercent = Math.Clamp(scale * 100, MinZoomPercent, MaxZoomPercent); }
+        finally { _syncingDocZoom = false; }
+    }
 
     partial void OnSelectedRibbonTabChanged(string value)
     {
@@ -260,6 +296,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     partial void OnZoomPercentChanged(double value)
     {
         OnPropertyChanged(nameof(ZoomText));
+        if (!_syncingDocZoom && ActiveDocument is { } doc && Math.Abs(doc.Scale * 100 - value) > 1e-6) doc.Scale = value / 100.0;
         if (_syncingZoom) return;
         _syncingZoom = true;
         ZoomSliderValue = Math.Log(Math.Clamp(value, MinZoomPercent, MaxZoomPercent) / MinZoomPercent) / ZoomLogSpan;
@@ -303,14 +340,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("doc.close", Strings.Cmd_CloseDoc, null, G(Key.W), _closeActiveCommand);
         Reg("find", Strings.Cmd_Find, "search", G(Key.F));
 
-        Reg("tool.hand", Strings.Cmd_Hand, "hand");
-        Reg("tool.textSelect", Strings.Cmd_TextSelect, "tsel");
-        Reg("zoom.in", Strings.Cmd_ZoomIn, "zin", G(Key.OemPlus));
-        Reg("zoom.out", Strings.Cmd_ZoomOut, "zout", G(Key.OemMinus));
-        Reg("zoom.actual", Strings.Cmd_ActualSize, null, G(Key.D1));
-        Reg("zoom.fitWidth", Strings.Cmd_FitWidth, null, G(Key.D2));
-        Reg("zoom.fitPage", Strings.Cmd_FitPage, null, G(Key.D0));
-        Reg("page.rotateLeft", Strings.Cmd_PageRotateLeft, "rotate");
+        Reg("tool.hand", Strings.Cmd_Hand, "hand", null, DocCmd(d => d.Tool = ToolKind.Hand));
+        Reg("tool.textSelect", Strings.Cmd_TextSelect, "tsel", null, DocCmd(d => d.Tool = ToolKind.TextSelect));
+        Reg("zoom.in", Strings.Cmd_ZoomIn, "zin", G(Key.OemPlus), DocCmd(d => d.ZoomIn()));
+        Reg("zoom.out", Strings.Cmd_ZoomOut, "zout", G(Key.OemMinus), DocCmd(d => d.ZoomOut()));
+        Reg("zoom.actual", Strings.Cmd_ActualSize, "actual", G(Key.D1), DocCmd(d => d.ActualSize()));
+        Reg("zoom.fitWidth", Strings.Cmd_FitWidth, "fitwidth", G(Key.D2), DocCmd(d => d.FitWidth()));
+        Reg("zoom.fitPage", Strings.Cmd_FitPage, "fitpage", G(Key.D0), DocCmd(d => d.FitPage()));
+        Reg("page.rotateLeft", Strings.Cmd_PageRotateLeft, "rotateleft");
         Reg("page.rotateRight", Strings.Cmd_PageRotateRight, "rotate");
 
         Reg("annot.select", Strings.Cmd_AnnotSelect, "select");
@@ -348,14 +385,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         Reg("page.insertBlank", Strings.Cmd_PageInsertBlank, "note");
         Reg("page.insertFile", Strings.Cmd_PageInsertFromFile, "open");
-        Reg("page.delete", Strings.Cmd_PageDelete, null);
-        Reg("page.moveForward", Strings.Cmd_PageMoveForward, null);
-        Reg("page.moveBack", Strings.Cmd_PageMoveBack, null);
-        Reg("page.moveTo", Strings.Cmd_PageMoveTo, null);
+        Reg("page.delete", Strings.Cmd_PageDelete, "delete");
+        Reg("page.moveForward", Strings.Cmd_PageMoveForward, "moveup");
+        Reg("page.moveBack", Strings.Cmd_PageMoveBack, "movedown");
+        Reg("page.moveTo", Strings.Cmd_PageMoveTo, "moveto");
         Reg("page.merge", Strings.Cmd_MergeDocuments, "layers");
 
-        Reg("view.continuous", Strings.Cmd_Continuous, null);
-        Reg("view.single", Strings.Cmd_SinglePage, null);
+        Reg("view.continuous", Strings.Cmd_Continuous, "continuous", null, DocCmd(d => d.ViewMode = ViewMode.Continuous));
+        Reg("view.single", Strings.Cmd_SinglePage, "single", null, DocCmd(d => d.ViewMode = ViewMode.SinglePage));
         Reg("view.leftPanel", Strings.Cmd_LeftPanel, "side", null,
             new RelayCommand(() => IsLeftPanelVisible = !IsLeftPanelVisible));
         Reg("view.properties", Strings.Cmd_PropertiesPanel, "insp", null,

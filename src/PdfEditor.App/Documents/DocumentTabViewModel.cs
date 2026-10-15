@@ -1,3 +1,4 @@
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfEditor.App.Viewer;
 using PdfEditor.Document;
@@ -41,6 +42,54 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     public DocumentSession? Session { get; }
 
+    /// <summary>탭을 닫을 때(Detach) 발생. 화면이 이 탭의 캐시를 정리하는 데 쓴다.</summary>
+    public event Action? Detached;
+
+    /// <summary>문서 화면이 보고하는 보이는 영역 크기(맞춤 배율 계산용).</summary>
+    public Size ViewportSize { get; set; }
+
+    /// <summary>페이지 왼쪽 위 기준 커서 위치(mm). 페이지 밖이면 null.</summary>
+    [ObservableProperty] private double? _cursorXmm;
+    [ObservableProperty] private double? _cursorYmm;
+
+    public void SetCursorFromPagePoint(Point? inPage, double scale)
+    {
+        if (inPage is not { } p || scale <= 0) { CursorXmm = null; CursorYmm = null; return; }
+        CursorXmm = p.X / scale * PtToMm;
+        CursorYmm = p.Y / scale * PtToMm;
+    }
+
+    public void ZoomIn() => Scale = ZoomMath.Step(Scale, 1);
+    public void ZoomOut() => Scale = ZoomMath.Step(Scale, -1);
+    public void ActualSize() => Scale = 1.0;
+
+    private bool TryCurrentPage(out PageInfo page)
+    {
+        page = default!;
+        var pages = Session?.Pages;
+        if (pages is null || pages.Value.Length == 0) return false;
+        page = pages.Value[Math.Clamp(CurrentPageIndex, 0, pages.Value.Length - 1)];
+        return true;
+    }
+
+    public void FitWidth()
+    {
+        if (TryCurrentPage(out var p) && ViewportSize.Width > 0)
+            Scale = ZoomMath.FitWidth(new Size(p.WidthPt, p.HeightPt), ViewportSize.Width);
+    }
+
+    public void FitPage()
+    {
+        if (TryCurrentPage(out var p) && ViewportSize.Width > 0 && ViewportSize.Height > 0)
+            Scale = ZoomMath.FitPage(new Size(p.WidthPt, p.HeightPt), ViewportSize);
+    }
+
+    private void GoTo(int i) => CurrentPageIndex = Math.Clamp(i, 0, Math.Max(0, PageCount - 1));
+    public void FirstPage() => GoTo(0);
+    public void LastPage() => GoTo(PageCount - 1);
+    public void NextPage() => GoTo(CurrentPageIndex + 1);
+    public void PrevPage() => GoTo(CurrentPageIndex - 1);
+
     public string Title => Session is { IsDirty: true } ? _baseTitle + " •" : _baseTitle;
 
     /// <summary>다른 이름으로 저장 후 등 세션의 이름·변경 여부가 바뀌었을 때 부른다.</summary>
@@ -53,6 +102,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     /// <summary>이벤트 구독을 풀고, 세션 해제는 호출자가 한다.</summary>
     public void Detach()
     {
+        Detached?.Invoke();
         if (Session is null) return;
         Session.Commands.Changed -= OnSessionChanged;
         Session.PagesChanged -= OnPagesChanged;
@@ -70,5 +120,15 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         PageWidthMm = pages[i].WidthPt * PtToMm;
         PageHeightMm = pages[i].HeightPt * PtToMm;
         if (i != CurrentPageIndex) CurrentPageIndex = i;
+    }
+
+    // 현재 페이지가 바뀌면 상태 표시줄의 페이지 크기도 그 페이지 것으로 바꾼다.
+    partial void OnCurrentPageIndexChanged(int value)
+    {
+        var pages = Session?.Pages;
+        if (pages is null || pages.Value.Length == 0) return;
+        var p = pages.Value[Math.Clamp(value, 0, pages.Value.Length - 1)];
+        PageWidthMm = p.WidthPt * PtToMm;
+        PageHeightMm = p.HeightPt * PtToMm;
     }
 }

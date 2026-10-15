@@ -128,6 +128,7 @@ public static class Strings
     public static string Panel_Properties => Get(nameof(Panel_Properties));
     public static string Panel_PropertiesEmpty => Get(nameof(Panel_PropertiesEmpty));
     public static string Status_PageSize => Get(nameof(Status_PageSize));
+    public static string Status_Cursor => Get(nameof(Status_Cursor));
     public static string Status_PageCount => Get(nameof(Status_PageCount));
     public static string Tip_CloseTab => Get(nameof(Tip_CloseTab));
     public static string Tip_NewTab => Get(nameof(Tip_NewTab));

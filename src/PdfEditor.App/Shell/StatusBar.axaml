@@ -9,19 +9,19 @@
       <TextBlock Grid.Column="0" Text="{Binding StatusSizeText}" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas" />
 
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-        <Button Classes="nav" IsEnabled="False" ToolTip.Tip="{x:Static res:Strings.Tip_FirstPage}" ToolTip.ShowOnDisabled="True">
+        <Button Classes="nav" Command="{Binding FirstPageCommand}" ToolTip.Tip="{x:Static res:Strings.Tip_FirstPage}" ToolTip.ShowOnDisabled="True">
           <res:IconView Key="first" Width="12" Height="12" Foreground="{Binding $parent[Button].Foreground}" />
         </Button>
-        <Button Classes="nav" IsEnabled="False" ToolTip.Tip="{x:Static res:Strings.Tip_PrevPage}" ToolTip.ShowOnDisabled="True">
+        <Button Classes="nav" Command="{Binding PrevPageCommand}" ToolTip.Tip="{x:Static res:Strings.Tip_PrevPage}" ToolTip.ShowOnDisabled="True">
           <res:IconView Key="prev" Width="12" Height="12" Foreground="{Binding $parent[Button].Foreground}" />
         </Button>
         <TextBox Classes="pagebox" Width="46" Text="{Binding CurrentPageNumber, Mode=TwoWay}"
                  IsEnabled="{Binding !HasNoDocument}" TextAlignment="Center" />
         <TextBlock Text="{Binding PageCountText}" VerticalAlignment="Center" Foreground="#1A1A1A" />
-        <Button Classes="nav" IsEnabled="False" ToolTip.Tip="{x:Static res:Strings.Tip_NextPage}" ToolTip.ShowOnDisabled="True">
+        <Button Classes="nav" Command="{Binding NextPageCommand}" ToolTip.Tip="{x:Static res:Strings.Tip_NextPage}" ToolTip.ShowOnDisabled="True">
           <res:IconView Key="next" Width="12" Height="12" Foreground="{Binding $parent[Button].Foreground}" />
         </Button>
-        <Button Classes="nav" IsEnabled="False" ToolTip.Tip="{x:Static res:Strings.Tip_LastPage}" ToolTip.ShowOnDisabled="True">
+        <Button Classes="nav" Command="{Binding LastPageCommand}" ToolTip.Tip="{x:Static res:Strings.Tip_LastPage}" ToolTip.ShowOnDisabled="True">
           <res:IconView Key="last" Width="12" Height="12" Foreground="{Binding $parent[Button].Foreground}" />
         </Button>
       </StackPanel>
