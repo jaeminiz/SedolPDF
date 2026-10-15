@@ -84,6 +84,9 @@ public sealed class DocumentSession : IAsyncDisposable
 
     public bool IsDirty => Commands.Version != _savedVersion;
 
+    /// <summary>명령 스택 밖에서 만든 내용(병합 결과 등)을 저장 안 된 상태로 표시한다. 취소로 Version이 돌아와도 계속 변경됨.</summary>
+    public void MarkModified() => _savedVersion = -1;
+
     public void MarkSaved(string path)
     {
         FilePath = path;
