@@ -9,10 +9,10 @@
 - 패키지 안에는 별도 LICENSE 파일이 없음 → 원문과 NOTICE 요구사항은 V5에서 확인 (검증 필요)
 - https://pdfium.googlesource.com/pdfium/ , https://github.com/bblanchon/pdfium-binaries
 
-## Noto Sans KR (Task 4에서 추가 예정)
-- 용도: 기본 한글 폰트 (`assets/fonts/`)
+## Noto Sans KR
+- 용도: 기본 한글 폰트 (`assets/fonts/NotoSansKR-Regular.otf`, 라이선스 원문 `assets/fonts/OFL.txt`). 앱에 포함해 배포 가능(기업 사용 무료), 폰트 파일 단독 판매만 금지
 - 라이선스: SIL Open Font License 1.1 (OFL-1.1)
-- https://fonts.google.com/noto/specimen/Noto+Sans+KR
+- 출처: https://github.com/notofonts/noto-cjk (Sans/SubsetOTF/KR)
 
 ## HarfBuzzSharp / PDFsharp (spikes 단계에서 사용)
 - HarfBuzzSharp: MIT, PDFsharp: MIT
