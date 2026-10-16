@@ -224,6 +224,10 @@
           <TextBlock DockPanel.Dock="Top" Text="{Binding ActivePanelLabel}" FontWeight="SemiBold" Margin="10,8" />
           <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
           <Panel IsVisible="{Binding ShowThumbnails}"><panels:ThumbnailsPanel DataContext="{Binding ActiveThumbnails}" /></Panel>
+          <Panel IsVisible="{Binding ShowBookmarks}"><panels:BookmarksPanel DataContext="{Binding ActiveBookmarks}" /></Panel>
+          <Panel IsVisible="{Binding ShowAttachments}"><panels:AttachmentsPanel DataContext="{Binding ActiveAttachments}" /></Panel>
+          <Panel IsVisible="{Binding ShowLayers}"><panels:LayersPanel DataContext="{Binding ActiveLayers}" /></Panel>
+          <Panel IsVisible="{Binding ShowComments}"><panels:CommentsPanel /></Panel>
         </DockPanel>
       </Border>
 
@@ -271,7 +275,11 @@
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="{x:Static res:Strings.Panel_Properties}" FontWeight="SemiBold" Margin="10,8" />
           <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
-          <TextBlock Text="{x:Static res:Strings.Panel_PropertiesEmpty}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+          <Panel>
+            <Panel IsVisible="{Binding !HasNoDocument}"><panels:PropertiesPanel DataContext="{Binding ActiveProperties}" /></Panel>
+            <TextBlock Text="{x:Static res:Strings.Panel_PropertiesEmpty}" IsVisible="{Binding HasNoDocument}"
+                       Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+          </Panel>
         </DockPanel>
       </Border>
     </Grid>

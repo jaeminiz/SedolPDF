@@ -14,8 +14,10 @@
 - 라이선스: SIL Open Font License 1.1 (OFL-1.1)
 - 출처: https://github.com/notofonts/noto-cjk (Sans/SubsetOTF/KR)
 
-## HarfBuzzSharp / PDFsharp (spikes 단계에서 사용)
-- HarfBuzzSharp: MIT, PDFsharp: MIT
+## HarfBuzzSharp / PDFsharp
+- HarfBuzzSharp: MIT (spikes 단계에서만 사용), PDFsharp 6.2.4: MIT
+- PDFsharp은 앱에서 레이어 목록 읽기(`PdfEditor.Document/Layers/LayerReader.cs`)에 쓴다. 6.5.0 이후는 AGPL이라 6.2.x에 고정.
+- System.Security.Cryptography.Pkcs 10.0.13: MIT (PDFsharp이 끌어오는 8.0.1에 알려진 취약점이 있어 직접 지정)
 
 ## Avalonia (12.1.4)
 - 용도: UI 프레임워크 (`Avalonia`, `Avalonia.Desktop`, `Avalonia.Themes.Fluent`)

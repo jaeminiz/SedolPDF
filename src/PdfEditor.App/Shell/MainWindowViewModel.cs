@@ -116,6 +116,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool HasNoDocument => ActiveDocument is null;
     public ThumbnailsViewModel? ActiveThumbnails => ActiveDocument?.Thumbnails;
     public bool ShowThumbnails => ActiveLeftPanel == PanelKind.Thumbnails;
+    public bool ShowBookmarks => ActiveLeftPanel == PanelKind.Bookmarks;
+    public bool ShowAttachments => ActiveLeftPanel == PanelKind.Attachments;
+    public bool ShowLayers => ActiveLeftPanel == PanelKind.Layers;
+    public bool ShowComments => ActiveLeftPanel == PanelKind.Comments;
+    public BookmarksViewModel? ActiveBookmarks => ActiveDocument?.Bookmarks;
+    public AttachmentsViewModel? ActiveAttachments => ActiveDocument?.Attachments;
+    public LayersViewModel? ActiveLayers => ActiveDocument?.Layers;
+    public PropertiesViewModel? ActiveProperties => ActiveDocument?.Properties;
     public bool HasQuickResults => QuickCommandResults.Count > 0;
     public string ZoomText => $"{ZoomPercent:0}%";
     public int PageCount => ActiveDocument?.PageCount ?? 0;
@@ -152,7 +160,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         NotifyFileCommands();
         foreach (var c in _docCommands) c.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ActiveThumbnails));
+        OnPropertyChanged(nameof(ActiveBookmarks));
+        OnPropertyChanged(nameof(ActiveAttachments));
+        OnPropertyChanged(nameof(ActiveLayers));
+        OnPropertyChanged(nameof(ActiveProperties));
         if (newValue is not null) SetZoomFromDocument(newValue.Scale);
+        LoadVisiblePanels();
     }
 
     private void NotifyFileCommands()
@@ -224,6 +237,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var thumbs = new ThumbnailsViewModel(tab, (data, w, h) => new BitmapHandle(data, w, h), _post);
         tab.PageCommands = cmds;
         tab.Thumbnails = thumbs;
+        tab.Bookmarks = new BookmarksViewModel(tab);
+        tab.Attachments = new AttachmentsViewModel(tab, _prompts!);
+        tab.Layers = new LayersViewModel(tab);
+        tab.Properties = new PropertiesViewModel(tab);
         tab.Detached += () => { thumbs.Dispose(); cmds.Dispose(); };
     }
 
@@ -312,6 +329,37 @@ public sealed partial class MainWindowViewModel : ObservableObject
         foreach (var p in PanelButtons) p.IsSelected = p.Kind == value;
         OnPropertyChanged(nameof(ActivePanelLabel));
         OnPropertyChanged(nameof(ShowThumbnails));
+        OnPropertyChanged(nameof(ShowBookmarks));
+        OnPropertyChanged(nameof(ShowAttachments));
+        OnPropertyChanged(nameof(ShowLayers));
+        OnPropertyChanged(nameof(ShowComments));
+        LoadVisiblePanels();
+    }
+
+    partial void OnIsLeftPanelVisibleChanged(bool value) => LoadVisiblePanels();
+    partial void OnIsPropertiesPanelVisibleChanged(bool value) => LoadVisiblePanels();
+
+    /// <summary>보이는 읽기 전용 패널의 내용을 처음 한 번 읽는다(각 모델이 중복 호출을 무시한다).</summary>
+    private async void LoadVisiblePanels()
+    {
+        if (ActiveDocument is not { } d) return;
+        try
+        {
+            if (IsLeftPanelVisible)
+            {
+                switch (ActiveLeftPanel)
+                {
+                    case PanelKind.Bookmarks when d.Bookmarks is { } b: await b.LoadAsync(); break;
+                    case PanelKind.Attachments when d.Attachments is { } a: await a.LoadAsync(); break;
+                    case PanelKind.Layers when d.Layers is { } l: await l.LoadAsync(); break;
+                }
+            }
+            if (IsPropertiesPanelVisible && d.Properties is { } p) await p.LoadAsync();
+        }
+        catch (Exception)
+        {
+            // 각 모델이 읽기 실패를 스스로 처리한다. 여기서는 async void가 앱을 끝내지 않도록만 막는다.
+        }
     }
 
     partial void OnQuickCommandTextChanged(string value) => QuickCommandResults = Commands.Search(value);

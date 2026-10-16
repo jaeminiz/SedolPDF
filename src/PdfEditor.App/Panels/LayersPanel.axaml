@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:panels="using:PdfEditor.App.Panels"
+             x:Class="PdfEditor.App.Panels.LayersPanel"
+             x:DataType="panels:LayersViewModel">
+  <DockPanel>
+    <TextBlock DockPanel.Dock="Bottom" Text="{Binding ToggleNote}" IsVisible="{Binding HasLayers}"
+               Foreground="#5C5C5C" FontSize="11" Margin="10,6" TextWrapping="Wrap" />
+    <Grid>
+      <ItemsControl ItemsSource="{Binding Items}" Margin="6,2">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="panels:LayerItem">
+            <!-- 표시 전환은 다음 버전: 처음 표시 상태만 비활성 체크박스로 보여 준다. -->
+            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsVisibleInitially, Mode=OneWay}" IsEnabled="False" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <TextBlock Text="{Binding Message}" IsVisible="{Binding !HasLayers}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+    </Grid>
+  </DockPanel>
+</UserControl>

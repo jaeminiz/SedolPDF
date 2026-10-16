@@ -15,6 +15,7 @@ public sealed class FakePrompts : IUserPrompts
     public UnsavedChoice SaveChoice { get; set; } = UnsavedChoice.Cancel;
     public Queue<string?> SavePicks { get; } = new();
     public int SavePickCalls { get; private set; }
+    public List<string> SuggestedNames { get; } = [];
     public List<string> Errors { get; } = [];
     public List<string> Infos { get; } = [];
 
@@ -37,6 +38,7 @@ public sealed class FakePrompts : IUserPrompts
     public Task<string?> PickSaveFileAsync(string suggestedName)
     {
         SavePickCalls++;
+        SuggestedNames.Add(suggestedName);
         return Task.FromResult(SavePicks.Count > 0 ? SavePicks.Dequeue() : null);
     }
     public Task ShowErrorAsync(string message) { Errors.Add(message); return Task.CompletedTask; }

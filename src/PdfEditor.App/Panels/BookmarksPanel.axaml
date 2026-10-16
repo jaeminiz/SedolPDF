@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:panels="using:PdfEditor.App.Panels"
+             x:Class="PdfEditor.App.Panels.BookmarksPanel"
+             x:DataType="panels:BookmarksViewModel">
+  <Grid>
+    <TreeView x:Name="Tree" ItemsSource="{Binding Nodes}" Background="Transparent" Padding="2">
+      <TreeView.Styles>
+        <Style Selector="TreeViewItem" x:DataType="panels:BookmarkNode">
+          <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+        </Style>
+      </TreeView.Styles>
+      <TreeView.ItemTemplate>
+        <TreeDataTemplate x:DataType="panels:BookmarkNode" ItemsSource="{Binding Children}">
+          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
+        </TreeDataTemplate>
+      </TreeView.ItemTemplate>
+    </TreeView>
+    <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+  </Grid>
+</UserControl>

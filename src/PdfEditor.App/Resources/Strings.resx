@@ -177,4 +177,31 @@
   <data name="Dlg_MoveItemUp" xml:space="preserve"><value>위로</value></data>
   <data name="Dlg_MoveItemDown" xml:space="preserve"><value>아래로</value></data>
   <data name="Dlg_RemoveItem" xml:space="preserve"><value>빼기</value></data>
+  <data name="Panel_NoBookmarks" xml:space="preserve"><value>이 문서에는 책갈피가 없습니다.</value></data>
+  <data name="Panel_NoAttachments" xml:space="preserve"><value>이 문서에는 첨부 파일이 없습니다.</value></data>
+  <data name="Panel_NoLayers" xml:space="preserve"><value>이 문서에는 레이어가 없습니다.</value></data>
+  <data name="Panel_LayersUnreadable" xml:space="preserve"><value>레이어 목록을 읽을 수 없습니다.</value></data>
+  <data name="Panel_LayerToggleUnavailable" xml:space="preserve"><value>레이어 표시 전환은 다음 버전에서 지원합니다</value></data>
+  <data name="Panel_CommentsComingInM3" xml:space="preserve"><value>코멘트 목록은 주석 기능과 함께 다음 버전에서 제공합니다.</value></data>
+  <data name="Panel_AttachmentSave" xml:space="preserve"><value>저장</value></data>
+  <data name="Panel_AttachmentSize" xml:space="preserve"><value>{0:0.#} KB</value></data>
+  <data name="Prop_FileName" xml:space="preserve"><value>파일 이름</value></data>
+  <data name="Prop_PageCount" xml:space="preserve"><value>쪽 수</value></data>
+  <data name="Prop_PageSize" xml:space="preserve"><value>현재 쪽 크기</value></data>
+  <data name="Prop_PageSizeValue" xml:space="preserve"><value>{0:0.0} × {1:0.0} mm</value></data>
+  <data name="Prop_PdfVersion" xml:space="preserve"><value>PDF 버전</value></data>
+  <data name="Prop_Title" xml:space="preserve"><value>제목</value></data>
+  <data name="Prop_Author" xml:space="preserve"><value>작성자</value></data>
+  <data name="Prop_Creator" xml:space="preserve"><value>만든 프로그램</value></data>
+  <data name="Prop_Producer" xml:space="preserve"><value>PDF 생성기</value></data>
+  <data name="Prop_Encrypted" xml:space="preserve"><value>암호화</value></data>
+  <data name="Prop_PermPrint" xml:space="preserve"><value>인쇄</value></data>
+  <data name="Prop_PermEditPages" xml:space="preserve"><value>페이지 수정</value></data>
+  <data name="Prop_PermCopy" xml:space="preserve"><value>내용 복사</value></data>
+  <data name="Prop_Repaired" xml:space="preserve"><value>복구해서 열기</value></data>
+  <data name="Prop_Yes" xml:space="preserve"><value>예</value></data>
+  <data name="Prop_No" xml:space="preserve"><value>아니요</value></data>
+  <data name="Prop_Allowed" xml:space="preserve"><value>허용</value></data>
+  <data name="Prop_Denied" xml:space="preserve"><value>허용 안 함</value></data>
+  <data name="Prop_Unknown" xml:space="preserve"><value>-</value></data>
 </root>

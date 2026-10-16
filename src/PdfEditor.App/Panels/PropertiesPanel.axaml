@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PdfEditor.App.Resources"
+             xmlns:panels="using:PdfEditor.App.Panels"
+             x:Class="PdfEditor.App.Panels.PropertiesPanel"
+             x:DataType="panels:PropertiesViewModel">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.k">
+      <Setter Property="Foreground" Value="#5C5C5C" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+    <Style Selector="TextBlock.v">
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </UserControl.Styles>
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="10,0,10,10">
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_FileName}" />
+      <TextBlock Classes="v" Text="{Binding FileName}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_PageCount}" />
+      <TextBlock Classes="v" Text="{Binding PageCount}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_PageSize}" />
+      <TextBlock Classes="v" Text="{Binding PageSizeText}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_PdfVersion}" />
+      <TextBlock Classes="v" Text="{Binding PdfVersion}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Title}" />
+      <TextBlock Classes="v" Text="{Binding Title}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Author}" />
+      <TextBlock Classes="v" Text="{Binding Author}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Creator}" />
+      <TextBlock Classes="v" Text="{Binding Creator}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Producer}" />
+      <TextBlock Classes="v" Text="{Binding Producer}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Encrypted}" />
+      <TextBlock Classes="v" Text="{Binding Encrypted}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_PermPrint}" />
+      <TextBlock Classes="v" Text="{Binding PrintPermission}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_PermEditPages}" />
+      <TextBlock Classes="v" Text="{Binding EditPagesPermission}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_PermCopy}" />
+      <TextBlock Classes="v" Text="{Binding CopyPermission}" />
+      <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Repaired}" />
+      <TextBlock Classes="v" Text="{Binding Repaired}" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

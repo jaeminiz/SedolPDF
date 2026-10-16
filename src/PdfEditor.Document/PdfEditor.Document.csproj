@@ -4,4 +4,11 @@
     <ProjectReference Include="..\Pdf.Native\Pdf.Native.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 레이어 목록 읽기 전용(V7: PDFium에 레이어 API 없음). 6.5.0 이후는 AGPL이라 6.2.x에 고정한다. -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <!-- PDFsharp이 끌어오는 8.0.1에 알려진 취약점이 있어 직접 지정 (결과 문서 2절과 같은 처리) -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+  </ItemGroup>
+
 </Project>

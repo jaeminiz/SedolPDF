@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PdfEditor.App.Resources"
+             xmlns:panels="using:PdfEditor.App.Panels"
+             x:Class="PdfEditor.App.Panels.AttachmentsPanel"
+             x:DataType="panels:AttachmentsViewModel">
+  <Grid>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <ItemsControl ItemsSource="{Binding Items}" Margin="6,4">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="panels:AttachmentItem">
+            <DockPanel Margin="0,2" LastChildFill="True">
+              <Button DockPanel.Dock="Right" Content="{x:Static res:Strings.Panel_AttachmentSave}"
+                      VerticalAlignment="Center" Padding="8,2" Margin="6,0,0,0" Click="OnSaveClick" />
+              <StackPanel>
+                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                <TextBlock Text="{Binding SizeText}" FontSize="11" Foreground="#5C5C5C" />
+              </StackPanel>
+            </DockPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+  </Grid>
+</UserControl>

@@ -1,0 +1,6 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PdfEditor.App.Resources"
+             x:Class="PdfEditor.App.Panels.CommentsPanel">
+  <TextBlock Text="{x:Static res:Strings.Panel_CommentsComingInM3}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+</UserControl>

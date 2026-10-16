@@ -49,6 +49,12 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     public PageCommandsViewModel? PageCommands { get; set; }
     public PdfEditor.App.Panels.ThumbnailsViewModel? Thumbnails { get; set; }
 
+    /// <summary>읽기 전용 패널 모델들(책갈피, 첨부, 레이어, 속성). 각자 처음 열 때 한 번 읽는다.</summary>
+    public PdfEditor.App.Panels.BookmarksViewModel? Bookmarks { get; set; }
+    public PdfEditor.App.Panels.AttachmentsViewModel? Attachments { get; set; }
+    public PdfEditor.App.Panels.LayersViewModel? Layers { get; set; }
+    public PdfEditor.App.Panels.PropertiesViewModel? Properties { get; set; }
+
     /// <summary>탭을 닫을 때(Detach) 발생. 화면이 이 탭의 캐시를 정리하는 데 쓴다.</summary>
     public event Action? Detached;
 
