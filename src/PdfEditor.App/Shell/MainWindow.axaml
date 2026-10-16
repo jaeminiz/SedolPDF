@@ -228,6 +228,7 @@
           <Panel IsVisible="{Binding ShowAttachments}"><panels:AttachmentsPanel DataContext="{Binding ActiveAttachments}" /></Panel>
           <Panel IsVisible="{Binding ShowLayers}"><panels:LayersPanel DataContext="{Binding ActiveLayers}" /></Panel>
           <Panel IsVisible="{Binding ShowComments}"><panels:CommentsPanel /></Panel>
+          <Panel IsVisible="{Binding ShowSearch}"><panels:SearchPanel x:Name="SearchPanelView" DataContext="{Binding ActiveSearch}" /></Panel>
         </DockPanel>
       </Border>
 

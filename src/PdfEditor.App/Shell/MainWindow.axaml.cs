@@ -40,6 +40,9 @@ public sealed partial class MainWindow : Window
         if (startupFiles.Count > 0) Opened += async (_, _) => await _vm.OpenManyAsync(startupFiles);
 
         _vm.ExitRequested += (_, _) => Close();
+        // 패널이 막 보이게 된 직후라서 레이아웃 뒤에 초점을 준다.
+        _vm.FocusSearchRequested += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(SearchPanelView.FocusQuery,
+            Avalonia.Threading.DispatcherPriority.Input);
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainWindowViewModel.IsFullScreen))

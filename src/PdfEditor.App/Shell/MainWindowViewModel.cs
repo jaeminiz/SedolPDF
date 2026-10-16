@@ -71,6 +71,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>끝내기 명령이 실행되면 창이 닫는다.</summary>
     public event EventHandler? ExitRequested;
 
+    /// <summary>찾기 명령이 검색 패널을 열었다. 창이 검색어 입력칸에 초점을 준다.</summary>
+    public event EventHandler? FocusSearchRequested;
+
     [ObservableProperty] private DocumentTabViewModel? _activeDocument;
     [ObservableProperty] private string _selectedRibbonTab = "Home";
     [ObservableProperty] private PanelKind _activeLeftPanel = PanelKind.Thumbnails;
@@ -120,6 +123,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool ShowAttachments => ActiveLeftPanel == PanelKind.Attachments;
     public bool ShowLayers => ActiveLeftPanel == PanelKind.Layers;
     public bool ShowComments => ActiveLeftPanel == PanelKind.Comments;
+    public bool ShowSearch => ActiveLeftPanel == PanelKind.Search;
+    public SearchViewModel? ActiveSearch => ActiveDocument?.Search;
     public BookmarksViewModel? ActiveBookmarks => ActiveDocument?.Bookmarks;
     public AttachmentsViewModel? ActiveAttachments => ActiveDocument?.Attachments;
     public LayersViewModel? ActiveLayers => ActiveDocument?.Layers;
@@ -164,6 +169,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveAttachments));
         OnPropertyChanged(nameof(ActiveLayers));
         OnPropertyChanged(nameof(ActiveProperties));
+        OnPropertyChanged(nameof(ActiveSearch));
         if (newValue is not null) SetZoomFromDocument(newValue.Scale);
         LoadVisiblePanels();
     }
@@ -241,7 +247,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         tab.Attachments = new AttachmentsViewModel(tab, _prompts!);
         tab.Layers = new LayersViewModel(tab);
         tab.Properties = new PropertiesViewModel(tab);
-        tab.Detached += () => { thumbs.Dispose(); cmds.Dispose(); };
+        var search = tab.Search = new SearchViewModel(tab);
+        tab.NoticeRequested += msg => { _ = _prompts!.ShowInfoAsync(msg); };
+        tab.Detached += () => { search.Clear(); thumbs.Dispose(); cmds.Dispose(); };
     }
 
     private void NotifyDocCommands()
@@ -333,6 +341,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowAttachments));
         OnPropertyChanged(nameof(ShowLayers));
         OnPropertyChanged(nameof(ShowComments));
+        OnPropertyChanged(nameof(ShowSearch));
         LoadVisiblePanels();
     }
 
@@ -419,7 +428,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z), PageCmd(p => p.UndoCommand));
         Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y), PageCmd(p => p.RedoCommand));
         Reg("doc.close", Strings.Cmd_CloseDoc, null, G(Key.W), _closeActiveCommand);
-        Reg("find", Strings.Cmd_Find, "search", G(Key.F));
+        Reg("find", Strings.Cmd_Find, "search", G(Key.F), DocCmd(d => { ActiveLeftPanel = PanelKind.Search; IsLeftPanelVisible = true; FocusSearchRequested?.Invoke(this, EventArgs.Empty); }));
+        Reg("find.next", Strings.Cmd_FindNext, null, new KeyGesture(Key.F3, KeyModifiers.None), DocCmd(d => d.Search?.NextCommand.Execute(null)));
+        Reg("find.prev", Strings.Cmd_FindPrev, null, new KeyGesture(Key.F3, KeyModifiers.Shift), DocCmd(d => d.Search?.PrevCommand.Execute(null)));
 
         Reg("tool.hand", Strings.Cmd_Hand, "hand", null, DocCmd(d => d.Tool = ToolKind.Hand));
         Reg("tool.textSelect", Strings.Cmd_TextSelect, "tsel", null, DocCmd(d => d.Tool = ToolKind.TextSelect));
@@ -498,7 +509,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Gr(Strings.Group_Zoom, false, I("zoom.in", Strings.Cmd_ZoomIn, tbd), I("zoom.out", Strings.Cmd_ZoomOut, tbd),
                     I("zoom.actual", Strings.Cmd_ActualSize, tbd), I("zoom.fitWidth", Strings.Cmd_FitWidth, tbd), I("zoom.fitPage", Strings.Cmd_FitPage, tbd)),
                 Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
-                Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find, tbd)),
+                Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find)),
             ],
             ["Annotate"] =
             [

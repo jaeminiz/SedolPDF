@@ -204,4 +204,18 @@
   <data name="Prop_Allowed" xml:space="preserve"><value>허용</value></data>
   <data name="Prop_Denied" xml:space="preserve"><value>허용 안 함</value></data>
   <data name="Prop_Unknown" xml:space="preserve"><value>-</value></data>
+  <data name="Msg_NoTextLayer" xml:space="preserve"><value>이 문서에는 검색할 수 있는 텍스트가 없습니다 (스캔 이미지일 수 있음)</value></data>
+  <data name="Msg_CopyRestricted" xml:space="preserve"><value>이 문서는 복사가 제한되어 있습니다.</value></data>
+  <data name="Search_Progress" xml:space="preserve"><value>{0}건 / {1}쪽 중 {2}쪽 검색</value></data>
+  <data name="Search_NoResults" xml:space="preserve"><value>검색 결과가 없습니다.</value></data>
+  <data name="Search_Placeholder" xml:space="preserve"><value>찾을 내용</value></data>
+  <data name="Search_Start" xml:space="preserve"><value>검색</value></data>
+  <data name="Search_Cancel" xml:space="preserve"><value>중지</value></data>
+  <data name="Search_MatchCase" xml:space="preserve"><value>대소문자 구분</value></data>
+  <data name="Search_WholeWord" xml:space="preserve"><value>단어 단위</value></data>
+  <data name="Search_Prev" xml:space="preserve"><value>이전</value></data>
+  <data name="Search_Next" xml:space="preserve"><value>다음</value></data>
+  <data name="Search_PageLabel" xml:space="preserve"><value>{0}쪽</value></data>
+  <data name="Cmd_FindNext" xml:space="preserve"><value>다음 결과</value></data>
+  <data name="Cmd_FindPrev" xml:space="preserve"><value>이전 결과</value></data>
 </root>

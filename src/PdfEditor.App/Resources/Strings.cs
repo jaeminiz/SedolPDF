@@ -213,4 +213,18 @@ public static class Strings
     public static string Prop_Allowed => Get(nameof(Prop_Allowed));
     public static string Prop_Denied => Get(nameof(Prop_Denied));
     public static string Prop_Unknown => Get(nameof(Prop_Unknown));
+    public static string Msg_NoTextLayer => Get(nameof(Msg_NoTextLayer));
+    public static string Msg_CopyRestricted => Get(nameof(Msg_CopyRestricted));
+    public static string Search_Progress => Get(nameof(Search_Progress));
+    public static string Search_NoResults => Get(nameof(Search_NoResults));
+    public static string Search_Placeholder => Get(nameof(Search_Placeholder));
+    public static string Search_Start => Get(nameof(Search_Start));
+    public static string Search_Cancel => Get(nameof(Search_Cancel));
+    public static string Search_MatchCase => Get(nameof(Search_MatchCase));
+    public static string Search_WholeWord => Get(nameof(Search_WholeWord));
+    public static string Search_Prev => Get(nameof(Search_Prev));
+    public static string Search_Next => Get(nameof(Search_Next));
+    public static string Search_PageLabel => Get(nameof(Search_PageLabel));
+    public static string Cmd_FindNext => Get(nameof(Cmd_FindNext));
+    public static string Cmd_FindPrev => Get(nameof(Cmd_FindPrev));
 }

@@ -3,11 +3,14 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using PdfEditor.App.Documents;
+using PdfEditor.App.Panels;
+using PdfEditor.App.Resources;
 using PdfEditor.Document;
 
 namespace PdfEditor.App.Viewer;
@@ -36,6 +39,13 @@ public sealed class DocumentView : Control
         public Vector Offset;
         public bool Disposed;
 
+        // 덧그림용(UI 스레드 전용): 쪽 경계·회전 캐시, 검색 결과의 쪽별 묶음, 선택 사각형.
+        public readonly Dictionary<(PageId, int), PageGeom> Geoms = new();
+        public readonly HashSet<(PageId, int)> GeomPending = new();
+        public Dictionary<PageId, List<SearchHit>>? HitsByPage;   // null = 다시 만들어야 함
+        public (PageId Page, IReadOnlyList<System.Drawing.RectangleF> Rects)? SelRects;
+        public bool SelBusy, SelDirty;
+
         public void Dispose()
         {
             if (Disposed) return;
@@ -45,6 +55,9 @@ public sealed class DocumentView : Control
             foreach (var p in Session.Pages) { Tiles.RemovePage(p.Id); Thumbs.RemovePage(p.Id); }
         }
     }
+
+    /// <summary>쪽 경계(PDF 사용자 좌표)와 회전. PageTransform의 입력이다.</summary>
+    private sealed record PageGeom(System.Drawing.RectangleF Bounds, int Rotation);
 
     private readonly Dictionary<DocumentTabViewModel, ViewState> _states = new();
     private ViewState? _state;
@@ -109,6 +122,7 @@ public sealed class DocumentView : Control
         {
             if (_sv is not null) _state.Offset = _sv.Offset;
             _state.Tab.PropertyChanged -= OnTabPropertyChanged;
+            Hook(_state, false);
             _state.Scheduler.Clear();
         }
         _state = null;
@@ -124,6 +138,7 @@ public sealed class DocumentView : Control
             }
             _state = st;
             tab.PropertyChanged += OnTabPropertyChanged;
+            Hook(st, true);
             Cursor = CursorFor(tab.Tool);
             RebuildLayout();
             InvalidateMeasure();
@@ -160,6 +175,7 @@ public sealed class DocumentView : Control
         if (ReferenceEquals(_state, st))
         {
             st.Tab.PropertyChanged -= OnTabPropertyChanged;
+            Hook(st, false);
             _state = null;
             _layout = null;
             InvalidateMeasure();
@@ -338,9 +354,229 @@ public sealed class DocumentView : Control
                         painted.Add(dest.Intersect(pr));
                     }
             }
-            // ⑤ 덧그림(검색 강조·텍스트 선택)은 Task 15에서 여기에 추가한다.
+            DrawOverlays(ctx, st, info, pr, scale);   // ⑤ 검색 강조·텍스트 선택
         }
         LastCoverage = ViewportCoverage.Compute(vp, pageRects, painted);
+    }
+
+    // ---- 덧그림: 검색 강조·텍스트 선택 ----
+
+    private static readonly IBrush HitBrush = new SolidColorBrush(Color.FromArgb(0x78, 0xFF, 0xE0, 0x30));
+    private static readonly IBrush CurrentHitBrush = new SolidColorBrush(Color.FromArgb(0xA0, 0xFF, 0x8C, 0x00));
+    private static readonly IBrush SelectionBrush = new SolidColorBrush(Color.FromArgb(0x55, 0x00, 0x5F, 0xB8));
+
+    private SearchHit? _revealPending;
+    private bool _selecting;
+    private int _selPageIndex = -1;
+    private readonly List<(int Page, Point InPage, bool Begin)> _charQueue = new();
+    private bool _charBusy;
+
+    /// <summary>현재 상태의 검색·선택 이벤트를 붙이거나 뗀다. 한 번에 현재 상태 하나만 붙어 있다.</summary>
+    private void Hook(ViewState st, bool on)
+    {
+        if (st.Tab.Search is { } s)
+        {
+            if (on) { s.PropertyChanged += OnSearchPropertyChanged; s.Results.CollectionChanged += OnSearchResultsChanged; }
+            else { s.PropertyChanged -= OnSearchPropertyChanged; s.Results.CollectionChanged -= OnSearchResultsChanged; }
+        }
+        if (on) st.Tab.TextSelection.Changed += OnSelectionChanged;
+        else st.Tab.TextSelection.Changed -= OnSelectionChanged;
+        if (on) { st.HitsByPage = null; RefreshSelection(st); }
+    }
+
+    private void OnSearchResultsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (_state is null) return;
+        _state.HitsByPage = null;
+        InvalidateVisual();
+    }
+
+    private void OnSearchPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_state is null || e.PropertyName != nameof(SearchViewModel.CurrentHit)) return;
+        _revealPending = _state.Tab.Search?.CurrentHit;
+        TryReveal();
+        InvalidateVisual();
+    }
+
+    private void OnSelectionChanged()
+    {
+        if (_state is null) return;
+        if (_state.Tab.TextSelection.Range is null) _state.SelRects = null;
+        RefreshSelection(_state);
+        InvalidateVisual();
+    }
+
+    private bool TryGetGeom(ViewState st, PageInfo info, out PageGeom g)
+    {
+        var key = (info.Id, info.Version);
+        if (st.Geoms.TryGetValue(key, out g!)) return true;
+        if (st.GeomPending.Add(key)) _ = LoadGeomAsync(st, key);
+        return false;
+    }
+
+    // 전용 스레드에서 쪽 경계·회전을 한 번 읽는다. 핸들은 그 안에서만 쓴다.
+    private async Task LoadGeomAsync(ViewState st, (PageId Id, int Version) key)
+    {
+        PageGeom? geom = null;
+        try
+        {
+            geom = await st.Session.Thread.InvokeAsync(() =>
+            {
+                if (st.Session.IndexOf(key.Id) < 0) return null;
+                var p = st.Session.GetLoadedPage(key.Id);
+                return new PageGeom(p.BoundsPt, p.Rotation);
+            });
+        }
+        catch (Exception) { }   // PDFium 스레드가 닫혔거나 쪽이 없어짐: 덧그림만 생략한다.
+        Dispatcher.UIThread.Post(() =>
+        {
+            st.GeomPending.Remove(key);
+            if (st.Disposed || geom is null) return;
+            st.Geoms[key] = geom;
+            if (!ReferenceEquals(st, _state)) return;
+            TryReveal();
+            InvalidateVisual();
+        });
+    }
+
+    private static Rect ToDoc(Pdf.Native.PageTransform tr, System.Drawing.RectangleF r, Rect pageRect)
+    {
+        var v = tr.ToView(r);
+        return new Rect(pageRect.X + v.X, pageRect.Y + v.Y, Math.Max(v.W, 1), Math.Max(v.H, 1));
+    }
+
+    private void DrawOverlays(DrawingContext ctx, ViewState st, PageInfo info, Rect pr, double scale)
+    {
+        var search = st.Tab.Search;
+        bool hasHits = search is { Results.Count: > 0 };
+        bool hasSel = st.SelRects is { } sr && sr.Page == info.Id;
+        if (!hasHits && !hasSel) return;
+        if (hasHits && st.HitsByPage is null)
+            st.HitsByPage = search!.Results.GroupBy(h => h.Page).ToDictionary(g => g.Key, g => g.ToList());
+        List<SearchHit>? hits = null;
+        bool pageHasHits = hasHits && st.HitsByPage!.TryGetValue(info.Id, out hits);
+        if (!pageHasHits && !hasSel) return;
+        if (!TryGetGeom(st, info, out var g)) return;   // 도착하면 다시 그린다
+
+        var tr = new Pdf.Native.PageTransform(g.Bounds, g.Rotation, scale);
+        using (ctx.PushClip(pr))
+        {
+            if (pageHasHits)
+                foreach (var h in hits!)
+                {
+                    var brush = ReferenceEquals(h, search!.CurrentHit) ? CurrentHitBrush : HitBrush;
+                    foreach (var r in h.RectsPt) ctx.FillRectangle(brush, ToDoc(tr, r, pr));
+                }
+            if (hasSel)
+                foreach (var r in st.SelRects!.Value.Rects) ctx.FillRectangle(SelectionBrush, ToDoc(tr, r, pr));
+        }
+    }
+
+    /// <summary>현재 검색 결과가 보이지 않으면 화면 안으로 스크롤한다. 쪽 정보가 아직 없으면 도착한 뒤 다시 부른다.</summary>
+    private void TryReveal()
+    {
+        var st = _state; var lay = _layout; var hit = _revealPending;
+        if (st is null || lay is null || _sv is null || hit is null || hit.RectsPt.Count == 0) return;
+        int idx = -1;
+        for (int i = 0; i < _layoutPages.Length; i++) if (_layoutPages[i].Id == hit.Page) { idx = i; break; }
+        if (idx < 0) { _revealPending = null; return; }
+        if (!TryGetGeom(st, _layoutPages[idx], out var g)) return;
+        _revealPending = null;
+
+        var tr = new Pdf.Native.PageTransform(g.Bounds, g.Rotation, lay.Scale);
+        var rect = ToDoc(tr, hit.RectsPt[0], lay.GetPageRect(idx));
+        var vp = Viewport;
+        if (vp.Width <= 0 || vp.Height <= 0 || vp.Contains(rect.TopLeft) && vp.Contains(rect.BottomRight)) return;
+        double x = rect.Right <= vp.Right && rect.X >= vp.X ? _sv.Offset.X : rect.Center.X - vp.Width / 2;
+        _sv.Offset = ClampOffset(x, rect.Y - vp.Height / 3);
+    }
+
+    // 선택한 글자 범위의 사각형을 전용 스레드에서 읽는다. 끄는 동안 요청이 겹치면 마지막 것만 다시 한다.
+    private async void RefreshSelection(ViewState st)
+    {
+        if (st.SelBusy) { st.SelDirty = true; return; }
+        st.SelBusy = true;
+        try
+        {
+            do
+            {
+                st.SelDirty = false;
+                var sel = st.Tab.TextSelection;
+                if (sel.Page is not { } page || sel.Range is not { } r) { st.SelRects = null; }
+                else
+                {
+                    var session = st.Session;
+                    var rects = await session.Thread.InvokeAsync(() => session.IndexOf(page) < 0
+                        ? Array.Empty<System.Drawing.RectangleF>()
+                        : session.GetLoadedText(page).GetRects(r.Start, r.Count));
+                    if (st.Disposed) return;
+                    st.SelRects = (page, rects);
+                }
+                if (ReferenceEquals(st, _state)) InvalidateVisual();
+            } while (st.SelDirty);
+        }
+        catch (Exception) { }   // PDFium 스레드가 닫혔다: 선택 표시만 생략한다.
+        finally { st.SelBusy = false; }
+    }
+
+    // 끌기: 눌린 점과 움직인 점의 글자 번호를 차례로 구한다. 쪽마다 전용 스레드 작업 한 번, 움직임은 마지막 것만 남긴다.
+    private void QueueCharQuery(int pageIndex, Point inPage, bool begin)
+    {
+        if (!begin && _charQueue.Count > 0 && !_charQueue[^1].Begin) _charQueue[^1] = (pageIndex, inPage, false);
+        else _charQueue.Add((pageIndex, inPage, begin));
+        if (!_charBusy) _ = RunCharQueueAsync();
+    }
+
+    private async Task RunCharQueueAsync()
+    {
+        _charBusy = true;
+        try
+        {
+            while (_charQueue.Count > 0)
+            {
+                var q = _charQueue[0];
+                _charQueue.RemoveAt(0);
+                var st = _state; var lay = _layout;
+                if (st is null || lay is null || !_selecting || q.Page >= _layoutPages.Length) continue;
+                var id = _layoutPages[q.Page].Id;
+                double scale = lay.Scale;
+                var session = st.Session;
+                int idx = await session.Thread.InvokeAsync(() =>
+                {
+                    if (session.IndexOf(id) < 0) return -1;
+                    // 쪽 핸들은 경계·회전을 읽는 데만 쓰고 놓는다(다음 GetLoaded*가 닫을 수 있다).
+                    var page = session.GetLoadedPage(id);
+                    var tr = new Pdf.Native.PageTransform(page.BoundsPt, page.Rotation, scale);
+                    var (x, y) = tr.ToPage(new Pdf.Native.ViewPoint(q.InPage.X, q.InPage.Y));
+                    return session.GetLoadedText(id).GetCharIndexAtPos(x, y, 4.0 / scale);
+                });
+                if (st.Disposed || !_selecting || idx < 0) continue;
+                var sel = st.Tab.TextSelection;
+                if (q.Begin || sel.Page is null) sel.Begin(id, idx);
+                else if (sel.Page == id) sel.Extend(idx);
+            }
+        }
+        catch (Exception) { _charQueue.Clear(); }   // PDFium 스레드가 닫혔다
+        finally { _charBusy = false; }
+    }
+
+    private sealed class AvaloniaClipboard(IClipboard clipboard) : IClipboardService
+    {
+        public Task SetTextAsync(string text) => clipboard.SetTextAsync(text);
+    }
+
+    private async void CopySelection()
+    {
+        var st = _state;
+        var cb = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (st is null || cb is null) return;
+        try
+        {
+            var r = await TextCopier.CopyAsync(st.Session, st.Tab.TextSelection, new AvaloniaClipboard(cb));
+            if (r == CopyResult.Restricted) st.Tab.RaiseNotice(Strings.Msg_CopyRestricted);
+        }
+        catch (Exception) { }   // 클립보드를 쓸 수 없는 경우(다른 프로그램이 잡고 있음 등): 조용히 넘어간다.
     }
 
     /// <summary>타일(키의 배율 기준 픽셀)을 지금 배율의 문서 좌표 사각형으로 바꾼다.</summary>
@@ -389,12 +625,32 @@ public sealed class DocumentView : Control
             e.Pointer.Capture(this);
             e.Handled = true;
         }
+        else if (_state.Tab.Tool == ToolKind.TextSelect && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            // 텍스트 선택: 새로 누르면 이전 선택을 지우고, 누른 점의 글자부터 시작한다(글자가 없으면 선택 없음).
+            _state.Tab.TextSelection.Clear();
+            var hit = _layout?.HitTest(e.GetPosition(this));
+            if (hit is { } h)
+            {
+                _selecting = true;
+                _selPageIndex = h.Page;
+                QueueCharQuery(h.Page, h.InPage, begin: true);
+                e.Pointer.Capture(this);
+            }
+            e.Handled = true;
+        }
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
         if (_state is null || _sv is null) return;
+        if (_selecting && _layout is { } lay && _selPageIndex >= 0 && _selPageIndex < _layoutPages.Length)
+        {
+            var origin = lay.GetPageRect(_selPageIndex).TopLeft;
+            var p = e.GetPosition(this);
+            QueueCharQuery(_selPageIndex, new Point(p.X - origin.X, p.Y - origin.Y), begin: false);
+        }
         if (_dragging)
         {
             var d = e.GetPosition(_sv) - _dragStartPos;
@@ -409,6 +665,7 @@ public sealed class DocumentView : Control
     {
         base.OnPointerReleased(e);
         if (_dragging) { _dragging = false; e.Pointer.Capture(null); }
+        if (_selecting) { _selecting = false; _selPageIndex = -1; e.Pointer.Capture(null); }
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -420,6 +677,12 @@ public sealed class DocumentView : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (e is { Key: Key.C, KeyModifiers: KeyModifiers.Control })
+        {
+            CopySelection();
+            e.Handled = true;
+            return;
+        }
         if (_state is null || _sv is null || _layout is null || e.KeyModifiers != KeyModifiers.None) return;
         var tab = _state.Tab;
         bool single = _layout.Mode == ViewMode.SinglePage;

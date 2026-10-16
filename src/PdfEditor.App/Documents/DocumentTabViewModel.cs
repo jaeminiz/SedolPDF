@@ -55,6 +55,16 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     public PdfEditor.App.Panels.LayersViewModel? Layers { get; set; }
     public PdfEditor.App.Panels.PropertiesViewModel? Properties { get; set; }
 
+    /// <summary>검색 패널 모델. 문서 화면이 현재 결과(CurrentHit)를 읽어 강조한다.</summary>
+    public PdfEditor.App.Panels.SearchViewModel? Search { get; set; }
+
+    /// <summary>텍스트 선택 도구의 선택 상태(한 쪽 안에서만).</summary>
+    public TextSelectionModel TextSelection { get; } = new();
+
+    /// <summary>화면이 사용자에게 알려야 할 짧은 안내(예: 복사 제한). 메인 창이 대화상자로 보여 준다.</summary>
+    public event Action<string>? NoticeRequested;
+    public void RaiseNotice(string message) => NoticeRequested?.Invoke(message);
+
     /// <summary>탭을 닫을 때(Detach) 발생. 화면이 이 탭의 캐시를 정리하는 데 쓴다.</summary>
     public event Action? Detached;
 
