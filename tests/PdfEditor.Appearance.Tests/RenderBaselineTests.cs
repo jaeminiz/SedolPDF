@@ -106,12 +106,18 @@ public class RenderBaselineTests : IDisposable
         });
     }
 
-    private string Blank200(string name)
+    private string Blank200(string name, float h = 200)
     {
         var p = Path.Combine(_dir, name);
-        TestPdfFactory.CreateBlank(p, 1, 200, 200);
+        TestPdfFactory.CreateBlank(p, 1, 200, h);
         return p;
     }
+
+    private static bool IsLight(byte[] b, int w, int x, int y)
+        => b[(y * w + x) * 4] > 230 && b[(y * w + x) * 4 + 1] > 230 && b[(y * w + x) * 4 + 2] > 230;
+
+    private static bool IsYellow(byte[] b, int w, int x, int y)
+        => b[(y * w + x) * 4 + 2] > 200 && b[(y * w + x) * 4 + 1] > 180 && b[(y * w + x) * 4] < 100;
 
     private static void CompareToBaseline(string name, byte[] bgra, int w, int h)
     {
@@ -153,9 +159,20 @@ public class RenderBaselineTests : IDisposable
     [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
     public async Task Baseline_TextIcon_Rotated(int rotation)
     {
+        // Off-centre icon (upper left of a 200x300 page) so rotations 1-3 move it to the matching corner.
         var name = "text_rot" + rotation;
-        var r = await RenderAsync(Blank200(name + ".src.pdf"), (s, _) => [Representative(s, "text")], rotation, name + ".pdf", Scale);
+        var rect = new PdfRectF(20, 260, 40, 280);
+        var r = await RenderAsync(Blank200(name + ".src.pdf", 300), (s, _) => [Representative(s, "text") with { Rect = rect }],
+            rotation, name + ".pdf", Scale);
         Assert.Equal(rotation, r.Rotation);
+        Assert.Equal(rotation is 1 or 3 ? (600, 400) : (400, 600), (r.W, r.H));
+
+        var tr = new PageTransform(RectangleF.FromLTRB(0, 0, 200, 300), rotation, Scale);
+        // 3 pt right of the icon's left edge at mid-height: inside the yellow body, left of the text lines.
+        var body = tr.ToView(23, 270);
+        Assert.True(IsYellow(r.Bgra, r.W, (int)body.X, (int)body.Y), $"icon body not at expected view position ({body.X},{body.Y})");
+        var far = tr.ToView(150, 40);
+        Assert.True(IsLight(r.Bgra, r.W, (int)far.X, (int)far.Y), "far pixel not light");
         CompareToBaseline(name, r.Bgra, r.W, r.H);
     }
 
@@ -191,5 +208,9 @@ public class RenderBaselineTests : IDisposable
                 }
             Assert.True(dark, $"no dark pixel near screen point ({v.X},{v.Y})");
         }
+        // Mid-segment pixel is dark too; a pixel well off the stroke is light (negative control).
+        int mx = (int)Math.Round((screen[0].X + screen[1].X) / 2), my = (int)Math.Round((screen[0].Y + screen[1].Y) / 2);
+        Assert.True(r.Bgra[(my * r.W + mx) * 4] < 100, "mid-segment pixel not dark");
+        Assert.True(IsLight(r.Bgra, r.W, mx, my + 60), "negative control pixel not light");
     }
 }

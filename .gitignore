@@ -8,3 +8,4 @@ private/
 .superpowers/
 TestResults/
 .omc/
+tests/fixtures/baseline/*.actual.png
