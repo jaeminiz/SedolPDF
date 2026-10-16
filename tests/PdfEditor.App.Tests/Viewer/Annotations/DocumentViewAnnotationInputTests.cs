@@ -338,4 +338,56 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
         Assert.Empty(Items(h));
         Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);
     }
+
+    private static void SetField(object o, string name, object v) =>
+        o.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)!.SetValue(o, v);
+
+    [Fact]
+    public async Task ToolChangeToNonMarkup_MidMarkupDrag_CreatesNothing_AndClearsSelection()
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var h = Show(s);
+        SetTool(h, ToolKind.HighlightText);
+        HeadlessUi.Run(() =>
+        {
+            h.Window.MouseDown(At(h, 60, 60), MouseButton.Left);
+            h.Window.MouseMove(At(h, 300, 70));
+            Assert.True((bool)Field(h.View, "_selecting")!);
+            h.Tab.Tool = ToolKind.Rectangle;   // 마크업이 아닌 도구로 전환
+            Assert.False((bool)Field(h.View, "_selecting")!);
+            Assert.Equal(1, (int)Field(h.View, "_markupEpoch")!);
+            Assert.Null(h.Tab.TextSelection.Range);
+            h.Window.MouseUp(At(h, 300, 70), MouseButton.Left);
+            Thread.Sleep(300); Dispatcher.UIThread.RunJobs();
+            return 0;
+        });
+        Assert.Empty(Items(h));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ToolChangeOrEsc_DuringPostReleaseWait_CreatesNothing(bool useEsc)
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var h = Show(s);
+        SetTool(h, ToolKind.HighlightText);
+        HeadlessUi.Run(() =>
+        {
+            h.Window.MouseDown(At(h, 60, 60), MouseButton.Left);
+            h.Window.MouseMove(At(h, 300, 70));
+            SetField(h.View, "_charBusy", true);   // 글자 조회가 안 끝난 것처럼 만들어 놓은 뒤의 대기를 붙잡는다
+            h.Window.MouseUp(At(h, 300, 70), MouseButton.Left);
+            Assert.True((bool)Field(h.View, "_markupPending")!);
+            if (useEsc) h.Window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            else h.Tab.Tool = ToolKind.Pencil;
+            Assert.False((bool)Field(h.View, "_markupPending")!);
+            Assert.Equal(1, (int)Field(h.View, "_markupEpoch")!);
+            Assert.Null(h.Tab.TextSelection.Range);
+            SetField(h.View, "_charBusy", false);
+            Thread.Sleep(300); Dispatcher.UIThread.RunJobs();
+            return 0;
+        });
+        Assert.Empty(Items(h));
+    }
 }

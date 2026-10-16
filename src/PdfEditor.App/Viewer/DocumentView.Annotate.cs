@@ -219,12 +219,14 @@ public sealed partial class DocumentView
     }
 
     private int _markupEpoch;
+    private bool _markupPending;   // 놓은 뒤 FinishMarkupAsync가 끝나기를 기다리는 중
 
     /// <summary>진행 중이거나 끝나기를 기다리는 텍스트 마크업 끌기를 취소한다 (아무것도 만들지 않는다).</summary>
     private void CancelMarkup()
     {
-        if (!_selecting) return;
+        if (!_selecting && !_markupPending) return;   // 끌기 중이거나 놓은 뒤 끝나기를 기다리는 중일 때만
         _markupEpoch++;
+        _markupPending = false;
         _selecting = false;
         _selPageIndex = -1;
         _charQueue.Clear();
@@ -234,7 +236,7 @@ public sealed partial class DocumentView
     private void CancelGesture()
     {
         _pendingPress = null;
-        if (_state is { } ms && IsTextMarkupTool(ms.Tab.Tool)) CancelMarkup();
+        CancelMarkup();   // 현재 도구와 무관하게 (도구 전환 뒤에 불려도) 진행 중인 마크업을 취소한다
         if (_gesture == Gesture.None) return;
         _gesture = Gesture.None;
         _gPointer?.Capture(null);
@@ -249,6 +251,7 @@ public sealed partial class DocumentView
     private async Task FinishMarkupAsync(ViewState st, ToolKind tool)
     {
         int epoch = _markupEpoch;
+        _markupPending = true;
         try
         {
             // 글자 번호 조회가 끝나기를 잠깐 기다린다 (마지막 움직임까지 반영).
@@ -266,10 +269,12 @@ public sealed partial class DocumentView
             var cmd = tab.CanAnnotate
                 ? tab.Tools.CreateMarkup(tool, DocumentTabViewModel.StyleFor(tool), page, [.. rects.Select(PdfRectF.FromLtrbRectangle)])
                 : null;
+            _markupPending = false;
             sel.Clear();
             if (cmd is not null) await RunAnnotationCommandAsync(st, cmd, page, null);
         }
-        catch (Exception) { _selecting = false; }   // PDFium 스레드가 닫혔다
+        catch (Exception) { if (epoch == _markupEpoch) { _selecting = false; _markupPending = false; } }   // PDFium 스레드가 닫혔다
+        finally { if (epoch == _markupEpoch) _markupPending = false; }
     }
 
     // ---- 키 ----
