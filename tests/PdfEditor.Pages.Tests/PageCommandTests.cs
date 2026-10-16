@@ -278,6 +278,22 @@ public class PageCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Import_FromAnnotatedFile_OriginalsAttachedToNewPages()
+    {
+        await using var s = await OpenLabeled(2);
+        var other = P("ann.pdf");
+        AnnotatedPdfFactory.CreateMixed(other);
+        var bytes = File.ReadAllBytes(other);
+        var src = await _t.InvokeAsync(() => PdfDocument.OpenBytes(_t, bytes));
+        var originals = await OriginalAnnotationLoader.ReadAsync(_t, src, bytes, null, [0]);
+        Assert.NotNull(originals);
+        await s.Commands.ExecuteAsync(new ImportPagesCommand(src, [0], 1, originals));
+        Assert.Equal(3, s.Pages.Length);
+        Assert.Equal(9, s.Annotations.Get(s.Pages[1].Id).Items.Length);
+        Assert.Empty(s.Annotations.Get(s.Pages[0].Id).Items);
+    }
+
+    [Fact]
     public async Task Import_DisposesSourceWhenSessionDisposed()
     {
         var s = await OpenLabeled(1);

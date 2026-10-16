@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Reading;
 using PdfEditor.Document.Commands;
 
 namespace PdfEditor.Document;
@@ -26,6 +27,7 @@ public sealed class DocumentSession : IAsyncDisposable
     private ImmutableArray<PageInfo> _pages = [];
 
     private long _savedVersion;
+    private volatile bool _originalsEditable = true;
 
     private DocumentSession(PdfiumThread t, PdfDocument doc, string? filePath, string displayName, string? password, byte[]? sha)
     {
@@ -63,6 +65,18 @@ public sealed class DocumentSession : IAsyncDisposable
     public bool WasRepaired { get; }
     public CommandStack Commands { get; }
     public AnnotationStore Annotations { get; }
+
+    /// <summary>
+    /// 원본 주석을 다 붙였거나(또는 실패를 기록했거나) 끝나면 완료된다. 예외로 끝나지 않는다.
+    /// 주석·쪽 명령을 만들기 전에 기다린다 (그 사이 쪽 순서가 바뀌지 않게).
+    /// </summary>
+    public Task AnnotationsReady { get; private set; } = Task.CompletedTask;
+
+    /// <summary>원본 주석을 읽지 못했으면 false (원본은 표시만, 새 주석은 가능).</summary>
+    public bool OriginalAnnotationsEditable => _originalsEditable;
+
+    /// <summary>원본 주석을 읽지 못했음을 기록한다 (가져오기·병합 때 호출).</summary>
+    public void MarkOriginalAnnotationsReadOnly() => _originalsEditable = false;
 
     /// <summary>전용 스레드 전용.</summary>
     public PdfDocument Document
@@ -109,7 +123,12 @@ public sealed class DocumentSession : IAsyncDisposable
         return await t.InvokeAsync(() =>
         {
             var doc = PdfDocument.OpenBytes(t, bytes, password);
-            try { return new DocumentSession(t, doc, path, Path.GetFileName(path), password, sha); }
+            try
+            {
+                var s = new DocumentSession(t, doc, path, Path.GetFileName(path), password, sha);
+                s.BeginLoadingOriginals(bytes, password);
+                return s;
+            }
             catch { doc.Dispose(); throw; }
         }, ct).ConfigureAwait(false);
     }
@@ -127,7 +146,12 @@ public sealed class DocumentSession : IAsyncDisposable
         var s = await t.InvokeAsync(() =>
         {
             var doc = PdfDocument.OpenBytes(t, bytes, password);
-            try { return new DocumentSession(t, doc, path, e.DisplayName, password, sha); }
+            try
+            {
+                var s = new DocumentSession(t, doc, path, e.DisplayName, password, sha);
+                s.BeginLoadingOriginals(bytes, password);
+                return s;
+            }
             catch { doc.Dispose(); throw; }
         }, ct).ConfigureAwait(false);
         s.MarkModified();
@@ -153,6 +177,96 @@ public sealed class DocumentSession : IAsyncDisposable
             try { return new DocumentSession(t, doc, null, "Untitled", null, null); }
             catch { doc.Dispose(); throw; }
         });
+
+    // --- 원본 주석 불러오기 ---
+
+    private const int CountChunk = 32;
+    private const float RectTolerancePt = 0.5f;
+
+    /// <summary>
+    /// 전용 스레드에서, 세션을 만든 직후 부른다. 배경에서 ① 쪽마다 주석 수를 세고(0개면 PDFsharp를 열지 않음)
+    /// ② PDFsharp로 읽고 ③ 전용 스레드에서 쪽마다 붙인다. 모두 일반 줄만 쓴다.
+    /// </summary>
+    private void BeginLoadingOriginals(byte[] bytes, string? password)
+    {
+        Thread.AssertOnThread();
+        var ids = _order.ToArray();
+        AnnotationsReady = LoadOriginalsAsync(ids, bytes, password);
+    }
+
+    private async Task LoadOriginalsAsync(PageId[] ids, byte[] bytes, string? password)
+    {
+        try
+        {
+            var withAnnots = new List<int>();
+            for (int from = 0; from < ids.Length; from += CountChunk)
+            {
+                int start = from;
+                var part = await Thread.InvokeAsync(() =>
+                {
+                    var r = new List<int>();
+                    for (int i = start; i < Math.Min(ids.Length, start + CountChunk); i++)
+                    {
+                        int idx = _order.IndexOf(ids[i]);
+                        if (idx < 0) continue;
+                        using var page = _doc.LoadPage(idx);
+                        if (page.AnnotationCount > 0) r.Add(i);
+                    }
+                    return r;
+                }).ConfigureAwait(false);
+                withAnnots.AddRange(part);
+            }
+            if (withAnnots.Count == 0) return;
+
+            IReadOnlyList<IReadOnlyList<OriginalAnnotation>> read;
+            try { read = await Task.Run(() => AnnotationReader.Read(bytes, password, withAnnots)).ConfigureAwait(false); }
+            catch (AnnotationReadException) { _originalsEditable = false; return; }
+
+            await Thread.InvokeAsync(() =>
+            {
+                for (int k = 0; k < withAnnots.Count; k++)
+                    AttachOriginalsVerified(ids[withAnnots[k]], read[k]);
+                Annotations.Publish();
+            }).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // 닫히는 중이거나 PDFium 오류: 원본 주석은 표시만 한다. AnnotationsReady는 예외로 끝나지 않는다.
+            _originalsEditable = false;
+        }
+    }
+
+    /// <summary>
+    /// 전용 스레드 전용. PDFium의 같은 번호 주석과 Subtype·Rect(차이 ≤ 0.5pt)가 다르면 그 항목은 붙이지 않는다(읽기 전용).
+    /// 쪽이 문서에 없으면 아무것도 하지 않는다. Publish는 호출자 몫.
+    /// </summary>
+    public void AttachOriginalsVerified(PageId id, IReadOnlyList<OriginalAnnotation> originals)
+    {
+        Thread.AssertOnThread();
+        int idx = _order.IndexOf(id);
+        if (idx < 0) return;
+        using var page = _doc.LoadPage(idx);
+        int count = page.AnnotationCount;
+        var verified = new List<OriginalAnnotation>(originals.Count);
+        foreach (var o in originals)
+            verified.Add(o.Data is null || Matches(page, count, o) ? o : o with { Data = null, Reason = ReadOnlyReason.Malformed });
+        Annotations.AttachOriginals(id, verified);
+    }
+
+    private static bool Matches(PdfPage page, int count, OriginalAnnotation o)
+    {
+        if (o.Index < 0 || o.Index >= count) return false;
+        try
+        {
+            using var a = page.GetAnnotation(o.Index);
+            if (a.Subtype != o.Subtype) return false;
+            var r = a.Rect;
+            var d = o.Data!.Rect;
+            return Math.Abs(r.Left - d.Left) <= RectTolerancePt && Math.Abs(r.Bottom - d.Bottom) <= RectTolerancePt
+                && Math.Abs(r.Right - d.Right) <= RectTolerancePt && Math.Abs(r.Top - d.Top) <= RectTolerancePt;
+        }
+        catch (PdfiumException) { return false; }
+    }
 
     // --- 명령용 변경 메서드 (전용 스레드 전용) ---
 

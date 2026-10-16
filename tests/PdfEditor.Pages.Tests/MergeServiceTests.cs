@@ -37,6 +37,22 @@ public class MergeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Merge_AnnotatedSources_OriginalsAttached()
+    {
+        TestPdfFactory.CreateBlank(P("p.pdf"), 1, 100, 100);
+        AnnotatedPdfFactory.CreateMixed(P("a1.pdf"));
+        AnnotatedPdfFactory.CreateMixed(P("a2.pdf"));
+        await using var s = await MergeService.CreateMergedAsync(_t,
+            [new MergeSource(P("p.pdf"), null), new MergeSource(P("a1.pdf"), null), new MergeSource(P("a2.pdf"), null)],
+            "m", CancellationToken.None);
+        Assert.Equal(3, s.Pages.Length);
+        Assert.Empty(s.Annotations.Get(s.Pages[0].Id).Items);
+        Assert.Equal(9, s.Annotations.Get(s.Pages[1].Id).Items.Length);
+        Assert.Equal(9, s.Annotations.Get(s.Pages[2].Id).Items.Length);
+        Assert.True(s.OriginalAnnotationsEditable);
+    }
+
+    [Fact]
     public async Task Merge_EncryptedSource_WithPassword()
     {
         TestPdfFactory.CreateEncrypted(P("e.pdf"), 2, 200, 300, "pw1");

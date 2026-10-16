@@ -23,8 +23,7 @@ public class AnnotationStoreTests : IDisposable
         var p = Path.Combine(_dir, "mixed.pdf");
         AnnotatedPdfFactory.CreateMixed(p);
         var s = await DocumentSession.OpenAsync(_t, p, null);
-        var originals = AnnotationReader.Read(File.ReadAllBytes(p), null, [0])[0];
-        await s.Thread.InvokeAsync(() => { s.Annotations.AttachOriginals(s.Pages[0].Id, originals); s.Publish(); });
+        await s.AnnotationsReady;   // 열기 흐름이 원본 주석을 붙인다 (Task 6)
         return s;
     }
 

@@ -25,16 +25,36 @@ public static class MergeService
             {
                 ct.ThrowIfCancellationRequested();
                 var bytes = await File.ReadAllBytesAsync(src.Path, ct).ConfigureAwait(false);
-                await t.InvokeAsync(() =>
+                // 원본 문서는 주석을 읽는 동안 열어 두었다가 전용 스레드에서 닫는다.
+                var (doc, ids) = await t.InvokeAsync(() =>
                 {
-                    using var doc = PdfDocument.OpenBytes(t, bytes, src.Password);
-                    int n = doc.PageCount;
-                    if (n == 0) return;
-                    int at = session.Pages.Length;
-                    session.Document.ImportPages(doc, Enumerable.Range(0, n).ToArray(), at);
-                    session.InsertPageIds(at, session.NewPageIds(n));
-                    session.Publish();
+                    var d = PdfDocument.OpenBytes(t, bytes, src.Password);
+                    try
+                    {
+                        int n = d.PageCount;
+                        if (n == 0) return (d, (IReadOnlyList<PageId>)[]);
+                        int at = session.Pages.Length;
+                        session.Document.ImportPages(d, Enumerable.Range(0, n).ToArray(), at);
+                        var newIds = session.NewPageIds(n);
+                        session.InsertPageIds(at, newIds);
+                        session.Publish();
+                        return (d, newIds);
+                    }
+                    catch { d.Dispose(); throw; }
                 }, ct).ConfigureAwait(false);
+                try
+                {
+                    if (ids.Count == 0) continue;
+                    var read = await OriginalAnnotationLoader.ReadAsync(t, doc, bytes, src.Password,
+                        Enumerable.Range(0, ids.Count).ToArray()).ConfigureAwait(false);
+                    if (read is null) { session.MarkOriginalAnnotationsReadOnly(); continue; }
+                    await t.InvokeAsync(() =>
+                    {
+                        for (int k = 0; k < ids.Count; k++) session.AttachOriginalsVerified(ids[k], read[k]);
+                        session.Annotations.Publish();
+                    }, ct).ConfigureAwait(false);
+                }
+                finally { await t.InvokeAsync(doc.Dispose).ConfigureAwait(false); }
             }
             session.MarkModified();
             return session;

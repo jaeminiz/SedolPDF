@@ -140,7 +140,7 @@ public sealed class PageCommandsViewModel : IDisposable
 
     private async Task Run(Func<Task> body)
     {
-        try { await body(); }
+        try { await _s.AnnotationsReady; await body(); }
         catch (Exception ex) { await _prompts.ShowErrorAsync(ErrorMessages.For(ex)); }
     }
 
@@ -220,8 +220,9 @@ public sealed class PageCommandsViewModel : IDisposable
     {
         string? path = await _prompts.PickOpenFileAsync();
         if (path is null) return;
-        var src = await OpenSourceAsync(path);
-        if (src is null) return;
+        var opened = await OpenSourceAsync(path);
+        if (opened is null) return;
+        var (src, srcBytes, srcPassword) = opened.Value;
         bool handedOver = false;
         try
         {
@@ -240,7 +241,10 @@ public sealed class PageCommandsViewModel : IDisposable
                 InsertPosition.Last => n,
                 _ => Math.Min(n, CurrentIndex() + 1),
             };
-            await _s.Commands.ExecuteAsync(new ImportPagesCommand(src, indices, at));
+            // 가져온 쪽의 원본 주석: 읽지 못하면 null (표시만 됨).
+            var originals = await OriginalAnnotationLoader.ReadAsync(_s.Thread, src, srcBytes, srcPassword, indices);
+            if (originals is null) _s.MarkOriginalAnnotationsReadOnly();
+            await _s.Commands.ExecuteAsync(new ImportPagesCommand(src, indices, at, originals));
             handedOver = true;   // 이후 원본 문서는 명령이 소유한다
             _post(() => _doc.CurrentPageIndex = at);
         }
@@ -252,7 +256,7 @@ public sealed class PageCommandsViewModel : IDisposable
     });
 
     /// <summary>파일을 읽어 열고, 암호가 필요하면 묻는다. 취소하거나 열지 못하면 null (오류는 이미 보여 줌).</summary>
-    private async Task<PdfDocument?> OpenSourceAsync(string path)
+    private async Task<(PdfDocument Doc, byte[] Bytes, string? Password)?> OpenSourceAsync(string path)
     {
         byte[] bytes;
         try { bytes = await File.ReadAllBytesAsync(path); }
@@ -266,7 +270,7 @@ public sealed class PageCommandsViewModel : IDisposable
             try
             {
                 var t = _s.Thread;
-                return await t.InvokeAsync(() => PdfDocument.OpenBytes(t, bytes, password));
+                return (await t.InvokeAsync(() => PdfDocument.OpenBytes(t, bytes, password)), bytes, password);
             }
             catch (PdfPasswordRequiredException)
             {
