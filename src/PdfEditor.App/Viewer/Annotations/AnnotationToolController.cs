@@ -20,6 +20,17 @@ public sealed class AnnotationToolController(
     private readonly List<PdfPointF> _points = [];
     private bool _active;
 
+    private PdfPointF _last;
+    private readonly Dictionary<AnnotId, Annotation> _eraseOriginal = [];
+    private readonly Dictionary<AnnotId, Annotation?> _eraseState = [];
+    private const float EraserRadiusDip = 6f;
+
+    /// <summary>지우개가 대상으로 삼을 쪽의 주석 목록. 호스트가 연결한다.</summary>
+    public Func<PageId, IReadOnlyList<Annotation>>? PageAnnotationSource { get; set; }
+
+    /// <summary>지우개 진행 중 바뀐 주석의 임시 모습 (다 지운 것은 null). 바뀐 것이 없으면 null.</summary>
+    public IReadOnlyDictionary<AnnotId, Annotation?>? Previews { get; private set; }
+
     public Annotation? Preview { get; private set; }
     public Annotation? LastCreatedSticky { get; private set; }
 
@@ -29,12 +40,15 @@ public sealed class AnnotationToolController(
         _points.Clear();
         _points.Add(p);
         _active = true;
+        _last = p;
+        if (tool == ToolKind.Eraser) { BeginErase(p); return; }
         Preview = Build(p);
     }
 
     public void Move(PdfPointF p)
     {
         if (!_active) return;
+        if (_tool == ToolKind.Eraser) { EraseTo(p); return; }
         if (_tool == ToolKind.Pencil) _points.Add(p);
         Preview = Build(p);
     }
@@ -42,6 +56,7 @@ public sealed class AnnotationToolController(
     public ChangeAnnotationsCommand? End(PdfPointF p)
     {
         if (!_active) return null;
+        if (_tool == ToolKind.Eraser) return EndErase(p);
         if (_tool == ToolKind.Pencil && _points[^1] != p) _points.Add(p);
         var a = Build(p);
         _active = false;
@@ -56,6 +71,9 @@ public sealed class AnnotationToolController(
     {
         _active = false;
         Preview = null;
+        Previews = null;
+        _eraseOriginal.Clear();
+        _eraseState.Clear();
         _points.Clear();
     }
 
@@ -74,6 +92,53 @@ public sealed class AnnotationToolController(
             Kind = kind,
             Quads = [.. textRects.Select(PdfQuadF.FromRect)],
         }));
+    }
+
+    private void BeginErase(PdfPointF p)
+    {
+        _eraseOriginal.Clear();
+        _eraseState.Clear();
+        Previews = null;
+        foreach (var a in PageAnnotationSource?.Invoke(_page) ?? [])
+            if (a.Kind == AnnotKind.Ink && !a.InkStrokes.IsDefaultOrEmpty) _eraseOriginal[a.Id] = a;
+        EraseAt(p);
+    }
+
+    private void EraseTo(PdfPointF p)
+    {
+        float spacing = Math.Max(EraserRadiusDip * _ptPerDip / 2f, 1e-3f);
+        foreach (var q in InkEraser.SamplePath(_last, p, spacing)) EraseAt(q);
+        _last = p;
+    }
+
+    private void EraseAt(PdfPointF center)
+    {
+        float r = EraserRadiusDip * _ptPerDip;
+        foreach (var (id, orig) in _eraseOriginal)
+        {
+            if (_eraseState.TryGetValue(id, out var st) && st is null) continue;
+            var cur = st ?? orig;
+            var strokes = InkEraser.EraseCircle(cur.InkStrokes, center, r + cur.BorderWidth / 2f);
+            if (strokes == cur.InkStrokes) continue;
+            _eraseState[id] = strokes.IsEmpty ? null : cur with { InkStrokes = strokes };
+        }
+        Previews = _eraseState.Count == 0 ? null : new Dictionary<AnnotId, Annotation?>(_eraseState);
+    }
+
+    private ChangeAnnotationsCommand? EndErase(PdfPointF p)
+    {
+        EraseTo(p);
+        var changes = new List<AnnotationChange>();
+        foreach (var (id, st) in _eraseState)
+        {
+            var orig = _eraseOriginal[id];
+            if (st is null) { changes.Add(new AnnotationChange(orig, null)); continue; }
+            var after = st with { ModifiedAt = clock() };
+            changes.Add(new AnnotationChange(orig, after with { Rect = AnnotationGeometry.ComputeRect(after) }));
+        }
+        var page = _page;
+        Cancel();
+        return changes.Count == 0 ? null : new ChangeAnnotationsCommand(page, changes);
     }
 
     private Annotation? Build(PdfPointF end)
