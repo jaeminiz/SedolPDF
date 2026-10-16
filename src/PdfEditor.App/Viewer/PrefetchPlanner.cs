@@ -13,7 +13,7 @@ public static class PrefetchPlanner
     public const int ThumbnailPageRadius = 3;
 
     public static List<TileRequest> Plan(IReadOnlyList<PageInfo> pages, PageLayout layout, Rect viewport, double scale,
-        Func<TileKey, bool> hasTile, Func<PageId, int, bool> hasThumbnail, double renderScaling = 1.0,
+        Func<TileKey, bool> hasTile, Func<PageId, int, int, bool> hasThumbnail, double renderScaling = 1.0,
         Func<PageInfo, Rect, bool>? previewCovered = null)
     {
         var visibleIdx = layout.PagesIntersecting(viewport);
@@ -65,7 +65,7 @@ public static class PrefetchPlanner
             int hi = Math.Min(pages.Count - 1, visibleIdx.Max() + ThumbnailPageRadius);
             int center = layout.CurrentPage(viewport);
             for (int i = lo; i <= hi; i++)
-                if (!hasThumbnail(pages[i].Id, pages[i].Version)) thumbs.Add(DocumentRenderer.ThumbnailRequestFor(pages[i]));
+                if (!hasThumbnail(pages[i].Id, pages[i].Version, pages[i].AnnotRevision)) thumbs.Add(DocumentRenderer.ThumbnailRequestFor(pages[i]));
             var idxOf = pages.Select((p, i) => (p.Id, i)).ToDictionary(x => x.Id, x => x.i);
             thumbs = thumbs.OrderBy(t => Math.Abs(idxOf[t.Key.Page] - center)).ToList();
         }

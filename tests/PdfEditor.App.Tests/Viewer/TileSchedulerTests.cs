@@ -8,7 +8,7 @@ namespace PdfEditor.App.Tests.Viewer;
 public class TileSchedulerTests
 {
     private static TileRequest R(int n, TileKind kind = TileKind.Tile, int x = 0, int y = 0) =>
-        new(kind, new TileKey(new PageId(n), 1, 1000, x, y), 1.0, new PixelRect(x * 512, y * 512, 512, 512));
+        new(kind, new TileKey(new PageId(n), 1, 0, 1000, x, y), 1.0, new PixelRect(x * 512, y * 512, 512, 512));
 
     private static async Task WaitFor(Func<bool> cond, int ms = 5000)
     {

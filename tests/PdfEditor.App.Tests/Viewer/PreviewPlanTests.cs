@@ -81,7 +81,7 @@ public class PreviewPlanTests
         double dip = ZoomMath.DipPerPoint(1.0);
         var layout = PageLayout.Build(pages, dip, 782, ViewMode.Continuous);
         var vp = new Rect(0, 0, 782, 581);
-        var plan = PrefetchPlanner.Plan(pages, layout, vp, dip, _ => false, (_, _) => false, 1.0, (_, _) => false);
+        var plan = PrefetchPlanner.Plan(pages, layout, vp, dip, _ => false, (_, _, _) => false, 1.0, (_, _) => false);
         Assert.Equal(TileKind.Preview, plan[0].Kind);
         Assert.DoesNotContain(plan.Skip(1), r => r.Kind == TileKind.Preview);
         Assert.Equal(TileKind.Tile, plan[1].Kind);
@@ -97,14 +97,14 @@ public class PreviewPlanTests
         double dip = 1.0;
         var layout = PageLayout.Build(pages, dip, 782, ViewMode.Continuous);
         var vp = new Rect(0, 0, 782, 581);
-        Assert.DoesNotContain(PrefetchPlanner.Plan(pages, layout, vp, dip, _ => false, (_, _) => false, 1.0, (_, _) => true), r => r.Kind == TileKind.Preview);
-        Assert.DoesNotContain(PrefetchPlanner.Plan(pages, layout, vp, dip, _ => false, (_, _) => false), r => r.Kind == TileKind.Preview);
+        Assert.DoesNotContain(PrefetchPlanner.Plan(pages, layout, vp, dip, _ => false, (_, _, _) => false, 1.0, (_, _) => true), r => r.Kind == TileKind.Preview);
+        Assert.DoesNotContain(PrefetchPlanner.Plan(pages, layout, vp, dip, _ => false, (_, _, _) => false), r => r.Kind == TileKind.Preview);
         // 작은 쪽(타일 1장)만 보이면 미리보기 없음
         var small = PageLayout.Build(new[] { pages[1] }, dip, 782, ViewMode.Continuous);
-        Assert.DoesNotContain(PrefetchPlanner.Plan(new[] { pages[1] }, small, vp, dip, _ => false, (_, _) => false, 1.0, (_, _) => false), r => r.Kind == TileKind.Preview);
+        Assert.DoesNotContain(PrefetchPlanner.Plan(new[] { pages[1] }, small, vp, dip, _ => false, (_, _, _) => false, 1.0, (_, _) => false), r => r.Kind == TileKind.Preview);
         // 보이는 타일이 거의 다 캐시에 있으면(없는 것 2장) 미리보기 없음
         int n = 0;
-        var plan = PrefetchPlanner.Plan(pages, layout, vp, dip, _ => n++ >= 2, (_, _) => false, 1.0, (_, _) => false);
+        var plan = PrefetchPlanner.Plan(pages, layout, vp, dip, _ => n++ >= 2, (_, _, _) => false, 1.0, (_, _) => false);
         Assert.DoesNotContain(plan, r => r.Kind == TileKind.Preview);
     }
 
@@ -114,7 +114,7 @@ public class PreviewPlanTests
         var pages = new[] { VT.P(1, 1684, 2384) };
         var layout = PageLayout.Build(pages, 1.0, 782, ViewMode.Continuous);
         Rect? seen = null;
-        PrefetchPlanner.Plan(pages, layout, new Rect(0, 1000, 782, 581), 1.0, _ => false, (_, _) => false, 1.0, (_, r) => { seen = r; return true; });
+        PrefetchPlanner.Plan(pages, layout, new Rect(0, 1000, 782, 581), 1.0, _ => false, (_, _, _) => false, 1.0, (_, r) => { seen = r; return true; });
         var pr = layout.GetPageRect(0);
         Assert.NotNull(seen);
         Assert.Equal(1000 - pr.Y, seen!.Value.Y, 3);
@@ -128,10 +128,10 @@ public class PreviewPlanTests
         var page = new PageId(1);
         var pk = PreviewPlan.KeyFor(VT.P(1), 500, new PixelRect(0, 0, 10, 10));
         c.Add(pk, "preview", 10);
-        c.Add(new TileKey(page, 1, 1333, 0, 0), "tile", 10);
+        c.Add(new TileKey(page, 1, 0, 1333, 0, 0), "tile", 10);
         var prev = c.PreviewsFor(page, 1);
         Assert.Equal("preview", Assert.Single(prev).Image);
-        Assert.DoesNotContain(c.FallbackFor(page, 1, 2000), f => f.Key.IsPreview);
+        Assert.DoesNotContain(c.FallbackFor(page, 1, 0, 2000), f => f.Key.IsPreview);
         Assert.Empty(c.PreviewsFor(page, 2));
         c.RemoveStaleVersions(page, 2);
         Assert.Empty(c.PreviewsFor(page, 1));
@@ -142,7 +142,7 @@ public class PreviewPlanTests
     public void Cache_PreviewsCountAgainstSameBudget()
     {
         var c = new TileCache<string>(100, _ => { });
-        c.Add(new TileKey(new PageId(1), 1, 1000, 0, 0), "t", 60);
+        c.Add(new TileKey(new PageId(1), 1, 0, 1000, 0, 0), "t", 60);
         c.Add(PreviewPlan.KeyFor(VT.P(1), 500, new PixelRect(0, 0, 1, 1)), "p", 60);
         Assert.True(c.UsedBytes <= 100);
     }

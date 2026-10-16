@@ -365,7 +365,7 @@ public sealed class DocumentView : Control
             using (ctx.PushClip(pr))
             {
                 ctx.FillRectangle(PlaceholderBrush, pr);
-                if (st.Thumbs.TryGet(info.Id, info.Version, out var th) && th is BitmapHandle tb)
+                if (st.Thumbs.TryGetOrOlder(info.Id, info.Version, info.AnnotRevision, out var th) && th is BitmapHandle tb)
                 {
                     ctx.DrawImage(tb.Bitmap, new Rect(0, 0, tb.Width, tb.Height), pr);
                     painted.Add(pr);
@@ -378,7 +378,7 @@ public sealed class DocumentView : Control
                         ctx.DrawImage(pb.Bitmap, new Rect(0, 0, pb.Width, pb.Height), dest);
                         painted.Add(dest.Intersect(pr));
                     }
-                foreach (var (key, img) in st.Tiles.FallbackFor(info.Id, info.Version, scaleKey))
+                foreach (var (key, img) in st.Tiles.FallbackFor(info.Id, info.Version, info.AnnotRevision, scaleKey))
                     if (img is BitmapHandle fb)
                     {
                         var dest = TileDest(info, key, pr, scale, rs);
@@ -632,13 +632,13 @@ public sealed class DocumentView : Control
         bool PreviewCovered(PageInfo page, Rect regionPt)
         {
             int sk = TileKey.ToScaleKey(TileGrid.PixelScale(lay.Scale, _renderScaling));
-            if (st.Tiles.FallbackFor(page.Id, page.Version, sk).Count > 0) return true;
+            if (st.Tiles.FallbackFor(page.Id, page.Version, page.AnnotRevision, sk).Count > 0) return true;
             foreach (var (key, img) in st.Tiles.PreviewsFor(page.Id, page.Version))
-                if (PreviewPlan.Covers(PreviewPlan.CoveredPt(key, img.Width, img.Height), key.Scale, regionPt)) return true;
+                if (key.AnnotRevision == page.AnnotRevision && PreviewPlan.Covers(PreviewPlan.CoveredPt(key, img.Width, img.Height), key.Scale, regionPt)) return true;
             return false;
         }
         var plan = PrefetchPlanner.Plan(_layoutPages, lay, Viewport, lay.Scale,
-            k => st.Tiles.TryGet(k, out _), (id, v) => st.Thumbs.TryGet(id, v, out _), _renderScaling, PreviewCovered);
+            k => st.Tiles.TryGet(k, out _), (id, v, ar) => st.Thumbs.TryGet(id, v, ar, out _), _renderScaling, PreviewCovered);
         st.Scheduler.SetWanted(plan);
     }
 

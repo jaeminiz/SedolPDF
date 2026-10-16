@@ -38,7 +38,7 @@ public static class TileGrid
         double s = sk / 1000.0;
         var (pw, ph) = PagePixels(page, s);
         if (pw <= 0 || ph <= 0) return Array.Empty<TileKey>();
-        if (IsSingleTile(pw, ph)) return new[] { new TileKey(page.Id, page.Version, sk, 0, 0) };
+        if (IsSingleTile(pw, ph)) return new[] { new TileKey(page.Id, page.Version, page.AnnotRevision, sk, 0, 0) };
 
         // 문서 좌표(DIP) → 이 페이지 기준 타일 픽셀
         double ring = Math.Max(0, ringTiles) * TileSize;
@@ -53,7 +53,7 @@ public static class TileGrid
         var res = new List<TileKey>((x1 - x0 + 1) * (y1 - y0 + 1));
         for (int y = y0; y <= y1; y++)
             for (int x = x0; x <= x1; x++)
-                res.Add(new TileKey(page.Id, page.Version, sk, x, y));
+                res.Add(new TileKey(page.Id, page.Version, page.AnnotRevision, sk, x, y));
         return res;
     }
 }

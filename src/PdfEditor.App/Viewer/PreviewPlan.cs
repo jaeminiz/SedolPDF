@@ -52,7 +52,7 @@ public static class PreviewPlan
     }
 
     public static TileKey KeyFor(PageInfo page, int scaleKey, PixelRect region) =>
-        new(page.Id, page.Version, -scaleKey, region.X, region.Y);
+        new(page.Id, page.Version, page.AnnotRevision, -scaleKey, region.X, region.Y);
 
     public static TileRequest RequestFor(PageInfo page, int scaleKey, PixelRect region) =>
         new(TileKind.Preview, KeyFor(page, scaleKey, region), scaleKey / 1000.0, region);

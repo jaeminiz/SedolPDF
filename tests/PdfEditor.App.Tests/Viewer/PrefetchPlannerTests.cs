@@ -15,7 +15,7 @@ public class PrefetchPlannerTests
         var pages = Pages(3);
         var layout = PageLayout.Build(pages, 1.0, 632, ViewMode.Continuous);
         var vp = new Rect(0, 1000, 632, 400);   // 페이지 2(인덱스 1)만 보임, 0과 2는 링
-        var plan = PrefetchPlanner.Plan(pages, layout, vp, 1.0, _ => false, (_, _) => false);
+        var plan = PrefetchPlanner.Plan(pages, layout, vp, 1.0, _ => false, (_, _, _) => false);
 
         Assert.Equal(TileKind.Tile, plan[0].Kind);
         Assert.Equal(pages[1].Id, plan[0].Key.Page);
@@ -33,7 +33,7 @@ public class PrefetchPlannerTests
         var pages = Pages(2);
         var layout = PageLayout.Build(pages, 1.0, 632, ViewMode.Continuous);
         var vp = new Rect(0, 700, 632, 400);   // 중심 y=900. 페이지0 중심 416, 페이지1 중심 1228
-        var plan = PrefetchPlanner.Plan(pages, layout, vp, 1.0, _ => false, (_, _) => false);
+        var plan = PrefetchPlanner.Plan(pages, layout, vp, 1.0, _ => false, (_, _, _) => false);
         Assert.Equal(pages[1].Id, plan[0].Key.Page);
         Assert.Equal(pages[0].Id, plan[1].Key.Page);
     }
@@ -44,7 +44,7 @@ public class PrefetchPlannerTests
         var pages = Pages(2);
         var layout = PageLayout.Build(pages, 1.0, 632, ViewMode.Continuous);
         var vp = new Rect(0, 0, 632, 400);
-        var plan = PrefetchPlanner.Plan(pages, layout, vp, 1.0, _ => true, (_, _) => true);
+        var plan = PrefetchPlanner.Plan(pages, layout, vp, 1.0, _ => true, (_, _, _) => true);
         Assert.Empty(plan);
     }
 
@@ -54,7 +54,7 @@ public class PrefetchPlannerTests
         var pages = Pages(20);
         var layout = PageLayout.Build(pages, 1.0, 632, ViewMode.Continuous);
         double y = layout.GetPageRect(10).Y;
-        var plan = PrefetchPlanner.Plan(pages, layout, new Rect(0, y, 632, 400), 1.0, _ => false, (_, _) => false);
+        var plan = PrefetchPlanner.Plan(pages, layout, new Rect(0, y, 632, 400), 1.0, _ => false, (_, _, _) => false);
         var thumbs = plan.Where(r => r.Kind == TileKind.Thumbnail).Select(r => (int)(r.Key.Page.Value - 1)).ToList();
         Assert.Equal(Enumerable.Range(7, 7), thumbs.Order());
     }
@@ -65,7 +65,7 @@ public class PrefetchPlannerTests
         var pages = Pages(1);
         double dip = ZoomMath.DipPerPoint(1.0);
         var layout = PageLayout.Build(pages, dip, 1000, ViewMode.Continuous);
-        var plan = PrefetchPlanner.Plan(pages, layout, new Rect(0, 0, 1000, 600), dip, _ => false, (_, _) => false, 1.5);
+        var plan = PrefetchPlanner.Plan(pages, layout, new Rect(0, 0, 1000, 600), dip, _ => false, (_, _, _) => false, 1.5);
         var tile = plan.First(r => r.Kind == TileKind.Tile);
         Assert.Equal(dip * 1.5, tile.Scale, 3);
         Assert.Equal(2000, tile.Key.ScaleKey);

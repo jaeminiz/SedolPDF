@@ -44,7 +44,7 @@ public sealed class DocumentRenderer : IDisposable
     public static TileRequest ThumbnailRequestFor(PageInfo page)
     {
         var (w, h) = ThumbnailCache<IImageHandle>.SizeFor(page);
-        var key = new TileKey(page.Id, page.Version, 0, 0, 0);
+        var key = new TileKey(page.Id, page.Version, page.AnnotRevision, 0, 0, 0);
         return new TileRequest(TileKind.Thumbnail, key, w / (double)page.WidthPt, new PixelRect(0, 0, w, h));
     }
 
@@ -67,7 +67,7 @@ public sealed class DocumentRenderer : IDisposable
             var page = _s.GetLoadedPage(r.Key.Page);   // 핸들은 이 호출 안에서만 쓴다
             var timed = TileRenderTimed;
             long t0 = timed is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
-            var bytes = page.RenderTile(r.Scale, r.Rect.X, r.Rect.Y, r.Rect.W, r.Rect.H, new RenderOptions(WithAnnotations: true));
+            var bytes = page.RenderTile(r.Scale, r.Rect.X, r.Rect.Y, r.Rect.W, r.Rect.H, new RenderOptions(WithAnnotations: true, HiddenAnnotIndices: _s.Annotations.HiddenPdfIndices(r.Key.Page)));
             if (timed is not null && r.Kind == TileKind.Tile) timed(System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
             return bytes;
         };
@@ -77,7 +77,7 @@ public sealed class DocumentRenderer : IDisposable
     private bool IsCurrent(TileKey key)
     {
         foreach (var p in _s.Pages)
-            if (p.Id == key.Page) return p.Version == key.Version;
+            if (p.Id == key.Page) return p.Version == key.Version && p.AnnotRevision == key.AnnotRevision;
         return false;
     }
 
@@ -89,7 +89,7 @@ public sealed class DocumentRenderer : IDisposable
             if (_disposed || !IsCurrent(r.Key)) return false;
             var img = _createImage(bgra, r.Rect.W, r.Rect.H);
             long bytes = (long)r.Rect.W * r.Rect.H * 4;
-            if (r.Kind == TileKind.Thumbnail) _thumbs.Add(r.Key.Page, r.Key.Version, img, bytes);
+            if (r.Kind == TileKind.Thumbnail) _thumbs.Add(r.Key.Page, r.Key.Version, r.Key.AnnotRevision, img, bytes);
             else _tiles.Add(r.Key, img, bytes);
             return true;
         }

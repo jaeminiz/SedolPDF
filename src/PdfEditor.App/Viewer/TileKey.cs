@@ -4,8 +4,8 @@ namespace PdfEditor.App.Viewer;
 
 public readonly record struct PixelRect(int X, int Y, int W, int H);
 
-/// <summary>X, Y는 타일 격자 번호. 페이지 전체를 한 장으로 그리는 경우 (0, 0).</summary>
-public readonly record struct TileKey(PageId Page, int Version, int ScaleKey, int X, int Y)
+/// <summary>X, Y는 타일 격자 번호. 페이지 전체를 한 장으로 그리는 경우 (0, 0). AnnotRevision은 타일에서 숨긴 원본 주석 집합의 번호(PageInfo.AnnotRevision).</summary>
+public readonly record struct TileKey(PageId Page, int Version, int AnnotRevision, int ScaleKey, int X, int Y)
 {
     public static int ToScaleKey(double scale) => (int)Math.Round(scale * 1000);
     public double Scale => Math.Abs(ScaleKey) / 1000.0;

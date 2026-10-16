@@ -13,10 +13,13 @@ public sealed class ThumbnailCache<TImage> where TImage : class
     public ThumbnailCache(long budgetBytes, Action<TImage> onEvict) => _cache = new TileCache<TImage>(budgetBytes, onEvict);
     public ThumbnailCache(Action<TImage> onEvict) : this(DefaultBudgetBytes, onEvict) { }
 
-    private static TileKey Key(PageId page, int version) => new(page, version, 0, 0, 0);
+    private static TileKey Key(PageId page, int version, int annotRevision) => new(page, version, annotRevision, 0, 0, 0);
 
-    public bool TryGet(PageId page, int version, out TImage image) => _cache.TryGet(Key(page, version), out image);
-    public void Add(PageId page, int version, TImage image, long bytes) => _cache.Add(Key(page, version), image, bytes);
+    /// <summary>정확히 이 AnnotRevision의 썸네일.</summary>
+    public bool TryGet(PageId page, int version, int annotRevision, out TImage image) => _cache.TryGet(Key(page, version, annotRevision), out image);
+    /// <summary>이 AnnotRevision의 썸네일, 없으면 같은 Version의 이전 AnnotRevision 썸네일(새 것이 올 때까지 보여 주기 위함).</summary>
+    public bool TryGetOrOlder(PageId page, int version, int annotRevision, out TImage image) => _cache.TryGetAtOrBelowRevision(Key(page, version, annotRevision), out image);
+    public void Add(PageId page, int version, int annotRevision, TImage image, long bytes) => _cache.Add(Key(page, version, annotRevision), image, bytes);
     public void RemovePage(PageId page) => _cache.RemovePage(page);
     public void RemoveStaleVersions(PageId page, int currentVersion) => _cache.RemoveStaleVersions(page, currentVersion);
     public long UsedBytes => _cache.UsedBytes;

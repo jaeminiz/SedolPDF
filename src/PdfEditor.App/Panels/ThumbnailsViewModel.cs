@@ -21,6 +21,7 @@ public sealed partial class ThumbnailItem(PageId id) : ObservableObject
 
     /// <summary>이미지가 마지막으로 맞춰진 쪽 버전. 회전 등으로 쪽 버전이 바뀌면 새로 그린다.</summary>
     public int Version { get; set; } = -1;
+    public int AnnotRevision { get; set; } = -1;
 
     /// <summary>화면에 그릴 이미지(IImageHandle이 BitmapHandle일 때).</summary>
     public IImage? Source => (Image as BitmapHandle)?.Bitmap;
@@ -123,11 +124,12 @@ public sealed class ThumbnailsViewModel : IDisposable
             var (w, h) = ThumbnailCache<IImageHandle>.SizeFor(p);
             item.DisplayWidth = w;
             item.DisplayHeight = h;
-            if (item.Version != p.Version)
+            if (item.Version != p.Version || item.AnnotRevision != p.AnnotRevision)
             {
                 item.Version = p.Version;
+                item.AnnotRevision = p.AnnotRevision;
                 // 새 버전의 이미지가 이미 있으면 바로 쓰고, 없으면 옛 이미지를 둔 채 새로 그린다.
-                if (_thumbs.TryGet(p.Id, p.Version, out var img)) item.Image = img;
+                if (_thumbs.TryGet(p.Id, p.Version, p.AnnotRevision, out var img)) item.Image = img;
             }
             target.Add(item);
         }
@@ -158,7 +160,7 @@ public sealed class ThumbnailsViewModel : IDisposable
         {
             bool vis; lock (_visible) vis = _visible.Contains(it.Id);
             if (!vis || !byId.TryGetValue(it.Id, out var p)) continue;
-            if (_thumbs.TryGet(p.Id, p.Version, out _)) continue;
+            if (_thumbs.TryGet(p.Id, p.Version, p.AnnotRevision, out _)) continue;
             reqs.Add(DocumentRenderer.ThumbnailRequestFor(p));
         }
         _scheduler.SetWanted(reqs);
@@ -169,7 +171,7 @@ public sealed class ThumbnailsViewModel : IDisposable
         if (_disposed) return;
         if (!_renderer.Accept(r, data)) return;   // 그 사이 쪽이 바뀌었으면 버린다
         foreach (var it in Items)
-            if (it.Id == r.Key.Page && it.Version == r.Key.Version && _thumbs.TryGet(r.Key.Page, r.Key.Version, out var img))
+            if (it.Id == r.Key.Page && it.Version == r.Key.Version && it.AnnotRevision == r.Key.AnnotRevision && _thumbs.TryGet(r.Key.Page, r.Key.Version, r.Key.AnnotRevision, out var img))
                 it.Image = img;
         UpdateWanted();
     }

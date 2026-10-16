@@ -46,6 +46,9 @@ public sealed class TileCache<TImage> where TImage : class
         lock (_lock)
         {
             if (_map.TryGetValue(key, out var old)) RemoveNode(old);
+            // 같은 자리의 더 낮은 AnnotRevision 항목은 새 것이 대신한다.
+            foreach (var stale in _map.Where(kv => kv.Key.AnnotRevision < key.AnnotRevision && SamePosition(kv.Key, key)).Select(kv => kv.Value).ToList())
+                RemoveNode(stale);
             var node = _lru.AddFirst(new Entry(key, image, bytes));
             _map[key] = node;
             _used += bytes;
@@ -53,20 +56,47 @@ public sealed class TileCache<TImage> where TImage : class
         }
     }
 
-    /// <summary>같은 페이지·버전에서 scaleKey가 아닌 배율 중 |log(s/target)|이 가장 작은 배율의 타일 전부 (LRU 갱신 안 함).</summary>
-    public IReadOnlyList<(TileKey Key, TImage Image)> FallbackFor(PageId page, int version, int scaleKey)
+    private static bool SamePosition(TileKey a, TileKey b) =>
+        a.Page == b.Page && a.Version == b.Version && a.ScaleKey == b.ScaleKey && a.X == b.X && a.Y == b.Y;
+
+    /// <summary>key와 같은 자리(페이지·버전·배율·X·Y)에서 key.AnnotRevision 이하 중 가장 높은 AnnotRevision의 이미지 (LRU 갱신 안 함).</summary>
+    public bool TryGetAtOrBelowRevision(TileKey key, out TImage image)
     {
         lock (_lock)
         {
+            LinkedListNode<Entry>? best = null;
+            foreach (var kv in _map)
+                if (kv.Key.AnnotRevision <= key.AnnotRevision && SamePosition(kv.Key, key)
+                    && (best is null || kv.Key.AnnotRevision > best.Value.Key.AnnotRevision)) best = kv.Value;
+            if (best is not null) { image = best.Value.Image; return true; }
+        }
+        image = null!;
+        return false;
+    }
+
+    /// <summary>
+    /// 대체 그림. ① 같은 배율에 이전 AnnotRevision 타일이 있으면 그것들(모양이 같아 그대로 그린다, 낮은 번호부터).
+    /// ② 없으면 같은 AnnotRevision에서 scaleKey가 아닌 배율 중 |log(s/target)|이 가장 작은 배율의 타일 전부. (LRU 갱신 안 함)
+    /// </summary>
+    public IReadOnlyList<(TileKey Key, TImage Image)> FallbackFor(PageId page, int version, int annotRevision, int scaleKey)
+    {
+        lock (_lock)
+        {
+            var older = _map.Where(kv => kv.Key.Page == page && kv.Key.Version == version && kv.Key.ScaleKey == scaleKey
+                                         && kv.Key.AnnotRevision < annotRevision)
+                            .OrderBy(kv => kv.Key.AnnotRevision)
+                            .Select(kv => (kv.Key, kv.Value.Value.Image)).ToList();
+            if (older.Count > 0) return older;
+
             int bestScale = -1; double bestD = double.MaxValue;
             foreach (var k in _map.Keys)
             {
-                if (k.Page != page || k.Version != version || k.ScaleKey == scaleKey || k.ScaleKey <= 0) continue;
+                if (k.Page != page || k.Version != version || k.AnnotRevision != annotRevision || k.ScaleKey == scaleKey || k.ScaleKey <= 0) continue;
                 double d = Math.Abs(Math.Log((double)k.ScaleKey / scaleKey));
                 if (d < bestD) { bestD = d; bestScale = k.ScaleKey; }
             }
             if (bestScale < 0) return Array.Empty<(TileKey, TImage)>();
-            return _map.Where(kv => kv.Key.Page == page && kv.Key.Version == version && kv.Key.ScaleKey == bestScale)
+            return _map.Where(kv => kv.Key.Page == page && kv.Key.Version == version && kv.Key.AnnotRevision == annotRevision && kv.Key.ScaleKey == bestScale)
                        .Select(kv => (kv.Key, kv.Value.Value.Image)).ToList();
         }
     }
@@ -77,6 +107,7 @@ public sealed class TileCache<TImage> where TImage : class
         lock (_lock)
         {
             return _map.Where(kv => kv.Key.Page == page && kv.Key.Version == version && kv.Key.IsPreview)
+                       .OrderBy(kv => kv.Key.AnnotRevision)
                        .Select(kv => (kv.Key, kv.Value.Value.Image)).ToList();
         }
     }
