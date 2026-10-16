@@ -21,8 +21,8 @@ public sealed class ThumbnailAnnotationLayer : Control
     private bool _attached;
     private ThumbnailItem? _item;
     private DocumentSession? _session;
-    private (System.Drawing.RectangleF Bounds, int Rotation, int Version)? _geom;
-    private int _geomRequestedVersion = -1;
+    private (System.Drawing.RectangleF Bounds, int Rotation, PageId Page, int Version)? _geom;
+    private (PageId Page, int Version)? _geomRequested;
     private Action<AnnotationsChangedEventArgs>? _handler;
 
     public ThumbnailAnnotationLayer() => IsHitTestVisible = false;
@@ -32,6 +32,8 @@ public sealed class ThumbnailAnnotationLayer : Control
         base.OnDataContextChanged(e);
         Unhook();
         _item = DataContext as ThumbnailItem;
+        _geom = null;   // 컨테이너 재사용: 이전 쪽의 경계·회전을 버린다
+        _geomRequested = null;
         Hook();
         InvalidateVisual();
     }
@@ -86,7 +88,7 @@ public sealed class ThumbnailAnnotationLayer : Control
         var annots = session.Annotations.Get(item.Id);
         if (!annots.Items.Any(i => i.ModelDrawn)) return;
         int version = item.Version;
-        if (_geom is not { } g || g.Version != version)
+        if (_geom is not { } g || g.Page != item.Id || g.Version != version)
         {
             RequestGeom(session, item.Id, version);
             return;   // 도착하면 다시 그린다
@@ -102,8 +104,8 @@ public sealed class ThumbnailAnnotationLayer : Control
 
     private void RequestGeom(DocumentSession session, PageId id, int version)
     {
-        if (_geomRequestedVersion == version) return;
-        _geomRequestedVersion = version;
+        if (_geomRequested == (id, version)) return;
+        _geomRequested = (id, version);
         _ = Load();
 
         async Task Load()
@@ -121,9 +123,9 @@ public sealed class ThumbnailAnnotationLayer : Control
             catch (Exception) { }   // 스레드가 닫혔거나 쪽이 없어짐: 주석 층만 생략한다.
             Dispatcher.UIThread.Post(() =>
             {
-                if (_geomRequestedVersion != version) return;
-                if (r is { } v) _geom = (v.Item1, v.Item2, version);
-                else _geomRequestedVersion = -1;
+                if (_geomRequested != (id, version)) return;
+                if (r is { } v) _geom = (v.Item1, v.Item2, id, version);
+                else _geomRequested = null;
                 InvalidateVisual();
             });
         }
