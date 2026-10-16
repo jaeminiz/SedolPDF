@@ -18,6 +18,7 @@ namespace PdfEditor.App.Shell;
 public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _vm = new();
+    internal MainWindowViewModel ViewModel => _vm;
     private readonly PdfiumThread _pdfium = new();   // 앱 전체에서 PdfiumThread는 하나
     private bool _exitConfirmed;
     private MenuItem _recentMenu = null!;
@@ -51,6 +52,7 @@ public sealed partial class MainWindow : Window
             new AvaloniaRecoveryUi(this), prompts);
         _recovery.Attach(workflow);
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
+        _vm.AboutRequested += async (_, _) => await new AboutDialog().ShowDialog(this);
 
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);

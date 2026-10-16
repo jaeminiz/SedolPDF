@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PdfEditor.App.Dialogs.AboutDialog"
+        SizeToContent="WidthAndHeight" MinWidth="340"
+        CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="#F3F3F3">
+  <StackPanel Margin="24,20,24,16" Spacing="12">
+    <TextBlock x:Name="NameText" FontSize="20" FontWeight="SemiBold" Foreground="#1A1A1A" />
+    <TextBlock x:Name="VersionText" Foreground="#5C5C5C" />
+    <TextBlock x:Name="NoticeStatus" Foreground="#C42B1C" IsVisible="False" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button x:Name="NoticesButton" MinWidth="120" />
+      <Button x:Name="CloseButton" MinWidth="88" IsDefault="True" Classes="accent" />
+    </StackPanel>
+  </StackPanel>
+</Window>

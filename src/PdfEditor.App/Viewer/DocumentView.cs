@@ -89,6 +89,18 @@ public sealed class DocumentView : Control
     /// <summary>마지막으로 그린 프레임에서 뷰포트 안 페이지 면적 중 그림으로 덮인 비율(0~1). Task 18 벤치에서 읽는다.</summary>
     public double LastCoverage { get; private set; } = 1.0;
 
+    /// <summary>벤치용: 마지막 프레임에서 현재 배율 타일로만 덮인 비율(0~1).</summary>
+    public double LastExactCoverage { get; private set; } = 1.0;
+
+    /// <summary>벤치용: 마지막 프레임에서 뷰포트와 겹친 쪽 수.</summary>
+    public int LastVisiblePageCount { get; private set; }
+
+    /// <summary>벤치용: Render가 불린 횟수(프레임 동기용).</summary>
+    public long RenderCount { get; private set; }
+
+    /// <summary>벤치용: 안쪽 스크롤 뷰어.</summary>
+    internal ScrollViewer? Scroller => _sv;
+
     private Rect Viewport => _sv is null ? default : new Rect(_sv.Offset.X, _sv.Offset.Y, _sv.Viewport.Width, _sv.Viewport.Height);
 
     // ---- 연결 ----
@@ -316,12 +328,14 @@ public sealed class DocumentView : Control
 
     public override void Render(DrawingContext ctx)
     {
+        RenderCount++;
         ctx.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));   // 빈 곳도 포인터를 받도록
         var st = _state; var lay = _layout;
-        if (st is null || lay is null || _sv is null) { LastCoverage = 1.0; return; }
+        if (st is null || lay is null || _sv is null) { LastCoverage = 1.0; LastExactCoverage = 1.0; LastVisiblePageCount = 0; return; }
         var vp = Viewport;
         var pages = _layoutPages;
         var painted = new List<Rect>();
+        var exact = new List<Rect>();
         var pageRects = new List<Rect>();
         double scale = lay.Scale;
         int scaleKey = TileKey.ToScaleKey(scale);
@@ -352,11 +366,14 @@ public sealed class DocumentView : Control
                         var dest = TileDest(info, key, pr, scale);
                         ctx.DrawImage(cb.Bitmap, new Rect(0, 0, cb.Width, cb.Height), dest);
                         painted.Add(dest.Intersect(pr));
+                        exact.Add(dest.Intersect(pr));
                     }
             }
             DrawOverlays(ctx, st, info, pr, scale);   // ⑤ 검색 강조·텍스트 선택
         }
         LastCoverage = ViewportCoverage.Compute(vp, pageRects, painted);
+        LastExactCoverage = ViewportCoverage.Compute(vp, pageRects, exact);
+        LastVisiblePageCount = pageRects.Count;
     }
 
     // ---- 덧그림: 검색 강조·텍스트 선택 ----

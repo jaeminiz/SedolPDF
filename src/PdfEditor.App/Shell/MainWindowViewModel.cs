@@ -74,6 +74,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>끝내기 명령이 실행되면 창이 닫는다.</summary>
     public event EventHandler? ExitRequested;
     public event EventHandler? PreferencesRequested;
+    public event EventHandler? AboutRequested;
 
     /// <summary>찾기 명령이 검색 패널을 열었다. 창이 검색어 입력칸에 초점을 준다.</summary>
     public event EventHandler? FocusSearchRequested;
@@ -454,7 +455,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _printCommand = new AsyncRelayCommand(PrintActiveAsync, CanPrintActive);
         Reg("file.print", Strings.Cmd_Print, "print", G(Key.P), _printCommand);
         Reg("file.prefs", Strings.Cmd_Preferences, null, null, new RelayCommand(() => PreferencesRequested?.Invoke(this, EventArgs.Empty)));
-        Reg("file.about", Strings.Cmd_About, null);
+        Reg("file.about", Strings.Cmd_About, null, null, new RelayCommand(() => AboutRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
         Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z), PageCmd(p => p.UndoCommand));
         Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y), PageCmd(p => p.RedoCommand));

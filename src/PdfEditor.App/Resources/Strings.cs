@@ -250,4 +250,9 @@ public static class Strings
     public static string Dlg_SettingsTitle => Get(nameof(Dlg_SettingsTitle));
     public static string Dlg_SettingsRecoveryInterval => Get(nameof(Dlg_SettingsRecoveryInterval));
     public static string Dlg_SettingsRecoveryHint => Get(nameof(Dlg_SettingsRecoveryHint));
+    public static string Dlg_AboutTitle => Get(nameof(Dlg_AboutTitle));
+    public static string Dlg_AboutVersion => Get(nameof(Dlg_AboutVersion));
+    public static string Dlg_AboutNotices => Get(nameof(Dlg_AboutNotices));
+    public static string Dlg_AboutNoticesMissing => Get(nameof(Dlg_AboutNoticesMissing));
+    public static string Dlg_AboutClose => Get(nameof(Dlg_AboutClose));
 }
