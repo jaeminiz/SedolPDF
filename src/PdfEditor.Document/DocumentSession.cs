@@ -166,20 +166,24 @@ public sealed class DocumentSession : IAsyncDisposable
         return ids;
     }
 
+    /// <summary>
+    /// 쪽 번호를 끼운다. 한 번 쓴 PageId(실행 취소로 되살리기·다시 실행)는 지난 버전 다음 번호를 받는다:
+    /// (PageId, Version)이 다른 모양을 가리키면 늦게 도착한 옛 렌더 결과가 통과되기 때문이다(Review Focus 1).
+    /// </summary>
     public void InsertPageIds(int at, IReadOnlyList<PageId> ids)
     {
         Thread.AssertOnThread();
         _order.InsertRange(at, ids);
-        foreach (var id in ids) _versions[id] = 0;
+        foreach (var id in ids) _versions[id] = _versions.TryGetValue(id, out var v) ? v + 1 : 0;
     }
 
+    /// <summary>쪽 번호를 뺀다. 버전 기록은 남겨 두어 같은 PageId가 돌아오면 이어서 번호를 매긴다.</summary>
     public void RemovePageIdAt(int index)
     {
         Thread.AssertOnThread();
         var id = _order[index];
         _cache.Evict(id);
         _order.RemoveAt(index);
-        _versions.Remove(id);
         _sizes.Remove(id);
     }
 
@@ -266,11 +270,12 @@ public sealed class DocumentSession : IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        Commands.Clear();
         try
         {
             await Thread.InvokeAsync(() =>
             {
+                // 명령이 가진 문서(ImportPagesCommand의 원본 등)도 전용 스레드에서 닫는다 — 부른 스레드(UI)를 막지 않는다.
+                Commands.Clear();
                 _cache.Clear();
                 _stash?.Dispose();
                 _doc.Dispose();

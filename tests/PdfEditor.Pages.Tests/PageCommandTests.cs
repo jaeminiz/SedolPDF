@@ -151,6 +151,41 @@ public class PageCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task RotateDeleteUndo_NeverReusesEarlierVersion()
+    {
+        // (PageId, Version)는 그 쪽 모양 하나만 가리켜야 한다(Review Focus 1). 회전 → 삭제 → 되살리기 뒤
+        // 버전이 0으로 돌아가면 회전 전 v0 타일·썸네일(늦게 도착한 결과 포함)이 회전된 쪽에 맞는 것으로 통과된다.
+        await using var s = await OpenLabeled(3);
+        var id = s.Pages[1].Id;
+        var seen = new HashSet<int> { s.Pages[1].Version };
+        await s.Commands.ExecuteAsync(new RotatePagesCommand([id], 1));
+        Assert.True(seen.Add(s.Pages[1].Version));
+        await s.Commands.ExecuteAsync(new DeletePagesCommand([id]));
+        await s.Commands.UndoAsync();   // 되살림 (회전된 상태)
+        Assert.Equal(id, s.Pages[1].Id);
+        Assert.Equal(1, await RotationOf(s, id));
+        Assert.True(seen.Add(s.Pages[1].Version), "되살린 쪽이 예전 버전 번호를 다시 썼다");
+        await s.Commands.RedoAsync();   // 다시 삭제
+        await s.Commands.UndoAsync();   // 다시 되살림
+        Assert.True(seen.Add(s.Pages[1].Version), "다시 되살린 쪽이 예전 버전 번호를 다시 썼다");
+    }
+
+    [Fact]
+    public async Task ImportUndoRedo_NeverReusesEarlierVersion()
+    {
+        await using var s = await OpenLabeled(2);
+        var other = P("o.pdf");
+        TestPdfFactory.CreateBlank(other, 1, 100, 100);
+        var src = await _t.InvokeAsync(() => PdfDocument.Open(_t, other));
+        await s.Commands.ExecuteAsync(new PdfEditor.Pages.ImportPagesCommand(src, [0], 1));
+        var first = s.Pages[1];
+        await s.Commands.UndoAsync();
+        await s.Commands.RedoAsync();
+        Assert.Equal(first.Id, s.Pages[1].Id);
+        Assert.NotEqual(first.Version, s.Pages[1].Version);
+    }
+
+    [Fact]
     public async Task Rotate_BumpsVersion_AndSwapsSize()
     {
         await using var s = await OpenLabeled(2);
