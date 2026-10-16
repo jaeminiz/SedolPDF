@@ -40,6 +40,31 @@ public class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void AuthorAndToolStyles_RoundTrip_OldFileStillLoads()
+    {
+        string f = Path.Combine(_dir, "s.json");
+        var store = new SettingsStore(f);
+        store.Save(new AppSettings(["a.pdf"], 9, "Kim",
+            new Dictionary<string, ToolStyleSetting> { ["Rectangle"] = new("#005FB8", "#FFD60A", 0.5f, 3f) }));
+        var s = store.Load();
+        Assert.Equal("Kim", s.AuthorName);
+        Assert.Equal(new ToolStyleSetting("#005FB8", "#FFD60A", 0.5f, 3f), s.ToolStyles!["Rectangle"]);
+        Assert.Equal(["a.pdf"], s.RecentFiles);
+        store.AddRecent("b.pdf");   // 다른 값을 고쳐 써도 작성자·스타일이 남는다
+        Assert.Equal("Kim", store.Load().AuthorName);
+        Assert.Single(store.Load().ToolStyles!);
+
+        // M1 형식 (RecentFiles, RecoveryIntervalMinutes만 있는 파일)
+        File.WriteAllText(f, "{\"RecentFiles\":[\"old.pdf\"],\"RecoveryIntervalMinutes\":3}");
+        var old = store.Load();
+        Assert.Equal(["old.pdf"], old.RecentFiles);
+        Assert.Equal(3, old.RecoveryIntervalMinutes);
+        Assert.Null(old.AuthorName);
+        Assert.Null(old.ToolStyles);
+        Assert.Equal(Environment.UserName, old.EffectiveAuthor);
+    }
+
+    [Fact]
     public void Settings_Recent_MaxTenNoDuplicates()
     {
         var store = new SettingsStore(Path.Combine(_dir, "s.json"));

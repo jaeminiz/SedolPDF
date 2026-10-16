@@ -135,7 +135,7 @@ public sealed partial class DocumentView
             return true;
         }
 
-        tab.Tools.Begin(tool, ToolDefaults.For(tool), info.Id, pt, ptPerDip);
+        tab.Tools.Begin(tool, DocumentTabViewModel.StyleFor(tool), info.Id, pt, ptPerDip);
         StartGesture(e.Pointer, tool == ToolKind.Eraser ? Gesture.Erase : Gesture.Create, hit.Page, info.Id, g);
         PushPreview();
         return true;
@@ -264,7 +264,7 @@ public sealed partial class DocumentView
                 : session.GetLoadedText(page).GetRects(r.Start, r.Count));
             if (epoch != _markupEpoch) return;
             var cmd = tab.CanAnnotate
-                ? tab.Tools.CreateMarkup(tool, ToolDefaults.For(tool), page, [.. rects.Select(PdfRectF.FromLtrbRectangle)])
+                ? tab.Tools.CreateMarkup(tool, DocumentTabViewModel.StyleFor(tool), page, [.. rects.Select(PdfRectF.FromLtrbRectangle)])
                 : null;
             sel.Clear();
             if (cmd is not null) await RunAnnotationCommandAsync(st, cmd, page, null);

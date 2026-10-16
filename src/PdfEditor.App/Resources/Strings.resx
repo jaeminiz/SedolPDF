@@ -260,4 +260,17 @@
   <data name="Sticky_Hint" xml:space="preserve"><value>Ctrl+Enter: 확인, Esc: 취소</value></data>
   <data name="Sticky_Placeholder" xml:space="preserve"><value>메모를 입력하세요</value></data>
   <data name="Msg_AnnotationFailed" xml:space="preserve"><value>주석을 적용하지 못했습니다.</value></data>
+  <data name="Prop_Annot_Color" xml:space="preserve"><value>선 색상</value></data>
+  <data name="Prop_Annot_Fill" xml:space="preserve"><value>채우기</value></data>
+  <data name="Prop_Annot_NoFill" xml:space="preserve"><value>채우기 없음</value></data>
+  <data name="Prop_Annot_Width" xml:space="preserve"><value>선 두께 · {0:0.#} pt</value></data>
+  <data name="Prop_Annot_Opacity" xml:space="preserve"><value>불투명도 · {0}%</value></data>
+  <data name="Prop_Annot_Author" xml:space="preserve"><value>작성자</value></data>
+  <data name="Prop_Annot_Created" xml:space="preserve"><value>만든 시각</value></data>
+  <data name="Prop_Annot_Modified" xml:space="preserve"><value>고친 시각</value></data>
+  <data name="Prop_Annot_Mixed" xml:space="preserve"><value>여러 값</value></data>
+  <data name="Prop_Annot_Multiple" xml:space="preserve"><value>주석 {0}개</value></data>
+  <data name="Prop_Annot_DefaultsHint" xml:space="preserve"><value>새로 만들 주석의 기본 모양</value></data>
+  <data name="Dlg_SettingsAuthor" xml:space="preserve"><value>작성자 이름</value></data>
+  <data name="Dlg_SettingsAuthorHint" xml:space="preserve"><value>주석에 기록되는 이름입니다. 비워 두면 Windows 사용자 이름을 씁니다.</value></data>
 </root>

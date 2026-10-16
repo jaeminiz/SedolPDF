@@ -12,6 +12,10 @@ public sealed partial class PropertiesViewModel : ObservableObject
 {
     private readonly DocumentTabViewModel _tab;
 
+    /// <summary>주석 속성 (선택이 있거나 만들기 도구가 켜져 있을 때 문서 속성 대신 보인다).</summary>
+    public AnnotationPropertiesViewModel Annotation { get; }
+    public bool IsDocumentMode => !Annotation.IsActive;
+
     [ObservableProperty] private string _pdfVersion = Strings.Prop_Unknown;
     [ObservableProperty] private string _title = Strings.Prop_Unknown;
     [ObservableProperty] private string _author = Strings.Prop_Unknown;
@@ -21,6 +25,8 @@ public sealed partial class PropertiesViewModel : ObservableObject
     public PropertiesViewModel(DocumentTabViewModel tab)
     {
         _tab = tab;
+        Annotation = new AnnotationPropertiesViewModel(tab);
+        Annotation.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(AnnotationPropertiesViewModel.IsActive)) OnPropertyChanged(nameof(IsDocumentMode)); };
         tab.PropertyChanged += (_, e) =>
         {
             switch (e.PropertyName)

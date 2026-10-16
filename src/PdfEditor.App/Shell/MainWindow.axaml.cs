@@ -27,9 +27,10 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowPreferencesAsync()
     {
-        int? minutes = await new SettingsDialog(_settings.Load().RecoveryIntervalMinutes).ShowDialog<int?>(this);
-        if (minutes is null) return;
-        try { _settings.Save(_settings.Load() with { RecoveryIntervalMinutes = minutes.Value }); }
+        var cur = _settings.Load();
+        var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName).ShowDialog<SettingsResult?>(this);
+        if (result is null) return;
+        try { _settings.Save(_settings.Load() with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName }); }
         catch (Exception) { return; }
         _recovery.Reschedule();
     }
@@ -46,6 +47,7 @@ public sealed partial class MainWindow : Window
         var prompts = new AvaloniaPrompts(this);
         var appearance = new PdfEditor.Appearance.PdfAppearanceSource();
         _settings = new SettingsStore(SettingsStore.DefaultPath);
+        PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
         var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance), _settings, prompts);
         _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance));

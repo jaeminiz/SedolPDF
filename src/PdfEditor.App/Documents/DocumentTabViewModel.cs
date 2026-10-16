@@ -1,6 +1,7 @@
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfEditor.App.Resources;
+using PdfEditor.App.Settings;
 using PdfEditor.App.Viewer;
 using PdfEditor.App.Viewer.Annotations;
 using PdfEditor.Document;
@@ -50,8 +51,54 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     // ---- 주석 (M2) ----
 
-    /// <summary>주석 작성자 이름 공급 함수. 설정에 작성자가 생기면(Task 16) 여기 한 곳만 바꾼다.</summary>
-    public static Func<string> AuthorProvider { get; set; } = () => Environment.UserName;
+    /// <summary>
+    /// 설정 저장소(앱이 시작할 때 한 번 지정). 작성자 이름과 도구별 기억 스타일을 여기서 읽고 쓴다.
+    /// null이면 설정 없이 동작한다 (작성자 = Environment.UserName, 스타일 = ToolDefaults).
+    /// </summary>
+    public static SettingsStore? Settings { get; set; }
+
+    private static AppSettings LoadSettings()
+    {
+        try { return Settings?.Load() ?? AppSettings.Default; } catch (Exception) { return AppSettings.Default; }
+    }
+
+    /// <summary>주석 작성자 이름: 설정의 작성자, 없으면 Environment.UserName.</summary>
+    public static string CurrentAuthor => LoadSettings().EffectiveAuthor;
+
+    /// <summary>이 도구로 만들 주석의 모양: 설정에 저장된 값, 없으면 기본값.</summary>
+    public static ToolStyle StyleFor(ToolKind tool)
+    {
+        if (LoadSettings().ToolStyles is { } d && d.TryGetValue(tool.ToString(), out var s))
+        {
+            try
+            {
+                return new ToolStyle(PdfColor.FromHex(s.ColorHex), s.FillHex is null ? null : PdfColor.FromHex(s.FillHex),
+                    Math.Clamp(s.Opacity, 0.1f, 1f), Math.Clamp(s.Width, 0.5f, 12f));
+            }
+            catch (FormatException) { }
+        }
+        return ToolDefaults.For(tool);
+    }
+
+    /// <summary>이 도구의 모양을 설정에 기억한다.</summary>
+    public static void SaveToolStyle(ToolKind tool, ToolStyle style)
+    {
+        if (Settings is not { } store) return;
+        var cur = store.Load();
+        var map = cur.ToolStyles is null
+            ? new Dictionary<string, ToolStyleSetting>()
+            : new Dictionary<string, ToolStyleSetting>(cur.ToolStyles);
+        map[tool.ToString()] = new ToolStyleSetting(style.Color.ToHex(), style.Fill?.ToHex(), style.Opacity, style.Width);
+        store.Save(cur with { ToolStyles = map });
+    }
+
+    /// <summary>UI 스레드로 넘기는 함수 (패널 모델이 전용 스레드 이벤트를 받을 때 쓴다).</summary>
+    public void PostToUi(Action a) => _post(a);
+
+    /// <summary>속성 패널의 슬라이더 미리보기를 문서 화면에 알린다 (null이면 미리보기 끝).</summary>
+    public event Action<PageId?, IReadOnlyDictionary<AnnotId, Annotation?>?>? AnnotationPreviewRequested;
+    public void RaiseAnnotationPreview(PageId? page, IReadOnlyDictionary<AnnotId, Annotation?>? items)
+        => AnnotationPreviewRequested?.Invoke(page, items);
 
     private long _fallbackAnnotId;
 
@@ -80,14 +127,14 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     {
         Tools = new AnnotationToolController(
             Session is { } s ? s.Annotations.NewId : () => new AnnotId(Interlocked.Increment(ref _fallbackAnnotId)),
-            () => DateTimeOffset.Now, () => AuthorProvider(), SubjectFor);
+            () => DateTimeOffset.Now, () => CurrentAuthor, SubjectFor);
         if (Session is null) return;
         Tools.PageAnnotationSource = id => [.. Session.Annotations.Get(id).Items.Select(v => v.Data)];
         Session.Annotations.Changed += OnAnnotationsChanged;
         _ = RefreshAnnotationNoticeAsync();
     }
 
-    private static string SubjectFor(ToolKind t) => t switch
+    public static string SubjectFor(ToolKind t) => t switch
     {
         ToolKind.Pencil => Strings.AnnotKind_Ink,
         ToolKind.HighlightText or ToolKind.HighlightArea => Strings.AnnotKind_Highlight,

@@ -269,4 +269,17 @@ public static class Strings
     public static string Sticky_Hint => Get(nameof(Sticky_Hint));
     public static string Sticky_Placeholder => Get(nameof(Sticky_Placeholder));
     public static string Msg_AnnotationFailed => Get(nameof(Msg_AnnotationFailed));
+    public static string Prop_Annot_Color => Get(nameof(Prop_Annot_Color));
+    public static string Prop_Annot_Fill => Get(nameof(Prop_Annot_Fill));
+    public static string Prop_Annot_NoFill => Get(nameof(Prop_Annot_NoFill));
+    public static string Prop_Annot_Width => Get(nameof(Prop_Annot_Width));
+    public static string Prop_Annot_Opacity => Get(nameof(Prop_Annot_Opacity));
+    public static string Prop_Annot_Author => Get(nameof(Prop_Annot_Author));
+    public static string Prop_Annot_Created => Get(nameof(Prop_Annot_Created));
+    public static string Prop_Annot_Modified => Get(nameof(Prop_Annot_Modified));
+    public static string Prop_Annot_Mixed => Get(nameof(Prop_Annot_Mixed));
+    public static string Prop_Annot_Multiple => Get(nameof(Prop_Annot_Multiple));
+    public static string Prop_Annot_DefaultsHint => Get(nameof(Prop_Annot_DefaultsHint));
+    public static string Dlg_SettingsAuthor => Get(nameof(Dlg_SettingsAuthor));
+    public static string Dlg_SettingsAuthorHint => Get(nameof(Dlg_SettingsAuthorHint));
 }
