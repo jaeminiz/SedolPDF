@@ -15,5 +15,15 @@
     <Style Selector="Window">
       <Setter Property="FontFamily" Value="Segoe UI Variable Text, Malgun Gothic" />
     </Style>
+    <!-- Avalonia 12가 직접 그리는 창 장식(ExtendClientAreaToDecorationsHint)에서 시안에 없는 두 부품을 숨긴다:
+         왼쪽 위 창 제목 글자(PART_TitleTextPanel 안의 TextBlock)와 최소화 왼쪽의 전체 화면 버튼(PART_FullScreenButton, "⤡").
+         작업 표시줄 이름은 Window.Title이 그대로 쓴다. 이름은 12.1.4 시각 트리에서 확인(M1 마무리 검토). -->
+    <!-- 패널 자체의 IsVisible은 장식 코드가 다시 켜므로 안의 글자를 숨긴다. -->
+    <Style Selector="Panel#PART_TitleTextPanel > TextBlock">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button#PART_FullScreenButton">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
   </Application.Styles>
 </Application>
