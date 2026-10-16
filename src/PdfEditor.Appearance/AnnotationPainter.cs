@@ -1,0 +1,229 @@
+using System.Collections.Immutable;
+using Pdf.Native;
+using PdfEditor.Document.Annotations;
+
+namespace PdfEditor.Appearance;
+
+/// <summary>
+/// 주석 모양을 그리기 목록으로 계산한다(PDF 사용자 좌표). 화면과 PDF AP가 같은 결과를 쓴다.
+/// </summary>
+public static class AnnotationPainter
+{
+    private const float Kappa = 0.5522847498f;
+    private static readonly PdfColor DefaultInk = new(0, 0, 0);
+    private static readonly PdfColor DefaultTextIcon = new(0xFF, 0xD4, 0x00);
+    private static readonly PdfColor TextIconLine = PdfColor.FromHex("#5C4A00");
+
+    public static AppearanceDrawing Paint(Annotation a, int pageRotation)
+    {
+        var ops = new List<PaintOp>();
+        switch (a.Kind)
+        {
+            case AnnotKind.Ink: PaintInk(a, ops); break;
+            case AnnotKind.Square: PaintSquare(a, ops); break;
+            case AnnotKind.Circle: PaintCircle(a, ops); break;
+            case AnnotKind.Highlight: PaintHighlight(a, ops); break;
+            case AnnotKind.Underline: PaintLine(a, ops, 0.07f, underline: true); break;
+            case AnnotKind.StrikeOut: PaintLine(a, ops, 0.07f, underline: false); break;
+            case AnnotKind.Text: PaintTextIcon(a, pageRotation, ops); break;
+        }
+        var arr = ops.ToImmutableArray();
+        return new AppearanceDrawing(arr, a.Opacity, ComputeBounds(arr));
+    }
+
+    private static PdfRectF ComputeBounds(ImmutableArray<PaintOp> ops)
+    {
+        PdfRectF? total = null;
+        foreach (var op in ops)
+        {
+            var pts = op.Path.SelectMany(PointsOf).ToList();
+            if (pts.Count == 0) continue;
+            float w = op.Stroke is null ? 0f : op.StrokeWidth / 2f;
+            PdfRectF r;
+            if (w > 0f && op.Cap == LineCap.Butt && op.Path.Length == 2 && op.Path[0] is MoveTo m0 && op.Path[1] is LineTo l1)
+            {
+                // Butt-capped single line: the stroke only extends perpendicular to the line, not past its ends.
+                float dx = l1.P.X - m0.P.X, dy = l1.P.Y - m0.P.Y;
+                float len = MathF.Sqrt(dx * dx + dy * dy);
+                float nx = len > 0f ? -dy / len * w : 0f, ny = len > 0f ? dx / len * w : 0f;
+                r = PdfRectF.FromPoints([
+                    new(m0.P.X + nx, m0.P.Y + ny), new(m0.P.X - nx, m0.P.Y - ny),
+                    new(l1.P.X + nx, l1.P.Y + ny), new(l1.P.X - nx, l1.P.Y - ny)]);
+            }
+            else r = PdfRectF.FromPoints(pts).Inflate(w);
+            total = total is null ? r : total.Value.Union(r);
+        }
+        return total ?? new PdfRectF(0, 0, 0, 0);
+    }
+
+    private static IEnumerable<PdfPointF> PointsOf(PathSeg s) => s switch
+    {
+        MoveTo m => [m.P],
+        LineTo l => [l.P],
+        CubicTo c => [c.C1, c.C2, c.P],
+        _ => [],
+    };
+
+    private static void PaintInk(Annotation a, List<PaintOp> ops)
+    {
+        if (a.InkStrokes.IsDefaultOrEmpty) return;
+        var color = a.Color ?? DefaultInk;
+        foreach (var stroke in a.InkStrokes)
+        {
+            if (stroke.IsDefaultOrEmpty) continue;
+            var path = ImmutableArray.CreateBuilder<PathSeg>();
+            int n = stroke.Length;
+            path.Add(new MoveTo(stroke[0]));
+            if (n == 1)
+            {
+                path.Add(new LineTo(stroke[0]));
+            }
+            else if (n == 2)
+            {
+                path.Add(new LineTo(stroke[1]));
+            }
+            else
+            {
+                for (int i = 0; i < n - 1; i++)
+                {
+                    var pm = stroke[Math.Max(i - 1, 0)];
+                    var p0 = stroke[i];
+                    var p1 = stroke[i + 1];
+                    var p2 = stroke[Math.Min(i + 2, n - 1)];
+                    var c1 = new PdfPointF(p0.X + (p1.X - pm.X) / 6f, p0.Y + (p1.Y - pm.Y) / 6f);
+                    var c2 = new PdfPointF(p1.X - (p2.X - p0.X) / 6f, p1.Y - (p2.Y - p0.Y) / 6f);
+                    path.Add(new CubicTo(c1, c2, p1));
+                }
+            }
+            ops.Add(new PaintOp(path.ToImmutable(), null, color, a.BorderWidth, LineCap.Round, LineJoin.Round));
+        }
+    }
+
+    private static PdfRectF Inset(Annotation a)
+    {
+        float h = a.BorderWidth / 2f;
+        return new PdfRectF(a.Rect.Left + h, a.Rect.Bottom + h, a.Rect.Right - h, a.Rect.Top - h);
+    }
+
+    private static void PaintSquare(Annotation a, List<PaintOp> ops)
+    {
+        var stroke = a.BorderWidth > 0 ? a.Color : null;
+        if (a.FillColor is null && stroke is null) return;
+        var r = Inset(a);
+        ImmutableArray<PathSeg> path =
+        [
+            new MoveTo(new(r.Left, r.Bottom)),
+            new LineTo(new(r.Right, r.Bottom)),
+            new LineTo(new(r.Right, r.Top)),
+            new LineTo(new(r.Left, r.Top)),
+            new ClosePath(),
+        ];
+        ops.Add(new PaintOp(path, a.FillColor, stroke, a.BorderWidth, LineCap.Butt, LineJoin.Miter));
+    }
+
+    private static void PaintCircle(Annotation a, List<PaintOp> ops)
+    {
+        var stroke = a.BorderWidth > 0 ? a.Color : null;
+        if (a.FillColor is null && stroke is null) return;
+        var r = Inset(a);
+        float cx = (r.Left + r.Right) / 2f, cy = (r.Bottom + r.Top) / 2f;
+        float rx = r.Width / 2f, ry = r.Height / 2f;
+        float kx = Kappa * rx, ky = Kappa * ry;
+        ImmutableArray<PathSeg> path =
+        [
+            new MoveTo(new(cx + rx, cy)),
+            new CubicTo(new(cx + rx, cy + ky), new(cx + kx, cy + ry), new(cx, cy + ry)),
+            new CubicTo(new(cx - kx, cy + ry), new(cx - rx, cy + ky), new(cx - rx, cy)),
+            new CubicTo(new(cx - rx, cy - ky), new(cx - kx, cy - ry), new(cx, cy - ry)),
+            new CubicTo(new(cx + kx, cy - ry), new(cx + rx, cy - ky), new(cx + rx, cy)),
+            new ClosePath(),
+        ];
+        ops.Add(new PaintOp(path, a.FillColor, stroke, a.BorderWidth, LineCap.Butt, LineJoin.Miter));
+    }
+
+    private static void PaintHighlight(Annotation a, List<PaintOp> ops)
+    {
+        if (a.Quads.IsDefaultOrEmpty) return;
+        var color = a.Color ?? DefaultInk;
+        foreach (var q in a.Quads)
+        {
+            ImmutableArray<PathSeg> path =
+            [
+                new MoveTo(q.P1), new LineTo(q.P2), new LineTo(q.P4), new LineTo(q.P3), new ClosePath(),
+            ];
+            ops.Add(new PaintOp(path, color, null, 0f, LineCap.Butt, LineJoin.Miter));
+        }
+    }
+
+    private static void PaintLine(Annotation a, List<PaintOp> ops, float widthRatio, bool underline)
+    {
+        if (a.Quads.IsDefaultOrEmpty) return;
+        var color = a.Color ?? DefaultInk;
+        foreach (var q in a.Quads)
+        {
+            float dx = q.P1.X - q.P3.X, dy = q.P1.Y - q.P3.Y;
+            float h = MathF.Sqrt(dx * dx + dy * dy);
+            if (h <= 0f) continue;
+            float lw = MathF.Max(1f, widthRatio * h);
+            PdfPointF from, to;
+            if (underline)
+            {
+                float nx = dx / h, ny = dy / h;
+                float off = lw / 2f + 0.04f * h;
+                from = new(q.P3.X + nx * off, q.P3.Y + ny * off);
+                to = new(q.P4.X + nx * off, q.P4.Y + ny * off);
+            }
+            else
+            {
+                from = new(q.P3.X + (q.P1.X - q.P3.X) * 0.45f, q.P3.Y + (q.P1.Y - q.P3.Y) * 0.45f);
+                to = new(q.P4.X + (q.P2.X - q.P4.X) * 0.45f, q.P4.Y + (q.P2.Y - q.P4.Y) * 0.45f);
+            }
+            ops.Add(new PaintOp([new MoveTo(from), new LineTo(to)], null, color, lw, LineCap.Butt, LineJoin.Miter));
+        }
+    }
+
+    private static void PaintTextIcon(Annotation a, int pageRotation, List<PaintOp> ops)
+    {
+        var fill = a.Color ?? DefaultTextIcon;
+        var edge = new PdfColor(Scale(fill.R), Scale(fill.G), Scale(fill.B));
+        int rot = ((pageRotation % 4) + 4) % 4;
+        float cx = (a.Rect.Left + a.Rect.Right) / 2f, cy = (a.Rect.Bottom + a.Rect.Top) / 2f;
+
+        // Icon coordinates (u, v) have the origin at the top-left of the 20x20 box with v pointing down.
+        // Page point = (Left + u, Top - v), rotated counter-clockwise by 90 degrees x pageRotation around the rect center.
+        PdfPointF M(float u, float v)
+        {
+            float x = a.Rect.Left + u - cx, y = a.Rect.Top - v - cy;
+            (float rx, float ry) = rot switch
+            {
+                0 => (x, y),
+                1 => (-y, x),
+                2 => (-x, -y),
+                _ => (y, -x),
+            };
+            return new PdfPointF(cx + rx, cy + ry);
+        }
+
+        const float lo = 1f, hi = 19f, r = 2.5f, k = Kappa * r;
+        ImmutableArray<PathSeg> body =
+        [
+            new MoveTo(M(lo + r, lo)),
+            new LineTo(M(hi - r, lo)),
+            new CubicTo(M(hi - r + k, lo), M(hi, lo + r - k), M(hi, lo + r)),
+            new LineTo(M(hi, hi - r)),
+            new CubicTo(M(hi, hi - r + k), M(hi - r + k, hi), M(hi - r, hi)),
+            new LineTo(M(lo + r, hi)),
+            new CubicTo(M(lo + r - k, hi), M(lo, hi - r + k), M(lo, hi - r)),
+            new LineTo(M(lo, lo + r)),
+            new CubicTo(M(lo, lo + r - k), M(lo + r - k, lo), M(lo + r, lo)),
+            new ClosePath(),
+        ];
+        ops.Add(new PaintOp(body, fill, edge, 0.8f, LineCap.Butt, LineJoin.Round));
+
+        (float u0, float u1, float v)[] lines = [(5f, 15f, 6.5f), (5f, 15f, 10f), (5f, 11.5f, 13.5f)];
+        foreach (var (u0, u1, v) in lines)
+            ops.Add(new PaintOp([new MoveTo(M(u0, v)), new LineTo(M(u1, v))], null, TextIconLine, 0.9f, LineCap.Round, LineJoin.Round));
+    }
+
+    private static byte Scale(byte c) => (byte)MathF.Round(c * 0.75f);
+}
