@@ -27,8 +27,19 @@ public sealed class ImportPagesCommand(PdfDocument source, IReadOnlyList<int> so
         _ids ??= s.NewPageIds(sourceIndices.Count);
         s.InsertPageIds(insertAt, _ids);
         if (first && originals is not null)
-            for (int k = 0; k < _ids.Count; k++)
-                s.AttachOriginalsVerified(_ids[k], originals[k]);
+        {
+            // 쪽은 이미 들어갔으므로 붙이다 실패해도 예외를 밖으로 내지 않는다 (다시 실행하면 쪽이 두 번 들어간다).
+            // 원본 주석만 읽기 전용으로 내려간다.
+            try
+            {
+                for (int k = 0; k < _ids.Count; k++)
+                    s.AttachOriginalsVerified(_ids[k], originals[k]);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                s.MarkOriginalAnnotationsReadOnly();
+            }
+        }
     }
 
     public void Undo(DocumentSession s)

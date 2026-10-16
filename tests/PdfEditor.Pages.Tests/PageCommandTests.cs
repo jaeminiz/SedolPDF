@@ -294,6 +294,17 @@ public class PageCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Loader_NonReaderFailure_ReturnsNullInsteadOfThrowing()
+    {
+        var other = P("ann2.pdf");
+        AnnotatedPdfFactory.CreateMixed(other);
+        var bytes = File.ReadAllBytes(other);
+        var src = await _t.InvokeAsync(() => PdfDocument.OpenBytes(_t, bytes));
+        await _t.InvokeAsync(src.Dispose);   // 쓸 수 없는 문서: AnnotationReadException이 아닌 예외
+        Assert.Null(await OriginalAnnotationLoader.ReadAsync(_t, src, bytes, null, [0]));
+    }
+
+    [Fact]
     public async Task Import_DisposesSourceWhenSessionDisposed()
     {
         var s = await OpenLabeled(1);

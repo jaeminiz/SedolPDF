@@ -73,4 +73,24 @@ public class AnnotationLoadingTests : IDisposable
         Assert.True(b.AnnotationsReady.IsCompletedSuccessfully);
         Assert.True(a.OriginalAnnotationsEditable);
     }
+
+    [Fact]
+    public async Task AttachOriginalsVerified_SubtypeOrRectMismatch_ItemBecomesReadOnly()
+    {
+        AnnotatedPdfFactory.CreateMixed(P("m.pdf"));
+        AnnotationReader.TestFailure = new InvalidOperationException("injected");   // 열기 흐름이 붙이지 못하게
+        await using var s = await DocumentSession.OpenAsync(_t, P("m.pdf"), null);
+        await s.AnnotationsReady;
+        AnnotationReader.TestFailure = null;
+        var read = AnnotationReader.Read(File.ReadAllBytes(P("m.pdf")), null, [0])[0];
+        var list = read.Select(o => o.Index switch
+        {
+            1 => o with { Data = o.Data! with { Rect = o.Data.Rect.Offset(5f, 0) } },   // Rect 차이 > 0.5pt
+            2 => o with { Subtype = PdfAnnotSubtype.Square },                            // Subtype 다름
+            3 => o with { Data = o.Data! with { Rect = o.Data.Rect.Offset(0.3f, 0) } }, // 허용 범위 안
+            _ => o,
+        }).ToList();
+        await s.Thread.InvokeAsync(() => { s.AttachOriginalsVerified(s.Pages[0].Id, list); s.Annotations.Publish(); });
+        Assert.Equal(7, s.Annotations.Get(s.Pages[0].Id).Items.Length);   // 9 - 2
+    }
 }

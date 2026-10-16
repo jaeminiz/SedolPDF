@@ -35,6 +35,6 @@ public static class OriginalAnnotationLoader
             for (int i = 0; i < withAnnots.Count; i++) result[withAnnots[i]] = read[i];
             return result;
         }
-        catch (AnnotationReadException) { return null; }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return null; }   // 어떤 실패든 읽기 전용으로 내려간다
     }
 }
