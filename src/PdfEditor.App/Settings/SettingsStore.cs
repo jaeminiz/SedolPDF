@@ -60,8 +60,17 @@ public sealed class SettingsStore(string filePath)
         try
         {
             File.WriteAllText(tmp, JsonSerializer.Serialize(s, Json));
-            if (File.Exists(filePath)) File.Replace(tmp, filePath, null);
-            else File.Move(tmp, filePath);
+            // 백신·인덱서 등이 잠깐 파일을 잡으면 File.Replace가 IOException을 던진다: 몇 번 다시 시도한다.
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(filePath)) File.Replace(tmp, filePath, null);
+                    else File.Move(tmp, filePath);
+                    break;
+                }
+                catch (IOException) when (attempt < 5) { Thread.Sleep(30 * (attempt + 1)); }
+            }
         }
         finally
         {
