@@ -1,0 +1,263 @@
+using System.Collections.Immutable;
+using Pdf.Native;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
+using PdfSharp.Pdf.IO;
+
+namespace PdfEditor.Document.Annotations.Reading;
+
+/// <summary>
+/// 쪽의 /Annots를 PDFsharp로 읽어 편집 가능 여부를 판정한다 (읽기 전용, PDFium을 쓰지 않으므로 어느 스레드에서 불러도 된다).
+/// 결과 목록의 순서와 Index는 /Annots 배열 순서이며 PDFium 주석 번호와 같다.
+/// </summary>
+public static class AnnotationReader
+{
+    private static int _openCount;
+
+    /// <summary>테스트용: 문서를 열 때마다 1 증가.</summary>
+    internal static int OpenCount => Volatile.Read(ref _openCount);
+
+    /// <summary>테스트용: null이 아니면 Read가 이 예외를 감싸 던진다.</summary>
+    internal static Exception? TestFailure { get; set; }
+
+    private static readonly Dictionary<string, int> SubtypeByName = new(StringComparer.Ordinal)
+    {
+        ["/Text"] = PdfAnnotSubtype.Text, ["/Link"] = PdfAnnotSubtype.Link, ["/FreeText"] = PdfAnnotSubtype.FreeText,
+        ["/Line"] = PdfAnnotSubtype.Line, ["/Square"] = PdfAnnotSubtype.Square, ["/Circle"] = PdfAnnotSubtype.Circle,
+        ["/Polygon"] = PdfAnnotSubtype.Polygon, ["/PolyLine"] = PdfAnnotSubtype.PolyLine,
+        ["/Highlight"] = PdfAnnotSubtype.Highlight, ["/Underline"] = PdfAnnotSubtype.Underline,
+        ["/Squiggly"] = PdfAnnotSubtype.Squiggly, ["/StrikeOut"] = PdfAnnotSubtype.StrikeOut,
+        ["/Stamp"] = PdfAnnotSubtype.Stamp, ["/Caret"] = PdfAnnotSubtype.Caret, ["/Ink"] = PdfAnnotSubtype.Ink,
+        ["/Popup"] = PdfAnnotSubtype.Popup, ["/FileAttachment"] = PdfAnnotSubtype.FileAttachment,
+        ["/Widget"] = PdfAnnotSubtype.Widget,
+    };
+
+    /// <summary>요청한 쪽마다 /Annots 순서 그대로의 목록. 문서를 열 수 없으면 AnnotationReadException.</summary>
+    public static IReadOnlyList<IReadOnlyList<OriginalAnnotation>> Read(byte[] pdf, string? password, IReadOnlyList<int> pageIndices)
+    {
+        try
+        {
+            if (TestFailure is { } injected) throw injected;
+            using var ms = new MemoryStream(pdf, writable: false);
+            // 사용자 암호 문서가 Import 모드로 열리는지는 결과 문서(M2 Task 3)에 실측을 적었다.
+            using var doc = password is null
+                ? PdfReader.Open(ms, PdfDocumentOpenMode.Import)
+                : PdfReader.Open(ms, password, PdfDocumentOpenMode.Import);
+            Interlocked.Increment(ref _openCount);
+
+            var result = new List<IReadOnlyList<OriginalAnnotation>>(pageIndices.Count);
+            foreach (int pageIndex in pageIndices)
+                result.Add(ReadPage(doc.Pages[pageIndex]));
+            return result;
+        }
+        catch (Exception e)
+        {
+            throw new AnnotationReadException("Cannot read the original annotations.", e);
+        }
+    }
+
+    private static List<OriginalAnnotation> ReadPage(PdfSharp.Pdf.PdfPage page)
+    {
+        var list = new List<OriginalAnnotation>();
+        var annots = page.Elements.GetArray("/Annots");
+        if (annots is null) return list;
+
+        int i = 0;
+        foreach (var item in annots.Elements)
+        {
+            list.Add(ReadOne(i, item));
+            i++;
+        }
+        return list;
+    }
+
+    private static OriginalAnnotation ReadOne(int index, PdfItem? item)
+    {
+        int subtype = 0;
+        try
+        {
+            if (Resolve(item) is not PdfDictionary dict)
+                return new OriginalAnnotation(index, 0, null, ReadOnlyReason.Malformed);
+
+            var e = dict.Elements;
+            string? name = e.GetName("/Subtype");
+            if (name is not null && SubtypeByName.TryGetValue(name, out int st)) subtype = st;
+            var kind = AnnotKindExtensions.FromPdfSubtype(subtype);
+
+            if (kind is null) return Fail(ReadOnlyReason.UnsupportedType);
+            if (e.ContainsKey("/IRT")) return Fail(ReadOnlyReason.Reply);
+            if (e.ContainsKey("/State")) return Fail(ReadOnlyReason.ReviewState);
+            if (e.GetDictionary("/BE")?.Elements.GetName("/S") == "/C") return Fail(ReadOnlyReason.CloudBorder);
+
+            var bs = e.GetDictionary("/BS");
+            if (bs is not null)
+            {
+                string? style = bs.Elements.GetName("/S");
+                if ((!string.IsNullOrEmpty(style) && style != "/S") || bs.Elements.ContainsKey("/D"))
+                    return Fail(ReadOnlyReason.StyledBorder);
+            }
+
+            if (kind is AnnotKind.Square or AnnotKind.Circle && HasNonZeroRd(e.GetArray("/RD")))
+                return Fail(ReadOnlyReason.RectDifferences);
+
+            int flags = Int(e, "/F") ?? 0;
+            if ((flags & PdfAnnotFlags.Hidden) != 0) return Fail(ReadOnlyReason.HiddenFlag);
+
+            var rect = ReadRect(e.GetArray("/Rect"));
+            if (rect is null) return Fail(ReadOnlyReason.Malformed);
+
+            var strokes = ImmutableArray<ImmutableArray<PdfPointF>>.Empty;
+            if (kind == AnnotKind.Ink)
+            {
+                var s = ReadInk(e.GetArray("/InkList"));
+                if (s is null) return Fail(ReadOnlyReason.Malformed);
+                strokes = s.Value;
+            }
+
+            var quads = ImmutableArray<PdfQuadF>.Empty;
+            if (kind.Value.IsTextMarkup())
+            {
+                var q = ReadQuads(e.GetArray("/QuadPoints"));
+                if (q is null) return Fail(ReadOnlyReason.Malformed);
+                quads = q.Value;
+            }
+
+            PdfColor? color = e.ContainsKey("/C")
+                ? ReadColor(e.GetArray("/C"))
+                : (kind == AnnotKind.Highlight ? PdfColor.FromHex("#FFFF00") : PdfColor.FromHex("#000000"));
+            PdfColor? fill = e.ContainsKey("/IC") ? ReadColor(e.GetArray("/IC")) : null;
+
+            var data = new Annotation
+            {
+                Kind = kind.Value,
+                Rect = rect.Value,
+                Color = color,
+                FillColor = fill,
+                Opacity = (float)(Num(e, "/CA") ?? 1.0),
+                BorderWidth = ReadBorderWidth(e, bs),
+                InkStrokes = strokes,
+                Quads = quads,
+                Contents = Str(e, "/Contents"),
+                Author = Str(e, "/T"),
+                Subject = Str(e, "/Subj"),
+                Name = Str(e, "/NM"),
+                ModifiedAt = Date(Str(e, "/M")),
+                CreatedAt = Date(Str(e, "/CreationDate")),
+                Flags = flags,
+            };
+            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new OriginalAnnotation(index, subtype, null, ReadOnlyReason.Malformed);
+        }
+
+        OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r);
+    }
+
+    private static PdfItem? Resolve(PdfItem? item)
+    {
+        // 참조는 가리키는 객체로, null 객체(PdfNull)는 null로 푼다.
+        var v = item is PdfReference r ? r.Value : item;
+        return v is PdfNull ? null : v;
+    }
+
+    private static double? NumItem(PdfItem? item) => Resolve(item) switch
+    {
+        PdfInteger i => i.Value,
+        PdfReal d => d.Value,
+        _ => null,
+    };
+
+    private static double? Num(PdfDictionary.DictionaryElements e, string key) => NumItem(e[key]);
+
+    private static int? Int(PdfDictionary.DictionaryElements e, string key) => Num(e, key) is { } d ? (int)d : null;
+
+    private static string? Str(PdfDictionary.DictionaryElements e, string key)
+        => Resolve(e[key]) is PdfString s ? s.Value : null;
+
+    private static DateTimeOffset? Date(string? s)
+        => PdfDate.TryParse(s, out var t) ? t : null;
+
+    private static double[]? Numbers(PdfArray? a)
+    {
+        if (a is null) return null;
+        var r = new double[a.Elements.Count];
+        for (int i = 0; i < r.Length; i++)
+        {
+            if (NumItem(a.Elements[i]) is not { } v) return null;
+            r[i] = v;
+        }
+        return r;
+    }
+
+    private static bool HasNonZeroRd(PdfArray? rd)
+    {
+        var n = Numbers(rd);
+        return n is not null && n.Any(v => v != 0);
+    }
+
+    private static PdfRectF? ReadRect(PdfArray? a)
+    {
+        var n = Numbers(a);
+        if (n is null || n.Length != 4) return null;
+        return new PdfRectF(
+            (float)Math.Min(n[0], n[2]), (float)Math.Min(n[1], n[3]),
+            (float)Math.Max(n[0], n[2]), (float)Math.Max(n[1], n[3]));
+    }
+
+    private static ImmutableArray<ImmutableArray<PdfPointF>>? ReadInk(PdfArray? list)
+    {
+        if (list is null) return null;
+        var strokes = ImmutableArray.CreateBuilder<ImmutableArray<PdfPointF>>();
+        foreach (var item in list.Elements)
+        {
+            var n = Numbers(Resolve(item) as PdfArray);
+            if (n is null || n.Length < 2) return null;
+            var pts = ImmutableArray.CreateBuilder<PdfPointF>(n.Length / 2);
+            for (int i = 0; i + 1 < n.Length; i += 2) pts.Add(new PdfPointF((float)n[i], (float)n[i + 1]));
+            strokes.Add(pts.ToImmutable());
+        }
+        return strokes.Count == 0 ? null : strokes.ToImmutable();
+    }
+
+    private static ImmutableArray<PdfQuadF>? ReadQuads(PdfArray? a)
+    {
+        var n = Numbers(a);
+        if (n is null || n.Length == 0 || n.Length % 8 != 0) return null;
+        var quads = ImmutableArray.CreateBuilder<PdfQuadF>(n.Length / 8);
+        for (int i = 0; i < n.Length; i += 8)
+            quads.Add(new PdfQuadF(
+                new PdfPointF((float)n[i], (float)n[i + 1]), new PdfPointF((float)n[i + 2], (float)n[i + 3]),
+                new PdfPointF((float)n[i + 4], (float)n[i + 5]), new PdfPointF((float)n[i + 6], (float)n[i + 7])));
+        return quads.ToImmutable();
+    }
+
+    private static PdfColor? ReadColor(PdfArray? a)
+    {
+        var n = Numbers(a);
+        if (n is null || n.Length == 0) return null;
+        switch (n.Length)
+        {
+            case 1: return new PdfColor(B(n[0]), B(n[0]), B(n[0]));
+            case 3: return new PdfColor(B(n[0]), B(n[1]), B(n[2]));
+            case 4:
+                {
+                    double k = 1 - Clamp01(n[3]);
+                    return new PdfColor(B((1 - Clamp01(n[0])) * k), B((1 - Clamp01(n[1])) * k), B((1 - Clamp01(n[2])) * k));
+                }
+            default: return null;
+        }
+    }
+
+    private static double Clamp01(double v) => Math.Clamp(v, 0, 1);
+
+    private static byte B(double v) => (byte)Math.Round(Clamp01(v) * 255, MidpointRounding.AwayFromZero);
+
+    private static float ReadBorderWidth(PdfDictionary.DictionaryElements e, PdfDictionary? bs)
+    {
+        if (bs is not null && Num(bs.Elements, "/W") is { } w) return (float)w;
+        if (e.GetArray("/Border") is { } b && b.Elements.Count >= 3 && NumItem(b.Elements[2]) is { } bw) return (float)bw;
+        return 1f;
+    }
+}

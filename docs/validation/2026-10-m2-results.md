@@ -20,3 +20,12 @@ PDFium 157 (bblanchon/pdfium-binaries, chromium/8100) 기준. 측정은 `tests/P
 - **PDFium이 AP를 스스로 만들어 저장 파일에 남긴다.** 렌더하면 빨간 테두리가 보이고(빨강 픽셀 1,464개), 저장한 파일의 주석에 `/AP`가 들어 있다. 저장 → 다시 열기 → 다시 저장해도 같다(빨강 픽셀 1,464개 동일).
 - **모르는 키가 붙는다.** 이때 주석 딕셔너리에 PDFium 전용 키 `/PDFIUM_HasGeneratedAP`가 함께 들어간다(키 목록: `/AP /Border /C /CA /PDFIUM_HasGeneratedAP /Rect /Subtype /Type`). 다른 뷰어는 이 키를 무시하겠지만, 파일에 우리가 모르는 흔적이 남는다.
 - **결론:** 계획의 방침("우리가 만들거나 고친 주석은 Flush 때 반드시 `SetAP`로 AP를 직접 쓴다", PDFium 자동 생성에 기대지 않음)을 그대로 유지한다. 자동 생성 AP는 모양을 우리가 통제할 수 없고 `/PDFIUM_HasGeneratedAP` 키도 남기 때문이다. 이 키가 우리가 직접 쓴 AP 주석에도 붙는지는 이번에 확인하지 않았다 — **검증 필요** (Task 7 저장 테스트에서 확인).
+
+## 원본 주석 읽기 — 암호·권한 문서 (Task 3)
+
+확인한 것: PDFsharp 6.2.4를 읽기 전용(Import 모드)으로 열어 원본 주석을 읽을 때, 암호가 있는 문서가 열리는가. `LayerReader`에 남아 있던 "사용자 암호로 Import 모드가 열리는지는 검증 필요"와 같은 질문이며, `AnnotationReaderTests`의 두 탐침 테스트로 실측했다(2026-10-16).
+
+- **사용자(열기) 암호 문서:** 올바른 암호를 주면 열리고 주석이 읽힌다(사각형·스티커 메모는 편집 가능, Popup은 `UnsupportedType`). 암호를 주지 않으면 `PdfReaderException`이 나며, `AnnotationReader`는 이를 `AnnotationReadException`으로 감싸 던진다. 틀린 암호도 같다.
+- **소유자 암호만 있는 문서(열기 암호 없음):** 주석 권한이 꺼져 있든(`PermitAnnotations = false`) 켜져 있든 똑같이 열리고 주석이 읽힌다. 읽기는 권한과 무관하다.
+- **앱 동작에 주는 뜻:** 암호 문서도 사용자가 연 암호를 넘기면 원본 주석을 편집 가능한 상태로 읽을 수 있다. 읽기가 실패(`AnnotationReadException`)하면 그 문서의 원본 주석은 모두 읽기 전용으로 둔다(Task 6·15). 소유자 제한 문서에서 주석 도구를 끄는 것은 읽기가 아니라 권한 값(PDFium `Permissions`)으로 판단한다.
+- **검증 필요:** 소유자 암호만 있고 AES 256비트 등 다른 암호화 방식을 쓰는 문서, 암호화된 문서의 /Annots 안 간접 객체가 깨진 경우는 확인하지 않았다.

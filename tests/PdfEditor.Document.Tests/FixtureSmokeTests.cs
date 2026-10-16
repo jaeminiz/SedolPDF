@@ -99,4 +99,46 @@ public class FixtureSmokeTests : IDisposable
         TestPdfFactory.CorruptXref(p);
         Assert.Equal(2, await PageCountAsync(p));
     }
+
+    [Fact]
+    public async Task AnnotatedMixed_OpensWithThirteenAnnotations()
+    {
+        var p = P("annotated.pdf");
+        AnnotatedPdfFactory.CreateMixed(p);
+        var count = await _t.InvokeAsync(() =>
+        {
+            using var doc = Pdf.Native.PdfDocument.Open(_t, p);
+            using var page = doc.LoadPage(0);
+            return page.AnnotationCount;
+        });
+        Assert.Equal(13, count);
+    }
+
+    [Fact]
+    public async Task AnnotatedEncrypted_OpensWithPasswordAndHasThreeAnnotations()
+    {
+        var p = P("annotated-enc.pdf");
+        AnnotatedPdfFactory.CreateEncryptedWithAnnotations(p, "pw");
+        var count = await _t.InvokeAsync(() =>
+        {
+            using var doc = Pdf.Native.PdfDocument.Open(_t, p, "pw");
+            using var page = doc.LoadPage(0);
+            return page.AnnotationCount;
+        });
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public async Task AnnotatedOwnerRestricted_OpensWithoutPassword()
+    {
+        var p = P("annotated-owner.pdf");
+        AnnotatedPdfFactory.CreateOwnerRestrictedWithAnnotations(p, allowAnnotations: false);
+        var count = await _t.InvokeAsync(() =>
+        {
+            using var doc = Pdf.Native.PdfDocument.Open(_t, p);
+            using var page = doc.LoadPage(0);
+            return page.AnnotationCount;
+        });
+        Assert.Equal(1, count);
+    }
 }
