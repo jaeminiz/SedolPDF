@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PdfEditor.App.Resources"
+             x:Class="PdfEditor.App.Viewer.Annotations.StickyNoteEditor">
+  <Border Background="#FBFBFB" BorderBrush="#33000000" BorderThickness="1" CornerRadius="6" Padding="8">
+    <StackPanel Spacing="6">
+      <TextBlock Name="Header" FontSize="11" Foreground="#5C5C5C" />
+      <TextBox Name="Box" Width="240" Height="160" AcceptsReturn="True" TextWrapping="Wrap"
+               PlaceholderText="{x:Static res:Strings.Sticky_Placeholder}" />
+      <TextBlock Text="{x:Static res:Strings.Sticky_Hint}" FontSize="10" Foreground="#5C5C5C" />
+    </StackPanel>
+  </Border>
+</UserControl>

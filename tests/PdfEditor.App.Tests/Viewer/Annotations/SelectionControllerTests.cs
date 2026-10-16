@@ -98,7 +98,7 @@ public class SelectionControllerTests
         var snap = Snap(a, b);
         var sel = Sel(1, 2);
         var c = Make();
-        c.Begin(snap, sel, new HitResult(a.Id, HandleKind.Body), new(120, 120), Bounds);
+        c.Begin(snap, sel, new HitResult(a.Id, HandleKind.Body), new(120, 120), Bounds, 1f);
         c.Move(new(130, 115));
         Assert.Equal(2, c.Previews!.Count);
         var cmd = c.End(new(130, 115));
@@ -119,7 +119,7 @@ public class SelectionControllerTests
         var a = Square(1, 10, 10, 60, 60);
         var b = Square(2, 500, 700, 550, 750);
         var c = Make();
-        c.Begin(Snap(a, b), Sel(1, 2), new HitResult(a.Id, HandleKind.Body), new(30, 30), Bounds);
+        c.Begin(Snap(a, b), Sel(1, 2), new HitResult(a.Id, HandleKind.Body), new(30, 30), Bounds, 1f);
         var cmd = c.End(new(-500, 900));
         var ch = Changes(cmd!);
         // union is (10,10)-(550,750): dx limited to -10, dy limited to +50
@@ -145,7 +145,7 @@ public class SelectionControllerTests
         var a = Square(1, 100, 100, 150, 150);
         var sel = Sel();
         var c = Make();
-        c.Begin(Snap(a), sel, new HitResult(a.Id, HandleKind.Body), new(120, 120), Bounds);
+        c.Begin(Snap(a), sel, new HitResult(a.Id, HandleKind.Body), new(120, 120), Bounds, 1f);
         Assert.Equal([a.Id], sel.Ids);
     }
 
@@ -155,7 +155,7 @@ public class SelectionControllerTests
         var ink = Ink(1, (100, 100), (200, 150));
         var rect = AnnotationGeometry.ComputeRect(ink); // inflated by border/2 + 1 = 2
         var c = Make();
-        c.Begin(Snap(ink), Sel(1), new HitResult(ink.Id, HandleKind.SE), new(rect.Right, rect.Bottom), Bounds);
+        c.Begin(Snap(ink), Sel(1), new HitResult(ink.Id, HandleKind.SE), new(rect.Right, rect.Bottom), Bounds, 1f);
         // dragging SE: Left/Top fixed, Right +100, Bottom -50
         var cmd = c.End(new(rect.Right + 100, rect.Bottom - 50));
         var after = Changes(cmd!)[0].After!;
@@ -176,9 +176,22 @@ public class SelectionControllerTests
     {
         var sq = Square(1, 100, 100, 200, 200);
         var c = Make();
-        c.Begin(Snap(sq), Sel(1), new HitResult(sq.Id, HandleKind.NW), new(100, 200), Bounds);
+        c.Begin(Snap(sq), Sel(1), new HitResult(sq.Id, HandleKind.NW), new(100, 200), Bounds, 1f);
         var after = Changes(c.End(new(80, 230))!)[0].After!;
         Assert.Equal(new PdfRectF(80, 100, 200, 230), after.Rect);
+    }
+
+    [Fact]
+    public void Resize_GrabOffCentre_NoJump_AndPlainClickMakesNoCommand()
+    {
+        var sq = Square(1, 100, 100, 200, 200);
+        var c = Make();
+        c.Begin(Snap(sq), Sel(1), new HitResult(sq.Id, HandleKind.SE), new(203, 97), Bounds, 1f);
+        Assert.Null(c.End(new(203, 97)));
+        c.Begin(Snap(sq), Sel(1), new HitResult(sq.Id, HandleKind.SE), new(203, 97), Bounds, 1f);
+        var after = Changes(c.End(new(223, 97))!)[0].After!;
+        Assert.Equal(220f, after.Rect.Right, 3);
+        Assert.Equal(100f, after.Rect.Bottom, 3);
     }
 
     [Fact]
@@ -187,7 +200,7 @@ public class SelectionControllerTests
         var sq = Square(1, 100, 100, 200, 200);
         var c = Make();
         // drag W handle far past the right edge: right edge stays fixed, width = min
-        c.Begin(Snap(sq), Sel(1), new HitResult(sq.Id, HandleKind.W), new(100, 150), Bounds);
+        c.Begin(Snap(sq), Sel(1), new HitResult(sq.Id, HandleKind.W), new(100, 150), Bounds, 1f);
         var after = Changes(c.End(new(500, 150))!)[0].After!;
         Assert.Equal(200f, after.Rect.Right, 3);
         Assert.Equal(AnnotationGeometry.MinShapeSizePt, after.Rect.Width, 3);
@@ -200,7 +213,7 @@ public class SelectionControllerTests
     {
         var note = Note(1, 100, 100);
         var c = Make();
-        c.Begin(Snap(note), Sel(1), new HitResult(note.Id, HandleKind.SE), new(120, 100), Bounds);
+        c.Begin(Snap(note), Sel(1), new HitResult(note.Id, HandleKind.SE), new(120, 100), Bounds, 1f);
         Assert.Null(c.End(new(200, 0)));
     }
 

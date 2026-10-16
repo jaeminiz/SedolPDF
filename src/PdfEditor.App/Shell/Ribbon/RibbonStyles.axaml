@@ -46,6 +46,9 @@
       <Style Selector="^:pointerover /template/ Border#Root">
         <Setter Property="Background" Value="#0F000000" />
       </Style>
+      <Style Selector="^:checked /template/ Border#Root">
+        <Setter Property="Background" Value="{StaticResource WinAccentSoft}" />
+      </Style>
       <Style Selector="^:pressed /template/ Border#Root">
         <Setter Property="Background" Value="{StaticResource WinAccentSoft}" />
       </Style>

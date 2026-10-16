@@ -30,6 +30,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     private PdfRectF _startRect;
     private float _dx, _dy;
     private PdfRectF _newRect;
+    private float _grabX, _grabY;   // 손잡이 중심에서 잡은 점까지의 거리 (끌 때 가장자리가 튀지 않게)
 
     /// <summary>끌기 중 바뀐 주석의 임시 모습. 끌기 중이 아니면 null.</summary>
     public IReadOnlyDictionary<AnnotId, Annotation?>? Previews { get; private set; }
@@ -67,7 +68,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
 
     /// <summary>끌기 시작. Body를 선택에 없는 주석 위에서 시작하면 그 주석 하나로 선택을 바꾼다.</summary>
     public void Begin(PageAnnotations page, AnnotationSelection sel, HitResult hit, PdfPointF p, PdfRectF pageBounds,
-        float ptPerDip = 1f)
+        float ptPerDip)
     {
         Cancel();
         _page = page.Page;
@@ -94,6 +95,10 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         for (int i = 1; i < _targets.Count; i++) _union = _union.Union(AnnotationGeometry.ComputeRect(_targets[i]));
         _startRect = _union;
         _newRect = _startRect;
+        _grabX = _grabY = 0;
+        if (_handle != HandleKind.Body)
+            foreach (var (k, c) in HandleCenters(_startRect))
+                if (k == _handle) { _grabX = p.X - c.X; _grabY = p.Y - c.Y; }
         _active = true;
     }
 
@@ -144,6 +149,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         _dx = _dy = 0;
     }
 
+    /// <summary>선택한 주석을 지우는 명령. 호출한 쪽이 실행한 뒤 선택을 Clear/Prune해야 한다.</summary>
     public ChangeAnnotationsCommand? DeleteSelected(PageAnnotations page, AnnotationSelection sel)
     {
         if (sel.Page != page.Page || sel.Ids.Count == 0) return null;
@@ -174,7 +180,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         var r = _startRect;
         float l = r.Left, b = r.Bottom, rt = r.Right, t = r.Top;
         float min = AnnotationGeometry.MinShapeSizePt;
-        float px = Math.Clamp(p.X, _bounds.Left, _bounds.Right), py = Math.Clamp(p.Y, _bounds.Bottom, _bounds.Top);
+        float px = Math.Clamp(p.X - _grabX, _bounds.Left, _bounds.Right), py = Math.Clamp(p.Y - _grabY, _bounds.Bottom, _bounds.Top);
         if (_handle is HandleKind.E or HandleKind.NE or HandleKind.SE) rt = Math.Max(px, l + min);
         if (_handle is HandleKind.W or HandleKind.NW or HandleKind.SW) l = Math.Min(px, rt - min);
         if (_handle is HandleKind.N or HandleKind.NE or HandleKind.NW) t = Math.Max(py, b + min);

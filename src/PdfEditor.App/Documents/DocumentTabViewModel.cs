@@ -1,7 +1,10 @@
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
+using PdfEditor.App.Resources;
 using PdfEditor.App.Viewer;
+using PdfEditor.App.Viewer.Annotations;
 using PdfEditor.Document;
+using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.App.Documents;
 
@@ -36,12 +39,102 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         Session = session;
         _baseTitle = title;
         _post = post ?? (a => a());
+        InitAnnotations();
         if (session is not null)
         {
             ApplyPages();
             session.Commands.Changed += OnSessionChanged;
             session.PagesChanged += OnPagesChanged;
         }
+    }
+
+    // ---- 주석 (M2) ----
+
+    /// <summary>주석 작성자 이름 공급 함수. 설정에 작성자가 생기면(Task 16) 여기 한 곳만 바꾼다.</summary>
+    public static Func<string> AuthorProvider { get; set; } = () => Environment.UserName;
+
+    private long _fallbackAnnotId;
+
+    /// <summary>선택된 주석 (UI 스레드 전용).</summary>
+    public AnnotationSelection Selection { get; } = new();
+
+    /// <summary>만들기·지우개 도구 로직.</summary>
+    public AnnotationToolController Tools { get; private set; } = null!;
+
+    /// <summary>선택·이동·크기 조절 로직.</summary>
+    public SelectionController Editing { get; } = new(() => DateTimeOffset.Now);
+
+    /// <summary>이 문서에 주석을 더하거나 고칠 수 있는가 (암호 문서의 권한 비트).</summary>
+    public bool CanAnnotate => Session is { } s && s.Permissions.CanAnnotate;
+
+    /// <summary>주석 관련 안내 문구(권한 없음 / 원본 주석을 읽지 못함). 없으면 null.</summary>
+    public string? AnnotationNotice =>
+        Session is null ? null
+        : !CanAnnotate ? Strings.Msg_AnnotationsRestricted
+        : !Session.OriginalAnnotationsEditable ? Strings.Msg_OriginalAnnotationsReadOnly
+        : null;
+
+    public bool HasAnnotationNotice => AnnotationNotice is not null;
+
+    private void InitAnnotations()
+    {
+        Tools = new AnnotationToolController(
+            Session is { } s ? s.Annotations.NewId : () => new AnnotId(Interlocked.Increment(ref _fallbackAnnotId)),
+            () => DateTimeOffset.Now, () => AuthorProvider(), SubjectFor);
+        if (Session is null) return;
+        Tools.PageAnnotationSource = id => [.. Session.Annotations.Get(id).Items.Select(v => v.Data)];
+        Session.Annotations.Changed += OnAnnotationsChanged;
+        _ = RefreshAnnotationNoticeAsync();
+    }
+
+    private static string SubjectFor(ToolKind t) => t switch
+    {
+        ToolKind.Pencil => Strings.AnnotKind_Ink,
+        ToolKind.HighlightText or ToolKind.HighlightArea => Strings.AnnotKind_Highlight,
+        ToolKind.Underline => Strings.AnnotKind_Underline,
+        ToolKind.StrikeOut => Strings.AnnotKind_StrikeOut,
+        ToolKind.StickyNote => Strings.AnnotKind_Text,
+        ToolKind.Rectangle => Strings.AnnotKind_Square,
+        ToolKind.Ellipse => Strings.AnnotKind_Circle,
+        _ => "",
+    };
+
+    // 원본 주석을 다 읽은 뒤에야 "읽을 수 없음" 여부가 정해진다.
+    private async Task RefreshAnnotationNoticeAsync()
+    {
+        try { await Session!.AnnotationsReady; } catch (Exception) { }
+        _post(() => { OnPropertyChanged(nameof(AnnotationNotice)); OnPropertyChanged(nameof(HasAnnotationNotice)); });
+    }
+
+    // 실행 취소 등으로 없어진 주석을 선택에서 뺀다 (전용 스레드에서 오므로 UI 스레드로 넘긴다).
+    private void OnAnnotationsChanged(PdfEditor.Document.Annotations.AnnotationsChangedEventArgs e) => _post(() =>
+    {
+        if (Session is { } s && Selection.Page is { } p && e.Pages.Contains(p)) Selection.Prune(s.Annotations.Get(p));
+    });
+
+    /// <summary>주석 명령 실행. 원본 주석이 붙을 때까지 기다린 뒤 실행한다. 권한이 없으면 아무것도 하지 않는다.</summary>
+    public async Task RunAnnotationCommandAsync(PdfEditor.Document.Commands.IUndoableCommand c)
+    {
+        if (Session is null || !CanAnnotate) return;
+        await Session.AnnotationsReady;
+        await Session.Commands.ExecuteAsync(c);
+    }
+
+    /// <summary>Esc: 진행 중인 동작을 취소하고, 주석 도구면 주석 선택 도구로 돌아간다 (이미 그 도구면 선택 해제).</summary>
+    public void EscapePressed()
+    {
+        Tools.Cancel();
+        Editing.Cancel();
+        if (Tool is ToolKind.Hand or ToolKind.TextSelect) return;
+        if (Tool == ToolKind.AnnotSelect) Selection.Clear();
+        else Tool = ToolKind.AnnotSelect;
+    }
+
+    partial void OnToolChanged(ToolKind value)
+    {
+        Tools.Cancel();
+        Editing.Cancel();
+        if (value != ToolKind.AnnotSelect) Selection.Clear();
     }
 
     public DocumentSession? Session { get; }
@@ -133,6 +226,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         if (Session is null) return;
         Session.Commands.Changed -= OnSessionChanged;
         Session.PagesChanged -= OnPagesChanged;
+        Session.Annotations.Changed -= OnAnnotationsChanged;
     }
 
     private void OnSessionChanged() => _post(RefreshTitle);

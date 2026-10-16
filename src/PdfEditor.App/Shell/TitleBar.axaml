@@ -36,7 +36,7 @@
           <ListBox Name="QuickList" ItemsSource="{Binding QuickCommandResults}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="shell:AppCommand">
-                <TextBlock Text="{Binding Label}" />
+                <TextBlock Text="{Binding Label}" ToolTip.Tip="{Binding DisabledTip}" />
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>

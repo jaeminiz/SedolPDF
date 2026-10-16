@@ -255,4 +255,19 @@ public static class Strings
     public static string Dlg_AboutNotices => Get(nameof(Dlg_AboutNotices));
     public static string Dlg_AboutNoticesMissing => Get(nameof(Dlg_AboutNoticesMissing));
     public static string Dlg_AboutClose => Get(nameof(Dlg_AboutClose));
+    public static string Group_Annotate => Get(nameof(Group_Annotate));
+    public static string Msg_AnnotationsRestricted => Get(nameof(Msg_AnnotationsRestricted));
+    public static string Msg_OriginalAnnotationsReadOnly => Get(nameof(Msg_OriginalAnnotationsReadOnly));
+    public static string Msg_ComingInM3 => Get(nameof(Msg_ComingInM3));
+    public static string AnnotKind_Ink => Get(nameof(AnnotKind_Ink));
+    public static string AnnotKind_Highlight => Get(nameof(AnnotKind_Highlight));
+    public static string AnnotKind_Underline => Get(nameof(AnnotKind_Underline));
+    public static string AnnotKind_StrikeOut => Get(nameof(AnnotKind_StrikeOut));
+    public static string AnnotKind_Text => Get(nameof(AnnotKind_Text));
+    public static string AnnotKind_Square => Get(nameof(AnnotKind_Square));
+    public static string AnnotKind_Circle => Get(nameof(AnnotKind_Circle));
+    public static string Sticky_Header => Get(nameof(Sticky_Header));
+    public static string Sticky_Hint => Get(nameof(Sticky_Hint));
+    public static string Sticky_Placeholder => Get(nameof(Sticky_Placeholder));
+    public static string Msg_AnnotationFailed => Get(nameof(Msg_AnnotationFailed));
 }

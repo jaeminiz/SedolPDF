@@ -20,7 +20,7 @@ namespace PdfEditor.App.Viewer;
 /// 페이지마다: 회색 바탕 → 썸네일(늘려서) → 이전 배율 타일(늘려서) → 현재 배율 타일.
 /// UI 동작(스크롤·입력)은 직접 확인한 것만 보고서에 적는다. 계산은 PageLayout·ZoomMath·PrefetchPlanner가 맡는다.
 /// </summary>
-public sealed class DocumentView : Control
+public sealed partial class DocumentView : Control
 {
     public static readonly StyledProperty<DocumentTabViewModel?> TabProperty =
         AvaloniaProperty.Register<DocumentView, DocumentTabViewModel?>(nameof(Tab));
@@ -242,7 +242,7 @@ public sealed class DocumentView : Control
                 if (!_fromScroll) GoToPage(_state.Tab.CurrentPageIndex);
                 break;
             case nameof(DocumentTabViewModel.PageCount): OnPagesInvalidated(_state); break;
-            case nameof(DocumentTabViewModel.Tool): Cursor = CursorFor(_state.Tab.Tool); break;
+            case nameof(DocumentTabViewModel.Tool): Cursor = CursorFor(_state.Tab.Tool); CancelGesture(); _hover = null; InvalidateVisual(); break;
         }
     }
 
@@ -256,9 +256,6 @@ public sealed class DocumentView : Control
         InvalidateVisual();
         UpdateWanted();
     }
-
-    private static Cursor CursorFor(ToolKind t) =>
-        new(t == ToolKind.Hand ? StandardCursorType.Hand : StandardCursorType.Ibeam);
 
     private void RebuildLayout()
     {
@@ -370,6 +367,7 @@ public sealed class DocumentView : Control
             var info = pages[i];
             var pr = lay.GetPageRect(i);
             pageRects.Add(pr);
+            if (IsAnnotationTool(st.Tab.Tool)) TryGetGeom(st, info, out _);   // 첫 클릭부터 쪽 정보가 있도록 미리 읽는다
             using (ctx.PushClip(pr))
             {
                 ctx.FillRectangle(PlaceholderBrush, pr);
@@ -402,9 +400,11 @@ public sealed class DocumentView : Control
                         exact.Add(dest.Intersect(pr));
                     }
                 DrawAnnotationLayer(ctx, st, info, pr, scale);   // ④ 주석 층
+                DrawSelection(ctx, st, info, pr, scale);
             }
             DrawOverlays(ctx, st, info, pr, scale);   // ⑤ 검색 강조·텍스트 선택
         }
+        DrawEraserCursor(ctx);
         LastCoverage = ViewportCoverage.Compute(vp, pageRects, painted);
         LastExactCoverage = ViewportCoverage.Compute(vp, pageRects, exact);
         LastVisiblePageCount = pageRects.Count;
@@ -457,8 +457,8 @@ public sealed class DocumentView : Control
             if (on) { s.PropertyChanged += OnSearchPropertyChanged; s.Results.CollectionChanged += OnSearchResultsChanged; }
             else { s.PropertyChanged -= OnSearchPropertyChanged; s.Results.CollectionChanged -= OnSearchResultsChanged; }
         }
-        if (on) st.Tab.TextSelection.Changed += OnSelectionChanged;
-        else st.Tab.TextSelection.Changed -= OnSelectionChanged;
+        if (on) { st.Tab.TextSelection.Changed += OnSelectionChanged; st.Tab.Selection.Changed += OnAnnotSelectionChanged; }
+        else { st.Tab.TextSelection.Changed -= OnSelectionChanged; st.Tab.Selection.Changed -= OnAnnotSelectionChanged; }
         if (on) { st.HitsByPage = null; RefreshSelection(st); }
     }
 
@@ -476,6 +476,8 @@ public sealed class DocumentView : Control
         TryReveal();
         InvalidateVisual();
     }
+
+    private void OnAnnotSelectionChanged() => InvalidateVisual();
 
     private void OnSelectionChanged()
     {
@@ -699,6 +701,7 @@ public sealed class DocumentView : Control
         base.OnPointerPressed(e);
         Focus();
         if (_state is null || _sv is null) return;
+        if (HandleAnnotPointerPressed(e)) return;
         if (_state.Tab.Tool == ToolKind.Hand && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _dragging = true;
@@ -707,7 +710,7 @@ public sealed class DocumentView : Control
             e.Pointer.Capture(this);
             e.Handled = true;
         }
-        else if (_state.Tab.Tool == ToolKind.TextSelect && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        else if (UsesTextDrag(_state.Tab.Tool) && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             // 텍스트 선택: 새로 누르면 이전 선택을 지우고, 누른 점의 글자부터 시작한다(글자가 없으면 선택 없음).
             _state.Tab.TextSelection.Clear();
@@ -727,6 +730,7 @@ public sealed class DocumentView : Control
     {
         base.OnPointerMoved(e);
         if (_state is null || _sv is null) return;
+        HandleAnnotPointerMoved(e);
         if (_selecting && _layout is { } lay && _selPageIndex >= 0 && _selPageIndex < _layoutPages.Length)
         {
             var origin = lay.GetPageRect(_selPageIndex).TopLeft;
@@ -746,8 +750,15 @@ public sealed class DocumentView : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (HandleAnnotPointerReleased(e)) return;
         if (_dragging) { _dragging = false; e.Pointer.Capture(null); }
-        if (_selecting) { _selecting = false; _selPageIndex = -1; e.Pointer.Capture(null); }
+        if (_selecting)
+        {
+            e.Pointer.Capture(null);
+            _selPageIndex = -1;
+            if (_state is { } mst && IsTextMarkupTool(mst.Tab.Tool)) _ = FinishMarkupAsync(mst, mst.Tab.Tool);
+            else _selecting = false;
+        }
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -759,6 +770,7 @@ public sealed class DocumentView : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (HandleAnnotKey(e)) return;
         if (e is { Key: Key.C, KeyModifiers: KeyModifiers.Control })
         {
             CopySelection();

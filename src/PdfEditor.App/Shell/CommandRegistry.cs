@@ -4,7 +4,7 @@ using Avalonia.Input;
 namespace PdfEditor.App.Shell;
 
 /// <summary>앱 명령 하나. Label은 빠른 실행에서 검색되는 전체 이름이다.</summary>
-public sealed record AppCommand(string Id, string Label, ICommand Command, KeyGesture? Gesture, string? IconKey);
+public sealed record AppCommand(string Id, string Label, ICommand Command, KeyGesture? Gesture, string? IconKey, string? DisabledTip = null);
 
 /// <summary>명령 목록과 빠른 실행(Ctrl+.) 검색.</summary>
 public sealed class CommandRegistry

@@ -246,4 +246,19 @@
   <data name="Dlg_AboutNotices" xml:space="preserve"><value>타사 고지 보기</value></data>
   <data name="Dlg_AboutNoticesMissing" xml:space="preserve"><value>타사 고지 파일(THIRD-PARTY-NOTICES.md)을 찾을 수 없습니다.</value></data>
   <data name="Dlg_AboutClose" xml:space="preserve"><value>닫기</value></data>
+  <data name="Group_Annotate" xml:space="preserve"><value>주석</value></data>
+  <data name="Msg_AnnotationsRestricted" xml:space="preserve"><value>이 문서는 주석 추가·수정이 제한되어 있습니다.</value></data>
+  <data name="Msg_OriginalAnnotationsReadOnly" xml:space="preserve"><value>기존 주석을 읽을 수 없어 편집할 수 없습니다. 새 주석은 추가할 수 있습니다.</value></data>
+  <data name="Msg_ComingInM3" xml:space="preserve"><value>이 주석 도구는 이후 단계에서 제공됩니다.</value></data>
+  <data name="AnnotKind_Ink" xml:space="preserve"><value>연필</value></data>
+  <data name="AnnotKind_Highlight" xml:space="preserve"><value>강조</value></data>
+  <data name="AnnotKind_Underline" xml:space="preserve"><value>밑줄</value></data>
+  <data name="AnnotKind_StrikeOut" xml:space="preserve"><value>취소선</value></data>
+  <data name="AnnotKind_Text" xml:space="preserve"><value>메모</value></data>
+  <data name="AnnotKind_Square" xml:space="preserve"><value>사각형</value></data>
+  <data name="AnnotKind_Circle" xml:space="preserve"><value>타원</value></data>
+  <data name="Sticky_Header" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="Sticky_Hint" xml:space="preserve"><value>Ctrl+Enter: 확인, Esc: 취소</value></data>
+  <data name="Sticky_Placeholder" xml:space="preserve"><value>메모를 입력하세요</value></data>
+  <data name="Msg_AnnotationFailed" xml:space="preserve"><value>주석을 적용하지 못했습니다.</value></data>
 </root>

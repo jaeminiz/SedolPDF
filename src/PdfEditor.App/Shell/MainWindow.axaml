@@ -193,7 +193,7 @@
                 <rb:RibbonGroup.ItemTemplate>
                   <DataTemplate x:DataType="rb:RibbonButtonVm">
                     <rb:RibbonButton Label="{Binding Label}" IconKey="{Binding Command.IconKey}"
-                                     Command="{Binding Command.Command}" IsLarge="{Binding IsLarge}"
+                                     Command="{Binding Command.Command}" IsLarge="{Binding IsLarge}" IsChecked="{Binding IsChecked}"
                                      ToolTip.Tip="{Binding Tip}" />
                   </DataTemplate>
                 </rb:RibbonGroup.ItemTemplate>
@@ -257,11 +257,14 @@
             </Button>
           </Grid>
           <Border Grid.Row="1" Background="#D4D4D9">
-            <Grid RowDefinitions="Auto,*">
+            <Grid RowDefinitions="Auto,Auto,*">
               <Border Grid.Row="0" Background="#FFF4CE" Padding="12,6" IsVisible="{Binding ActiveDocument.IsEditRestricted, FallbackValue=False}">
                 <TextBlock Text="{x:Static res:Strings.Msg_EditRestricted}" Foreground="#1A1A1A" TextWrapping="Wrap" />
               </Border>
-              <ScrollViewer Grid.Row="1" Name="DocScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+              <Border Grid.Row="1" Background="#FFF4CE" Padding="12,6" IsVisible="{Binding ActiveDocument.HasAnnotationNotice, FallbackValue=False}">
+                <TextBlock Text="{Binding ActiveDocument.AnnotationNotice}" Foreground="#1A1A1A" TextWrapping="Wrap" />
+              </Border>
+              <ScrollViewer Grid.Row="2" Name="DocScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                             IsVisible="{Binding !HasNoDocument}">
                 <viewer:DocumentView Tab="{Binding ActiveDocument}" />
               </ScrollViewer>

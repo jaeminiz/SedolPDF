@@ -21,6 +21,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly Dictionary<string, IReadOnlyList<RibbonGroupVm>> _groupCache = new();
     private readonly List<IRelayCommand> _docCommands = [];
     private bool _syncingDocZoom;
+    private readonly List<RibbonButtonVm> _toolButtons = [];
 
     /// <summary>활성 문서(세션 있는)에만 실행되는 명령. 활성 문서가 바뀌면 CanExecute를 다시 알린다.</summary>
     private RelayCommand NavCmd(Action<DocumentTabViewModel> a) => DocCmd(a);
@@ -39,6 +40,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var c = new RelayCommand(
             () => { if (ActiveDocument?.PageCommands is { } p && pick(p).CanExecute(null)) _ = pick(p).ExecuteAsync(null); },
             () => ActiveDocument?.PageCommands is { } p && pick(p).CanExecute(null));
+        _docCommands.Add(c);
+        return c;
+    }
+
+    /// <summary>주석 도구를 고르는 명령. 주석 권한이 없는 문서에서는 비활성이다.</summary>
+    private RelayCommand ToolCmd(ToolKind tool)
+    {
+        var c = new RelayCommand(
+            () => { if (ActiveDocument is { Session: not null } d && d.CanAnnotate) d.Tool = tool; },
+            () => ActiveDocument is { Session: not null } d && d.CanAnnotate);
         _docCommands.Add(c);
         return c;
     }
@@ -165,6 +176,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (oldValue is not null) oldValue.PropertyChanged -= OnDocumentPropertyChanged;
         if (newValue is not null) newValue.PropertyChanged += OnDocumentPropertyChanged;
         RefreshDocumentStatus();
+        RefreshToolButtons();
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(HasNoDocument));
         OnPropertyChanged(nameof(PrintDisabledTip));
@@ -178,6 +190,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveSearch));
         if (newValue is not null) SetZoomFromDocument(newValue.Scale);
         LoadVisiblePanels();
+    }
+
+    /// <summary>활성 문서의 도구와 같은 도구 단추를 켜진 상태로 보인다.</summary>
+    private void RefreshToolButtons()
+    {
+        var tool = ActiveDocument?.Tool;
+        foreach (var b in _toolButtons) b.IsChecked = tool is not null && b.Tool == tool;
     }
 
     private void NotifyFileCommands()
@@ -337,6 +356,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void OnDocumentPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         RefreshDocumentStatus();
+        if (e.PropertyName == nameof(DocumentTabViewModel.Tool)) RefreshToolButtons();
         if (e.PropertyName == nameof(DocumentTabViewModel.Scale) && s is DocumentTabViewModel d) SetZoomFromDocument(d.Scale);
         if (e.PropertyName == nameof(DocumentTabViewModel.Title)) OnPropertyChanged(nameof(FileName));
     }
@@ -428,7 +448,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (_groupCache.TryGetValue(tab, out var cached)) return cached;
         var groups = Ribbon[tab].Select(g => new RibbonGroupVm(g.Name,
-            g.Items.Select(i => new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, !g.Compact, i.DisabledTip)).ToList(),
+            g.Items.Select(i =>
+            {
+                var b = new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, !g.Compact, i.DisabledTip, i.Tool);
+                b.IsChecked = i.Tool is { } t && ActiveDocument?.Tool == t;
+                if (i.Tool is not null) _toolButtons.Add(b);
+                return b;
+            }).ToList(),
             g.Compact)).ToList();
         return _groupCache[tab] = groups;
     }
@@ -438,7 +464,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private static KeyGesture G(Key k, KeyModifiers m = KeyModifiers.Control) => new(k, m);
 
     private void Reg(string id, string label, string? icon, KeyGesture? gesture = null, ICommand? command = null) =>
-        Commands.Register(new AppCommand(id, label, command ?? Placeholder(), gesture, icon));
+        Commands.Register(new AppCommand(id, label, command ?? Placeholder(), gesture, icon,
+            command is null && id.StartsWith("annot.", StringComparison.Ordinal) ? Strings.Msg_ComingInM3 : null));
 
     private void RegisterCommands()
     {
@@ -474,27 +501,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("page.rotateLeft", Strings.Cmd_PageRotateLeft, "rotateleft", null, PageCmd(p => p.RotateLeftCommand));
         Reg("page.rotateRight", Strings.Cmd_PageRotateRight, "rotate", null, PageCmd(p => p.RotateRightCommand));
 
-        Reg("annot.select", Strings.Cmd_AnnotSelect, "select");
+        Reg("annot.select", Strings.Cmd_AnnotSelect, "select", null, ToolCmd(ToolKind.AnnotSelect));
         Reg("annot.typewriter", Strings.Cmd_Typewriter, "type");
         Reg("annot.textbox", Strings.Cmd_TextBox, "text");
         Reg("annot.callout", Strings.Cmd_Callout, "callout");
-        Reg("annot.sticky", Strings.Cmd_StickyNote, "note");
+        Reg("annot.sticky", Strings.Cmd_StickyNote, "note", null, ToolCmd(ToolKind.StickyNote));
         Reg("annot.attach", Strings.Cmd_FileAttach, "clip");
-        Reg("annot.hlText", Strings.Cmd_HighlightText, "hl");
-        Reg("annot.hlArea", Strings.Cmd_HighlightArea, "area");
-        Reg("annot.underline", Strings.Cmd_Underline, "under");
-        Reg("annot.strike", Strings.Cmd_Strikeout, "strike");
+        Reg("annot.hlText", Strings.Cmd_HighlightText, "hl", null, ToolCmd(ToolKind.HighlightText));
+        Reg("annot.hlArea", Strings.Cmd_HighlightArea, "area", null, ToolCmd(ToolKind.HighlightArea));
+        Reg("annot.underline", Strings.Cmd_Underline, "under", null, ToolCmd(ToolKind.Underline));
+        Reg("annot.strike", Strings.Cmd_Strikeout, "strike", null, ToolCmd(ToolKind.StrikeOut));
         Reg("annot.insertText", Strings.Cmd_InsertText, "caret");
         Reg("annot.replaceText", Strings.Cmd_ReplaceText, "replace");
         Reg("annot.line", Strings.Cmd_Line, "line");
         Reg("annot.arrow", Strings.Cmd_Arrow, "arrow");
-        Reg("annot.rect", Strings.Cmd_Rectangle, "rect");
-        Reg("annot.ellipse", Strings.Cmd_Ellipse, "oval");
+        Reg("annot.rect", Strings.Cmd_Rectangle, "rect", null, ToolCmd(ToolKind.Rectangle));
+        Reg("annot.ellipse", Strings.Cmd_Ellipse, "oval", null, ToolCmd(ToolKind.Ellipse));
         Reg("annot.polygon", Strings.Cmd_Polygon, "poly");
         Reg("annot.polyline", Strings.Cmd_Polyline, "pline");
         Reg("annot.cloud", Strings.Cmd_Cloud, "cloud");
-        Reg("annot.pencil", Strings.Cmd_Pencil, "pen");
-        Reg("annot.eraser", Strings.Cmd_Eraser, "eraser");
+        Reg("annot.pencil", Strings.Cmd_Pencil, "pen", null, ToolCmd(ToolKind.Pencil));
+        Reg("annot.eraser", Strings.Cmd_Eraser, "eraser", null, ToolCmd(ToolKind.Eraser));
         Reg("annot.stamp", Strings.Cmd_Stamp, "stamp");
         Reg("annot.commentList", Strings.Cmd_CommentList, "comments");
         Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers");
@@ -528,34 +555,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // ---- 리본 정의 ----
     private static IReadOnlyDictionary<string, IReadOnlyList<RibbonGroupModel>> BuildRibbon()
     {
-        string m23 = Strings.Msg_ComingInM2M3, m45 = Strings.Msg_ComingInM4M5, tbd = Strings.Msg_NotYetConnected;
+        string m45 = Strings.Msg_ComingInM4M5, tbd = Strings.Msg_NotYetConnected;
         RibbonItemModel I(string id, string label, string? tip = null) => new(id, label, tip);
-        RibbonItemModel A(string id, string label) => new("annot." + id, label, m23);
+        RibbonItemModel T(string id, string label, ToolKind tool, string? tip = null) => new(id, label, tip, tool);
         RibbonGroupModel Gr(string name, bool compact, params RibbonItemModel[] items) => new(name, items, compact);
 
         return new Dictionary<string, IReadOnlyList<RibbonGroupModel>>
         {
             ["Home"] =
             [
-                Gr(Strings.Group_Tools, false, I("tool.hand", Strings.Cmd_Hand, tbd), I("tool.textSelect", Strings.Cmd_TextSelect, tbd)),
+                Gr(Strings.Group_Tools, false, T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand, tbd), T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect, tbd)),
                 Gr(Strings.Group_Zoom, false, I("zoom.in", Strings.Cmd_ZoomIn, tbd), I("zoom.out", Strings.Cmd_ZoomOut, tbd),
                     I("zoom.actual", Strings.Cmd_ActualSize, tbd), I("zoom.fitWidth", Strings.Cmd_FitWidth, tbd), I("zoom.fitPage", Strings.Cmd_FitPage, tbd)),
                 Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
                 Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find)),
+                Gr(Strings.Group_Annotate, true, T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText),
+                    T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote), T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil)),
             ],
             ["Annotate"] =
             [
-                Gr(Strings.Group_Tools, false, I("tool.hand", Strings.Cmd_Hand, m23), I("tool.textSelect", Strings.Cmd_TextSelect, m23), A("select", Strings.Cmd_AnnotSelect)),
-                Gr(Strings.Group_Text, false, A("typewriter", Strings.Cmd_Typewriter), A("textbox", Strings.Cmd_TextBox), A("callout", Strings.Cmd_Callout)),
-                Gr(Strings.Group_Note, false, A("sticky", Strings.Cmd_StickyNote), A("attach", Strings.Cmd_FileAttach)),
-                Gr(Strings.Group_TextMarkup, true, A("hlText", Strings.Cmd_HighlightText), A("hlArea", Strings.Cmd_HighlightArea),
-                    A("underline", Strings.Cmd_Underline), A("strike", Strings.Cmd_Strikeout), A("insertText", Strings.Cmd_InsertText), A("replaceText", Strings.Cmd_ReplaceText)),
-                Gr(Strings.Group_Draw, true, A("line", Strings.Cmd_Line), A("arrow", Strings.Cmd_Arrow), A("rect", Strings.Cmd_Rectangle),
-                    A("ellipse", Strings.Cmd_Ellipse), A("polygon", Strings.Cmd_Polygon), A("polyline", Strings.Cmd_Polyline),
-                    A("cloud", Strings.Cmd_Cloud), A("pencil", Strings.Cmd_Pencil), A("eraser", Strings.Cmd_Eraser)),
-                Gr(Strings.Group_Stamp, false, A("stamp", Strings.Cmd_Stamp)),
-                Gr(Strings.Group_AnnotManage, true, A("commentList", Strings.Cmd_CommentList), A("summary", Strings.Cmd_AnnotSummary),
-                    A("importExport", Strings.Cmd_ImportExport), A("style", Strings.Cmd_AnnotStyle)),
+                Gr(Strings.Group_Tools, false, T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand), T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect),
+                    T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
+                Gr(Strings.Group_Note, false, T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote)),
+                Gr(Strings.Group_TextMarkup, true, T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText),
+                    T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea), T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline),
+                    T("annot.strike", Strings.Cmd_Strikeout, ToolKind.StrikeOut)),
+                Gr(Strings.Group_Draw, true, T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), T("annot.ellipse", Strings.Cmd_Ellipse, ToolKind.Ellipse),
+                    T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil), T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser)),
             ],
             ["Edit"] =
             [
