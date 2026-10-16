@@ -26,7 +26,7 @@ public class RenderOptionsTests : IDisposable
         return (red, blue);
     }
 
-    private static readonly IReadOnlySet<int> HideSquare = new HashSet<int> { AnnotSubtype.Square };
+    private static readonly IReadOnlySet<int> HideSquare = new HashSet<int> { PdfAnnotSubtype.Square };
 
     private Task<string> MakeMixed() => _t.InvokeAsync(() =>
     {

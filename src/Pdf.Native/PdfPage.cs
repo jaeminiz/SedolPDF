@@ -60,12 +60,55 @@ public sealed class PdfPage : IDisposable
 
     public int AnnotationCount { get { Check(); return NativeMethods.FPDFPage_GetAnnotCount(_handle); } }
 
+    public PdfAnnotation GetAnnotation(int index)
+    {
+        Check();
+        var a = NativeMethods.FPDFPage_GetAnnot(_handle, index);
+        if (a == IntPtr.Zero) throw PdfiumException.FromLastError("주석 불러오기");
+        return new PdfAnnotation(_t, a);
+    }
+
+    /// <summary>주석 목록 맨 끝에 새 주석을 만든다 (PdfAnnotSubtype 값).</summary>
+    public PdfAnnotation CreateAnnotation(int subtype)
+    {
+        Check();
+        var a = NativeMethods.FPDFPage_CreateAnnot(_handle, subtype);
+        if (a == IntPtr.Zero) throw new PdfiumException(0, $"주석 만들기 실패 (유형 {subtype})");
+        return new PdfAnnotation(_t, a);
+    }
+
+    public void RemoveAnnotation(int index)
+    {
+        Check();
+        if (NativeMethods.FPDFPage_RemoveAnnot(_handle, index) == 0) throw PdfiumException.FromLastError("주석 삭제");
+    }
+
+    /// <summary>주석의 key("Popup", "IRT")가 가리키는 주석의 인덱스. 없으면 null.</summary>
+    public int? GetLinkedAnnotationIndex(int index, string key)
+    {
+        Check();
+        var a = NativeMethods.FPDFPage_GetAnnot(_handle, index);
+        if (a == IntPtr.Zero) throw PdfiumException.FromLastError("주석 불러오기");
+        try
+        {
+            var linked = NativeMethods.FPDFAnnot_GetLinkedAnnot(a, key);
+            if (linked == IntPtr.Zero) return null;
+            try
+            {
+                int i = NativeMethods.FPDFPage_GetAnnotIndex(_handle, linked);
+                return i < 0 ? null : i;
+            }
+            finally { NativeMethods.FPDFPage_CloseAnnot(linked); }
+        }
+        finally { NativeMethods.FPDFPage_CloseAnnot(a); }
+    }
+
     public byte[] RenderTile(double scale, int tileX, int tileY, int tileW, int tileH, bool withAnnotations)
         => RenderTile(scale, tileX, tileY, tileW, tileH, new RenderOptions(withAnnotations));
 
     /// <summary>
     /// 타일 하나만 BGRA(흰 배경)로 그린다. tileX/tileY는 scale을 적용한 화면 좌표(픽셀)의 타일 왼쪽 위.
-    /// 비트맵은 타일 크기만 할당한다. HiddenAnnotSubtypes는 렌더하는 동안만 Hidden 플래그를 붙이고 finally에서 원복한다.
+    /// 비트맵은 타일 크기만 할당한다. HiddenAnnotSubtypes·HiddenAnnotIndices는 렌더하는 동안만 Hidden 플래그를 붙이고 finally에서 원복한다.
     /// </summary>
     public byte[] RenderTile(double scale, int tileX, int tileY, int tileW, int tileH, RenderOptions options)
     {
@@ -73,7 +116,9 @@ public sealed class PdfPage : IDisposable
         var changed = new List<(int index, int original)>();
         try
         {
-            if (options.WithAnnotations && options.HiddenAnnotSubtypes is { Count: > 0 } subtypes)
+            var subtypes = options.HiddenAnnotSubtypes;
+            var indices = options.HiddenAnnotIndices;
+            if (options.WithAnnotations && (subtypes is { Count: > 0 } || indices is { Count: > 0 }))
             {
                 int n = NativeMethods.FPDFPage_GetAnnotCount(_handle);
                 for (int i = 0; i < n; i++)
@@ -82,7 +127,7 @@ public sealed class PdfPage : IDisposable
                     if (a == IntPtr.Zero) continue;
                     try
                     {
-                        if (subtypes.Contains(NativeMethods.FPDFAnnot_GetSubtype(a)))
+                        if ((indices?.Contains(i) ?? false) || (subtypes?.Contains(NativeMethods.FPDFAnnot_GetSubtype(a)) ?? false))
                         {
                             int f = NativeMethods.FPDFAnnot_GetFlags(a);
                             changed.Add((i, f));

@@ -13,12 +13,6 @@ internal static unsafe partial class AnnotNative
     [LibraryImport(Lib)] public static partial int FPDFAnnot_AppendAttachmentPoints(IntPtr annot, float* quad8);
 }
 
-internal static class AnnotSubtype
-{
-    public const int Square = 5;
-    public const int Squiggly = 11;
-}
-
 /// <summary>테스트용 주석 생성·플래그 조회. PDFium 스레드 안에서만 호출한다.</summary>
 internal static unsafe class AnnotTestHelper
 {
@@ -27,14 +21,14 @@ internal static unsafe class AnnotTestHelper
     {
         using var page = doc.LoadPage(pageIndex);
 
-        var sq = AnnotNative.FPDFPage_CreateAnnot(page.Handle, AnnotSubtype.Square);
+        var sq = AnnotNative.FPDFPage_CreateAnnot(page.Handle, PdfAnnotSubtype.Square);
         var r1 = new FsRectF { Left = 100, Bottom = 600, Right = 300, Top = 650 };
         AnnotNative.FPDFAnnot_SetRect(sq, &r1);
         AnnotNative.FPDFAnnot_SetColor(sq, 0, 255, 0, 0, 255);
         AnnotNative.FPDFAnnot_SetBorder(sq, 0, 0, 4);
         NativeMethods.FPDFPage_CloseAnnot(sq);
 
-        var sg = AnnotNative.FPDFPage_CreateAnnot(page.Handle, AnnotSubtype.Squiggly);
+        var sg = AnnotNative.FPDFPage_CreateAnnot(page.Handle, PdfAnnotSubtype.Squiggly);
         var r2 = new FsRectF { Left = 100, Bottom = 500, Right = 300, Top = 540 };
         AnnotNative.FPDFAnnot_SetRect(sg, &r2);
         AnnotNative.FPDFAnnot_SetColor(sg, 0, 0, 0, 255, 255);
