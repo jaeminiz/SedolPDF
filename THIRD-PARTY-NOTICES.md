@@ -82,6 +82,7 @@ SOFTWARE.
 ```
 
 ## 검토했으나 쓰지 않은 패키지
+- Avalonia.Headless 12.1.4 (MIT): 테스트 프로젝트(PdfEditor.App.Tests)에만 사용 — 화면 출력과 PDFium 렌더 비교(Task 11). 배포물에는 들어가지 않음. xUnit 연동 없이 `HeadlessUi`가 고정 스레드에서 직접 설정.
 - Avalonia.Headless.XUnit 12.1.4 (MIT): xUnit v3 전용(`xunit.v3.extensibility.core`)이라 현재 xUnit 2.9.3 테스트와 호환되지 않아 쓰지 않음. 화면 스모크 테스트는 수동 실행으로 대체.
 
 ## 그 밖의 참고

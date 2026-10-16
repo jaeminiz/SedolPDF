@@ -30,7 +30,10 @@
         <StackPanel Spacing="2" HorizontalAlignment="Center">
           <Border Classes="thumb" Classes.current="{Binding IsCurrent}"
                   Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}">
-            <Image Source="{Binding Source}" Stretch="Uniform" />
+            <Grid>
+              <Image Source="{Binding Source}" Stretch="Uniform" />
+              <panels:ThumbnailAnnotationLayer />
+            </Grid>
           </Border>
           <TextBlock Text="{Binding PageNumber}" HorizontalAlignment="Center" FontSize="11" Foreground="#5C5C5C" />
         </StackPanel>

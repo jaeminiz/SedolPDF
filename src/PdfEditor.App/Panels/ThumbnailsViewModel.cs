@@ -20,7 +20,11 @@ public sealed partial class ThumbnailItem(PageId id) : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(Source))] private IImageHandle? _image;
 
     /// <summary>이미지가 마지막으로 맞춰진 쪽 버전. 회전 등으로 쪽 버전이 바뀌면 새로 그린다.</summary>
-    public int Version { get; set; } = -1;
+    public int Version { get => _version; set => SetProperty(ref _version, value); }
+    private int _version = -1;
+
+    /// <summary>주석 층(ThumbnailAnnotationLayer)이 모델을 읽는 세션.</summary>
+    public PdfEditor.Document.DocumentSession? Session { get; set; }
     public int AnnotRevision { get; set; } = -1;
 
     /// <summary>화면에 그릴 이미지(IImageHandle이 BitmapHandle일 때).</summary>
@@ -120,6 +124,7 @@ public sealed class ThumbnailsViewModel : IDisposable
         {
             var p = pages[i];
             if (!existing.TryGetValue(p.Id, out var item)) item = new ThumbnailItem(p.Id);
+            item.Session = _s;
             item.PageNumber = i + 1;
             var (w, h) = ThumbnailCache<IImageHandle>.SizeFor(p);
             item.DisplayWidth = w;

@@ -45,11 +45,13 @@ public sealed class DocumentView : Control
         public Dictionary<PageId, List<SearchHit>>? HitsByPage;   // null = 다시 만들어야 함
         public (PageId Page, IReadOnlyList<System.Drawing.RectangleF> Rects)? SelRects;
         public bool SelBusy, SelDirty;
+        public Action<PdfEditor.Document.Annotations.AnnotationsChangedEventArgs>? AnnotChangedHandler;
 
         public void Dispose()
         {
             if (Disposed) return;
             Disposed = true;
+            if (AnnotChangedHandler is { } h) Session.Annotations.Changed -= h;
             Scheduler.Clear();
             Renderer.Dispose();
             foreach (var p in Session.Pages) { Tiles.RemovePage(p.Id); Thumbs.RemovePage(p.Id); }
@@ -184,6 +186,12 @@ public sealed class DocumentView : Control
             (r, data) => Dispatcher.UIThread.Post(() => OnTileReady(st, r, data)));
         // PagesChanged(전용 스레드)는 UI 스레드가 아니므로 디스패치한다.
         renderer.Invalidated += () => Dispatcher.UIThread.Post(() => OnPagesInvalidated(st));
+        // 주석 모델이 바뀌면(전용 스레드) 주석 층을 다시 그린다.
+        st.AnnotChangedHandler = _ => Dispatcher.UIThread.Post(() =>
+        {
+            if (!st.Disposed && ReferenceEquals(st, _state)) InvalidateVisual();
+        });
+        session.Annotations.Changed += st.AnnotChangedHandler;
         return st;
     }
 
@@ -393,12 +401,40 @@ public sealed class DocumentView : Control
                         painted.Add(dest.Intersect(pr));
                         exact.Add(dest.Intersect(pr));
                     }
+                DrawAnnotationLayer(ctx, st, info, pr, scale);   // ④ 주석 층
             }
             DrawOverlays(ctx, st, info, pr, scale);   // ⑤ 검색 강조·텍스트 선택
         }
         LastCoverage = ViewportCoverage.Compute(vp, pageRects, painted);
         LastExactCoverage = ViewportCoverage.Compute(vp, pageRects, exact);
         LastVisiblePageCount = pageRects.Count;
+    }
+
+    // ---- 주석 층 ----
+
+    private static readonly IReadOnlyDictionary<PdfEditor.Document.Annotations.AnnotId, PdfEditor.Document.Annotations.Annotation?> NoPreviews
+        = new Dictionary<PdfEditor.Document.Annotations.AnnotId, PdfEditor.Document.Annotations.Annotation?>();
+
+    private (PageId Page, IReadOnlyDictionary<PdfEditor.Document.Annotations.AnnotId, PdfEditor.Document.Annotations.Annotation?> Items)? _annotPreview;
+
+    /// <summary>
+    /// 만드는 중이거나 편집 중인 주석의 미리보기(한 쪽 대상). 값 null = 그 주석을 그리지 않음(예: 지우개로 다 지우는 중).
+    /// UI 스레드에서 지정한다. null이면 미리보기 없음.
+    /// </summary>
+    public void SetAnnotationPreview(PageId? page, IReadOnlyDictionary<PdfEditor.Document.Annotations.AnnotId, PdfEditor.Document.Annotations.Annotation?>? items)
+    {
+        _annotPreview = page is { } p && items is { Count: > 0 } ? (p, items) : null;
+        InvalidateVisual();
+    }
+
+    private void DrawAnnotationLayer(DrawingContext ctx, ViewState st, PageInfo info, Rect pr, double scale)
+    {
+        var annots = st.Session.Annotations.Get(info.Id);
+        var previews = _annotPreview is { } ap && ap.Page == info.Id ? ap.Items : NoPreviews;
+        if (previews.Count == 0 && !annots.Items.Any(i => i.ModelDrawn)) return;
+        if (!TryGetGeom(st, info, out var g)) return;   // 도착하면 다시 그린다
+        var tr = new Pdf.Native.PageTransform(g.Bounds, g.Rotation, scale);
+        Annotations.AnnotationOverlay.DrawPage(ctx, annots, pr, tr, g.Rotation, previews);
     }
 
     // ---- 덧그림: 검색 강조·텍스트 선택 ----

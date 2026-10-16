@@ -41,6 +41,21 @@ public readonly struct PageTransform
         return new ViewPoint(a * _s, b * _s);
     }
 
+    /// <summary>
+    /// ToView와 같은 아핀 변환: 화면 x = x*M11 + y*M21 + OffsetX, 화면 y = x*M12 + y*M22 + OffsetY (쪽 pt → 쪽 왼쪽 위 기준 화면).
+    /// Avalonia의 Matrix 필드 의미와 같다.
+    /// </summary>
+    public (double M11, double M12, double M21, double M22, double OffsetX, double OffsetY) Matrix
+    {
+        get
+        {
+            var o = ToView(0, 0);
+            var ex = ToView(1, 0);
+            var ey = ToView(0, 1);
+            return (ex.X - o.X, ex.Y - o.Y, ey.X - o.X, ey.Y - o.Y, o.X, o.Y);
+        }
+    }
+
     public (double X, double Y) ToPage(ViewPoint view)
     {
         double a = view.X / _s, b = view.Y / _s;

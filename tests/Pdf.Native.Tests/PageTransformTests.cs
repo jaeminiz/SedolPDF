@@ -44,6 +44,21 @@ public class PageTransformTests : IDisposable
         });
     }
 
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    public void Matrix_MatchesToView(int rotation)
+    {
+        var tr = new PageTransform(System.Drawing.RectangleF.FromLTRB(100, 100, 400, 500), rotation, 1.5);
+        var m = tr.Matrix;
+        foreach (var (x, y) in new[] { (120.0, 130.0), (390.0, 480.0), (250.0, 300.0) })
+        {
+            var v = tr.ToView(x, y);
+            double vx = x * m.M11 + y * m.M21 + m.OffsetX;
+            double vy = x * m.M12 + y * m.M22 + m.OffsetY;
+            Assert.True(Math.Abs(vx - v.X) < 1e-6 && Math.Abs(vy - v.Y) < 1e-6);
+        }
+    }
+
     [Fact]
     public void ToPage_IsInverseOfToView()
     {
