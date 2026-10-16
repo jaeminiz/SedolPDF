@@ -73,6 +73,13 @@ public sealed class BenchReport
     /// <summary>3초 안에 끝까지 가는 속도(프레임 60개/초 기준 한 프레임에 전체 길이의 1/180)로 스크롤한 결과.</summary>
     public ScrollResult? Fast { get; init; }
     public double PeakWorkingSetMb { get; init; }
+    /// <summary>`--annots N`로 올린 주석 개수(0 = 재지 않음).</summary>
+    public int OverlayAnnotCount { get; init; }
+    /// <summary>프레임마다 주석 층(AnnotationOverlay.DrawPage)을 그리는 시간의 95번째 백분위수(ms). 주석을 올리지 않았으면 0.</summary>
+    public double OverlayDrawMsP95 { get; init; }
+    public double OverlayDrawMsP50 { get; init; }
+    public double OverlayDrawMsMax { get; init; }
+    public int OverlayDrawSamples { get; init; }
 
     private static readonly JsonSerializerOptions Opt = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     public string ToJson() => JsonSerializer.Serialize(this, Opt);

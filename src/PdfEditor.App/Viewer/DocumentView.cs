@@ -437,8 +437,13 @@ public sealed partial class DocumentView : Control
         if (previews.Count == 0 && !annots.Items.Any(i => i.ModelDrawn)) return;
         if (!TryGetGeom(st, info, out var g)) return;   // 도착하면 다시 그린다
         var tr = new Pdf.Native.PageTransform(g.Bounds, g.Rotation, scale);
+        long t0 = OverlayDrawTimed is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
         Annotations.AnnotationOverlay.DrawPage(ctx, annots, pr, tr, g.Rotation, previews);
+        if (OverlayDrawTimed is { } cb) cb(System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
     }
+
+    /// <summary>벤치용: 주석 층을 실제로 그린 쪽마다 걸린 시간(ms)을 알린다. 지정하지 않으면 시간을 재지 않는다.</summary>
+    public static Action<double>? OverlayDrawTimed { get; set; }
 
     // ---- 덧그림: 검색 강조·텍스트 선택 ----
 

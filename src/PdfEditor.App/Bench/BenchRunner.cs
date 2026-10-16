@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using System.IO;
 using Avalonia;
+using Pdf.Native;
+using PdfEditor.Document.Annotations;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using PdfEditor.App.Documents;
@@ -9,7 +12,7 @@ using PdfEditor.App.Viewer;
 
 namespace PdfEditor.App.Bench;
 
-public sealed record BenchOptions(string Pdf, string Out);
+public sealed record BenchOptions(string Pdf, string Out, int Annots = 0);
 
 /// <summary>
 /// `--bench &lt;pdf&gt; --out &lt;json&gt;`: 창을 띄워 문서를 열고 첫 화면 시간·스크롤 중 회색 비율·타일 렌더 시간·최대 작업 집합을 JSON으로 쓰고 종료한다.
@@ -22,12 +25,14 @@ public static class BenchRunner
     public static BenchOptions? Parse(string[] args)
     {
         string? pdf = null, outPath = null;
+        int annots = 0;
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--bench" && i + 1 < args.Length) pdf = args[++i];
             else if (args[i] == "--out" && i + 1 < args.Length) outPath = args[++i];
+            else if (args[i] == "--annots" && i + 1 < args.Length) int.TryParse(args[++i], out annots);
         }
-        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath));
+        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath), annots);
     }
 
     public static async Task RunAsync(MainWindow window, BenchOptions o)
@@ -104,6 +109,7 @@ public static class BenchRunner
 
         double[] t;
         lock (tiles) t = tiles.ToArray();
+        var overlay = o.Annots > 0 ? await MeasureOverlayAsync(view, tab, o.Annots) : [];
         return new BenchReport
         {
             Pdf = Path.GetFileName(o.Pdf),
@@ -125,7 +131,67 @@ public static class BenchRunner
             Sweep = sweep,
             Fast = fast,
             PeakWorkingSetMb = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0,
+            OverlayAnnotCount = o.Annots,
+            OverlayDrawMsP95 = BenchStats.Percentile(overlay, 95),
+            OverlayDrawMsP50 = BenchStats.Percentile(overlay, 50),
+            OverlayDrawMsMax = overlay.Length == 0 ? 0 : overlay.Max(),
+            OverlayDrawSamples = overlay.Length,
         };
+    }
+
+    /// <summary>첫 쪽에 Ink 주석(획 3개씩) n개를 올리고, 프레임을 150번 그리며 주석 층 그리기 시간을 모은다. 이 시간에는 타일 그리기가 들어 있지 않다.</summary>
+    private static async Task<double[]> MeasureOverlayAsync(DocumentView view, DocumentTabViewModel tab, int n)
+    {
+        var session = tab.Session!;
+        await session.AnnotationsReady;
+        var page = session.Pages[0].Id;
+        var rng = new Random(12345);
+        var changes = new List<AnnotationChange>(n);
+        for (int i = 0; i < n; i++)
+        {
+            var strokes = new List<ImmutableArray<PdfPointF>>();
+            float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+            for (int s = 0; s < 3; s++)
+            {
+                float x0 = 40 + (float)rng.NextDouble() * 480, y0 = 60 + (float)rng.NextDouble() * 700;
+                var pts = new List<PdfPointF>();
+                for (int k = 0; k < 24; k++)
+                {
+                    var pt = new PdfPointF(x0 + k * 1.5f + (float)rng.NextDouble() * 2, y0 + (float)Math.Sin(k / 3.0) * 8 + (float)rng.NextDouble() * 2);
+                    minX = Math.Min(minX, pt.X); maxX = Math.Max(maxX, pt.X); minY = Math.Min(minY, pt.Y); maxY = Math.Max(maxY, pt.Y);
+                    pts.Add(pt);
+                }
+                strokes.Add([.. pts]);
+            }
+            changes.Add(new AnnotationChange(null, new Annotation
+            {
+                Id = session.Annotations.NewId(),
+                Kind = AnnotKind.Ink,
+                Rect = new PdfRectF(minX - 2, minY - 2, maxX + 2, maxY + 2),
+                Color = new PdfColor(220, 30, 30),
+                BorderWidth = 2f,
+                InkStrokes = [.. strokes],
+                Name = Guid.NewGuid().ToString("D"),
+            }));
+        }
+        await session.Commands.ExecuteAsync(new ChangeAnnotationsCommand(page, changes));
+        var samples = new List<double>();
+        DocumentView.OverlayDrawTimed = ms => { lock (samples) samples.Add(ms); };
+        try
+        {
+            view.Scroller!.Offset = new Vector(view.Scroller.Offset.X, 0);   // 첫 쪽이 보이도록
+            var sw = Stopwatch.StartNew();
+            while (true)
+            {
+                await Frame(view);
+                lock (samples) if (samples.Count > 0) break;
+                if (sw.Elapsed.TotalSeconds > 30) throw new TimeoutException("annotation layer never drawn");
+            }
+            lock (samples) samples.Clear();   // 첫 그림(도형 만들기 포함)은 버리지 않고 아래 150프레임 중 첫 프레임에 이미 캐시되어 있다
+            for (int i = 0; i < 150; i++) await Frame(view);
+        }
+        finally { DocumentView.OverlayDrawTimed = null; }
+        lock (samples) return samples.ToArray();
     }
 
     private static async Task SettleAsync(TopLevel top, DocumentView view)
