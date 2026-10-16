@@ -7,7 +7,13 @@ PDFium 157 (bblanchon/pdfium-binaries, 소스 브랜치 chromium/8100) 기준. �
 - 암호화를 새로 거는 함수: **없음** (헤더에서 Encrypt/Security로 찾은 것은 읽기용 `FPDF_GetSecurityHandlerRevision`, `FPDF_GetDocPermissions`뿐).
 - 저장 시 보안 제거: `FPDF_SaveAsCopy`/`FPDF_SaveWithVersion`의 플래그 `FPDF_REMOVE_SECURITY` (암호화 해제 사본만 가능).
 - 메타데이터 쓰기(`SetMeta` 류): **없음**. 읽기만 `FPDF_GetMetaText`.
-- 결론: 암호 걸기·메타데이터 수정은 PDFium으로 불가. PDFsharp 후처리가 필요하며 M1 범위에서는 하지 않는다 (사용자 결정 사항). fpdf_annot.h·fpdf_catalog.h 등 나머지 헤더는 전수 확인하지 못함 — 검증 필요.
+- 결론: 암호 걸기·메타데이터 수정은 PDFium으로 불가. PDFsharp 후처리가 필요하며 M1 범위에서는 하지 않는다 (사용자 결정 사항). (나머지 헤더 확인은 아래 "V4 확정"에서 끝남.)
+
+### V4 확정 (Task 18, 2026-10-16)
+Task 3 때 웹으로만 본 헤더 4개 외에, **NuGet 패키지에 들어 있는 헤더 24개 전체**(`~/.nuget/packages/bblanchon.pdfium.win32/157.0.8100/build/native/include/pdfium/*.h`, `cpp/*.h`)를 직접 검색했다.
+- `Encrypt|SetSecurity|SetMeta|SetInfo|SetPassword|SetDocPerm|SetPermission|SetUserPass|SetOwnerPass|AddMeta|WriteMeta|SetTitle|SetAuthor` 검색: **일치 0건.**
+- 보안 관련은 `FPDF_REMOVE_SECURITY`(저장 플래그, `fpdf_save.h`)와 읽기용 함수뿐. OC/OCG/Layer 이름도 0건(V7 재확인).
+- **판정: PDFium 157에는 암호 설정·메타데이터 쓰기 API가 없다.** 암호 걸기·문서 정보(제목·작성자) 수정은 PDFsharp 후처리로만 가능하며 M1 범위 밖이다(사용자 결정 사항으로 유지).
 
 ## V7 — 레이어(Optional Content) 전환 API
 - fpdfview.h, fpdf_doc.h, fpdf_edit.h, fpdf_save.h에서 OC/OCG/Layer/OptionalContent 이름의 함수는 **없음** (fpdf_edit.h의 `FPDFPageObj_GetMarkedContentID`는 마크드 콘텐츠 ID 조회일 뿐 가시성 전환이 아님).
@@ -56,3 +62,106 @@ PDFium 157 (bblanchon/pdfium-binaries, 소스 브랜치 chromium/8100) 기준. �
 - **주석 인쇄 규칙:** `FPDF_PRINTING` 플래그를 쓰면 주석 플래그의 **Print 비트(4)가 없는 주석은 PDFium이 그리지 않는다**(같은 파일을 화면용으로 렌더하면 그려짐). 앱이 만드는 주석(M2~)은 반드시 Print 플래그를 켜야 인쇄된다. 주석 제외 옵션은 `FPDF_ANNOT`을 빼서 구현했고 흰 쪽이 나온다.
 - **A1 도면을 A4(Microsoft Print to PDF 기본 용지)에 맞춤 인쇄:** 가로형 A1(2383.9×1683.8pt)이 세로 A4(595.3×841.9pt)에서 자동 회전(Rotate=1)되어 가로·세로 모두 용지에 꽉 맞고(비율 유지, 가운데) 잘림 없음. 주석 포함 시 스티커 메모 아이콘이 회전된 위치(왼쪽 위)에 보이고, 제외 시 사라짐. 실제 크기(ActualSize)는 A1 가운데 부분만 A4에 잘려 나온다(설계대로).
 - **검증 필요(사용자 수동 확인):** 실제 Win32 인쇄 대화상자(`PrintDlgExW`: 프린터 선택, 페이지 범위·현재 페이지, 매수/한 부씩, 파일로 인쇄 체크)와 실제 프린터 출력은 자동 테스트·합성 입력 없이 확인하지 못했다. 쪽 범위·현재 쪽 해석(`PD_PAGENUMS`/`PD_CURRENTPAGE`)은 코드만 작성됨.
+
+## V5 — PDFium 배포 조건 (Task 18, 2026-10-16)
+**상태: 조사 결과만 정리. 최종 판단(재배포 가능 여부, 어떤 고지를 함께 줄지)은 사용자 결정 사항이다.**
+
+방법: 릴리스 압축 파일은 **내려받지 않았다**(사용자 규칙). 이미 디스크에 있는 NuGet 패키지 `bblanchon.PDFium.Win32` 157.0.8100의 파일과, 웹 조회(pdfium 소스 `LICENSE`, `third_party/` 목록, pdfium-binaries의 `steps/08-licenses.sh`·README·릴리스 페이지)로 확인했다.
+
+### 확인한 사실
+1. **NuGet 패키지 안에는 라이선스 파일이 없다.** 파일 목록: `.nuspec`, `README.md`, `icon.png`, `build/native/include/pdfium/*.h`(헤더), `build/native/lib/*/pdfium.dll.lib`, `runtimes/win-{x64,x86,arm64}/native/pdfium.dll`. `LICENSE`·`NOTICE`·`licenses/` 없음. nuspec의 `license`는 `Apache-2.0`(식 표기)이고 저작권은 "Copyright © Benoît Blanchon 2017-2025"(래퍼/빌드 저작권)이다.
+2. **PDFium 자체 라이선스(`LICENSE`, chromium/8100):** 첫 줄 `Copyright 2014 The PDFium Authors`, 앞부분은 BSD 3조항 형식의 문구("Redistribution and use in source and binary forms…"), 뒤에 Apache License 2.0 전문이 이어진다고 조회 도구가 답했다. *(검증 필요: 조회 도구가 요약해 준 것이라 원문 그대로인지, BSD와 Apache가 정말 둘 다 들어 있는지는 원문 파일을 직접 열어 확인해야 한다.)*
+3. **pdfium-binaries 릴리스 압축 파일에는 `licenses/` 폴더가 들어간다**(빌드 스크립트 `steps/08-licenses.sh`가 `staging/licenses/`에 만든다). 항상 `pdfium.txt`(PDFium 라이선스)를 쓰고, `build.ninja`에서 찾은 서드파티마다 한 파일씩 만든다. 스크립트가 아는 목록: abseil, agg23, bigint, catapult, cpu_features, dragonbox(Apache2-LLVM + Boost 두 파일), fast_float, fp16, freetype(`FTL.TXT`), harfbuzz, highway, icu, lcms, libpng, libjpeg_turbo(`.md`와 `.ijg`), libopenjpeg, libtiff, libunwind, llvm-libc, simdutf, zlib (+ V8 빌드 때만 v8·fdlibm·strongtalk, musl 빌드 때만 musl). **이 중 win-x64 157.0.8100 빌드에 실제로 들어간 것은 압축 파일을 열어 보기 전에는 모른다** (스크립트는 "실제 쓰인 것만" 만든다).
+4. **NuGet 패키지 ≠ 릴리스 압축 파일.** 앱이 쓰는 `pdfium.dll`은 NuGet 패키지 것인데, 라이선스 폴더는 릴리스 압축 파일에만 있다(같은 빌드라고 가정한 것이며 **검증 필요**: NuGet의 dll과 릴리스 `bin/pdfium.dll`이 같은 파일인지 해시 비교는 하지 않음).
+5. pdfium 소스 `third_party/`에는 agg23, bigint, cpu_features, dragonbox, fast_float, fp16, freetype, googletest, harfbuzz, highway, lcms, libopenjpeg, libtiff, llvm-libc, NotoSans(Bengali·CJK) 폰트가 있다. 릴리스 변경 기록에는 Skia·libyuv·Brotli·Skrifa(Rust)·AGG 언급이 있다(번들 여부와 라이선스는 확인하지 못함).
+
+### 배포 때 필요할 것 (후보 — 최종 확정 아님)
+- PDFium 라이선스 원문(`pdfium.txt`)과 저작권 표시 "Copyright 2014 The PDFium Authors".
+- 실제 포함된 서드파티마다 각각의 라이선스 원문 (릴리스 압축 파일의 `licenses/` 폴더를 그대로 앱과 함께 배포하는 것이 가장 간단하다).
+- 앱의 `THIRD-PARTY-NOTICES.md`(출력 폴더에 복사됨, "정보 → 타사 고지 보기"로 열림)에 구성 요소 목록 유지.
+
+### 사용자 확인 필요 (MIT·BSD·Apache·OFL 밖의 허용형 라이선스 후보)
+아래는 이름만 보고 분류한 것이며(일반 지식, **검증 필요**), 실제 원문은 압축 파일을 받아야 읽을 수 있다.
+| 구성 요소 | 라이선스(추정) | 비고 |
+|---|---|---|
+| FreeType | FTL (또는 GPLv2 선택) | 스크립트가 `FTL.TXT`를 쓰므로 FTL 선택. 고지 조항(문서에 FreeType 사용 표기) 있음 |
+| libjpeg-turbo | BSD-3 + IJG + zlib | `.ijg` 파일 동봉 |
+| zlib, libpng | zlib 라이선스, libpng 라이선스 | 허용형 |
+| ICU | Unicode 라이선스 | 허용형 |
+| libtiff, AGG(agg23), bigint, dragonbox(Boost) | 각자의 허용형 | 원문 확인 필요 |
+| lcms2, OpenJPEG, HarfBuzz, abseil, highway, fast_float 등 | MIT / BSD / Apache 계열 | 기준 안 |
+
+### 막힌 부분 (다운로드 없이는 진행 불가)
+- 필요한 파일: pdfium-binaries 릴리스 `chromium/8100`의 Windows x64 압축 파일(`pdfium-win-x64.tgz`, 크기는 릴리스 페이지 목록이 로드되지 않아 확인하지 못함), 출처 https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F8100. 받으면 전용 빈 폴더에 풀고(실행하지 않음) `licenses/` 목록으로 "실제 포함 서드파티"와 원문을 확정할 수 있다. 사용자 승인 전에는 받지 않았다.
+
+### 열린 질문 (사용자 결정)
+1. 위 압축 파일을 내려받아 `licenses/`를 확인해도 되는가?
+2. PDFium 라이선스와 서드파티 고지(FTL·IJG 등 포함)를 앱 배포물에 함께 넣는 방식으로 진행해도 되는가(회사 법무 확인이 필요한가)?
+
+## 성능 측정 (Task 18, 2026-10-16)
+`PdfEditor.App.exe --bench <pdf> --out <json>` (Release, 이 PC: Windows 11, 12 논리 코어, 기본 창 크기 → 뷰포트 782×581 px). 입력 장치는 쓰지 않고, 문서 화면이 프레임을 그릴 때마다(`DocumentView.RenderCount` 증가) 스크롤 위치를 직접 바꾸며 `LastCoverage`(아무 그림으로 덮인 비율)와 `LastExactCoverage`(현재 배율 타일로만 덮인 비율)를 읽는다. 원본 JSON은 `spikes/out/m1-bench-a1*.json`, `m1-bench-300*.json`(저장소에 커밋되지 않음). 목표는 조정하지 않았다.
+
+| 항목 | 목표 | A1 도면 (3회) | 300쪽 (2회) | 판정 |
+|---|---|---|---|---|
+| 512 타일 렌더 p95 | ≤ 100 ms | 46.8 / 49.8 / 48.0 ms (p50 약 40, 최대 47~50) | 3.4 ms (p50 2.4, 최대 5.3) | 통과 |
+| A1 첫 화면(현재 배율 타일로 다 덮임) | ≤ 0.5 s | **0.70 / 0.71 / 0.71 s** | (참고) 0.16 s | **미달** |
+| 300쪽 100%로 끝까지 | ≤ 3 s | — | 1/180 길이씩 프레임마다: **3.02 s** (181프레임, 회색 0%); 뷰포트 1장씩: 7.35 s; 뷰포트 1/4씩: 29.3 s | 경계 (아래 설명) |
+| 최대 작업 집합 | < 400 MB | 286 MB | **424 MB** (423.9 / 423.9) | **미달 (6%)** |
+| 프레임 평균 회색 비율 | ≤ 2 % | (참고) 100%에서 스크롤 34%, 한 장씩 47% | 세 방식 모두 **0 %** | 통과(300쪽) |
+| 회색 연속 최대 | ≤ 250 ms | (참고) 100 ms / 33 ms | **0 ms** | 통과(300쪽) |
+
+- 회색 비율은 프레임의 "뷰포트 안 페이지 면적 중 아무 그림으로도 안 덮인 비율"(1 − `LastCoverage`)이고, 8px 격자 표본이다. "현재 배율 타일로만" 기준(흐릿한 대체 그림도 회색으로 침)은 300쪽 1/4 스크롤 0 %, 한 장씩 0 %, 3초 속도 1.1 %.
+- **A1 첫 화면 0.7 s (미달)의 내역:** 열기 약 70 ms → 첫 쪽이 화면에 그려짐 약 145 ms → 첫 타일 렌더 완료 약 300 ms(PDFium 페이지 로드 약 180 ms + 타일 약 40 ms) → 나머지 보이는 타일을 한 장씩(약 40 ms) 순서대로 그려 약 700 ms에 완료. 타일마다 페이지 내용 전체를 다시 해석하고 PDFium은 한 스레드뿐이라 타일 수에 비례한다.
+  - **"썸네일로 먼저 덮이는 시간"**: 앱에서 직접 재지 못했다(타일이 썸네일보다 우선이라 썸네일이 먼저 나오지 않고, "아무 그림으로 덮임" = "현재 배율로 덮임" 시각이 같게 나옴). 참고 수치는 S4 스파이크: A1 한 쪽 전체를 0.25배로 그리는 데 309 ms → 썸네일을 먼저 그려도 0.5 s 안에 덮이긴 하나(페이지 로드 180 ms + 309 ms ≈ 0.49 s) 여유가 거의 없다. **검증 필요.**
+  - 대안(조정하지 않고 제안만): ① 첫 화면은 뷰포트 전체를 낮은 해상도 한 장으로 먼저 그리고 타일로 교체, ② 같은 페이지의 타일들을 한 번의 페이지 해석으로 이어서 렌더(PDFium 페이지 로드 재사용 방식 검토), ③ 목표를 "0.8 s"로 현실화(사용자 결정).
+- **300쪽 3초 해석:** 프레임이 60 fps(16.7 ms)로 고정이라 스크롤 속도가 프레임 수로 정해진다. 위 3.02 s는 "길이의 1/180씩 프레임마다"로 맞춘 속도에서 끝까지 3.02 s 걸렸고 그동안 회색이 0 %였다는 뜻이다(렌더가 이 속도를 따라감). 더 빠른 속도에서의 한계는 재지 않았다. 참고: S4 스파이크 렌더 처리량은 쪽당 3.8 ms(300쪽 1.25 s).
+- **작업 집합 424 MB (미달)의 원인 추정(검증 필요):** 타일 캐시 한도 160 MB + 왼쪽 썸네일 캐시 32 MB + 뷰 썸네일 캐시 32 MB + .NET·Avalonia·Skia 기본 사용량 + 타일 렌더 결과 바이트 배열과 비트맵의 일시 중복. 대안: 타일 캐시 한도를 약 100 MB로 낮춤(회색 비율 영향은 다시 재야 함), 비트맵 생성 뒤 원본 배열 즉시 반환.
+- 한계: 창이 작다(782×581). 더 큰 창에서는 보이는 타일이 늘어 A1 첫 화면이 더 오래 걸릴 수 있다. 프레임 시각은 `RenderCount` 기준이라 모니터 주사율(여기서는 약 60 Hz)에 묶인다. 측정 중 PC의 다른 작업은 통제하지 않았다.
+- 처음 만든 측정은 `RequestAnimationFrame`을 썼는데, 이 환경에서는 한 번 그리기 사이에 콜백이 수십 번 연달아 불려 프레임 시각이 무의미했다(첫 화면 1초로 잘못 나옴). `DocumentView.RenderCount` 방식으로 바꿔 재측정했고, 위 수치는 모두 바뀐 방식의 것이다.
+
+## 전체 테스트 (Task 18)
+`dotnet test PdfEditor.sln` 3회 연속(2026-10-16): 매번 실패 0 — Pdf.Native 56, Document 47, Pages 40, App 163, spikes 15(S1 3, S2 5, S3 5, S4 2). 크래시 0, 빌드 경고 0. `SettingsStoreTests.Settings_Recent_MaxTenNoDuplicates`는 가끔 실패하던 테스트이며(Task 13·14에서 관찰) Task 17에서 `LoadCore`에 IOException 재시도를 넣었다. 이번 3회와 이후 실행에서 재발하지 않았지만 **원인이 확인된 것은 아니다**(검증 필요; 재발 여부는 계속 지켜볼 것).
+
+## 알려진 한계 (M1)
+- 병합은 책갈피를 가져오지 않는다 (PDFium `FPDF_ImportPagesByIndex` 한계로 추정, 검증 필요).
+- 삭제한 뒤 되살린(실행 취소) 페이지를 가리키던 책갈피는 끊길 수 있다.
+- 텍스트 선택은 한 쪽 안에서만 된다. 빈 곳에서 시작한 드래그는 처음 닿은 글자부터 선택된다.
+- 썸네일을 끌어서 순서를 바꾸는 기능은 없다 (위치 지정·위로·아래로 명령으로 대체).
+- 레이어는 목록 표시만 되고 표시/숨김 전환은 2차로 미뤘다 (PDFium에 API 없음, 사용자 결정).
+- 앱이 만드는 주석(M2~)은 반드시 Print 플래그(비트 4)를 켜야 인쇄된다 (`FPDF_PRINTING`은 Print 비트가 없는 주석을 그리지 않음).
+- 복구 파일(M2~)은 PDFium 상태만 담는다. M2에서 주석 모델도 함께 기록해야 한다.
+- 암호화된 PDF를 PDFsharp로 후처리하려면 소유자 암호가 필요하다 (V6 발견; 사용자 암호만 알면 후처리 불가).
+- 100% 배율 = 1 px/pt이다 (실제 화면 크기는 약 133%에 해당). 이대로 둘지 사용자 결정 필요.
+- 주석 탭 버튼이 약 30개라 설계서 5.1절("탭당 10~15개, 나머지 더보기")과 충돌한다 → M2 계획 때 결정.
+- 빌드 함정: `dotnet build src/PdfEditor.App`는 `bin/Debug`, 솔루션 빌드는 `bin/x64/Debug`에 만든다. 오래된 쪽을 실행하기 쉽다(솔루션 빌드가 앱을 다시 컴파일하지 않은 적도 있음 — Task 14).
+- 벤치 모드(`--bench`)로 시작하면 설정·복구 폴더를 임시 폴더로 바꾸고 명령줄의 PDF를 일반 열기로 열지 않는다.
+
+## 사용자 직접 확인 필요 (자동 테스트·합성 입력으로 확인하지 못한 것)
+- 실제 마우스·키보드 조작: Ctrl+휠 확대(커서 위치 고정), 손 도구 끌기, PageUp/PageDown, 한 쪽씩 보기, 슬라이더, 커서 mm 표시, Ctrl+C 복사와 "복사 제한" 안내, F3/Shift+F3, Ctrl+F, 썸네일 Delete 키·오른쪽 클릭 메뉴·Ctrl/Shift 다중 선택.
+- 대화상자 실물: 열기/저장 파일 선택창, 암호 입력창, 저장 확인창, 쪽 삽입·이동·병합 창, 환경 설정 창, 정보 창(타사 고지 보기 단추), 복구 창의 모양, 첨부 파일 "저장" 단추, 드래그 앤 드롭 열기, 최근 문서 목록, 창 닫을 때 저장 확인.
+- 인쇄: 실제 Win32 인쇄 창(`PrintDlgExW`) — 프린터 선택, 현재 쪽·쪽 범위, 매수·한 부씩, 파일로 인쇄; 취소; 실제 프린터 출력(용지·여백·방향, A1 플로터 포함). 다른 프린터 드라이버에서 HDC를 다른 스레드에서 쓰는 방식이 되는지.
+- 다른 뷰어에서 보기: 페이지 편집 후 저장한 파일(+ 병합 문서)을 Acrobat·PDF-XChange·Chrome에서 열어 `docs/checklists/viewer-compat.md`의 M1 표를 채우기.
+- 화면 모양: 창 제목 글자·⤡ 버튼 처리, 창 끌어 이동, Mica 적용 여부, 선택 강조색이 시스템 강조색(#005FB8이 아님), 첨부 목록 행 배치, 비활성 단추 모양.
+- 제한 문서(소유자 제한·암호)로 패널·복사·인쇄·편집 제한 막대 동작, 책갈피 목적지가 없는 항목, 아주 큰 책갈피, 큰 문서에서 검색 중 스크롤.
+- 복구 타이머 실제 간격 동작(첫 시도에서 1분 안에 기록이 안 보인 적 있음), 설정 창 열기.
+- 상세한 확인 조건은 각 Task 보고서(`.superpowers/sdd/2026-10-15-m1-viewer-pages-print-panels/task-N-report.md`)의 "NOT verified" 항목.
+
+## 사용자 검수 요청 (M1) — 쉬운 설명
+**1. 앱 실행 방법**
+- 탐색기에서 `D:\INBOX_WP\95. Claude\PDF EDITOR\src\PdfEditor.App\bin\Release\net10.0-windows\win-x64\PdfEditor.App.exe`를 더블클릭하세요. (먼저 터미널에서 `dotnet build src/PdfEditor.App -c Release`를 한 번 실행해야 이 파일이 최신이 됩니다. 터미널이 어려우면 저에게 "빌드해 줘"라고만 말씀하세요.)
+- 또는 폴더에서 `dotnet run -c Release --project src/PdfEditor.App -- 열고싶은파일.pdf` 를 실행해도 됩니다.
+- 시험용 큰 파일: `spikes/out/bench-a1-drawing.pdf`(A1 도면 1장), `spikes/out/bench-a4-300pages.pdf`(300쪽). 회사 도면 같은 실제 파일로도 꼭 열어 보세요(원본은 건드리지 말고 사본으로).
+
+**2. 확인해 주세요 (되면 ○, 이상하면 한 줄 메모)**
+1. 열기·보기: 파일 열기(끌어다 놓기 포함), 확대·축소(Ctrl+마우스 휠), 스크롤할 때 회색 빈칸이 눈에 띄는지, 다 열렸을 때 체감 속도. 특히 A1 도면 첫 화면이 "조금 기다린다"고 느껴지는지(측정으로는 0.7초, 목표는 0.5초).
+2. 페이지 편집: 삭제·회전·이동·빈 페이지 삽입·다른 PDF에서 삽입·병합, 실행 취소/다시 실행. 저장한 뒤 **Acrobat이나 크롬에서 열어** 쪽 순서와 회전이 맞는지.
+3. 인쇄: Ctrl+P → 인쇄 창이 뜨는지, "현재 쪽"·"쪽 범위"가 맞게 나오는지, 실제 프린터(또는 PDF로 인쇄)로 용지에 맞게 나오는지.
+4. 패널: 왼쪽 썸네일·책갈피·첨부·레이어(보기만)·검색, 오른쪽 문서 속성. 검색 결과 클릭 이동, 글자 드래그 선택 후 Ctrl+C.
+5. 저장·복구: 편집 후 저장(원본이 다른 프로그램에서 열려 있으면 "사용 중" 안내), 편집 중 작업 관리자로 앱을 강제 종료한 뒤 다시 켜면 복구 창이 뜨는지. 파일 메뉴 → 정보 → "타사 고지 보기".
+
+**3. 결정해 주셔야 하는 것**
+1. **V5 라이선스(가장 중요):** PDFium을 앱과 함께 배포할 때 라이선스 원문을 함께 줘야 합니다. 정확한 구성은 릴리스 압축 파일(`pdfium-win-x64.tgz`)의 `licenses/` 폴더를 열어 봐야 확정됩니다. ① 그 파일을 내려받아도 되나요(전용 폴더에 풀기만 하고 실행하지 않습니다)? ② 일부 구성 요소(FreeType의 FTL, libjpeg-turbo의 IJG 등)는 MIT·BSD·Apache 밖의 허용형 라이선스입니다. 회사에서 쓰는 데 문제없는지 확인이 필요하면 법무에 물어볼 자료로 `THIRD-PARTY-NOTICES.md`를 쓰시면 됩니다.
+2. **성능 목표 두 가지 미달:** A1 첫 화면 0.7초(목표 0.5초), 300쪽 작업 메모리 424 MB(목표 400 MB). 목표를 낮출지, 개선 작업(위 대안)을 M2 앞에 넣을지.
+3. **100% 배율 기준:** 지금은 PDF 1pt = 화면 1px(실제 크기보다 작게 보임, 실제 크기는 약 133%). 이대로 둘지, "실제 크기"를 100%로 바꿀지.
+4. **레이어 켜고 끄기**는 2차로 미룬 것(이미 결정)을 유지할지 재확인.
+5. **주석 탭 버튼 수(약 30개 vs 설계서 10~15개)**는 M2 계획 때 다시 묻겠습니다.
