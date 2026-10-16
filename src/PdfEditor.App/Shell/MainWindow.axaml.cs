@@ -8,6 +8,7 @@ using Avalonia.Platform.Storage;
 using Pdf.Native;
 using PdfEditor.App.Dialogs;
 using PdfEditor.App.Settings;
+using PdfEditor.Document.Recovery;
 using PdfEditor.Document.Saving;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
@@ -20,6 +21,17 @@ public sealed partial class MainWindow : Window
     private readonly PdfiumThread _pdfium = new();   // 앱 전체에서 PdfiumThread는 하나
     private bool _exitConfirmed;
     private MenuItem _recentMenu = null!;
+    private readonly SettingsStore _settings;
+    private readonly RecoveryCoordinator _recovery;
+
+    private async Task ShowPreferencesAsync()
+    {
+        int? minutes = await new SettingsDialog(_settings.Load().RecoveryIntervalMinutes).ShowDialog<int?>(this);
+        if (minutes is null) return;
+        try { _settings.Save(_settings.Load() with { RecoveryIntervalMinutes = minutes.Value }); }
+        catch (Exception) { return; }
+        _recovery.Reschedule();
+    }
 
     public MainWindow() : this([]) { }
 
@@ -31,14 +43,30 @@ public sealed partial class MainWindow : Window
         FileTabButton.Flyout = BuildFileMenu();
 
         var prompts = new AvaloniaPrompts(this);
-        _vm.AttachWorkflow(new FileWorkflow(_pdfium, new SaveService([]), new SettingsStore(SettingsStore.DefaultPath), prompts), prompts);
+        _settings = new SettingsStore(SettingsStore.DefaultPath);
+        var workflow = new FileWorkflow(_pdfium, new SaveService([]), _settings, prompts);
+        _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts));
+        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(RecoveryStore.DefaultFolder), _settings,
+            new AvaloniaRecoveryUi(this), prompts);
+        _recovery.Attach(workflow);
+        _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
 
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
         // 명령줄 인자로 받은 파일은 창이 뜬 뒤에 연다.
-        if (startupFiles.Count > 0) Opened += async (_, _) => await _vm.OpenManyAsync(startupFiles);
+        // 먼저 이전에 남은 복구 항목을 묻고, 그다음 명령줄 파일을 연다(같은 파일이면 복구한 탭으로 전환됨).
+        Opened += async (_, _) =>
+        {
+            try
+            {
+                foreach (var s in await _recovery.RecoverAtStartupAsync()) _vm.ShowSession(s);
+            }
+            catch (Exception) { /* 복구 실패가 시작을 막지 않는다 */ }
+            _recovery.Start(() => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => workflow.OpenSessions).GetTask());
+            if (startupFiles.Count > 0) await _vm.OpenManyAsync(startupFiles);
+        };
 
         _vm.ExitRequested += (_, _) => Close();
         // 패널이 막 보이게 된 직후라서 레이아웃 뒤에 초점을 준다.
@@ -142,6 +170,7 @@ public sealed partial class MainWindow : Window
         if (await _vm.ConfirmExitAsync())
         {
             _exitConfirmed = true;
+            _recovery.Dispose();
             _pdfium.Dispose();
             Close();
         }

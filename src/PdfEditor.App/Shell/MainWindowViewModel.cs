@@ -73,6 +73,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     /// <summary>끝내기 명령이 실행되면 창이 닫는다.</summary>
     public event EventHandler? ExitRequested;
+    public event EventHandler? PreferencesRequested;
 
     /// <summary>찾기 명령이 검색 패널을 열었다. 창이 검색어 입력칸에 초점을 준다.</summary>
     public event EventHandler? FocusSearchRequested;
@@ -226,6 +227,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var session = await _workflow.OpenAsync(path);
         if (session is not null) Activate(session);
     }
+
+    /// <summary>다른 곳에서 열린 세션(복구 등)을 탭으로 보여 준다.</summary>
+    public void ShowSession(PdfEditor.Document.DocumentSession session) => Activate(session);
 
     private void Activate(PdfEditor.Document.DocumentSession session)
     {
@@ -449,7 +453,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift), _saveAsCommand);
         _printCommand = new AsyncRelayCommand(PrintActiveAsync, CanPrintActive);
         Reg("file.print", Strings.Cmd_Print, "print", G(Key.P), _printCommand);
-        Reg("file.prefs", Strings.Cmd_Preferences, null);
+        Reg("file.prefs", Strings.Cmd_Preferences, null, null, new RelayCommand(() => PreferencesRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.about", Strings.Cmd_About, null);
         Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
         Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z), PageCmd(p => p.UndoCommand));

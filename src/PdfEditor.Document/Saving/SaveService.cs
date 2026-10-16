@@ -51,7 +51,11 @@ public sealed class SaveService(IReadOnlyList<ISavePostProcessor> postProcessors
             try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
             throw new SaveException(stage, e);
         }
-        s.MarkSaved(targetPath);
+        // 저장한 파일의 해시를 새 "원본"으로 기록한다(복구 때 원본이 바뀌었는지 가리는 기준).
+        byte[]? sha = null;
+        try { sha = System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(targetPath, ct).ConfigureAwait(false)); }
+        catch (Exception) { /* 해시를 못 구해도 저장은 성공 */ }
+        s.MarkSaved(targetPath, sha);
     }
 
     private static int[] CollectAnnotCounts(PdfDocument doc)

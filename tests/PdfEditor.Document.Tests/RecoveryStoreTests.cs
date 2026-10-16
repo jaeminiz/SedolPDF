@@ -1,0 +1,122 @@
+using System.Security.Cryptography;
+using Pdf.Native;
+using PdfEditor.Document.Recovery;
+using PdfEditor.Document.Saving;
+using PdfEditor.Pages;
+using PdfEditor.TestFixtures;
+
+namespace PdfEditor.Document.Tests;
+
+public class RecoveryStoreTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "pdfeditor-rec-" + Guid.NewGuid().ToString("N"));
+    private readonly PdfiumThread _t = new();
+
+    public RecoveryStoreTests() => Directory.CreateDirectory(_dir);
+
+    public void Dispose()
+    {
+        _t.Dispose();
+        try { Directory.Delete(_dir, true); } catch { }
+    }
+
+    private string P(string name) => Path.Combine(_dir, name);
+    private RecoveryStore Store() => new(P("recovery"));
+
+    private async Task<DocumentSession> OpenDirty(string name, int pages = 3)
+    {
+        string p = P(name);
+        TestPdfFactory.CreateBlank(p, pages, 300, 400);
+        var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.Commands.ExecuteAsync(new DeletePagesCommand([s.Pages[0].Id]));
+        return s;
+    }
+
+    [Fact]
+    public async Task Write_List_Delete_RoundTrip()
+    {
+        await using var s = await OpenDirty("a.pdf");
+        var store = Store();
+        await store.WriteAsync(s);
+
+        var list = store.List();
+        var e = Assert.Single(list);
+        Assert.Equal(s.Id, e.SessionId);
+        Assert.Equal(s.FilePath, e.OriginalPath);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(P("a.pdf")))), e.OriginalSha256Hex);
+        Assert.Equal("a.pdf", e.DisplayName);
+        Assert.True(File.Exists(e.RecoveryPdfPath));
+        Assert.Empty(Directory.GetFiles(P("recovery"), "*.tmp"));
+        // 복구본에는 변경(2쪽)이 들어 있다
+        await using (var r = await DocumentSession.OpenAsync(_t, e.RecoveryPdfPath, null))
+            Assert.Equal(2, r.Pages.Length);
+
+        await store.WriteAsync(s);   // 덮어쓰기도 항목은 하나
+        Assert.Single(store.List());
+
+        store.Delete(s.Id);
+        Assert.Empty(store.List());
+        Assert.Empty(Directory.GetFiles(P("recovery")));
+        store.Delete(s.Id);          // 없는 항목 삭제는 조용히 넘어감
+    }
+
+    [Fact]
+    public async Task List_SkipsCorruptJsonAndMissingPdf()
+    {
+        await using var s1 = await OpenDirty("a.pdf");
+        await using var s2 = await OpenDirty("b.pdf");
+        await using var s3 = await OpenDirty("c.pdf");
+        var store = Store();
+        await store.WriteAsync(s1);
+        await store.WriteAsync(s2);
+        await store.WriteAsync(s3);
+        File.WriteAllText(Path.Combine(P("recovery"), s1.Id.ToString("N") + ".json"), "{not json");
+        File.Delete(Path.Combine(P("recovery"), s2.Id.ToString("N") + ".pdf"));
+
+        var list = store.List();
+        Assert.Equal(s3.Id, Assert.Single(list).SessionId);
+        Assert.Empty(new RecoveryStore(P("nowhere")).List());
+    }
+
+    [Fact]
+    public async Task Write_DoesNotTouchOriginal()
+    {
+        await using var s = await OpenDirty("a.pdf");
+        byte[] before = SHA256.HashData(File.ReadAllBytes(P("a.pdf")));
+        var stamp = File.GetLastWriteTimeUtc(P("a.pdf"));
+        await Store().WriteAsync(s);
+        Assert.Equal(before, SHA256.HashData(File.ReadAllBytes(P("a.pdf"))));
+        Assert.Equal(stamp, File.GetLastWriteTimeUtc(P("a.pdf")));
+        Assert.True(s.IsDirty);
+    }
+
+    [Fact]
+    public async Task Write_AfterSave_RecordsHashOfSavedFile()
+    {
+        await using var s = await OpenDirty("a.pdf");
+        await new SaveService([]).SaveAsync(s, P("a.pdf"));
+        await s.Commands.ExecuteAsync(new DeletePagesCommand([s.Pages[0].Id]));
+        var store = Store();
+        await store.WriteAsync(s);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(P("a.pdf")))), store.List()[0].OriginalSha256Hex);
+    }
+
+    [Fact]
+    public async Task OpenRecovered_BindsAndIsDirty()
+    {
+        await using var s = await OpenDirty("a.pdf");
+        var store = Store();
+        await store.WriteAsync(s);
+        var e = store.List()[0];
+
+        await using var bound = await DocumentSession.OpenRecoveredAsync(_t, e, true, null);
+        Assert.Equal(P("a.pdf"), bound.FilePath);
+        Assert.Equal("a.pdf", bound.DisplayName);
+        Assert.True(bound.IsDirty);
+        Assert.Equal(2, bound.Pages.Length);
+
+        await using var unbound = await DocumentSession.OpenRecoveredAsync(_t, e, false, null);
+        Assert.Null(unbound.FilePath);
+        Assert.True(unbound.IsDirty);
+    }
+}

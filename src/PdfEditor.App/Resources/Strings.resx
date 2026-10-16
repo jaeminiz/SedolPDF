@@ -229,5 +229,16 @@
   <data name="Dlg_PrintProgress" xml:space="preserve"><value>{0}/{1}쪽 인쇄 중</value></data>
   <data name="Msg_PrintRestricted" xml:space="preserve"><value>이 문서는 인쇄가 제한되어 있습니다.</value></data>
   <data name="Msg_PrintDone" xml:space="preserve"><value>인쇄 작업을 보냈습니다.</value></data>
+  <data name="Doc_Recovered" xml:space="preserve"><value>{0} (복구됨)</value></data>
+  <data name="Dlg_RecoveryTitle" xml:space="preserve"><value>작업 복구</value></data>
+  <data name="Dlg_RecoveryMessage" xml:space="preserve"><value>이전에 정상적으로 닫히지 않은 문서가 있습니다. 항목마다 복구할지 버릴지 고르세요.</value></data>
+  <data name="Dlg_RecoveryItem" xml:space="preserve"><value>{0}  ({1:yyyy-MM-dd HH:mm} 저장)</value></data>
+  <data name="Dlg_RecoveryRestore" xml:space="preserve"><value>복구</value></data>
+  <data name="Dlg_RecoveryDiscard" xml:space="preserve"><value>버리기</value></data>
+  <data name="Dlg_RecoveryLater" xml:space="preserve"><value>나중에</value></data>
+  <data name="Msg_RecoveryOriginalChanged" xml:space="preserve"><value>원본 파일이 바뀌었거나 없어서 복구본을 제목 없는 문서로 열었습니다. 다른 이름으로 저장하세요.</value></data>
+  <data name="Dlg_SettingsTitle" xml:space="preserve"><value>환경 설정</value></data>
+  <data name="Dlg_SettingsRecoveryInterval" xml:space="preserve"><value>자동 복구 저장 간격(분)</value></data>
+  <data name="Dlg_SettingsRecoveryHint" xml:space="preserve"><value>1~60분. 변경한 문서만 이 간격으로 복구 파일에 기록합니다.</value></data>
   <data name="Msg_PrintFailed" xml:space="preserve"><value>인쇄하지 못했습니다. 프린터 상태를 확인하세요.</value></data>
 </root>

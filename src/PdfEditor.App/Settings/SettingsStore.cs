@@ -9,7 +9,9 @@ public sealed class SettingsStore(string filePath)
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     private readonly object _gate = new();
 
+    /// <summary>환경 변수 PDFEDITOR_SETTINGS_PATH가 있으면 그 파일(수동 확인·테스트용), 없으면 %APPDATA%\PdfEditor\settings.json.</summary>
     public static string DefaultPath =>
+        Environment.GetEnvironmentVariable("PDFEDITOR_SETTINGS_PATH") is { Length: > 0 } over ? over :
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfEditor", "settings.json");
 
     public AppSettings Load()
@@ -22,14 +24,25 @@ public sealed class SettingsStore(string filePath)
         try
         {
             if (!File.Exists(filePath)) return AppSettings.Default;
-            var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(filePath));
+            var s = JsonSerializer.Deserialize<AppSettings>(ReadAllTextWithRetry(filePath));
             if (s is null) return AppSettings.Default;
-            int minutes = s.RecoveryIntervalMinutes > 0 ? s.RecoveryIntervalMinutes : AppSettings.Default.RecoveryIntervalMinutes;
+            int minutes = s.RecoveryIntervalMinutes >= 1 ? Math.Min(s.RecoveryIntervalMinutes, 60) : AppSettings.Default.RecoveryIntervalMinutes;
             return new AppSettings(s.RecentFiles ?? [], minutes);
         }
         catch (Exception)
         {
             return AppSettings.Default;
+        }
+    }
+
+    // 방금 교체한 파일을 바이러스 검사기·색인기가 잠시 잡고 있으면 읽기가 IOException으로 실패할 수 있다.
+    // 예전에는 이때 기본값을 돌려줘서 AddRecent가 최근 목록을 지워 버릴 수 있었다(추정: SettingsStoreTests가 한 번 실패한 원인, 재현은 못 함).
+    private static string ReadAllTextWithRetry(string path)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try { return File.ReadAllText(path); }
+            catch (IOException) when (attempt < 4 && File.Exists(path)) { Thread.Sleep(25 * (attempt + 1)); }
         }
     }
 

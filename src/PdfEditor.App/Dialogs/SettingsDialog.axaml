@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:res="using:PdfEditor.App.Resources"
+        x:Class="PdfEditor.App.Dialogs.SettingsDialog"
+        Title="{x:Static res:Strings.Dlg_SettingsTitle}"
+        SizeToContent="Height" Width="420"
+        CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="#F3F3F3">
+  <StackPanel Margin="24,20,24,16" Spacing="10">
+    <TextBlock Text="{x:Static res:Strings.Dlg_SettingsRecoveryInterval}" Foreground="#1A1A1A" />
+    <NumericUpDown x:Name="IntervalBox" Minimum="1" Maximum="60" Increment="1" FormatString="0" Width="140" HorizontalAlignment="Left" />
+    <TextBlock Text="{x:Static res:Strings.Dlg_SettingsRecoveryHint}" TextWrapping="Wrap" Foreground="#5E5E5E" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Ok}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    </StackPanel>
+  </StackPanel>
+</Window>

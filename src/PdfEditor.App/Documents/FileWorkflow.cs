@@ -49,6 +49,14 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
 
     public IReadOnlyList<string> RecentFiles => settings.Load().RecentFiles;
 
+    /// <summary>저장에 성공했을 때(자동 복구 파일 삭제용).</summary>
+    public event Action<DocumentSession>? Saved;
+    /// <summary>탭을 정상적으로 닫아 세션이 목록에서 빠질 때.</summary>
+    public event Action<DocumentSession>? Released;
+
+    /// <summary>열린 세션의 복사본. UI 스레드에서 부른다.</summary>
+    public IReadOnlyList<DocumentSession> OpenSessions => _open.ToList();
+
     /// <summary>다른 곳에서 만든 세션(병합 결과)을 열린 세션 목록에 넣는다.</summary>
     public void Adopt(DocumentSession s) => _open.Add(s);
 
@@ -103,7 +111,11 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
     }
 
     /// <summary>탭을 닫을 때 호출해 세션을 목록에서 뺀다. 세션 해제는 호출자가 한다.</summary>
-    public void Release(DocumentSession s) => _open.Remove(s);
+    public void Release(DocumentSession s)
+    {
+        _open.Remove(s);
+        Released?.Invoke(s);
+    }
 
     public async Task<bool> SaveAsync(DocumentSession s)
     {
@@ -133,6 +145,7 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
             return false;
         }
         try { settings.AddRecent(path); } catch (Exception) { }
+        Saved?.Invoke(s);
         return true;
     }
 

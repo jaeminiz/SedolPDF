@@ -52,7 +52,8 @@ public sealed class DocumentSession : IAsyncDisposable
     /// <summary>파일 이름, 또는 호출자가 정한 이름(새 문서). 화면 문구는 호출자가 리소스에서 가져와 넣는다.</summary>
     public string DisplayName { get; set; }
     public string? Password { get; }
-    public byte[]? OriginalSha256 { get; }
+    /// <summary>디스크에 있는 원본(열 때, 또는 마지막으로 저장한 뒤)의 SHA-256. 복구 때 원본이 바뀌었는지 가린다.</summary>
+    public byte[]? OriginalSha256 { get; private set; }
     public PdfiumThread Thread { get; }
     public PdfPermissions Permissions { get; }
     public bool IsEncrypted { get; }
@@ -87,8 +88,9 @@ public sealed class DocumentSession : IAsyncDisposable
     /// <summary>명령 스택 밖에서 만든 내용(병합 결과 등)을 저장 안 된 상태로 표시한다. 취소로 Version이 돌아와도 계속 변경됨.</summary>
     public void MarkModified() => _savedVersion = -1;
 
-    public void MarkSaved(string path)
+    public void MarkSaved(string path, byte[]? fileSha256 = null)
     {
+        if (fileSha256 is not null) OriginalSha256 = fileSha256;
         FilePath = path;
         DisplayName = Path.GetFileName(path);
         _savedVersion = Commands.Version;
@@ -106,6 +108,26 @@ public sealed class DocumentSession : IAsyncDisposable
             try { return new DocumentSession(t, doc, path, Path.GetFileName(path), password, sha); }
             catch { doc.Dispose(); throw; }
         }, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 복구본(RecoveryStore가 쓴 PDF)을 연다. OriginalSha256·DisplayName은 항목에서 가져오고,
+    /// bindToOriginal이면 FilePath = 원본 경로, 아니면 제목 없는 문서(FilePath null). 더티 상태로 시작한다.
+    /// </summary>
+    public static async Task<DocumentSession> OpenRecoveredAsync(PdfiumThread t, Recovery.RecoveryEntry e, bool bindToOriginal,
+        string? password, CancellationToken ct = default)
+    {
+        var bytes = await File.ReadAllBytesAsync(e.RecoveryPdfPath, ct).ConfigureAwait(false);
+        byte[]? sha = e.OriginalSha256Hex is { Length: > 0 } hex ? Convert.FromHexString(hex) : null;
+        string? path = bindToOriginal ? e.OriginalPath : null;
+        var s = await t.InvokeAsync(() =>
+        {
+            var doc = PdfDocument.OpenBytes(t, bytes, password);
+            try { return new DocumentSession(t, doc, path, e.DisplayName, password, sha); }
+            catch { doc.Dispose(); throw; }
+        }, ct).ConfigureAwait(false);
+        s.MarkModified();
+        return s;
     }
 
     public static Task<DocumentSession> CreateNewAsync(PdfiumThread t, float widthPt = 595.28f, float heightPt = 841.89f)

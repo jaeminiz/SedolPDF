@@ -5,6 +5,13 @@ using PdfEditor.App.Resources;
 
 namespace PdfEditor.App.Dialogs;
 
+/// <summary>시작 시 복구 질문의 실제 구현. (화면 동작은 검증 필요: 자동 테스트 없음)</summary>
+public sealed class AvaloniaRecoveryUi(Window owner) : IRecoveryUi
+{
+    public async Task<IReadOnlySet<Guid>?> ChooseAsync(IReadOnlyList<PdfEditor.Document.Recovery.RecoveryEntry> entries)
+        => await new RecoveryDialog(entries).ShowDialog<HashSet<Guid>?>(owner);
+}
+
 /// <summary>IUserPrompts의 실제 구현. 대화상자는 소유 창 위에 모달로 띄운다. (화면 동작은 검증 필요: 자동 테스트 없음)</summary>
 public sealed class AvaloniaPrompts(Window owner) : IUserPrompts
 {

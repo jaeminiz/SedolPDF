@@ -239,4 +239,15 @@ public static class Strings
     public static string Msg_PrintRestricted => Get(nameof(Msg_PrintRestricted));
     public static string Msg_PrintDone => Get(nameof(Msg_PrintDone));
     public static string Msg_PrintFailed => Get(nameof(Msg_PrintFailed));
+    public static string Doc_Recovered => Get(nameof(Doc_Recovered));
+    public static string Dlg_RecoveryTitle => Get(nameof(Dlg_RecoveryTitle));
+    public static string Dlg_RecoveryMessage => Get(nameof(Dlg_RecoveryMessage));
+    public static string Dlg_RecoveryItem => Get(nameof(Dlg_RecoveryItem));
+    public static string Dlg_RecoveryRestore => Get(nameof(Dlg_RecoveryRestore));
+    public static string Dlg_RecoveryDiscard => Get(nameof(Dlg_RecoveryDiscard));
+    public static string Dlg_RecoveryLater => Get(nameof(Dlg_RecoveryLater));
+    public static string Msg_RecoveryOriginalChanged => Get(nameof(Msg_RecoveryOriginalChanged));
+    public static string Dlg_SettingsTitle => Get(nameof(Dlg_SettingsTitle));
+    public static string Dlg_SettingsRecoveryInterval => Get(nameof(Dlg_SettingsRecoveryInterval));
+    public static string Dlg_SettingsRecoveryHint => Get(nameof(Dlg_SettingsRecoveryHint));
 }
