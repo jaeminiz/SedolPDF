@@ -65,6 +65,8 @@ public sealed class DocumentView : Control
     private PageLayout? _layout;
     private ImmutableArray<PageInfo> _layoutPages = [];
     private double _layoutViewportW = -1;
+    private TopLevel? _top;
+    private double _renderScaling = 1.0;   // Windows 화면 배율(125% = 1.25). 타일은 이만큼 더 촘촘히 그린다.
     private Point? _wheelAnchor;
     private bool _fromScroll;
     private double _navY = double.NaN;
@@ -110,11 +112,14 @@ public sealed class DocumentView : Control
         base.OnAttachedToVisualTree(e);
         _sv = this.FindAncestorOfType<ScrollViewer>();
         if (_sv is not null) _sv.ScrollChanged += OnScrollChanged;
+        _top = TopLevel.GetTopLevel(this);
+        if (_top is not null) { _top.ScalingChanged += OnScalingChanged; _renderScaling = ValidScaling(_top.RenderScaling); }
         SwitchTab(Tab);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        if (_top is not null) { _top.ScalingChanged -= OnScalingChanged; _top = null; }
         if (_sv is not null) _sv.ScrollChanged -= OnScrollChanged;
         SwitchTab(null);
         foreach (var s in _states.Values.ToList()) DisposeState(s);
@@ -233,6 +238,17 @@ public sealed class DocumentView : Control
         }
     }
 
+    private static double ValidScaling(double s) => s > 0 && double.IsFinite(s) ? s : 1.0;
+
+    // 다른 배율의 모니터로 옮기거나 Windows 배율을 바꾸면 새 해상도로 다시 그린다(타일 키에 해상도가 들어 있어 캐시가 섞이지 않는다).
+    private void OnScalingChanged(object? sender, EventArgs e)
+    {
+        if (_top is null) return;
+        _renderScaling = ValidScaling(_top.RenderScaling);
+        InvalidateVisual();
+        UpdateWanted();
+    }
+
     private static Cursor CursorFor(ToolKind t) =>
         new(t == ToolKind.Hand ? StandardCursorType.Hand : StandardCursorType.Ibeam);
 
@@ -242,7 +258,7 @@ public sealed class DocumentView : Control
         var pages = _state.Session.Pages;
         _layoutPages = pages;
         _layoutViewportW = _sv?.Viewport.Width ?? 0;
-        _layout = PageLayout.Build(pages, _state.Tab.Scale, _layoutViewportW, _state.Tab.ViewMode,
+        _layout = PageLayout.Build(pages, ZoomMath.DipPerPoint(_state.Tab.Scale), _layoutViewportW, _state.Tab.ViewMode,
             Math.Clamp(_state.Tab.CurrentPageIndex, 0, Math.Max(0, pages.Length - 1)));
     }
 
@@ -337,8 +353,9 @@ public sealed class DocumentView : Control
         var painted = new List<Rect>();
         var exact = new List<Rect>();
         var pageRects = new List<Rect>();
-        double scale = lay.Scale;
-        int scaleKey = TileKey.ToScaleKey(scale);
+        double scale = lay.Scale;   // 1pt당 DIP
+        double rs = _renderScaling;
+        int scaleKey = TileKey.ToScaleKey(TileGrid.PixelScale(scale, rs));
 
         foreach (int i in lay.PagesIntersecting(vp))
         {
@@ -356,14 +373,14 @@ public sealed class DocumentView : Control
                 foreach (var (key, img) in st.Tiles.FallbackFor(info.Id, info.Version, scaleKey))
                     if (img is BitmapHandle fb)
                     {
-                        var dest = TileDest(info, key, pr, scale);
+                        var dest = TileDest(info, key, pr, scale, rs);
                         ctx.DrawImage(fb.Bitmap, new Rect(0, 0, fb.Width, fb.Height), dest);
                         painted.Add(dest.Intersect(pr));
                     }
-                foreach (var key in TileGrid.Tiles(info, scale, pr, vp, 0))
+                foreach (var key in TileGrid.Tiles(info, scale, pr, vp, 0, rs))
                     if (st.Tiles.TryGet(key, out var img) && img is BitmapHandle cb)
                     {
-                        var dest = TileDest(info, key, pr, scale);
+                        var dest = TileDest(info, key, pr, scale, rs);
                         ctx.DrawImage(cb.Bitmap, new Rect(0, 0, cb.Width, cb.Height), dest);
                         painted.Add(dest.Intersect(pr));
                         exact.Add(dest.Intersect(pr));
@@ -596,20 +613,15 @@ public sealed class DocumentView : Control
         catch (Exception) { }   // 클립보드를 쓸 수 없는 경우(다른 프로그램이 잡고 있음 등): 조용히 넘어간다.
     }
 
-    /// <summary>타일(키의 배율 기준 픽셀)을 지금 배율의 문서 좌표 사각형으로 바꾼다.</summary>
-    private static Rect TileDest(PageInfo info, TileKey key, Rect pageRect, double scale)
-    {
-        var pb = key.PixelBounds(info);
-        double k = scale / key.Scale;
-        return new Rect(pageRect.X + pb.X * k, pageRect.Y + pb.Y * k, pb.W * k, pb.H * k);
-    }
+    private static Rect TileDest(PageInfo info, TileKey key, Rect pageRect, double scale, double renderScaling) =>
+        TileGrid.DestRect(info, key, pageRect, scale, renderScaling);
 
     private void UpdateWanted()
     {
         var st = _state; var lay = _layout;
         if (st is null || lay is null || _sv is null) return;
         var plan = PrefetchPlanner.Plan(_layoutPages, lay, Viewport, lay.Scale,
-            k => st.Tiles.TryGet(k, out _), (id, v) => st.Thumbs.TryGet(id, v, out _));
+            k => st.Tiles.TryGet(k, out _), (id, v) => st.Thumbs.TryGet(id, v, out _), _renderScaling);
         st.Scheduler.SetWanted(plan);
     }
 

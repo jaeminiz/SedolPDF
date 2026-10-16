@@ -53,4 +53,40 @@ public class TileGridTests
         var t = Assert.Single(tiles);
         Assert.Equal((0, 0), (t.X, t.Y));
     }
+
+    [Fact]
+    public void Grid_RenderScaling1_5_TilePixelSizeIsDipTimesScaling()
+    {
+        // A4 실제 크기(100%) = 1.3333 DIP/pt, 화면 배율 150% → 2 픽셀/pt: 쪽 1190×1684 px, 타일 여러 장
+        var p = VT.P(1, 595, 842);
+        double dip = ZoomMath.DipPerPoint(1.0);
+        var pageRect = new Rect(0, 0, 595 * dip, 842 * dip);
+        var tiles = TileGrid.Tiles(p, dip, pageRect, new Rect(0, 0, 794, 600), 0, 1.5);
+        Assert.All(tiles, t => Assert.Equal(2000, t.ScaleKey));
+        // 뷰포트 794×600 DIP = 1191×900 px → 타일 3×2
+        Assert.Equal(6, tiles.Count);
+        Assert.Equal(new PixelRect(0, 0, 512, 512), tiles.Single(t => (t.X, t.Y) == (0, 0)).PixelBounds(p));
+        Assert.Equal(new PixelRect(1024, 512, 166, 512), tiles.Single(t => (t.X, t.Y) == (2, 1)).PixelBounds(p));
+    }
+
+    [Fact]
+    public void Grid_SmallPage_RenderScaling1_5_SingleTileHasScaledPixels()
+    {
+        var p = VT.P(1, 300, 400);   // 100%: 400×533 DIP → 1.5배면 600×800 px (한 장)
+        var tiles = TileGrid.Tiles(p, ZoomMath.DipPerPoint(1.0), new Rect(0, 0, 400, 533.33), new Rect(0, 0, 1000, 800), 1, 1.5);
+        var t = Assert.Single(tiles);
+        Assert.Equal(new PixelRect(0, 0, 600, 800), t.PixelBounds(p));
+    }
+
+    [Fact]
+    public void DestRect_FullScaleTile_IsPixelSizeOverRenderScaling_AndSnapped()
+    {
+        var p = VT.P(1, 300, 400);
+        double dip = ZoomMath.DipPerPoint(1.0);
+        var key = TileGrid.Tiles(p, dip, new Rect(0, 0, 400, 533), new Rect(0, 0, 1000, 800), 0, 1.5).Single();
+        var d = TileGrid.DestRect(p, key, new Rect(100.2, 16, 400, 533.33), dip, 1.5);
+        Assert.Equal(600 / 1.5, d.Width, 2);
+        Assert.Equal(800 / 1.5, d.Height, 2);
+        Assert.Equal(0, d.X * 1.5 - Math.Round(d.X * 1.5), 6);   // 장치 픽셀 경계
+    }
 }

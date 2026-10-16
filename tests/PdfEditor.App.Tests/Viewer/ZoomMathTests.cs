@@ -53,9 +53,47 @@ public class ZoomMathTests
     public void Zoom_FitWidth_FitPage()
     {
         var page = new Size(600, 800);
-        Assert.Equal((1032 - 32) / 600.0, ZoomMath.FitWidth(page, 1032), 6);
-        Assert.Equal((500 - 32) / 800.0, ZoomMath.FitPage(page, new Size(2000, 500)), 6);
-        Assert.Equal((632 - 32) / 600.0, ZoomMath.FitPage(page, new Size(632, 5000)), 6);
+        const double d = 96.0 / 72.0;
+        Assert.Equal((1032 - 32) / (600.0 * d), ZoomMath.FitWidth(page, 1032), 6);
+        Assert.Equal((500 - 32) / (800.0 * d), ZoomMath.FitPage(page, new Size(2000, 500)), 6);
+        Assert.Equal((632 - 32) / (600.0 * d), ZoomMath.FitPage(page, new Size(632, 5000)), 6);
         Assert.Equal(16.0, ZoomMath.FitWidth(new Size(1, 1), 100000), 6);
+    }
+
+    [Fact]
+    public void ActualSize_A4_Is793Point7Dip_Wide()
+    {
+        Assert.Equal(96.0 / 72.0, ZoomMath.PointsToDip, 12);
+        var l = PageLayout.Build(VT.Pages(1, 595.28f, 841.89f), ZoomMath.DipPerPoint(1.0), 1000, ViewMode.Continuous);
+        var r = l.GetPageRect(0);
+        Assert.Equal(793.7, r.Width, 1);
+        Assert.Equal(1122.5, r.Height, 1);
+    }
+
+    [Fact]
+    public void FitWidth_ResultFillsViewportMinusMargins()
+    {
+        var a4 = new Size(595.28, 841.89);
+        double zoom = ZoomMath.FitWidth(a4, 1000);
+        var l = PageLayout.Build(VT.Pages(1, 595.28f, 841.89f), ZoomMath.DipPerPoint(zoom), 1000, ViewMode.Continuous);
+        Assert.Equal(1000 - 2 * PageLayout.MarginPx, l.GetPageRect(0).Width, 2);   // 쪽 크기가 float라 오차 허용
+    }
+
+    [Fact]
+    public void Zoom_AnchorOffset_KeepsPointUnderCursor_At96DpiScale()
+    {
+        var pages = VT.Pages(3, 595.28f, 841.89f);
+        var before = PageLayout.Build(pages, ZoomMath.DipPerPoint(1.0), 500, ViewMode.Continuous);
+        var after = PageLayout.Build(pages, ZoomMath.DipPerPoint(ZoomMath.Step(1.0, +1)), 500, ViewMode.Continuous);
+        var oldOffset = new Vector(200, 1300);
+        var anchor = new Point(300, 250);
+        var viewport = new Size(500, 700);
+        var hit = before.HitTest(new Point(oldOffset.X + anchor.X, oldOffset.Y + anchor.Y));
+        Assert.NotNull(hit);
+        var o = ZoomMath.AnchorOffset(before, after, oldOffset, anchor, viewport);
+        var ra = after.GetPageRect(hit!.Value.Page);
+        double k = after.Scale / before.Scale;   // 1.25
+        Assert.Equal(anchor.X, ra.X + hit.Value.InPage.X * k - o.X, 3);
+        Assert.Equal(anchor.Y, ra.Y + hit.Value.InPage.Y * k - o.Y, 3);
     }
 }

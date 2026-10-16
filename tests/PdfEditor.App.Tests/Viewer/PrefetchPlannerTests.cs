@@ -58,4 +58,16 @@ public class PrefetchPlannerTests
         var thumbs = plan.Where(r => r.Kind == TileKind.Thumbnail).Select(r => (int)(r.Key.Page.Value - 1)).ToList();
         Assert.Equal(Enumerable.Range(7, 7), thumbs.Order());
     }
+
+    [Fact]
+    public void Plan_RenderScaling1_5_RequestsTilesInDevicePixels()
+    {
+        var pages = Pages(1);
+        double dip = ZoomMath.DipPerPoint(1.0);
+        var layout = PageLayout.Build(pages, dip, 1000, ViewMode.Continuous);
+        var plan = PrefetchPlanner.Plan(pages, layout, new Rect(0, 0, 1000, 600), dip, _ => false, (_, _) => false, 1.5);
+        var tile = plan.First(r => r.Kind == TileKind.Tile);
+        Assert.Equal(dip * 1.5, tile.Scale, 3);
+        Assert.Equal(2000, tile.Key.ScaleKey);
+    }
 }

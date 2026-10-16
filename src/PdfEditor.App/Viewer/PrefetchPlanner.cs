@@ -13,7 +13,7 @@ public static class PrefetchPlanner
     public const int ThumbnailPageRadius = 3;
 
     public static List<TileRequest> Plan(IReadOnlyList<PageInfo> pages, PageLayout layout, Rect viewport, double scale,
-        Func<TileKey, bool> hasTile, Func<PageId, int, bool> hasThumbnail)
+        Func<TileKey, bool> hasTile, Func<PageId, int, bool> hasThumbnail, double renderScaling = 1.0)
     {
         var visibleIdx = layout.PagesIntersecting(viewport);
         var visible = new List<TileRequest>();
@@ -25,7 +25,7 @@ public static class PrefetchPlanner
             var page = pages[i];
             var rect = layout.GetPageRect(i);
             rects[page.Id] = rect;
-            foreach (var key in TileGrid.Tiles(page, scale, rect, viewport, 0))
+            foreach (var key in TileGrid.Tiles(page, scale, rect, viewport, 0, renderScaling))
             {
                 visibleKeys.Add(key);
                 if (!hasTile(key)) visible.Add(DocumentRenderer.TileRequestFor(page, key));
@@ -34,13 +34,13 @@ public static class PrefetchPlanner
 
         // 링: 뷰포트를 한 타일 크기만큼 넓혀 걸치는 페이지의 타일 (이미 보이는 것 제외)
         var ring = new List<TileRequest>();
-        var wide = viewport.Inflate(TileGrid.TileSize);
+        var wide = viewport.Inflate(TileGrid.TileSize / renderScaling);
         foreach (int i in layout.PagesIntersecting(wide))
         {
             var page = pages[i];
             var rect = layout.GetPageRect(i);
             rects[page.Id] = rect;
-            foreach (var key in TileGrid.Tiles(page, scale, rect, viewport, 1))
+            foreach (var key in TileGrid.Tiles(page, scale, rect, viewport, 1, renderScaling))
                 if (!visibleKeys.Contains(key) && !hasTile(key)) ring.Add(DocumentRenderer.TileRequestFor(page, key));
         }
 

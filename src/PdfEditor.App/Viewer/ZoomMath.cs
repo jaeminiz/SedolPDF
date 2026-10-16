@@ -7,6 +7,15 @@ public static class ZoomMath
     public const double MinScale = 0.10;
     public const double MaxScale = 16.0;
 
+    /// <summary>
+    /// PDF 1pt가 100% 배율에서 차지하는 화면 크기(DIP). 100% = 실제 종이 크기(96dpi 기준, 2026-10-16 사용자 결정).
+    /// 사용자 배율(zoom)은 상태 표시줄·슬라이더·단계에만 쓰고, 그리기·배치는 DipPerPoint(zoom)을 쓴다.
+    /// </summary>
+    public const double PointsToDip = 96.0 / 72.0;
+
+    /// <summary>사용자 배율 → 1pt당 DIP. PageLayout.Scale과 같은 단위.</summary>
+    public static double DipPerPoint(double zoom) => zoom * PointsToDip;
+
     private static readonly double[] Steps = { 0.10, 0.25, 0.50, 0.75, 1.00, 1.25, 1.50, 2.00, 3.00, 4.00, 6.00, 8.00, 12.00, 16.00 };
 
     public static double Clamp(double scale) => Math.Clamp(scale, MinScale, MaxScale);
@@ -28,12 +37,13 @@ public static class ZoomMath
         return Clamp(scale);
     }
 
-    public static double FitWidth(Size pagePx1x, double viewportW) =>
-        Clamp((viewportW - 2 * PageLayout.MarginPx) / pagePx1x.Width);
+    /// <param name="pagePt">쪽 크기(pt). 반환값은 사용자 배율(100% = 1.0).</param>
+    public static double FitWidth(Size pagePt, double viewportW) =>
+        Clamp((viewportW - 2 * PageLayout.MarginPx) / (pagePt.Width * PointsToDip));
 
-    public static double FitPage(Size pagePx1x, Size viewport) =>
-        Clamp(Math.Min((viewport.Width - 2 * PageLayout.MarginPx) / pagePx1x.Width,
-                       (viewport.Height - 2 * PageLayout.MarginPx) / pagePx1x.Height));
+    public static double FitPage(Size pagePt, Size viewport) =>
+        Clamp(Math.Min((viewport.Width - 2 * PageLayout.MarginPx) / (pagePt.Width * PointsToDip),
+                       (viewport.Height - 2 * PageLayout.MarginPx) / (pagePt.Height * PointsToDip)));
 
     /// <summary>
     /// 커서(anchorInViewport) 아래의 페이지 위 점이 배율 변경 뒤에도 같은 화면 위치에 오도록 새 스크롤 위치를 계산한다.

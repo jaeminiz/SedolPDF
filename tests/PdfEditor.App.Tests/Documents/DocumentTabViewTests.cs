@@ -44,9 +44,9 @@ public class DocumentTabViewTests : IAsyncLifetime
     {
         _tab.ViewportSize = new Size(832, 700);
         _tab.FitWidth();
-        Assert.Equal((832 - 2 * PageLayout.MarginPx) / 400, _tab.Scale, 6);
+        Assert.Equal((832 - 2 * PageLayout.MarginPx) / (400 * ZoomMath.PointsToDip), _tab.Scale, 6);
         _tab.FitPage();
-        Assert.Equal((700 - 2 * PageLayout.MarginPx) / 600, _tab.Scale, 6);
+        Assert.Equal((700 - 2 * PageLayout.MarginPx) / (600 * ZoomMath.PointsToDip), _tab.Scale, 6);
         _tab.ActualSize();
         Assert.Equal(1.0, _tab.Scale, 6);
     }
