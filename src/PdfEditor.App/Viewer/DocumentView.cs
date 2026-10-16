@@ -370,6 +370,14 @@ public sealed class DocumentView : Control
                     ctx.DrawImage(tb.Bitmap, new Rect(0, 0, tb.Width, tb.Height), pr);
                     painted.Add(pr);
                 }
+                // 저해상도 미리보기(첫 화면용): 타일이 오기 전에 보이는 영역을 먼저 덮는다. 대체 그림·현재 타일이 그 위에 덮어 그려진다.
+                foreach (var (key, img) in st.Tiles.PreviewsFor(info.Id, info.Version))
+                    if (img is BitmapHandle pb)
+                    {
+                        var dest = PreviewPlan.DestRect(key, pb.Width, pb.Height, pr, scale);
+                        ctx.DrawImage(pb.Bitmap, new Rect(0, 0, pb.Width, pb.Height), dest);
+                        painted.Add(dest.Intersect(pr));
+                    }
                 foreach (var (key, img) in st.Tiles.FallbackFor(info.Id, info.Version, scaleKey))
                     if (img is BitmapHandle fb)
                     {
@@ -620,8 +628,17 @@ public sealed class DocumentView : Control
     {
         var st = _state; var lay = _layout;
         if (st is null || lay is null || _sv is null) return;
+        // 미리보기가 필요 없는 경우: 이미 덮는 미리보기가 있거나, 다른 배율 타일이 대체 그림으로 있을 때(확대·축소 직후).
+        bool PreviewCovered(PageInfo page, Rect regionPt)
+        {
+            int sk = TileKey.ToScaleKey(TileGrid.PixelScale(lay.Scale, _renderScaling));
+            if (st.Tiles.FallbackFor(page.Id, page.Version, sk).Count > 0) return true;
+            foreach (var (key, img) in st.Tiles.PreviewsFor(page.Id, page.Version))
+                if (PreviewPlan.Covers(PreviewPlan.CoveredPt(key, img.Width, img.Height), key.Scale, regionPt)) return true;
+            return false;
+        }
         var plan = PrefetchPlanner.Plan(_layoutPages, lay, Viewport, lay.Scale,
-            k => st.Tiles.TryGet(k, out _), (id, v) => st.Thumbs.TryGet(id, v, out _), _renderScaling);
+            k => st.Tiles.TryGet(k, out _), (id, v) => st.Thumbs.TryGet(id, v, out _), _renderScaling, PreviewCovered);
         st.Scheduler.SetWanted(plan);
     }
 

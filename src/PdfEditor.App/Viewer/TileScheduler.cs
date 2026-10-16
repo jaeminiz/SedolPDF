@@ -3,7 +3,7 @@ using PdfEditor.Document;
 
 namespace PdfEditor.App.Viewer;
 
-public enum TileKind { Tile, Thumbnail }
+public enum TileKind { Tile, Thumbnail, Preview }
 
 public sealed record TileRequest(TileKind Kind, TileKey Key, double Scale, PixelRect Rect);
 

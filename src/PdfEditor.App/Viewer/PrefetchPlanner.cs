@@ -13,22 +13,35 @@ public static class PrefetchPlanner
     public const int ThumbnailPageRadius = 3;
 
     public static List<TileRequest> Plan(IReadOnlyList<PageInfo> pages, PageLayout layout, Rect viewport, double scale,
-        Func<TileKey, bool> hasTile, Func<PageId, int, bool> hasThumbnail, double renderScaling = 1.0)
+        Func<TileKey, bool> hasTile, Func<PageId, int, bool> hasThumbnail, double renderScaling = 1.0,
+        Func<PageInfo, Rect, bool>? previewCovered = null)
     {
         var visibleIdx = layout.PagesIntersecting(viewport);
         var visible = new List<TileRequest>();
         var visibleKeys = new HashSet<TileKey>();
         var rects = new Dictionary<PageId, Rect>();
+        var previews = new List<TileRequest>();
 
         foreach (int i in visibleIdx)
         {
             var page = pages[i];
             var rect = layout.GetPageRect(i);
             rects[page.Id] = rect;
+            int missing = 0;
             foreach (var key in TileGrid.Tiles(page, scale, rect, viewport, 0, renderScaling))
             {
                 visibleKeys.Add(key);
-                if (!hasTile(key)) visible.Add(DocumentRenderer.TileRequestFor(page, key));
+                if (!hasTile(key)) { visible.Add(DocumentRenderer.TileRequestFor(page, key)); missing++; }
+            }
+            if (previewCovered is not null && missing >= PreviewPlan.MinMissingTiles)
+            {
+                var vis = rect.Intersect(viewport);
+                var regionPt = new Rect((vis.X - rect.X) / scale, (vis.Y - rect.Y) / scale, vis.Width / scale, vis.Height / scale);
+                if (vis.Width > 0 && vis.Height > 0 && !previewCovered(page, regionPt))
+                {
+                    int sk = PreviewPlan.ChooseScaleKey(TileGrid.PixelScale(scale, renderScaling), regionPt.Width, regionPt.Height);
+                    if (PreviewPlan.RegionPixels(page, sk, regionPt) is { } px) previews.Add(PreviewPlan.RequestFor(page, sk, px));
+                }
             }
         }
 
@@ -66,6 +79,8 @@ public static class PrefetchPlanner
             return new Point(pr.X + (r.Rect.X + r.Rect.W / 2.0) * k, pr.Y + (r.Rect.Y + r.Rect.H / 2.0) * k);
         }
 
-        return TilePriority.Order(visible, ring, thumbs, viewport.Center, DocCenter).ToList();
+        // 미리보기는 가장 먼저: 첫 화면을 PDFium 한 번으로 덮은 뒤 타일이 교체한다.
+        previews.AddRange(TilePriority.Order(visible, ring, thumbs, viewport.Center, DocCenter));
+        return previews;
     }
 }

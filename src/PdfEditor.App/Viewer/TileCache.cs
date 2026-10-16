@@ -71,6 +71,16 @@ public sealed class TileCache<TImage> where TImage : class
         }
     }
 
+    /// <summary>같은 페이지·버전의 저해상도 미리보기(ScaleKey가 음수) 전부 (LRU 갱신 안 함).</summary>
+    public IReadOnlyList<(TileKey Key, TImage Image)> PreviewsFor(PageId page, int version)
+    {
+        lock (_lock)
+        {
+            return _map.Where(kv => kv.Key.Page == page && kv.Key.Version == version && kv.Key.IsPreview)
+                       .Select(kv => (kv.Key, kv.Value.Value.Image)).ToList();
+        }
+    }
+
     public void RemovePage(PageId page) => RemoveWhere(k => k.Page == page);
 
     /// <summary>currentVersion이 아닌 버전의 타일을 모두 지운다 (되돌리기로 번호가 내려갈 수도 있어 != 로 비교).</summary>

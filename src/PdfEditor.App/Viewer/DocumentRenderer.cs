@@ -71,7 +71,7 @@ public sealed class DocumentRenderer : IDisposable
             if (timed is not null && r.Kind == TileKind.Tile) timed(System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
             return bytes;
         };
-        return r.Kind == TileKind.Tile ? _s.Thread.InvokeHighAsync(work, ct) : _s.Thread.InvokeAsync(work, ct);
+        return r.Kind != TileKind.Thumbnail ? _s.Thread.InvokeHighAsync(work, ct) : _s.Thread.InvokeAsync(work, ct);
     }
 
     private bool IsCurrent(TileKey key)
