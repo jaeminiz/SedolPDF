@@ -5,7 +5,9 @@ namespace PdfEditor.App.Viewer;
 /// <summary>바이트 예산 LRU 캐시. 스레드 안전. 제거되는 이미지마다 onEvict를 부른다(락 밖이 아니라 안에서 호출되므로 가볍게 유지).</summary>
 public sealed class TileCache<TImage> where TImage : class
 {
-    public const long DefaultBudgetBytes = 160L * 1024 * 1024;
+    // 160 MB(계획서 값)에서는 300쪽 벤치 작업 집합이 428~434 MB로 목표(400 MB 미만)를 넘었다.
+    // 96 MB로 줄여도 300쪽 스크롤 회색 비율은 세 방식 모두 0 %였다(M1 마무리 검토, 결과 문서 참고).
+    public const long DefaultBudgetBytes = 96L * 1024 * 1024;
 
     private sealed record Entry(TileKey Key, TImage Image, long Bytes);
 

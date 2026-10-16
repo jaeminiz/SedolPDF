@@ -83,4 +83,35 @@ public class PdfiumThreadTests
         foreach (var p in pending)
             await Assert.ThrowsAnyAsync<TaskCanceledException>(() => p);
     }
+
+    [Fact]
+    public async Task InvokeHigh_RunsBeforeQueuedNormalWork()
+    {
+        using var t = new PdfiumThread();
+        using var release = new ManualResetEventSlim();
+        var order = new List<string>();
+        var blocker = t.InvokeAsync(() => release.Wait());
+        var normal = Enumerable.Range(0, 3).Select(i => t.InvokeAsync(() => order.Add("n" + i))).ToArray();
+        var high = Enumerable.Range(0, 2).Select(i => t.InvokeHighAsync(() => { order.Add("h" + i); return i; })).ToArray();
+        release.Set();
+        await Task.WhenAll(normal.Concat<Task>(high).Append(blocker)).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(["h0", "h1", "n0", "n1", "n2"], order);
+    }
+
+    [Fact]
+    public async Task Dispose_WithPendingHighWork_CancelsPending()
+    {
+        var t = new PdfiumThread();
+        using var started = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var running = t.InvokeAsync(() => { started.Set(); release.Wait(); });
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        var pending = t.InvokeHighAsync(() => 1);
+        var dispose = Task.Run(t.Dispose);
+        await Task.Delay(100);
+        release.Set();
+        await dispose.WaitAsync(TimeSpan.FromSeconds(5));
+        await running;
+        await Assert.ThrowsAnyAsync<TaskCanceledException>(() => pending);
+    }
 }

@@ -48,15 +48,18 @@ public sealed class DocumentRenderer : IDisposable
         return new TileRequest(TileKind.Thumbnail, key, w / (double)page.WidthPt, new PixelRect(0, 0, w, h));
     }
 
-    /// <summary>
-    /// 전용 스레드에서 페이지를 PageId로 다시 찾고, 없거나 버전이 다르면 null.
-    /// 그렇지 않으면 BGRA 바이트(타일 크기 × 4)를 돌려준다.
-    /// </summary>
     /// <summary>벤치용: 타일(썸네일 제외) 한 장을 PDFium 스레드에서 렌더한 시간(ms). 평소에는 null.</summary>
     public static Action<double>? TileRenderTimed;
 
-    public Task<byte[]?> RenderAsync(TileRequest r, CancellationToken ct) =>
-        _s.Thread.InvokeAsync<byte[]?>(() =>
+    /// <summary>
+    /// 전용 스레드에서 페이지를 PageId로 다시 찾고, 없거나 버전이 다르면 null.
+    /// 그렇지 않으면 BGRA 바이트(타일 크기 × 4)를 돌려준다.
+    /// 화면 타일은 PDFium 우선 대기열로 보낸다: 큰 도면의 썸네일은 한 장에 수백 ms 걸려서,
+    /// 같은 줄에 서면 보이는 타일 사이에 끼어 첫 화면이 늦어진다(M1 마무리 검토에서 측정).
+    /// </summary>
+    public Task<byte[]?> RenderAsync(TileRequest r, CancellationToken ct)
+    {
+        Func<byte[]?> work = () =>
         {
             ct.ThrowIfCancellationRequested();
             if (!IsCurrent(r.Key)) return null;
@@ -67,7 +70,9 @@ public sealed class DocumentRenderer : IDisposable
             var bytes = page.RenderTile(r.Scale, r.Rect.X, r.Rect.Y, r.Rect.W, r.Rect.H, new RenderOptions(WithAnnotations: true));
             if (timed is not null && r.Kind == TileKind.Tile) timed(System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
             return bytes;
-        }, ct);
+        };
+        return r.Kind == TileKind.Tile ? _s.Thread.InvokeHighAsync(work, ct) : _s.Thread.InvokeAsync(work, ct);
+    }
 
     private bool IsCurrent(TileKey key)
     {
