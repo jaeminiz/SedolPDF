@@ -165,6 +165,22 @@ public class DocumentSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task BumpAnnotRevision_PublishesPageInfoAndRaisesPagesChanged()
+    {
+        await using var s = await DocumentSession.CreateNewAsync(_t);
+        var id = s.Pages[0].Id;
+        int ver = s.Pages[0].Version;
+        PagesChangedEventArgs? ev = null;
+        s.PagesChanged += e => ev = e;
+        await _t.InvokeAsync(() => { s.BumpAnnotRevision(id); s.Publish(); });
+        Assert.Equal(1, s.Pages[0].AnnotRevision);
+        Assert.Equal(ver, s.Pages[0].Version);
+        Assert.NotNull(ev);
+        Assert.Contains(id, ev!.Changed);
+        Assert.False(ev.StructureChanged);
+    }
+
+    [Fact]
     public async Task GetLoadedPage_ReusesHandle_UntilReleased()
     {
         var p = P("r.pdf");

@@ -27,7 +27,7 @@ public sealed class CommandStack
     {
         await RunExclusive(async () =>
         {
-            await _s.Thread.InvokeAsync(() => { _s.ReleasePageHandles(); c.Execute(_s); _s.Publish(); }).ConfigureAwait(false);
+            await _s.Thread.InvokeAsync(() => { Release(c); c.Execute(_s); _s.Publish(); }).ConfigureAwait(false);
             // 성공한 뒤에만 스택을 바꾼다 (실패하면 예외가 그대로 전달됨)
             DisposeAll(_redo);
             long before = Version;
@@ -43,7 +43,7 @@ public sealed class CommandStack
         {
             if (_undo.Count == 0) return;
             var e = _undo[^1];
-            await _s.Thread.InvokeAsync(() => { _s.ReleasePageHandles(); e.Command.Undo(_s); _s.Publish(); }).ConfigureAwait(false);
+            await _s.Thread.InvokeAsync(() => { Release(e.Command); e.Command.Undo(_s); _s.Publish(); }).ConfigureAwait(false);
             _undo.RemoveAt(_undo.Count - 1);
             _redo.Add(e);
             Version = e.VersionBefore;
@@ -56,7 +56,7 @@ public sealed class CommandStack
         {
             if (_redo.Count == 0) return;
             var e = _redo[^1];
-            await _s.Thread.InvokeAsync(() => { _s.ReleasePageHandles(); e.Command.Execute(_s); _s.Publish(); }).ConfigureAwait(false);
+            await _s.Thread.InvokeAsync(() => { Release(e.Command); e.Command.Execute(_s); _s.Publish(); }).ConfigureAwait(false);
             _redo.RemoveAt(_redo.Count - 1);
             _undo.Add(e);
             Version = e.VersionAfter;
@@ -87,6 +87,12 @@ public sealed class CommandStack
             Interlocked.Decrement(ref _busy);
             Changed?.Invoke();
         }
+    }
+
+    /// <summary>주석 명령은 쪽 구조를 바꾸지 않으므로 페이지 핸들을 유지한다 (전용 스레드에서 호출).</summary>
+    private void Release(IUndoableCommand c)
+    {
+        if (c is not IAnnotationCommand) _s.ReleasePageHandles();
     }
 
     private static void DisposeAll(List<Entry> list)

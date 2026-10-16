@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using Pdf.Native;
+using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Commands;
 
 namespace PdfEditor.Document;
@@ -21,6 +22,7 @@ public sealed class DocumentSession : IAsyncDisposable
     private readonly Dictionary<PageId, (int Version, float W, float H)> _sizes = new();
     private readonly PageHandleCache _cache = new();
     private long _nextId = 1;
+    private readonly Dictionary<PageId, int> _annotRevisions = new();
     private ImmutableArray<PageInfo> _pages = [];
 
     private long _savedVersion;
@@ -34,6 +36,7 @@ public sealed class DocumentSession : IAsyncDisposable
         Password = password;
         OriginalSha256 = sha;
         Commands = new CommandStack(this);
+        Annotations = new AnnotationStore(t, BumpAnnotRevision);
         Permissions = doc.Permissions;
         IsEncrypted = doc.IsEncrypted;
         WasRepaired = !doc.HasValidCrossReferenceTable;
@@ -59,6 +62,7 @@ public sealed class DocumentSession : IAsyncDisposable
     public bool IsEncrypted { get; }
     public bool WasRepaired { get; }
     public CommandStack Commands { get; }
+    public AnnotationStore Annotations { get; }
 
     /// <summary>전용 스레드 전용.</summary>
     public PdfDocument Document
@@ -203,6 +207,15 @@ public sealed class DocumentSession : IAsyncDisposable
         _cache.Evict(id);
     }
 
+    /// <summary>
+    /// 타일에서 숨길 주석 번호 집합이 바뀌었음을 알린다 (쪽 모양 Version과 별개). 페이지 핸들 캐시는 비우지 않는다.
+    /// </summary>
+    internal void BumpAnnotRevision(PageId id)
+    {
+        Thread.AssertOnThread();
+        _annotRevisions[id] = _annotRevisions.GetValueOrDefault(id) + 1;
+    }
+
     /// <summary>작업 목록으로 새 Pages 스냅숏을 만들어 교체하고 PagesChanged를 일으킨다.</summary>
     public void Publish()
     {
@@ -224,7 +237,7 @@ public sealed class DocumentSession : IAsyncDisposable
                 sz = (ver, s.Width, s.Height);
                 _sizes[id] = sz;
             }
-            var info = new PageInfo(id, ver, sz.W, sz.H);
+            var info = new PageInfo(id, ver, sz.W, sz.H, _annotRevisions.GetValueOrDefault(id));
             b.Add(info);
             if (!oldById.TryGetValue(id, out var prev) || prev != info) changed.Add(id);
         }
@@ -236,6 +249,7 @@ public sealed class DocumentSession : IAsyncDisposable
         ImmutableInterlocked.InterlockedExchange(ref _pages, next);
         if (changed.Count > 0 || structure)
             PagesChanged?.Invoke(new PagesChangedEventArgs(changed, structure));
+        Annotations.Publish();
     }
 
     // --- 페이지 핸들 재사용 (전용 스레드 전용) ---

@@ -111,6 +111,29 @@ public class CommandStackTests : IDisposable
         Assert.True(cmd.Disposed);
     }
 
+    private sealed class NoopAnnotationCommand : IAnnotationCommand
+    {
+        public void Execute(DocumentSession s) { }
+        public void Undo(DocumentSession s) { }
+    }
+
+    [Fact]
+    public async Task AnnotationCommand_DoesNotReleasePageHandles()
+    {
+        await using var s = await DocumentSession.CreateNewAsync(_t);
+        var id = s.Pages[0].Id;
+        var before = await _t.InvokeAsync(() => s.GetLoadedPage(id));
+        await s.Commands.ExecuteAsync(new NoopAnnotationCommand());
+        Assert.Same(before, await _t.InvokeAsync(() => s.GetLoadedPage(id)));
+        await s.Commands.UndoAsync();
+        Assert.Same(before, await _t.InvokeAsync(() => s.GetLoadedPage(id)));
+        await s.Commands.RedoAsync();
+        Assert.Same(before, await _t.InvokeAsync(() => s.GetLoadedPage(id)));
+        // 일반 명령은 여전히 핸들을 비운다
+        await s.Commands.ExecuteAsync(new FakeCommand(new Counter()));
+        Assert.NotSame(before, await _t.InvokeAsync(() => s.GetLoadedPage(id)));
+    }
+
     [Fact]
     public async Task Execute_RunsOnPdfiumThread()
     {
