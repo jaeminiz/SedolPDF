@@ -177,11 +177,16 @@ public sealed class AnnotationStore
     {
         _thread.AssertOnThread();
         var st = State(page);
+        // 지워진 항목이 뒤 번호를 당기므로, 살아 남은 항목(손대지 않은 원본 포함)의 새 번호가 모두 있어야 한다.
+        // 하나라도 빠지면 이후 Flush가 엉뚱한 주석을 고치므로 아무것도 바꾸기 전에 막는다.
+        foreach (var e in st.Entries)
+            if (!e.Deleted && !newIndices.ContainsKey(e))
+                throw new InvalidOperationException("CompleteFlush needs a new PDF index for every surviving annotation entry.");
         var hiddenBefore = HiddenPdfIndices(page);
         st.Entries.RemoveAll(e => e.Deleted);
         foreach (var e in st.Entries)
         {
-            if (newIndices.TryGetValue(e, out var idx)) e.PdfIndex = idx;
+            e.PdfIndex = newIndices[e];
             e.FlushedRevision = e.Revision;
         }
         if (!hiddenBefore.SetEquals(HiddenPdfIndices(page))) _bumpAnnotRevision(page);

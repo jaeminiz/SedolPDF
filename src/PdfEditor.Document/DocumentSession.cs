@@ -387,6 +387,17 @@ public sealed class DocumentSession : IAsyncDisposable
         return _doc.LoadPage(idx);
     }
 
+    /// <summary>
+    /// 주석 모델의 바뀐 내용을 PDFium 문서에 반영한다 (저장·인쇄·자동 복구 직전). 전용 스레드 전용.
+    /// 바뀐 것이 없으면 아무것도 하지 않는다. 문서에 없는(삭제되어 UndoStash에 있는) 쪽은 다음 Flush로 미룬다.
+    /// </summary>
+    public void FlushAnnotations(IAppearanceSource appearance)
+    {
+        Thread.AssertOnThread();
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        AnnotationFlusher.Flush(this, appearance);
+    }
+
     /// <summary>구조를 바꾸는 명령 전후에 CommandStack이 부른다.</summary>
     public void ReleasePageHandles()
     {
