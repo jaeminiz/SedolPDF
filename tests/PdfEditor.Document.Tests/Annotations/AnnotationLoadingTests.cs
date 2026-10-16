@@ -32,6 +32,27 @@ public class AnnotationLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task Open_Deferred_WaitsForReleaseThenAttaches()
+    {
+        AnnotatedPdfFactory.CreateMixed(P("m.pdf"));
+        await using var s = await DocumentSession.OpenAsync(_t, P("m.pdf"), null, deferOriginals: true);
+        await Task.Delay(150);
+        Assert.False(s.AnnotationsReady.IsCompleted);   // 풀어 주기 전에는 시작하지 않는다
+        s.ReleaseOriginalsLoad();
+        await s.AnnotationsReady.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(9, s.Annotations.Get(s.Pages[0].Id).Items.Length);
+    }
+
+    [Fact]
+    public async Task Open_Deferred_FallsBackToTimeoutWithoutRelease()
+    {
+        AnnotatedPdfFactory.CreateMixed(P("m.pdf"));
+        await using var s = await DocumentSession.OpenAsync(_t, P("m.pdf"), null, deferOriginals: true);
+        await s.AnnotationsReady.WaitAsync(TimeSpan.FromSeconds(10));   // 렌더러가 없어도 끝난다
+        Assert.Equal(9, s.Annotations.Get(s.Pages[0].Id).Items.Length);
+    }
+
+    [Fact]
     public async Task Open_NoAnnotations_DoesNotOpenPdfSharp()
     {
         TestPdfFactory.CreateLabeled(P("l.pdf"), [(300, 400), (300, 400)]);

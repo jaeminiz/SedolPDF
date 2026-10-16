@@ -116,7 +116,7 @@ public sealed class DocumentSession : IAsyncDisposable
 
     // --- 만들기 ---
 
-    public static async Task<DocumentSession> OpenAsync(PdfiumThread t, string path, string? password, CancellationToken ct = default)
+    public static async Task<DocumentSession> OpenAsync(PdfiumThread t, string path, string? password, CancellationToken ct = default, bool deferOriginals = false)
     {
         var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
         var sha = SHA256.HashData(bytes);
@@ -126,7 +126,7 @@ public sealed class DocumentSession : IAsyncDisposable
             try
             {
                 var s = new DocumentSession(t, doc, path, Path.GetFileName(path), password, sha);
-                s.BeginLoadingOriginals(bytes, password);
+                s.BeginLoadingOriginals(bytes, password, deferOriginals);
                 return s;
             }
             catch { doc.Dispose(); throw; }
@@ -138,7 +138,7 @@ public sealed class DocumentSession : IAsyncDisposable
     /// bindToOriginal이면 FilePath = 원본 경로, 아니면 제목 없는 문서(FilePath null). 더티 상태로 시작한다.
     /// </summary>
     public static async Task<DocumentSession> OpenRecoveredAsync(PdfiumThread t, Recovery.RecoveryEntry e, bool bindToOriginal,
-        string? password, CancellationToken ct = default)
+        string? password, CancellationToken ct = default, bool deferOriginals = false)
     {
         var bytes = await File.ReadAllBytesAsync(e.RecoveryPdfPath, ct).ConfigureAwait(false);
         byte[]? sha = e.OriginalSha256Hex is { Length: > 0 } hex ? Convert.FromHexString(hex) : null;
@@ -149,7 +149,7 @@ public sealed class DocumentSession : IAsyncDisposable
             try
             {
                 var s = new DocumentSession(t, doc, path, e.DisplayName, password, sha);
-                s.BeginLoadingOriginals(bytes, password);
+                s.BeginLoadingOriginals(bytes, password, deferOriginals);
                 return s;
             }
             catch { doc.Dispose(); throw; }
@@ -187,17 +187,28 @@ public sealed class DocumentSession : IAsyncDisposable
     /// 전용 스레드에서, 세션을 만든 직후 부른다. 배경에서 ① 쪽마다 주석 수를 세고(0개면 PDFsharp를 열지 않음)
     /// ② PDFsharp로 읽고 ③ 전용 스레드에서 쪽마다 붙인다. 모두 일반 줄만 쓴다.
     /// </summary>
-    private void BeginLoadingOriginals(byte[] bytes, string? password)
+    private void BeginLoadingOriginals(byte[] bytes, string? password, bool defer)
     {
         Thread.AssertOnThread();
         var ids = _order.ToArray();
+        if (defer) _originalsGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         AnnotationsReady = LoadOriginalsAsync(ids, bytes, password);
     }
+
+    // 화면이 문서를 열 때만 쓴다: 첫 화면 타일이 PDFium 스레드를 먼저 쓰도록 주석 개수 세기를 미룬다.
+    private TaskCompletionSource? _originalsGate;
+    private const int OriginalsGateTimeoutMs = 1500;
+
+    /// <summary>미뤄 둔 원본 주석 불러오기를 시작해도 된다고 알린다(첫 화면 타일을 그린 뒤). 여러 번·어느 스레드에서 불러도 된다. 미루지 않은 세션에서는 아무 일도 없다.</summary>
+    public void ReleaseOriginalsLoad() => _originalsGate?.TrySetResult();
 
     private async Task LoadOriginalsAsync(PageId[] ids, byte[] bytes, string? password)
     {
         try
         {
+            // 렌더러가 없거나 타일이 안 그려져도 도구가 영원히 기다리지 않게 시간 제한을 둔다.
+            if (_originalsGate is { } gate)
+                await Task.WhenAny(gate.Task, Task.Delay(OriginalsGateTimeoutMs)).ConfigureAwait(false);
             var withAnnots = new List<int>();
             for (int from = 0; from < ids.Length; from += CountChunk)
             {

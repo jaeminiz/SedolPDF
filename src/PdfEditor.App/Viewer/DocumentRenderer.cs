@@ -69,6 +69,7 @@ public sealed class DocumentRenderer : IDisposable
             long t0 = timed is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
             var bytes = page.RenderTile(r.Scale, r.Rect.X, r.Rect.Y, r.Rect.W, r.Rect.H, new RenderOptions(WithAnnotations: true, HiddenAnnotIndices: _s.Annotations.HiddenPdfIndices(r.Key.Page)));
             if (timed is not null && r.Kind == TileKind.Tile) timed(System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
+            if (r.Kind == TileKind.Tile) _s.ReleaseOriginalsLoad();   // 첫 화면 타일이 나왔으니 원본 주석 불러오기를 시작해도 된다
             return bytes;
         };
         return r.Kind != TileKind.Thumbnail ? _s.Thread.InvokeHighAsync(work, ct) : _s.Thread.InvokeAsync(work, ct);

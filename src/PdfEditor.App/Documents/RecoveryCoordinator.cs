@@ -133,7 +133,7 @@ public sealed class RecoveryCoordinator(PdfiumThread t, RecoveryStore store, Set
         {
         try
             {
-                s = await DocumentSession.OpenRecoveredAsync(t, e, bind, password).ConfigureAwait(true);
+                s = await DocumentSession.OpenRecoveredAsync(t, e, bind, password, deferOriginals: true).ConfigureAwait(true);
             }
             catch (PdfPasswordRequiredException)
             {

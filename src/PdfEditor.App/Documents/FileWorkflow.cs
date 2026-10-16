@@ -89,7 +89,7 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         {
             try
             {
-                session = await DocumentSession.OpenAsync(t, full, password).ConfigureAwait(true);
+                session = await DocumentSession.OpenAsync(t, full, password, deferOriginals: true).ConfigureAwait(true);
             }
             catch (PdfPasswordRequiredException)
             {
