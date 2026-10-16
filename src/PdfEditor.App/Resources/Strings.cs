@@ -22,7 +22,6 @@ public static class Strings
     public static string Tab_View => Get(nameof(Tab_View));
     public static string Doc_NoneOpen => Get(nameof(Doc_NoneOpen));
     public static string Msg_NoDocument => Get(nameof(Msg_NoDocument));
-    public static string Msg_ComingInM2M3 => Get(nameof(Msg_ComingInM2M3));
     public static string Msg_ComingInM4M5 => Get(nameof(Msg_ComingInM4M5));
     public static string Msg_NotYetConnected => Get(nameof(Msg_NotYetConnected));
     public static string Cmd_QuickCommandPlaceholder => Get(nameof(Cmd_QuickCommandPlaceholder));

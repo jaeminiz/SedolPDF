@@ -87,9 +87,34 @@ public sealed partial class DocumentView
             if (tool == ToolKind.AnnotSelect && !toggle) tab.Selection.Clear();   // 쪽 밖에서 시작한 끌기는 무시
             return true;
         }
-        var info = _layoutPages[hit.Value.Page];
-        if (!TryGetGeom(st, info, out var g)) return true;   // 도착하면 다시 그린다
-        var pt = ToPdf(g, hit.Value.Page, e.GetPosition(this), lay.Scale);
+        var press = new PressInfo(e.GetPosition(this), e.KeyModifiers, e.ClickCount, e.Pointer, hit.Value.Page);
+        if (!BeginPress(st, press)) _pendingPress = press;   // 쪽 정보가 도착하면 다시 시도한다
+        return true;
+    }
+
+    private readonly record struct PressInfo(Point Pos, KeyModifiers Mods, int ClickCount, IPointer Pointer, int PageIndex);
+    private PressInfo? _pendingPress;
+
+    /// <summary>쪽 정보가 없어 미뤄 둔 눌림을, 정보가 도착한 뒤 (아직 누르고 있으면) 처음부터 다시 처리한다.</summary>
+    private void RetryPendingPress()
+    {
+        if (_pendingPress is not { } p || _state is not { } st) return;
+        if (!BeginPress(st, p)) return;   // 아직 없다: 다음 도착 때 다시
+        _pendingPress = null;
+    }
+
+    /// <summary>쪽 정보가 없으면 false. 있으면 눌림을 처리하고 true.</summary>
+    private bool BeginPress(ViewState st, PressInfo e)
+    {
+        var lay = _layout;
+        if (lay is null || e.PageIndex >= _layoutPages.Length) return true;
+        var tab = st.Tab;
+        var tool = tab.Tool;
+        var info = _layoutPages[e.PageIndex];
+        if (!TryGetGeom(st, info, out var g)) return false;
+        var hit = (Page: e.PageIndex, InPage: default(Point));
+        bool toggle = (e.Mods & (KeyModifiers.Control | KeyModifiers.Shift)) != 0;
+        var pt = ToPdf(g, e.PageIndex, e.Pos, lay.Scale);
         float ptPerDip = (float)(1.0 / lay.Scale);
 
         if (tool == ToolKind.AnnotSelect)
@@ -106,20 +131,20 @@ public sealed partial class DocumentView
                 return true;
             }
             tab.Editing.Begin(annots, tab.Selection, h, pt, PdfRectF.FromLtrbRectangle(g.Bounds), ptPerDip);
-            StartGesture(e, Gesture.Select, hit.Value.Page, info.Id, g);
+            StartGesture(e.Pointer, Gesture.Select, hit.Page, info.Id, g);
             return true;
         }
 
         tab.Tools.Begin(tool, ToolDefaults.For(tool), info.Id, pt, ptPerDip);
-        StartGesture(e, tool == ToolKind.Eraser ? Gesture.Erase : Gesture.Create, hit.Value.Page, info.Id, g);
+        StartGesture(e.Pointer, tool == ToolKind.Eraser ? Gesture.Erase : Gesture.Create, hit.Page, info.Id, g);
         PushPreview();
         return true;
     }
 
-    private void StartGesture(PointerPressedEventArgs e, Gesture kind, int page, PageId id, PageGeom g)
+    private void StartGesture(IPointer pointer, Gesture kind, int page, PageId id, PageGeom g)
     {
-        _gesture = kind; _gPage = page; _gPageId = id; _gGeom = g; _gPointer = e.Pointer;
-        e.Pointer.Capture(this);
+        _gesture = kind; _gPage = page; _gPageId = id; _gGeom = g; _gPointer = pointer;
+        pointer.Capture(this);
     }
 
     // ---- 움직임 ----
@@ -158,6 +183,7 @@ public sealed partial class DocumentView
 
     private bool HandleAnnotPointerReleased(PointerReleasedEventArgs e)
     {
+        if (_pendingPress is not null) { _pendingPress = null; return true; }
         if (_gesture == Gesture.None) return false;
         var kind = _gesture;
         var st = _state;
@@ -192,8 +218,23 @@ public sealed partial class DocumentView
         if (newSticky is not null && !st.Disposed && ReferenceEquals(st, _state)) OpenStickyEditor(st, page, newSticky.Id);
     }
 
+    private int _markupEpoch;
+
+    /// <summary>진행 중이거나 끝나기를 기다리는 텍스트 마크업 끌기를 취소한다 (아무것도 만들지 않는다).</summary>
+    private void CancelMarkup()
+    {
+        if (!_selecting) return;
+        _markupEpoch++;
+        _selecting = false;
+        _selPageIndex = -1;
+        _charQueue.Clear();
+        _state?.Tab.TextSelection.Clear();
+    }
+
     private void CancelGesture()
     {
+        _pendingPress = null;
+        if (_state is { } ms && IsTextMarkupTool(ms.Tab.Tool)) CancelMarkup();
         if (_gesture == Gesture.None) return;
         _gesture = Gesture.None;
         _gPointer?.Capture(null);
@@ -207,10 +248,12 @@ public sealed partial class DocumentView
 
     private async Task FinishMarkupAsync(ViewState st, ToolKind tool)
     {
+        int epoch = _markupEpoch;
         try
         {
             // 글자 번호 조회가 끝나기를 잠깐 기다린다 (마지막 움직임까지 반영).
             for (int i = 0; i < 200 && (_charBusy || _charQueue.Count > 0); i++) await Task.Delay(10);
+            if (epoch != _markupEpoch) return;   // Esc·도구 전환으로 취소됨
             _selecting = false;
             var tab = st.Tab;
             var sel = tab.TextSelection;
@@ -219,6 +262,7 @@ public sealed partial class DocumentView
             var rects = await session.Thread.InvokeAsync(() => session.IndexOf(page) < 0
                 ? Array.Empty<RectangleF>()
                 : session.GetLoadedText(page).GetRects(r.Start, r.Count));
+            if (epoch != _markupEpoch) return;
             var cmd = tab.CanAnnotate
                 ? tab.Tools.CreateMarkup(tool, ToolDefaults.For(tool), page, [.. rects.Select(PdfRectF.FromLtrbRectangle)])
                 : null;
@@ -300,7 +344,6 @@ public sealed partial class DocumentView
     private PageId _editPage;
     private AnnotId _editId;
     private string _editOriginal = "";
-    private bool _editCancelled;
 
     private void EnsureStickyPopup()
     {
@@ -315,9 +358,9 @@ public sealed partial class DocumentView
         };
         ((ISetLogicalParent)_popup).SetParent(this);
         LogicalChildren.Add(_popup);
-        _popup.Closed += OnStickyClosed;
+        _popup.Closed += (_, _) => { if (!_popup.IsOpen) CommitSticky(); };
         _editor.AcceptRequested += () => _popup.IsOpen = false;
-        _editor.CancelRequested += () => { _editCancelled = true; _popup.IsOpen = false; };
+        _editor.CancelRequested += () => { _editState = null; _popup.IsOpen = false; };
     }
 
     private void OpenStickyEditor(ViewState st, PageId page, AnnotId id)
@@ -328,14 +371,14 @@ public sealed partial class DocumentView
         for (int i = 0; i < _layoutPages.Length; i++) if (_layoutPages[i].Id == page) { idx = i; break; }
         if (a is null || idx < 0 || !TryGetGeom(st, _layoutPages[idx], out var g)) return;
         EnsureStickyPopup();
-        if (_popup!.IsOpen) _popup.IsOpen = false;   // 열려 있던 편집은 닫으면서 저장된다
+        CommitSticky();   // 열려 있던 편집(A)은 여기서 바로 확정한다. 팝업은 닫지 않고 B로 다시 쓴다.
 
         var r = AnnotationGeometry.ComputeRect(a);
         var v = new PageTransform(g.Bounds, g.Rotation, lay.Scale).ToView(RectangleF.FromLTRB(r.Left, r.Bottom, r.Right, r.Top));
         var pr = lay.GetPageRect(idx);
-        _popup.PlacementRect = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(v.W, 1), Math.Max(v.H, 1));
+        _popup!.PlacementRect = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(v.W, 1), Math.Max(v.H, 1));
 
-        _editState = st; _editPage = page; _editId = id; _editCancelled = false;
+        _editState = st; _editPage = page; _editId = id;
         _editOriginal = a.Contents ?? "";
         string when = (a.ModifiedAt ?? DateTimeOffset.Now).ToLocalTime().ToString("g");
         _editor!.Load(string.Format(Strings.Sticky_Header, a.Author ?? "", when), _editOriginal);
@@ -343,12 +386,19 @@ public sealed partial class DocumentView
         Dispatcher.UIThread.Post(() => _editor.FocusBox(), DispatcherPriority.Input);
     }
 
-    // 닫힐 때(바깥 클릭·Ctrl+Enter) 내용이 바뀐 경우만 교체 명령을 낸다. Esc는 취소.
-    private void OnStickyClosed(object? sender, EventArgs e)
+    /// <summary>열려 있는 편집 창을 닫는다. commit이 false면 내용을 버린다.</summary>
+    private void CloseStickyEditor(bool commit)
+    {
+        if (!commit) _editState = null; else CommitSticky();
+        if (_popup is { IsOpen: true }) _popup.IsOpen = false;
+    }
+
+    // 한 번만 확정된다 (_editState를 먼저 비우므로 닫힘 이벤트가 늦게 와도 다시 적용되지 않는다). 내용이 바뀐 경우만 교체 명령을 낸다.
+    private void CommitSticky()
     {
         var st = _editState;
         _editState = null;
-        if (st is null || st.Disposed || _editCancelled || _editor is null) return;
+        if (st is null || st.Disposed || _editor is null) return;
         string text = _editor.Text;
         if (text == _editOriginal) return;
         var cur = st.Session.Annotations.Get(_editPage).Items.FirstOrDefault(v => v.Data.Id == _editId)?.Data;

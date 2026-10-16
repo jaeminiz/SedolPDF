@@ -137,6 +137,8 @@ public sealed partial class DocumentView : Control
 
     private void SwitchTab(DocumentTabViewModel? tab)
     {
+        CancelGesture();
+        CloseStickyEditor(commit: true);
         if (_state is not null)
         {
             if (_sv is not null) _state.Offset = _sv.Offset;
@@ -197,6 +199,7 @@ public sealed partial class DocumentView : Control
 
     private void DisposeState(ViewState st)
     {
+        if (_editState is not null && ReferenceEquals(_editState, st)) CloseStickyEditor(commit: false);
         if (ReferenceEquals(_state, st))
         {
             st.Tab.PropertyChanged -= OnTabPropertyChanged;
@@ -457,8 +460,8 @@ public sealed partial class DocumentView : Control
             if (on) { s.PropertyChanged += OnSearchPropertyChanged; s.Results.CollectionChanged += OnSearchResultsChanged; }
             else { s.PropertyChanged -= OnSearchPropertyChanged; s.Results.CollectionChanged -= OnSearchResultsChanged; }
         }
-        if (on) { st.Tab.TextSelection.Changed += OnSelectionChanged; st.Tab.Selection.Changed += OnAnnotSelectionChanged; }
-        else { st.Tab.TextSelection.Changed -= OnSelectionChanged; st.Tab.Selection.Changed -= OnAnnotSelectionChanged; }
+        if (on) { st.Tab.TextSelection.Changed += OnSelectionChanged; st.Tab.Selection.Changed += OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested += SetAnnotationPreview; }
+        else { st.Tab.TextSelection.Changed -= OnSelectionChanged; st.Tab.Selection.Changed -= OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested -= SetAnnotationPreview; }
         if (on) { st.HitsByPage = null; RefreshSelection(st); }
     }
 
@@ -515,6 +518,7 @@ public sealed partial class DocumentView : Control
             if (st.Disposed || geom is null) return;
             st.Geoms[key] = geom;
             if (!ReferenceEquals(st, _state)) return;
+            RetryPendingPress();
             TryReveal();
             InvalidateVisual();
         });

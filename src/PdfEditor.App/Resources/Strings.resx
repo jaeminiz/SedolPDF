@@ -13,7 +13,6 @@
   <data name="Tab_View" xml:space="preserve"><value>보기</value></data>
   <data name="Doc_NoneOpen" xml:space="preserve"><value>열린 문서 없음</value></data>
   <data name="Msg_NoDocument" xml:space="preserve"><value>열린 문서가 없습니다. Ctrl+O로 PDF 파일을 여세요.</value></data>
-  <data name="Msg_ComingInM2M3" xml:space="preserve"><value>주석 기능은 이후 단계에서 제공됩니다.</value></data>
   <data name="Msg_ComingInM4M5" xml:space="preserve"><value>편집 기능은 이후 단계에서 제공됩니다.</value></data>
   <data name="Msg_NotYetConnected" xml:space="preserve"><value>아직 연결되지 않은 기능입니다.</value></data>
   <data name="Cmd_QuickCommandPlaceholder" xml:space="preserve"><value>빠른 실행 (Ctrl+.)</value></data>

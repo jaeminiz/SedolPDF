@@ -222,4 +222,120 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
         Assert.Equal(sq.Rect.Left, reopened[0].Rect.Left, 1);
         Assert.Equal(sq.Rect.Bottom, reopened[0].Rect.Bottom, 1);
     }
+
+    private static object? Field(object o, string name) =>
+        o.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)!.GetValue(o);
+
+    private static Popup EditorPopup(Host h) => (Popup)Field(h.View, "_popup")!;
+
+    private static void DoubleClick(Host h, Point p) => HeadlessUi.Run(() =>
+    {
+        h.Window.MouseMove(p);
+        for (int i = 0; i < 2; i++) { h.Window.MouseDown(p, MouseButton.Left); h.Window.MouseUp(p, MouseButton.Left); }
+        return 0;
+    });
+
+    private static Annotation Note(DocumentSession s, float l, float b) => new()
+    {
+        Id = s.Annotations.NewId(), Kind = AnnotKind.Text, Rect = new PdfRectF(l, b, l + 20, b + 20),
+        Contents = "", Flags = PdfAnnotFlags.Print, Color = PdfColor.FromHex("#FFD60A"),
+    };
+
+    [Fact]
+    public async Task StickyEditor_SwitchingNotes_CommitsAOnlyToA_AndBOpensCleanly()
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var page = s.Pages[0].Id;
+        var a = Note(s, 50, 500);
+        var b = Note(s, 250, 300);
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(page, a));
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(page, b));
+        var h = Show(s);
+        double k = ZoomMath.PointsToDip;
+        SetTool(h, ToolKind.AnnotSelect);
+
+        DoubleClick(h, At(h, 60 * k, (600 - 510) * k));
+        HeadlessUi.Run(() => { Pump(() => Field(h.View, "_popup") is Popup { IsOpen: true }); return 0; });
+        var popup = EditorPopup(h);
+        HeadlessUi.Run(() => { ((StickyNoteEditor)popup.Child!).FindControl<TextBox>("Box")!.Text = "A-text"; return 0; });
+
+        DoubleClick(h, At(h, 260 * k, (600 - 310) * k));
+        HeadlessUi.Run(() =>
+        {
+            Pump(() => Items(h).First(x => x.Id == a.Id).Contents == "A-text" && (AnnotId)Field(h.View, "_editId")! == b.Id);
+            Assert.True(popup.IsOpen);
+            Assert.Equal("", ((StickyNoteEditor)popup.Child!).Text);
+            popup.IsOpen = false;   // B는 바꾸지 않고 닫는다: A의 글이 B로 새지 않아야 한다
+            Thread.Sleep(200); Dispatcher.UIThread.RunJobs();
+            return 0;
+        });
+        Assert.Equal("A-text", Items(h).First(x => x.Id == a.Id).Contents);
+        Assert.Equal("", Items(h).First(x => x.Id == b.Id).Contents ?? "");
+    }
+
+    [Fact]
+    public async Task StickyEditor_ClosesWhenTabChanges_AndCommitsText()
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var page = s.Pages[0].Id;
+        var a = Note(s, 50, 500);
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(page, a));
+        var h = Show(s);
+        double k = ZoomMath.PointsToDip;
+        SetTool(h, ToolKind.AnnotSelect);
+        DoubleClick(h, At(h, 60 * k, (600 - 510) * k));
+        HeadlessUi.Run(() => { Pump(() => Field(h.View, "_popup") is Popup { IsOpen: true }); return 0; });
+        var popup = EditorPopup(h);
+        HeadlessUi.Run(() =>
+        {
+            ((StickyNoteEditor)popup.Child!).FindControl<TextBox>("Box")!.Text = "kept";
+            h.View.Tab = null;
+            Assert.False(popup.IsOpen);
+            Pump(() => Items(h).First(x => x.Id == a.Id).Contents == "kept");
+            return 0;
+        });
+    }
+
+    [Fact]
+    public async Task Press_BeforeGeometryArrives_IsNotLost()
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var h = Show(s);
+        double k = ZoomMath.PointsToDip;
+        SetTool(h, ToolKind.Rectangle);
+        HeadlessUi.Run(() =>
+        {
+            ((System.Collections.IDictionary?)Field(Field(h.View, "_state")!, "Geoms"))!.Clear();   // 쪽 정보를 없앤 채로 누른다
+            h.Window.MouseMove(At(h, 100, 100));
+            h.Window.MouseDown(At(h, 100, 100), MouseButton.Left);
+            Pump(() => (int)Field(h.View, "_gesture")! != 0);   // 정보가 도착해 끌기가 시작될 때까지
+            h.Window.MouseMove(At(h, 100 + 60 * k, 100 + 40 * k));
+            h.Window.MouseUp(At(h, 100 + 60 * k, 100 + 40 * k), MouseButton.Left);
+            return 0;
+        });
+        WaitCount(h, 1);
+        Assert.Equal(60f, Items(h)[0].Rect.Width, 1);
+    }
+
+    [Fact]
+    public async Task Esc_DuringTextMarkupDrag_CancelsMarkup()
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var h = Show(s);
+        SetTool(h, ToolKind.HighlightText);
+        HeadlessUi.Run(() =>
+        {
+            h.Window.MouseDown(At(h, 60, 60), MouseButton.Left);
+            h.Window.MouseMove(At(h, 300, 70));
+            Assert.True((bool)Field(h.View, "_selecting")!);
+            h.Window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            Assert.False((bool)Field(h.View, "_selecting")!);
+            Assert.Equal(1, (int)Field(h.View, "_markupEpoch")!);
+            h.Window.MouseUp(At(h, 300, 70), MouseButton.Left);
+            Thread.Sleep(300); Dispatcher.UIThread.RunJobs();
+            return 0;
+        });
+        Assert.Empty(Items(h));
+        Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);
+    }
 }
