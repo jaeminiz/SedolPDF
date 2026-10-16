@@ -9,6 +9,7 @@ using PdfEditor.TestFixtures;
 
 namespace PdfEditor.App.Tests.Panels;
 
+[Collection("TabSettings")]
 public class AnnotationPropertiesViewModelTests : PanelTestBase, IDisposable
 {
     private static readonly PdfColor Red = PdfColor.FromHex("#E5372D");
@@ -194,4 +195,76 @@ public class AnnotationPropertiesViewModelTests : PanelTestBase, IDisposable
         Assert.Equal(Blue, a.Color);
         Assert.Equal(3f, a.BorderWidth);
     }
+
+    private static Annotation WithWidth(Annotation a, float w) => a with { BorderWidth = w };
+
+    private async Task<(DocumentTabViewModel Tab, AnnotationPropertiesViewModel Vm, PageId Page, List<Annotation> Items)> TwoWidthsAsync()
+    {
+        var r = await SetupAsync((AnnotKind.Square, Red), (AnnotKind.Circle, Red));
+        var (tab, _, page, items) = r;
+        // 두 번째 주석의 두께만 다르게 (명령으로 바꿔 모델과 일치시킨다)
+        var changed = WithWidth(items[1], 5f);
+        await tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Replace(page, [(items[1], changed)]));
+        items[1] = changed;
+        tab.Selection.Set(page, [items[0].Id, items[1].Id]);
+        return r;
+    }
+
+    [Fact]
+    public async Task OpacityEdit_MultiSelection_LeavesWidthsUntouched()
+    {
+        var (tab, vm, page, items) = await TwoWidthsAsync();
+        vm.BeginPreview();
+        vm.OpacityPercent = 50;
+        await vm.CommitPreviewAsync();
+        Assert.Equal(1f, Current(tab, page, items[0].Id).BorderWidth);
+        Assert.Equal(5f, Current(tab, page, items[1].Id).BorderWidth);
+        Assert.All(items, a => Assert.Equal(0.5f, Current(tab, page, a.Id).Opacity, 3));
+    }
+
+    [Fact]
+    public async Task WidthEdit_MultiSelection_LeavesOpacityUntouched()
+    {
+        var (tab, vm, page, items) = await TwoWidthsAsync();
+        var half = Current(tab, page, items[1].Id) with { Opacity = 0.3f };
+        await tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Replace(page, [(Current(tab, page, items[1].Id), half)]));
+        vm.Refresh();
+        vm.BeginPreview();
+        vm.Width = 3f;
+        await vm.CommitPreviewAsync();
+        Assert.All(items, a => Assert.Equal(3f, Current(tab, page, a.Id).BorderWidth));
+        Assert.Equal(1f, Current(tab, page, items[0].Id).Opacity, 3);
+        Assert.Equal(0.3f, Current(tab, page, items[1].Id).Opacity, 3);
+    }
+
+    [Fact]
+    public async Task SliderCommit_ReResolvesCurrentAnnotations_NoStaleBeforeNoResurrection()
+    {
+        var (tab, vm, page, items) = await TwoWidthsAsync();
+        vm.BeginPreview();
+        vm.Width = 3f;
+        // 끌기 중에 첫 주석이 다른 경로로 바뀌고 둘째는 지워진다
+        var moved = Current(tab, page, items[0].Id) with { Rect = new PdfRectF(100, 100, 150, 150) };
+        await tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Replace(page, [(Current(tab, page, items[0].Id), moved)]));
+        await tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Delete(page, [Current(tab, page, items[1].Id)]));
+        await vm.CommitPreviewAsync();
+        var a0 = Current(tab, page, items[0].Id);
+        Assert.Equal(3f, a0.BorderWidth);
+        Assert.Equal(moved.Rect, a0.Rect);   // 바뀐 위치가 유지된다
+        Assert.DoesNotContain(tab.Session!.Annotations.Get(page).Items, v => v.Data.Id == items[1].Id);   // 되살아나지 않음
+    }
+
+    [Fact]
+    public async Task FillMixed_WhenFillsDiffer()
+    {
+        var (tab, vm, page, items) = await SetupAsync((AnnotKind.Square, Red), (AnnotKind.Square, Red));
+        var f = items[1] with { FillColor = Green };
+        await tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Replace(page, [(items[1], f)]));
+        tab.Selection.Set(page, [items[0].Id, items[1].Id]);
+        Assert.True(vm.IsFillMixed);
+        Assert.Null(vm.Fill);
+    }
 }
+
+[CollectionDefinition("TabSettings", DisableParallelization = true)]
+public sealed class TabSettingsCollection;

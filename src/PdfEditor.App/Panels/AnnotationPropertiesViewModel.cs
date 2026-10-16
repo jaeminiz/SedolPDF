@@ -32,6 +32,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     [ObservableProperty] private bool _isColorMixed;
     [ObservableProperty] private bool _showFill;
     [ObservableProperty] private PdfColor? _fill;
+    [ObservableProperty] private bool _isFillMixed;
     [ObservableProperty] private bool _showWidth;
     [ObservableProperty] private float _width = 1f;
     [ObservableProperty] private int _opacityPercent = 100;
@@ -84,7 +85,9 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
                 Color = colors.Count == 1 ? colors[0] : null;
                 IsColorMixed = colors.Count > 1;
                 ShowFill = sel.All(a => a.Kind is AnnotKind.Square or AnnotKind.Circle);
-                Fill = ShowFill && sel.Select(a => a.FillColor).Distinct().Count() == 1 ? sel[0].FillColor : null;
+                int fills = sel.Select(a => a.FillColor).Distinct().Count();
+                IsFillMixed = ShowFill && fills > 1;
+                Fill = ShowFill && fills == 1 ? sel[0].FillColor : null;
                 ShowWidth = sel.All(a => a.Kind is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle);
                 Width = Math.Clamp(sel[0].BorderWidth, MinWidth, MaxWidth);
                 OpacityPercent = ClampOpacity((int)MathF.Round(sel[0].Opacity * 100f));
@@ -100,7 +103,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
                 KindName = DocumentTabViewModel.SubjectFor(_tab.Tool);
                 Color = st.Color; IsColorMixed = false;
                 ShowFill = _tab.Tool is ToolKind.Rectangle or ToolKind.Ellipse;
-                Fill = ShowFill ? st.Fill : null;
+                Fill = ShowFill ? st.Fill : null; IsFillMixed = false;
                 ShowWidth = _tab.Tool is ToolKind.Pencil or ToolKind.Rectangle or ToolKind.Ellipse;
                 Width = st.Width;
                 OpacityPercent = ClampOpacity((int)MathF.Round(st.Opacity * 100f));
@@ -110,7 +113,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
             {
                 Mode = AnnotationPropertiesMode.None;
                 KindName = "";
-                Color = null; IsColorMixed = false; ShowFill = false; Fill = null; ShowWidth = false;
+                Color = null; IsColorMixed = false; ShowFill = false; Fill = null; IsFillMixed = false; ShowWidth = false;
                 CanEditAuthor = false; Author = ""; CreatedText = ""; ModifiedText = "";
             }
         }
@@ -140,12 +143,16 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
 
     // ---- 값 바뀜 (슬라이더·키보드) ----
 
+    // 슬라이더가 만진 속성만 적용한다 (여러 개 선택 때 패널 값은 첫 번째 주석에서 온 대표값이라 나머지를 덮어쓰면 안 된다).
+    private bool _widthEdited, _opacityEdited;
+
     partial void OnWidthChanged(float value)
     {
         OnPropertyChanged(nameof(WidthLabel));
         if (_syncing) return;
         float c = ClampWidth(value);
         if (c != value) { Width = c; return; }
+        _widthEdited = true;
         ValueEdited();
     }
 
@@ -155,13 +162,21 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         if (_syncing) return;
         int c = ClampOpacity(value);
         if (c != value) { OpacityPercent = c; return; }
+        _opacityEdited = true;
         ValueEdited();
     }
 
     private void ValueEdited()
     {
         if (_previewing) UpdatePreview();
-        else _ = CommitSliderAsync();   // 키보드 변경: 바로 커밋
+        else _ = CommitSliderSafeAsync();   // 키보드 변경: 바로 커밋
+    }
+
+    // 버려진(unobserved) 예외 대신 사용자 안내로 알린다.
+    private async Task CommitSliderSafeAsync()
+    {
+        try { await CommitSliderAsync(); }
+        catch (Exception) { _tab.RaiseNotice(Strings.Msg_PropertyEditFailed); }
     }
 
     // ---- 슬라이더 끌기 ----
@@ -171,6 +186,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     {
         if (_previewing || Mode == AnnotationPropertiesMode.None) return;
         _snapshot = Mode == AnnotationPropertiesMode.Selection ? SelectedNow() : [];
+        _widthEdited = _opacityEdited = false;
         _previewing = true;
     }
 
@@ -178,14 +194,14 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     {
         if (Mode != AnnotationPropertiesMode.Selection) return;
         var now = _clock();
-        Previews = _snapshot.ToDictionary(a => a.Id, a => (Annotation?)Adjust(a, now));
+        Previews = _snapshot.ToDictionary(a => a.Id, a => (Annotation?)Adjust(a, now, _widthEdited, _opacityEdited));
         _tab.RaiseAnnotationPreview(_tab.Selection.Page, Previews);
     }
 
-    private Annotation Adjust(Annotation a, DateTimeOffset now) => a with
+    private Annotation Adjust(Annotation a, DateTimeOffset now, bool width, bool opacity) => a with
     {
-        BorderWidth = ShowWidth ? Width : a.BorderWidth,
-        Opacity = OpacityPercent / 100f,
+        BorderWidth = width && a.Kind is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle ? Width : a.BorderWidth,
+        Opacity = opacity ? OpacityPercent / 100f : a.Opacity,
         ModifiedAt = now,
     };
 
@@ -197,12 +213,14 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     {
         if (!_previewing) return;
         _previewing = false;
-        var snap = _snapshot;
         _snapshot = [];
         Previews = null;
+        bool w = _widthEdited, o = _opacityEdited;
+        _widthEdited = _opacityEdited = false;
         try
         {
-            if (Mode == AnnotationPropertiesMode.Selection) await ApplyAsync(snap, a => Adjust(a, _clock()));
+            // 끌기 시작 때의 스냅숏 대신 커밋 때 현재 주석을 다시 찾는다 (그 사이 바뀌거나 사라진 주석 처리).
+            if (Mode == AnnotationPropertiesMode.Selection) await ApplyAsync(a => Adjust(a, _clock(), w, o));
             else if (Mode == AnnotationPropertiesMode.ToolDefaults) DocumentTabViewModel.SaveToolStyle(_tab.Tool, ToolStyleNow());
         }
         finally { _tab.RaiseAnnotationPreview(null, null); Refresh(); }
@@ -210,7 +228,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
 
     private async Task CommitSliderAsync()
     {
-        _snapshot = Mode == AnnotationPropertiesMode.Selection ? SelectedNow() : [];
+        _snapshot = [];
         _previewing = true;
         await CommitPreviewAsync();
     }
@@ -231,23 +249,26 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     {
         if (Mode != AnnotationPropertiesMode.Selection || !CanEditAuthor) return;
         string name = Author.Trim();
-        await ApplyAsync(SelectedNow(), a => a with { Author = name, ModifiedAt = _clock() });
+        await ApplyAsync(a => a with { Author = name, ModifiedAt = _clock() });
         Refresh();
     }
 
     private async Task EditAsync(Func<Annotation, Annotation> edit, Func<ToolStyle, ToolStyle> style)
     {
-        if (Mode == AnnotationPropertiesMode.Selection) await ApplyAsync(SelectedNow(), edit);
+        if (Mode == AnnotationPropertiesMode.Selection) await ApplyAsync(edit);
         else if (Mode == AnnotationPropertiesMode.ToolDefaults)
             DocumentTabViewModel.SaveToolStyle(_tab.Tool, style(DocumentTabViewModel.StyleFor(_tab.Tool)));
         Refresh();
     }
 
-    private async Task ApplyAsync(List<Annotation> before, Func<Annotation, Annotation> edit)
+    // 원본 주석이 붙을 때까지 기다린 뒤, 지금 선택된 주석의 현재 인스턴스를 찾아 edit를 적용한다 (없어진 주석은 건너뜀).
+    private async Task ApplyAsync(Func<Annotation, Annotation> edit)
     {
+        if (_tab.Session is null || !_tab.CanAnnotate) return;
+        await _tab.Session.AnnotationsReady;
         if (_tab.Selection.Page is not { } page) return;
         var items = new List<(Annotation Before, Annotation After)>();
-        foreach (var a in before)
+        foreach (var a in SelectedNow())
         {
             var after = edit(a);
             if (!EqualIgnoringTime(a, after)) items.Add((a, after));

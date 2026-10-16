@@ -282,4 +282,5 @@ public static class Strings
     public static string Prop_Annot_DefaultsHint => Get(nameof(Prop_Annot_DefaultsHint));
     public static string Dlg_SettingsAuthor => Get(nameof(Dlg_SettingsAuthor));
     public static string Dlg_SettingsAuthorHint => Get(nameof(Dlg_SettingsAuthorHint));
+    public static string Msg_PropertyEditFailed => Get(nameof(Msg_PropertyEditFailed));
 }

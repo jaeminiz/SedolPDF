@@ -68,15 +68,13 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     /// <summary>이 도구로 만들 주석의 모양: 설정에 저장된 값, 없으면 기본값.</summary>
     public static ToolStyle StyleFor(ToolKind tool)
     {
-        if (LoadSettings().ToolStyles is { } d && d.TryGetValue(tool.ToString(), out var s))
+        try
         {
-            try
-            {
+            if (LoadSettings().ToolStyles is { } d && d.TryGetValue(tool.ToString(), out var s) && s is not null)
                 return new ToolStyle(PdfColor.FromHex(s.ColorHex), s.FillHex is null ? null : PdfColor.FromHex(s.FillHex),
                     Math.Clamp(s.Opacity, 0.1f, 1f), Math.Clamp(s.Width, 0.5f, 12f));
-            }
-            catch (FormatException) { }
         }
+        catch (Exception) { }   // 손상된 항목(null·잘못된 색 등)은 기본값으로
         return ToolDefaults.For(tool);
     }
 
@@ -84,12 +82,14 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     public static void SaveToolStyle(ToolKind tool, ToolStyle style)
     {
         if (Settings is not { } store) return;
-        var cur = store.Load();
-        var map = cur.ToolStyles is null
-            ? new Dictionary<string, ToolStyleSetting>()
-            : new Dictionary<string, ToolStyleSetting>(cur.ToolStyles);
-        map[tool.ToString()] = new ToolStyleSetting(style.Color.ToHex(), style.Fill?.ToHex(), style.Opacity, style.Width);
-        store.Save(cur with { ToolStyles = map });
+        store.Update(cur =>
+        {
+            var map = cur.ToolStyles is null
+                ? new Dictionary<string, ToolStyleSetting>()
+                : new Dictionary<string, ToolStyleSetting>(cur.ToolStyles.Where(kv => kv.Value is not null));
+            map[tool.ToString()] = new ToolStyleSetting(style.Color.ToHex(), style.Fill?.ToHex(), style.Opacity, style.Width);
+            return cur with { ToolStyles = map };
+        });
     }
 
     /// <summary>UI 스레드로 넘기는 함수 (패널 모델이 전용 스레드 이벤트를 받을 때 쓴다).</summary>

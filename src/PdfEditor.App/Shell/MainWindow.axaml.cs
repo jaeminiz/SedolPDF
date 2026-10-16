@@ -30,7 +30,7 @@ public sealed partial class MainWindow : Window
         var cur = _settings.Load();
         var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName).ShowDialog<SettingsResult?>(this);
         if (result is null) return;
-        try { _settings.Save(_settings.Load() with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName }); }
+        try { _settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName }); }
         catch (Exception) { return; }
         _recovery.Reschedule();
     }

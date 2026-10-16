@@ -67,8 +67,8 @@ public sealed partial class PropertiesPanel : UserControl
             AuthorSection.IsVisible = _vm.Mode == AnnotationPropertiesMode.Selection && _vm.CanEditAuthor;
             WidthSlider.Value = _vm.Width;
             OpacitySlider.Value = _vm.OpacityPercent;
-            Rebuild(ColorSwatches, _vm.Color, includeNone: false, c => _ = Run(() => _vm.SetColorAsync(c!.Value)));
-            if (_vm.ShowFill) Rebuild(FillSwatches, _vm.Fill, includeNone: true, c => _ = Run(() => _vm.SetFillAsync(c)));
+            Rebuild(ColorSwatches, _vm.Color, includeNone: false, noneSelected: false, c => _ = Run(() => _vm.SetColorAsync(c!.Value)));
+            if (_vm.ShowFill) Rebuild(FillSwatches, _vm.Fill, includeNone: true, noneSelected: _vm.Fill is null && !_vm.IsFillMixed, c => _ = Run(() => _vm.SetFillAsync(c)));
         }
         finally { _syncing = false; }
     }
@@ -78,10 +78,10 @@ public sealed partial class PropertiesPanel : UserControl
         try { await f(); } catch (Exception) { }
     }
 
-    private void Rebuild(WrapPanel host, PdfColor? current, bool includeNone, Action<PdfColor?> onPick)
+    private void Rebuild(WrapPanel host, PdfColor? current, bool includeNone, bool noneSelected, Action<PdfColor?> onPick)
     {
         host.Children.Clear();
-        if (includeNone) host.Children.Add(MakeSwatch(null, current is null, onPick));
+        if (includeNone) host.Children.Add(MakeSwatch(null, noneSelected, onPick));
         foreach (var c in _vm!.Swatches) host.Children.Add(MakeSwatch(c, current == c, onPick));
     }
 
@@ -95,7 +95,7 @@ public sealed partial class PropertiesPanel : UserControl
             BorderThickness = new Thickness(selected ? 2 : 1),
             Content = c is null ? new TextBlock { Text = "∅", FontSize = 11, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center } : null,
         };
-        Avalonia.Automation.AutomationProperties.SetName(b, c?.ToHex() ?? "none");
+        Avalonia.Automation.AutomationProperties.SetName(b, c?.ToHex() ?? PdfEditor.App.Resources.Strings.Prop_Annot_NoFill);
         b.Click += (_, _) => onPick(c);
         return b;
     }

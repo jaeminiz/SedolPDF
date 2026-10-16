@@ -273,4 +273,5 @@
   <data name="Prop_Annot_DefaultsHint" xml:space="preserve"><value>새로 만들 주석의 기본 모양</value></data>
   <data name="Dlg_SettingsAuthor" xml:space="preserve"><value>작성자 이름</value></data>
   <data name="Dlg_SettingsAuthorHint" xml:space="preserve"><value>주석에 기록되는 이름입니다. 비워 두면 Windows 사용자 이름을 씁니다.</value></data>
+  <data name="Msg_PropertyEditFailed" xml:space="preserve"><value>주석 속성을 바꾸지 못했습니다.</value></data>
 </root>

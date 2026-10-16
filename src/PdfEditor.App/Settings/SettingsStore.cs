@@ -69,6 +69,12 @@ public sealed class SettingsStore(string filePath)
         }
     }
 
+    /// <summary>읽기-고치기-쓰기를 잠금 하나 안에서 한다 (다른 스레드의 쓰기와 섞여 값을 잃지 않게).</summary>
+    public void Update(Func<AppSettings, AppSettings> change)
+    {
+        lock (_gate) SaveCore(change(LoadCore()));
+    }
+
     /// <summary>맨 앞에 넣고 중복(대소문자 무시)을 없애며 최대 10개만 둔다.</summary>
     public void AddRecent(string path)
     {
