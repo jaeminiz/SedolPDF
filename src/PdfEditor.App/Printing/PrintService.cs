@@ -45,8 +45,10 @@ public sealed class AvaloniaPrintService(Window owner, IUserPrompts prompts) : I
             await PrintJob.RunAsync(session, chosen.Dc, chosen.PageIndices, options, progress, cts.Token);
         }
         catch (OperationCanceledException) { canceled = true; }
-        catch (PrintException)
+        catch (Exception)
         {
+            // PrintException뿐 아니라 쪽 불러오기 실패(PdfiumException, 손상된 쪽) 등도 같은 길로:
+            // 진행 창을 닫고 DC를 돌려준 뒤 알린다. 예외가 새면 진행 창이 남고 DC가 샌다.
             progressDlg.Finish();
             PrintInterop.DeleteDc(chosen.Dc);
             await prompts.ShowErrorAsync(Strings.Msg_PrintFailed);

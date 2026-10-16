@@ -34,6 +34,19 @@ public class AttachmentTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAttachments_NameWithBackslash_KeptAsIs()
+    {
+        TestPdfFactory.CreateWithAttachment(P("e.pdf"), @"..\evil.txt", [1]);
+        var raw = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(P("e.pdf")));
+        await _t.InvokeAsync(() =>
+        {
+            using var doc = PdfDocument.Open(_t, P("e.pdf"));
+            Assert.True(@"..\evil.txt" == doc.GetAttachments()[0].Name,
+                "name=" + doc.GetAttachments()[0].Name + " raw=" + raw[raw.IndexOf("/UF", StringComparison.Ordinal)..][..40]);
+        });
+    }
+
+    [Fact]
     public async Task GetAttachments_None_ReturnsEmpty()
     {
         TestPdfFactory.CreateBlank(P("b.pdf"), 1, 595, 842);

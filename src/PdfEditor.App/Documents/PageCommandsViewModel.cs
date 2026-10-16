@@ -246,7 +246,8 @@ public sealed class PageCommandsViewModel : IDisposable
         }
         finally
         {
-            if (!handedOver) src.Dispose();
+            // PdfDocument.Dispose는 PDFium 스레드 작업을 동기로 기다리므로 UI 스레드에서 부르지 않고 전용 스레드에서 닫는다.
+            if (!handedOver) await _s.Thread.InvokeAsync(src.Dispose);
         }
     });
 
