@@ -63,40 +63,37 @@ Task 3 때 웹으로만 본 헤더 4개 외에, **NuGet 패키지에 들어 있�
 - **A1 도면을 A4(Microsoft Print to PDF 기본 용지)에 맞춤 인쇄:** 가로형 A1(2383.9×1683.8pt)이 세로 A4(595.3×841.9pt)에서 자동 회전(Rotate=1)되어 가로·세로 모두 용지에 꽉 맞고(비율 유지, 가운데) 잘림 없음. 주석 포함 시 스티커 메모 아이콘이 회전된 위치(왼쪽 위)에 보이고, 제외 시 사라짐. 실제 크기(ActualSize)는 A1 가운데 부분만 A4에 잘려 나온다(설계대로).
 - **검증 필요(사용자 수동 확인):** 실제 Win32 인쇄 대화상자(`PrintDlgExW`: 프린터 선택, 페이지 범위·현재 페이지, 매수/한 부씩, 파일로 인쇄 체크)와 실제 프린터 출력은 자동 테스트·합성 입력 없이 확인하지 못했다. 쪽 범위·현재 쪽 해석(`PD_PAGENUMS`/`PD_CURRENTPAGE`)은 코드만 작성됨.
 
-## V5 — PDFium 배포 조건 (Task 18, 2026-10-16)
-**상태: 조사 결과만 정리. 최종 판단(재배포 가능 여부, 어떤 고지를 함께 줄지)은 사용자 결정 사항이다.**
+## V5 — PDFium 배포 조건 (완료, 2026-10-16)
+**판정: 재배포 가능. 라이선스 원문을 앱과 함께 배포하고, 문서에 크레딧 2줄(FreeType, IJG)을 넣는다.**
 
-방법: 릴리스 압축 파일은 **내려받지 않았다**(사용자 규칙). 이미 디스크에 있는 NuGet 패키지 `bblanchon.PDFium.Win32` 157.0.8100의 파일과, 웹 조회(pdfium 소스 `LICENSE`, `third_party/` 목록, pdfium-binaries의 `steps/08-licenses.sh`·README·릴리스 페이지)로 확인했다.
+방법: 사용자 승인을 받아 상위 세션이 pdfium-binaries 릴리스 `chromium/8100`의 `pdfium-win-x64.tgz`(3.9 MB)를 작업용 임시 폴더에 내려받았다. 라이선스 파일만 풀어서 읽었고, 실행 파일은 실행하지 않았다.
 
-### 확인한 사실
-1. **NuGet 패키지 안에는 라이선스 파일이 없다.** 파일 목록: `.nuspec`, `README.md`, `icon.png`, `build/native/include/pdfium/*.h`(헤더), `build/native/lib/*/pdfium.dll.lib`, `runtimes/win-{x64,x86,arm64}/native/pdfium.dll`. `LICENSE`·`NOTICE`·`licenses/` 없음. nuspec의 `license`는 `Apache-2.0`(식 표기)이고 저작권은 "Copyright © Benoît Blanchon 2017-2025"(래퍼/빌드 저작권)이다.
-2. **PDFium 자체 라이선스(`LICENSE`, chromium/8100):** 첫 줄 `Copyright 2014 The PDFium Authors`, 앞부분은 BSD 3조항 형식의 문구("Redistribution and use in source and binary forms…"), 뒤에 Apache License 2.0 전문이 이어진다고 조회 도구가 답했다. *(검증 필요: 조회 도구가 요약해 준 것이라 원문 그대로인지, BSD와 Apache가 정말 둘 다 들어 있는지는 원문 파일을 직접 열어 확인해야 한다.)*
-3. **pdfium-binaries 릴리스 압축 파일에는 `licenses/` 폴더가 들어간다**(빌드 스크립트 `steps/08-licenses.sh`가 `staging/licenses/`에 만든다). 항상 `pdfium.txt`(PDFium 라이선스)를 쓰고, `build.ninja`에서 찾은 서드파티마다 한 파일씩 만든다. 스크립트가 아는 목록: abseil, agg23, bigint, catapult, cpu_features, dragonbox(Apache2-LLVM + Boost 두 파일), fast_float, fp16, freetype(`FTL.TXT`), harfbuzz, highway, icu, lcms, libpng, libjpeg_turbo(`.md`와 `.ijg`), libopenjpeg, libtiff, libunwind, llvm-libc, simdutf, zlib (+ V8 빌드 때만 v8·fdlibm·strongtalk, musl 빌드 때만 musl). **이 중 win-x64 157.0.8100 빌드에 실제로 들어간 것은 압축 파일을 열어 보기 전에는 모른다** (스크립트는 "실제 쓰인 것만" 만든다).
-4. **NuGet 패키지 ≠ 릴리스 압축 파일.** 앱이 쓰는 `pdfium.dll`은 NuGet 패키지 것인데, 라이선스 폴더는 릴리스 압축 파일에만 있다(같은 빌드라고 가정한 것이며 **검증 필요**: NuGet의 dll과 릴리스 `bin/pdfium.dll`이 같은 파일인지 해시 비교는 하지 않음).
-5. pdfium 소스 `third_party/`에는 agg23, bigint, cpu_features, dragonbox, fast_float, fp16, freetype, googletest, harfbuzz, highway, lcms, libopenjpeg, libtiff, llvm-libc, NotoSans(Bengali·CJK) 폰트가 있다. 릴리스 변경 기록에는 Skia·libyuv·Brotli·Skrifa(Rust)·AGG 언급이 있다(번들 여부와 라이선스는 확인하지 못함).
+1. **같은 바이너리:** 릴리스의 `bin/pdfium.dll`과 앱이 쓰는 NuGet `bblanchon.PDFium.Win32` 157.0.8100의 `runtimes/win-x64/native/pdfium.dll`은 SHA-256이 같다(`ae913f407e8d3f5cdbf08a9869564d647b13e132e01eb376c0a5a33b7a227a45`). 그래서 릴리스의 `licenses/`가 앱의 dll에 그대로 적용된다.
+2. **실제로 포함된 구성 요소(16개)와 라이선스:**
+   - PDFium: BSD-3 + Apache-2.0
+   - abseil: Apache-2.0
+   - AGG 2.3: 저작권 표시만 남기면 되는 허용형
+   - dragonbox: Apache-2.0 LLVM 예외 또는 Boost
+   - fast_float: MIT
+   - FreeType: FTL
+   - HarfBuzz: Old MIT
+   - ICU: Unicode V3
+   - lcms: MIT
+   - libjpeg-turbo: IJG + BSD-3 + zlib
+   - OpenJPEG: BSD-2
+   - libpng: libpng v2
+   - LLVM libc: Apache-2.0 LLVM 예외
+   - simdutf: MIT
+   - zlib: zlib
+   - pdfium-binaries 빌드 스크립트: MIT
 
-### 배포 때 필요할 것 (후보 — 최종 확정 아님)
-- PDFium 라이선스 원문(`pdfium.txt`)과 저작권 표시 "Copyright 2014 The PDFium Authors".
-- 실제 포함된 서드파티마다 각각의 라이선스 원문 (릴리스 압축 파일의 `licenses/` 폴더를 그대로 앱과 함께 배포하는 것이 가장 간단하다).
-- 앱의 `THIRD-PARTY-NOTICES.md`(출력 폴더에 복사됨, "정보 → 타사 고지 보기"로 열림)에 구성 요소 목록 유지.
-
-### 사용자 확인 필요 (MIT·BSD·Apache·OFL 밖의 허용형 라이선스 후보)
-아래는 이름만 보고 분류한 것이며(일반 지식, **검증 필요**), 실제 원문은 압축 파일을 받아야 읽을 수 있다.
-| 구성 요소 | 라이선스(추정) | 비고 |
-|---|---|---|
-| FreeType | FTL (또는 GPLv2 선택) | 스크립트가 `FTL.TXT`를 쓰므로 FTL 선택. 고지 조항(문서에 FreeType 사용 표기) 있음 |
-| libjpeg-turbo | BSD-3 + IJG + zlib | `.ijg` 파일 동봉 |
-| zlib, libpng | zlib 라이선스, libpng 라이선스 | 허용형 |
-| ICU | Unicode 라이선스 | 허용형 |
-| libtiff, AGG(agg23), bigint, dragonbox(Boost) | 각자의 허용형 | 원문 확인 필요 |
-| lcms2, OpenJPEG, HarfBuzz, abseil, highway, fast_float 등 | MIT / BSD / Apache 계열 | 기준 안 |
-
-### 막힌 부분 (다운로드 없이는 진행 불가)
-- 필요한 파일: pdfium-binaries 릴리스 `chromium/8100`의 Windows x64 압축 파일(`pdfium-win-x64.tgz`, 크기는 릴리스 페이지 목록이 로드되지 않아 확인하지 못함), 출처 https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F8100. 받으면 전용 빈 폴더에 풀고(실행하지 않음) `licenses/` 목록으로 "실제 포함 서드파티"와 원문을 확정할 수 있다. 사용자 승인 전에는 받지 않았다.
-
-### 열린 질문 (사용자 결정)
-1. 위 압축 파일을 내려받아 `licenses/`를 확인해도 되는가?
-2. PDFium 라이선스와 서드파티 고지(FTL·IJG 등 포함)를 앱 배포물에 함께 넣는 방식으로 진행해도 되는가(회사 법무 확인이 필요한가)?
+   이전에 후보로 적었던 libtiff, bigint, highway 등은 이 빌드에 **없다**.
+3. **모두 허용형이다.** GPL·AGPL은 없고, 기업에서도 무료로 쓰고 재배포할 수 있다. FTL·IJG·zlib·libpng·Unicode·Boost는 이름은 MIT·BSD·Apache와 다르지만 같은 계열의 허용형이다. CLAUDE.md의 "MIT·BSD·Apache·OFL 계열" 조건에 맞는다고 판단했다.
+4. **반영한 것:**
+   - 원문 18개 파일을 `assets/licenses/pdfium/`에 넣었다. 빌드하면 앱 출력 폴더의 `licenses/pdfium/`으로 복사된다(`PdfEditor.App.csproj`).
+   - `THIRD-PARTY-NOTICES.md`의 PDFium 절을 구성 요소 표로 바꿨다.
+   - FreeType·IJG 크레딧 문구를 넣었다.
+5. **남은 일:** 배포용 설치 파일(아직 없음)을 만들 때 `licenses/` 폴더와 `THIRD-PARTY-NOTICES.md`가 들어가는지 확인한다. 매뉴얼을 쓸 때(M5 이후) 크레딧 2줄을 넣는다.
 
 ## 성능 측정 (Task 18, 2026-10-16)
 `PdfEditor.App.exe --bench <pdf> --out <json>` (Release, 이 PC: Windows 11, 12 논리 코어, 기본 창 크기 → 뷰포트 782×581 px). 입력 장치는 쓰지 않고, 문서 화면이 프레임을 그릴 때마다(`DocumentView.RenderCount` 증가) 스크롤 위치를 직접 바꾸며 `LastCoverage`(아무 그림으로 덮인 비율)와 `LastExactCoverage`(현재 배율 타일로만 덮인 비율)를 읽는다. 원본 JSON은 `spikes/out/m1-bench-a1*.json`, `m1-bench-300*.json`(저장소에 커밋되지 않음). 목표는 조정하지 않았다.
@@ -160,7 +157,7 @@ Task 3 때 웹으로만 본 헤더 4개 외에, **NuGet 패키지에 들어 있�
 5. 저장·복구: 편집 후 저장(원본이 다른 프로그램에서 열려 있으면 "사용 중" 안내), 편집 중 작업 관리자로 앱을 강제 종료한 뒤 다시 켜면 복구 창이 뜨는지. 파일 메뉴 → 정보 → "타사 고지 보기".
 
 **3. 결정해 주셔야 하는 것**
-1. **V5 라이선스(가장 중요):** PDFium을 앱과 함께 배포할 때 라이선스 원문을 함께 줘야 합니다. 정확한 구성은 릴리스 압축 파일(`pdfium-win-x64.tgz`)의 `licenses/` 폴더를 열어 봐야 확정됩니다. ① 그 파일을 내려받아도 되나요(전용 폴더에 풀기만 하고 실행하지 않습니다)? ② 일부 구성 요소(FreeType의 FTL, libjpeg-turbo의 IJG 등)는 MIT·BSD·Apache 밖의 허용형 라이선스입니다. 회사에서 쓰는 데 문제없는지 확인이 필요하면 법무에 물어볼 자료로 `THIRD-PARTY-NOTICES.md`를 쓰시면 됩니다.
+1. ~~V5 라이선스~~ → **해결 (2026-10-16).** 사용자 승인으로 릴리스 파일을 받아 확인했습니다. 모두 기업에서도 무료로 쓸 수 있는 허용형 라이선스이고, 원문을 앱과 함께 배포하도록 넣었습니다 (V5 절).
 2. **성능 목표 두 가지 미달:** A1 첫 화면 0.7초(목표 0.5초), 300쪽 작업 메모리 424 MB(목표 400 MB). 목표를 낮출지, 개선 작업(위 대안)을 M2 앞에 넣을지.
 3. **100% 배율 기준:** 지금은 PDF 1pt = 화면 1px(실제 크기보다 작게 보임, 실제 크기는 약 133%). 이대로 둘지, "실제 크기"를 100%로 바꿀지.
 4. **레이어 켜고 끄기**는 2차로 미룬 것(이미 결정)을 유지할지 재확인.

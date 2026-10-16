@@ -140,7 +140,7 @@
 | 언어·런타임 | C# / .NET 10 LTS (SDK 10.0.402) | MIT | .NET 8은 2026-11-10 지원 종료라서 변경 |
 | UI | Avalonia 12.1.4 + Fluent 테마 | MIT | S0에서 확정함. 리본은 직접 구현 |
 | MVVM | CommunityToolkit.Mvvm | MIT | |
-| PDF 엔진 | PDFium (bblanchon/pdfium-binaries 157.0.8100, Windows x64) | Apache-2.0 (패키지 표기) | P/Invoke로 직접 래핑 *(라이선스 원문·NOTICE 요구사항은 V5에서 확인 필요)* |
+| PDF 엔진 | PDFium (bblanchon/pdfium-binaries 157.0.8100, Windows x64) | BSD-3 + Apache-2.0 (+ 함께 빌드된 허용형 서드파티 15개, V5 완료) | P/Invoke로 직접 래핑. 라이선스 원문은 `assets/licenses/pdfium/`에 두고 앱과 함께 배포 |
 | 폰트 서브셋 | HarfBuzzSharp 8.3.1.3 (Avalonia.Skia 12.1.4가 요구하는 버전) | MIT | 관리 API에는 hb-subset이 없어 네이티브 `hb_subset_*`를 직접 P/Invoke (S2에서 확인). 14.x는 Skia와 충돌 위험이 있어 쓰지 않음 |
 | 기본 한글 폰트 | Noto Sans KR (CFF 기반 OpenType) | OFL-1.1 | 앱에 함께 배포. PDF에는 서브셋 + 순수 CFF(`FontFile3 /CIDFontType0C`)로 넣음 (S1) |
 | 저수준 PDF 객체 편집 | PDFsharp **6.2.4** (6.2.x만 사용) | MIT | PDFium에 없는 기능을 보완. **6.5.0 이후는 AGPL-3.0이라 사용 금지.** 2차의 전자서명·측정에도 사용 예정 |
@@ -262,7 +262,7 @@
 | V2 | (참고용) PDFium이 AP 없는 주석을 그릴 때 임의로 AP를 만들어 저장 파일에 남기는지. 남긴다면 우리 AP를 덮어쓰지 않는지 | M2 |
 | V3 | XFDF로 가져오기·내보내기한 주석이 PDF-XChange·Acrobat과 서로 호환되는지 | M3 |
 | V4 | PDFium의 암호화·메타데이터 쓰기 API가 정말 없는지 (헤더 전수 대조) | M1 — **완료: 없음.** 패키지 헤더 24개 전체 검색 0건. 암호 설정·문서 정보 수정은 PDFsharp 후처리로만 가능(M1 범위 밖) |
-| V5 | PDFium 바이너리 배포 조건과 NOTICE 파일 요구사항 | M1 — **조사 완료, 판단은 사용자 대기.** NuGet에는 라이선스 파일 없음, 릴리스 압축 파일의 `licenses/` 확인이 필요(내려받기 승인 대기). 결과 문서 V5 절 |
+| V5 | PDFium 바이너리 배포 조건과 NOTICE 파일 요구사항 | M1 — **완료 (2026-10-16): 재배포 가능.** 모두 허용형(GPL·AGPL 없음). 원문을 `assets/licenses/pdfium/`로 동봉, FreeType·IJG 크레딧은 THIRD-PARTY-NOTICES.md. 결과 문서 V5 절 |
 | V6 | 암호가 걸린 PDF를 `FPDF_SaveAsCopy`로 저장할 때 암호화가 유지되는지 | M1 — **완료: 유지됨.** (PDFsharp 후처리는 소유자 암호 필요, 결과 문서 V6 절) |
 | V7 | 레이어(OCG) 표시 전환을 PDFium API로 할 수 있는 범위 | M1 — **완료: API 없음.** 전환은 2차 (사용자 결정) |
 | V8 | PDFium이 손상된 PDF를 복구해서 열었는지 앱이 알아낼 수 있는지 | M1 — **완료: 가능.** `FPDF_DocumentHasValidCrossReferenceTable`이 false |

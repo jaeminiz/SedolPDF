@@ -1,20 +1,38 @@
 # Third-Party Notices
 
 이 프로젝트가 사용하거나 함께 배포하는 외부 구성 요소의 고지입니다.
-PDFium 배포 조건(검증 V5)은 조사만 끝났고, 원문 동봉 여부는 사용자 결정 대기 중입니다.
 
-## PDFium (pdfium-binaries 빌드)
+## PDFium (pdfium-binaries 빌드) — 검증 V5 완료 (2026-10-16)
 - 용도: PDF 렌더링·편집 엔진 (NuGet `bblanchon.PDFium.Win32` 157.0.8100, 네이티브 `pdfium.dll`)
-- 저작권 표시: Copyright 2014 The PDFium Authors (PDFium 원본). 패키지 제작: Copyright © Benoît Blanchon 2017-2025
-- 라이선스: NuGet 메타데이터는 `Apache-2.0`. PDFium 소스의 `LICENSE`(chromium/8100)는 BSD 형식 조항과 Apache License 2.0 전문이 함께 들어 있다고 웹 조회로 확인함 (**검증 필요**: 원문 파일을 직접 열어 확인하지 못함)
-- NuGet 패키지 안에는 LICENSE·NOTICE 파일이 **없음**. 라이선스 폴더(`licenses/`)는 pdfium-binaries 릴리스 압축 파일에만 있음 → 내려받기 전이라 **원문을 아직 동봉하지 못함** (V5 미완료, 사용자 결정 대기: `docs/validation/2026-10-m1-results.md` V5 절)
-- https://pdfium.googlesource.com/pdfium/ , https://github.com/bblanchon/pdfium-binaries
+- 앱이 쓰는 NuGet의 `pdfium.dll`과 pdfium-binaries 릴리스 `chromium/8100`의 `pdfium-win-x64.tgz` 안 `bin/pdfium.dll`은 **같은 파일**이다 (SHA-256 `ae913f40…7a227a45` 일치). 그래서 아래 라이선스가 그대로 적용된다.
+- 라이선스 원문은 모두 `assets/licenses/pdfium/`에 있다. 빌드하면 앱 출력 폴더의 `licenses/pdfium/`으로 복사되어 함께 배포된다.
 
-### PDFium에 함께 빌드되었을 수 있는 서드파티 (후보 — 실제 포함 여부·원문은 릴리스 압축 파일의 `licenses/`로 확인 필요)
-pdfium-binaries 빌드 스크립트(`steps/08-licenses.sh`)가 알고 있는 목록이다. 이 빌드에 실제로 들어간 것은 확인하지 못했다.
-abseil, agg23, bigint, catapult, cpu_features, dragonbox (Apache2-LLVM / Boost), fast_float, fp16, FreeType (FTL), HarfBuzz, highway, ICU, lcms2, libpng, libjpeg-turbo (BSD / IJG / zlib), OpenJPEG, libtiff, libunwind, llvm-libc, simdutf, zlib.
-- MIT·BSD·Apache·OFL 밖의 허용형으로 보이는 것(이름만 보고 분류, **사용자 확인 필요**): FreeType(FTL), libjpeg-turbo(IJG), zlib, libpng, ICU(Unicode), libtiff, AGG, bigint, Boost(dragonbox).
-- 배포 때는 위 구성 요소 각각의 라이선스 원문과 저작권 표시를 함께 제공해야 하는 것으로 보인다 (최종 판단은 사용자).
+| 구성 요소 | 라이선스 | 원문 파일 | 배포 때 지킬 것 |
+|---|---|---|---|
+| PDFium | BSD-3-Clause + Apache-2.0 (Copyright 2014 The PDFium Authors) | `pdfium.txt` | 원문·저작권 표시 동봉 |
+| pdfium-binaries (빌드 스크립트) | MIT (Copyright 2014-2025 Benoit Blanchon) | `pdfium-binaries-LICENSE.txt` | 원문 동봉 |
+| abseil | Apache-2.0 | `abseil.txt` | 원문 동봉 |
+| Anti-Grain Geometry 2.3 | 허용형 (저작권 표시 유지 조건) | `agg23.txt` | 저작권 표시 동봉 |
+| dragonbox | Apache-2.0 with LLVM Exception 또는 Boost-1.0 | `dragonbox-*.txt` | 원문 동봉 |
+| fast_float | MIT | `fast_float.txt` | 원문 동봉 |
+| FreeType | FreeType License (FTL, BSD 계열) | `freetype.txt` | 원문 동봉 + 문서에 FreeType 사용 표기 (아래 "크레딧") |
+| HarfBuzz | Old MIT | `harfbuzz.txt` | 원문 동봉 |
+| ICU | Unicode License V3 | `icu.txt` | 원문 동봉 |
+| Little CMS | MIT | `lcms.txt` | 원문 동봉 |
+| libjpeg-turbo | IJG + BSD-3-Clause + zlib | `libjpeg_turbo.md`, `libjpeg_turbo.ijg` | 원문 동봉 + 문서에 IJG 표기 (아래 "크레딧") |
+| OpenJPEG | BSD-2-Clause | `libopenjpeg.txt` | 원문 동봉 |
+| libpng | PNG Reference Library License v2 | `libpng.txt` | 원문 동봉 |
+| LLVM libc | Apache-2.0 with LLVM Exception | `llvm-libc.txt` | 원문 동봉 |
+| simdutf | MIT | `simdutf.txt` | 원문 동봉 |
+| zlib | zlib License | `zlib.txt` | 원문 동봉 |
+
+모두 기업에서도 무료로 쓰고 재배포할 수 있는 허용형 라이선스다(GPL·AGPL 없음). FreeType은 FTL과 GPLv2 중 고를 수 있는데, 이 빌드는 FTL을 따른다.
+
+### 크레딧 (FreeType·IJG 라이선스가 요구하는 문서 표기)
+- Portions of this software are copyright © 2026 The FreeType Project (www.freetype.org). All rights reserved.
+- This software is based in part on the work of the Independent JPEG Group.
+
+- 출처: https://pdfium.googlesource.com/pdfium/ , https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F8100
 
 ## Noto Sans KR
 - 용도: 기본 한글 폰트 (`assets/fonts/NotoSansKR-Regular.otf`, 라이선스 원문 `assets/fonts/OFL.txt`). 앱에 포함해 배포 가능(기업 사용 무료), 폰트 파일 단독 판매만 금지
