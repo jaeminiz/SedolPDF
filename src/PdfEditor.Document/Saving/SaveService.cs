@@ -1,9 +1,10 @@
 using Pdf.Native;
+using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.Document.Saving;
 
 /// <summary>전체 저장 → 같은 폴더 임시 파일 → 후처리 → 다시 열어 검증 → 교체. 실패하면 원본은 그대로.</summary>
-public sealed class SaveService(IReadOnlyList<ISavePostProcessor> postProcessors)
+public sealed class SaveService(IReadOnlyList<ISavePostProcessor> postProcessors, IAppearanceSource? appearance = null)
 {
     public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default)
     {
@@ -15,6 +16,8 @@ public sealed class SaveService(IReadOnlyList<ISavePostProcessor> postProcessors
             // ① 쓰기 + 검증용 값 수집 (같은 전용 스레드 작업)
             int[] expected = await s.Thread.InvokeAsync(() =>
             {
+                // Flush는 트랜잭션이 아니다: 예외가 나면 문서가 일부만 바뀌었을 수 있으므로 SaveCopy 없이 중단한다(원본은 그대로).
+                s.FlushIfNeeded(appearance);
                 s.Document.SaveCopy(tmp);
                 return CollectAnnotCounts(s.Document);
             }, ct).ConfigureAwait(false);

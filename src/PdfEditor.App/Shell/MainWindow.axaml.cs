@@ -44,11 +44,12 @@ public sealed partial class MainWindow : Window
         FileTabButton.Flyout = BuildFileMenu();
 
         var prompts = new AvaloniaPrompts(this);
+        var appearance = new PdfEditor.Appearance.PdfAppearanceSource();
         _settings = new SettingsStore(SettingsStore.DefaultPath);
-        var workflow = new FileWorkflow(_pdfium, new SaveService([]), _settings, prompts);
+        var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance), _settings, prompts);
         _vm.AttachWorkflow(workflow, prompts);
-        _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts));
-        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(RecoveryStore.DefaultFolder), _settings,
+        _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance));
+        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(RecoveryStore.DefaultFolder, appearance), _settings,
             new AvaloniaRecoveryUi(this), prompts);
         _recovery.Attach(workflow);
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();

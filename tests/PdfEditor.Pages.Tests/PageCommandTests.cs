@@ -1,6 +1,7 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Pdf.Native;
 using PdfEditor.Document;
+using PdfEditor.Document.Annotations;
 using PdfEditor.Pages;
 using PdfEditor.TestFixtures;
 
@@ -333,5 +334,118 @@ public class PageCommandTests : IDisposable
         Assert.Equal(["1", "2", "3", "4"], await Labels(s));
         Assert.False(s.IsDirty);
         while (s.Commands.CanRedo) { await s.Commands.RedoAsync(); await AssertSnapshotMatches(s); }
+    }
+
+    // --- M2 Task 8: 쪽 명령과 주석 Flush ---
+
+    private readonly PdfEditor.Appearance.PdfAppearanceSource _ap = new();
+
+    private static Annotation NewAnnot(DocumentSession s, AnnotKind kind, PdfRectF rect) => new()
+    {
+        Id = s.Annotations.NewId(),
+        Kind = kind,
+        Rect = rect,
+        Color = new PdfColor(229, 55, 45),
+        BorderWidth = 2f,
+        Name = Guid.NewGuid().ToString("D"),
+        Flags = PdfAnnotFlags.Print,
+    };
+
+    private Task Flush(DocumentSession s) => _t.InvokeAsync(() => s.FlushAnnotations(_ap));
+
+    private async Task<string> FlushSave(DocumentSession s, string name)
+    {
+        var path = P(name);
+        await _t.InvokeAsync(() => { s.FlushAnnotations(_ap); s.Document.SaveCopy(path); });
+        return path;
+    }
+
+    private static List<byte[]?> RawAps(string path, int pageIndex)
+    {
+        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var list = new List<byte[]?>();
+        var arr = doc.Pages[pageIndex].Elements.GetArray("/Annots");
+        if (arr is null) return list;
+        foreach (var item in arr.Elements)
+        {
+            var d = item is PdfSharp.Pdf.Advanced.PdfReference r ? (PdfSharp.Pdf.PdfDictionary)r.Value : (PdfSharp.Pdf.PdfDictionary)item;
+            list.Add(d.Elements.GetDictionary("/AP")?.Elements.GetDictionary("/N")?.Stream?.UnfilteredValue);
+        }
+        return list;
+    }
+
+    [Fact]
+    public async Task ImportUndoRedo_AfterFlush_AnnotationsConsistent()
+    {
+        var src = P("src.pdf");
+        TestPdfFactory.CreateBlank(src, 1, 300, 400);
+        await using var s = await OpenLabeled(2);
+        await s.AnnotationsReady;
+        var srcDoc = await _t.InvokeAsync(() => PdfDocument.Open(_t, src));
+        await s.Commands.ExecuteAsync(new ImportPagesCommand(srcDoc, [0], 1));
+        var imported = s.Pages[1].Id;
+        var sq = NewAnnot(s, AnnotKind.Square, new PdfRectF(50, 50, 150, 120));
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(imported, sq));
+        await Flush(s);
+
+        await s.Commands.UndoAsync();   // Square
+        await s.Commands.UndoAsync();   // Import
+        Assert.Equal(2, s.Pages.Length);
+        await s.Commands.RedoAsync();
+        await s.Commands.RedoAsync();
+        Assert.Equal(3, s.Pages.Length);
+        Assert.Equal(imported, s.Pages[1].Id);
+
+        var saved = await FlushSave(s, "imp.pdf");
+        Assert.Single(RawAps(saved, 1));
+        Assert.Empty(RawAps(saved, 0));
+        Assert.Empty(RawAps(saved, 2));
+    }
+
+    [Fact]
+    public async Task InsertBlankUndoRedo_AfterFlush_Consistent()
+    {
+        await using var s = await OpenLabeled(2);
+        await s.AnnotationsReady;
+        await s.Commands.ExecuteAsync(new InsertBlankPageCommand(1, 200, 300));
+        var blank = s.Pages[1].Id;
+        var sq = NewAnnot(s, AnnotKind.Square, new PdfRectF(20, 20, 100, 80));
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(blank, sq));
+        await Flush(s);
+
+        await s.Commands.UndoAsync();
+        await s.Commands.UndoAsync();
+        Assert.Equal(2, s.Pages.Length);
+        await Flush(s);
+        await s.Commands.RedoAsync();
+        await s.Commands.RedoAsync();
+        Assert.Equal(blank, s.Pages[1].Id);
+        Assert.Equal(["1", "?", "2"], await Labels(s));
+
+        var saved = await FlushSave(s, "blank.pdf");
+        Assert.Single(RawAps(saved, 1));
+        Assert.Empty(RawAps(saved, 0));
+        Assert.Empty(RawAps(saved, 2));
+        await AssertSnapshotMatches(s);
+    }
+
+    [Fact]
+    public async Task RotatePage_OwnedTextIcon_RepaintedOnNextFlush()
+    {
+        await using var s = await OpenLabeled(1);
+        await s.AnnotationsReady;
+        var id = s.Pages[0].Id;
+        var note = NewAnnot(s, AnnotKind.Text, new PdfRectF(50, 300, 70, 320));
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, note));
+        var before = await FlushSave(s, "t0.pdf");
+        var apBefore = Assert.Single(RawAps(before, 0));
+
+        await s.Commands.ExecuteAsync(new RotatePagesCommand([id], 1));
+        var after = await FlushSave(s, "t1.pdf");
+        var apAfter = Assert.Single(RawAps(after, 0));
+
+        Assert.NotNull(apBefore);
+        Assert.NotNull(apAfter);
+        Assert.NotEqual(System.Text.Encoding.Latin1.GetString(apBefore!), System.Text.Encoding.Latin1.GetString(apAfter!));
     }
 }

@@ -1,13 +1,14 @@
 using System.Text.Json;
+using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.Document.Recovery;
 
 /// <summary>
 /// 자동 복구 스냅숏 저장소. 세션마다 <c>&lt;id&gt;.pdf</c>(현재 상태의 전체 사본)와 <c>&lt;id&gt;.json</c>(메타데이터)을 둔다.
 /// 원본 파일은 건드리지 않는다. 쓰기는 임시 파일에 쓴 뒤 교체한다(PDF 먼저, JSON 나중: JSON이 있으면 PDF도 온전하다).
-/// M2부터는 주석 모델 스냅숏도 함께 기록해야 한다 (PDF에는 아직 AP로 굳지 않은 편집 상태가 있을 수 있음).
+/// 주석 모델은 쓰기 직전 PDF에 반영(Flush)한 뒤 사본을 만든다 (별도 모델 스냅숏 없음, 계획 D5).
 /// </summary>
-public sealed class RecoveryStore(string folder)
+public sealed class RecoveryStore(string folder, IAppearanceSource? appearance = null)
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
@@ -27,7 +28,12 @@ public sealed class RecoveryStore(string folder)
         string pdf = PdfPath(s.Id), pdfTmp = pdf + ".tmp";
         string json = JsonPath(s.Id), jsonTmp = json + ".tmp";
         // 복사본은 PDFium 전용 스레드에서 쓴다. 세션 상태는 바꾸지 않는다(더티 유지).
-        await s.Thread.InvokeAsync(() => s.Document.SaveCopy(pdfTmp)).ConfigureAwait(false);
+        // Flush가 실패하면 예외를 그대로 낸다(복구본을 쓰지 않음). IsDirty는 바뀌지 않는다.
+        await s.Thread.InvokeAsync(() =>
+        {
+            s.FlushIfNeeded(appearance);
+            s.Document.SaveCopy(pdfTmp);
+        }).ConfigureAwait(false);
         try
         {
             File.Move(pdfTmp, pdf, overwrite: true);

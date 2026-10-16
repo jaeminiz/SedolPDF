@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using PdfEditor.Document;
+using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.App.Printing;
 
@@ -12,14 +13,17 @@ public sealed class PrintJob
 {
     /// <param name="outputFile">지정하면 프린터가 그 파일에 직접 쓴다(Microsoft Print to PDF 등, 테스트·검증용). 보통 null.</param>
     public static async Task RunAsync(DocumentSession s, IntPtr hdc, IReadOnlyList<int> pageIndices, PrintOptions o,
-        IProgress<int>? progress, CancellationToken ct, string? outputFile = null)
+        IProgress<int>? progress, CancellationToken ct, IAppearanceSource appearance, string? outputFile = null)
     {
         ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(appearance);
         foreach (int i in pageIndices)
             if (i < 0 || i >= s.Pages.Length) throw new ArgumentOutOfRangeException(nameof(pageIndices));
         ct.ThrowIfCancellationRequested();
 
         var t = s.Thread;
+        // 저장 안 한 주석도 인쇄되도록 같은 전용 스레드에서 먼저 PDFium 문서에 반영한다. 실패하면 StartDoc 전에 중단.
+        await t.InvokeAsync(() => s.FlushAnnotations(appearance)).ConfigureAwait(false);
         string docName = s.DisplayName;
         int job = await t.InvokeAsync(() => PrintInterop.StartDoc(hdc, docName, outputFile)).ConfigureAwait(false);
         if (job <= 0) throw new PrintException("StartDoc failed", Marshal.GetLastWin32Error());

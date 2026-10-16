@@ -1,6 +1,8 @@
-using Pdf.Native;
+﻿using Pdf.Native;
 using PdfEditor.App.Printing;
+using PdfEditor.Appearance;
 using PdfEditor.Document;
+using PdfEditor.Document.Annotations;
 using PdfEditor.TestFixtures;
 
 namespace PdfEditor.App.Tests.Printing;
@@ -62,7 +64,7 @@ public class PrintJobTests : IAsyncLifetime
         try
         {
             var reported = new List<int>();
-            await PrintJob.RunAsync(s, dc, [0, 2], new PrintOptions(), new SyncProgress(reported.Add), CancellationToken.None, outFile);
+            await PrintJob.RunAsync(s, dc, [0, 2], new PrintOptions(), new SyncProgress(reported.Add), CancellationToken.None, new PdfAppearanceSource(), outFile);
             Assert.Equal([1, 2], reported);
         }
         finally { PrintInterop.DeleteDc(dc); }
@@ -83,7 +85,7 @@ public class PrintJobTests : IAsyncLifetime
         try
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                PrintJob.RunAsync(s, dc, [0, 1, 2], new PrintOptions(), new SyncProgress(n => { if (n == 1) cts.Cancel(); }), cts.Token, outFile));
+                PrintJob.RunAsync(s, dc, [0, 1, 2], new PrintOptions(), new SyncProgress(n => { if (n == 1) cts.Cancel(); }), cts.Token, new PdfAppearanceSource(), outFile));
         }
         finally { PrintInterop.DeleteDc(dc); }
 
@@ -109,11 +111,52 @@ public class PrintJobTests : IAsyncLifetime
         foreach (var (file, annots) in new[] { (with, true), (without, false) })
         {
             IntPtr dc = CreatePdfPrinterDc();
-            try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(WithAnnotations: annots), null, CancellationToken.None, file); }
+            try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(WithAnnotations: annots), null, CancellationToken.None, new PdfAppearanceSource(), file); }
             finally { PrintInterop.DeleteDc(dc); }
         }
 
         Assert.True(await HasNonWhiteAsync(with), "주석 포함 인쇄인데 주석이 보이지 않음 (테스트 전제 확인)");
         Assert.False(await HasNonWhiteAsync(without), "주석 제외 인쇄인데 흰 페이지가 아님");
+    }
+
+    private Task<bool> HasRedAsync(string path) => _t.InvokeAsync(() =>
+    {
+        using var d = PdfDocument.Open(_t, path);
+        using var p = d.LoadPage(0);
+        var sz = p.SizePt;
+        var px = p.RenderTile(1.0, 0, 0, (int)sz.Width, (int)sz.Height, true);
+        for (int i = 0; i < px.Length; i += 4)
+            if (px[i + 2] > 0xC8 && px[i + 1] < 0x70 && px[i] < 0x70) return true;
+        return false;
+    });
+
+    [Fact]
+    public async Task Print_UnsavedAnnotation_AppearsInOutput()
+    {
+        string src = Path.Combine(_dir, "plain.pdf");
+        string outFile = Path.Combine(_dir, "printed.pdf");
+        TestPdfFactory.CreateBlank(src, 1, 595.28f, 841.89f);
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await s.AnnotationsReady;
+        var sq = new Annotation
+        {
+            Id = s.Annotations.NewId(),
+            Kind = AnnotKind.Square,
+            Rect = new PdfRectF(100, 500, 300, 700),
+            Color = new PdfColor(229, 55, 45),
+            FillColor = new PdfColor(229, 55, 45),
+            BorderWidth = 2f,
+            Name = Guid.NewGuid().ToString("D"),
+            Flags = PdfAnnotFlags.Print,
+        };
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, sq));
+        Assert.True(s.IsDirty);
+
+        IntPtr dc = CreatePdfPrinterDc();
+        try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(), null, CancellationToken.None, new PdfAppearanceSource(), outFile); }
+        finally { PrintInterop.DeleteDc(dc); }
+
+        Assert.True(s.IsDirty);   // 인쇄는 저장이 아니다
+        Assert.True(await HasRedAsync(outFile), "저장 안 한 빨강 Square가 인쇄 결과에 없음");
     }
 }

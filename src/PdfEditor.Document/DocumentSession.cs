@@ -398,6 +398,22 @@ public sealed class DocumentSession : IAsyncDisposable
         AnnotationFlusher.Flush(this, appearance);
     }
 
+    /// <summary>
+    /// 저장·복구용: appearance가 없는데 반영할 주석 변경이 있으면 InvalidOperationException, 있으면 Flush한다.
+    /// 예외가 나면 문서가 일부만 바뀌었을 수 있으므로 호출자는 쓰기를 중단해야 한다.
+    /// </summary>
+    public void FlushIfNeeded(IAppearanceSource? appearance)
+    {
+        Thread.AssertOnThread();
+        if (appearance is null)
+        {
+            if (Annotations.HasUnflushedChanges)
+                throw new InvalidOperationException("Annotation changes need an IAppearanceSource to be written.");
+            return;
+        }
+        FlushAnnotations(appearance);
+    }
+
     /// <summary>구조를 바꾸는 명령 전후에 CommandStack이 부른다.</summary>
     public void ReleasePageHandles()
     {

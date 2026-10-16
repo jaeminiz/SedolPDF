@@ -127,13 +127,13 @@ public sealed class AnnotationStore
         return set;
     }
 
-    /// <summary>쪽을 회전한 뒤: 손댄 Text 주석의 아이콘을 다시 그리도록 Revision을 올린다.</summary>
+    /// <summary>쪽을 회전한 뒤: 우리가 그리는(새로 만들었거나 손댄) Text 주석의 아이콘을 다시 그리도록 Revision을 올린다.</summary>
     public void MarkAppearanceStale(PageId page)
     {
         _thread.AssertOnThread();
         if (!_pages.TryGetValue(page, out var st)) return;
         foreach (var e in st.Entries)
-            if (e.IsOriginal && e.Owned && !e.Deleted && e.Current.Kind == AnnotKind.Text) e.Revision++;
+            if (e.Owned && !e.Deleted && e.Current.Kind == AnnotKind.Text) e.Revision++;
     }
 
     public bool HasUnflushedChanges

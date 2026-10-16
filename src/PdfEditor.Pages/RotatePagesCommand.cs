@@ -32,6 +32,7 @@ public sealed class RotatePagesCommand : IUndoableCommand
                 _old[id] = old;
                 done.Add(id);
                 s.BumpVersion(id);   // 크기가 바뀌므로 버전을 올리고 핸들을 닫는다
+                s.Annotations.MarkAppearanceStale(id);   // 손댄 Text 아이콘은 다음 Flush에 다시 그린다
             }
         }
         catch
@@ -49,6 +50,7 @@ public sealed class RotatePagesCommand : IUndoableCommand
         {
             s.GetLoadedPage(id).Rotation = _old[id];
             s.BumpVersion(id);
+            s.Annotations.MarkAppearanceStale(id);
         }
     }
 }

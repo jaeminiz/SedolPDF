@@ -1,5 +1,6 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using Pdf.Native;
+using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Recovery;
 using PdfEditor.Document.Saving;
 using PdfEditor.Pages;
@@ -118,5 +119,32 @@ public class RecoveryStoreTests : IDisposable
         await using var unbound = await DocumentSession.OpenRecoveredAsync(_t, e, false, null);
         Assert.Null(unbound.FilePath);
         Assert.True(unbound.IsDirty);
+    }
+
+    [Fact]
+    public async Task Recovery_UnsavedAnnotation_InRecoveryPdf()
+    {
+        string p = P("r.pdf");
+        TestPdfFactory.CreateBlank(p, 1, 300, 400);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        var sq = new Annotation
+        {
+            Id = s.Annotations.NewId(), Kind = AnnotKind.Square, Rect = new PdfRectF(50, 50, 150, 120),
+            Color = new PdfColor(229, 55, 45), BorderWidth = 2f, Name = Guid.NewGuid().ToString("D"), Flags = PdfAnnotFlags.Print,
+        };
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, sq));
+        var store = new RecoveryStore(P("recovery"), new PdfEditor.Appearance.PdfAppearanceSource());
+        await store.WriteAsync(s);
+        Assert.True(s.IsDirty);
+
+        var e = store.List()[0];
+        await using var r = await DocumentSession.OpenRecoveredAsync(_t, e, true, null);
+        await r.AnnotationsReady;
+        var v = Assert.Single(r.Annotations.Get(r.Pages[0].Id).Items);
+        Assert.Equal(AnnotKind.Square, v.Data.Kind);
+        Assert.Equal(sq.Name, v.Data.Name);
+        Assert.False(v.ModelDrawn);   // 복구본에서는 파일에 있던(원본) 주석으로 읽힌다
+        Assert.Equal(1, await r.Thread.InvokeAsync(() => r.GetLoadedPage(r.Pages[0].Id).AnnotationCount));
     }
 }
