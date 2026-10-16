@@ -227,4 +227,16 @@ public static class Strings
     public static string Search_PageLabel => Get(nameof(Search_PageLabel));
     public static string Cmd_FindNext => Get(nameof(Cmd_FindNext));
     public static string Cmd_FindPrev => Get(nameof(Cmd_FindPrev));
+    public static string Dlg_PrintTitle => Get(nameof(Dlg_PrintTitle));
+    public static string Dlg_PrintAnnotations => Get(nameof(Dlg_PrintAnnotations));
+    public static string Dlg_PrintNoAnnotations => Get(nameof(Dlg_PrintNoAnnotations));
+    public static string Dlg_PrintFit => Get(nameof(Dlg_PrintFit));
+    public static string Dlg_PrintActualSize => Get(nameof(Dlg_PrintActualSize));
+    public static string Dlg_PrintAutoRotate => Get(nameof(Dlg_PrintAutoRotate));
+    public static string Dlg_PrintButton => Get(nameof(Dlg_PrintButton));
+    public static string Dlg_PrintProgressTitle => Get(nameof(Dlg_PrintProgressTitle));
+    public static string Dlg_PrintProgress => Get(nameof(Dlg_PrintProgress));
+    public static string Msg_PrintRestricted => Get(nameof(Msg_PrintRestricted));
+    public static string Msg_PrintDone => Get(nameof(Msg_PrintDone));
+    public static string Msg_PrintFailed => Get(nameof(Msg_PrintFailed));
 }

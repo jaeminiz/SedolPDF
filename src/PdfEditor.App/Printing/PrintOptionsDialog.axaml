@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:res="using:PdfEditor.App.Resources"
+        x:Class="PdfEditor.App.Printing.PrintOptionsDialog"
+        Title="{x:Static res:Strings.Dlg_PrintTitle}"
+        SizeToContent="Height" Width="380"
+        CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="#F3F3F3">
+  <StackPanel Margin="24,20,24,16" Spacing="8">
+    <RadioButton x:Name="WithAnnotRadio" GroupName="annot" IsChecked="True" Content="{x:Static res:Strings.Dlg_PrintAnnotations}" />
+    <RadioButton x:Name="NoAnnotRadio" GroupName="annot" Content="{x:Static res:Strings.Dlg_PrintNoAnnotations}" />
+    <Separator Margin="0,4" />
+    <RadioButton x:Name="FitRadio" GroupName="scale" IsChecked="True" Content="{x:Static res:Strings.Dlg_PrintFit}" />
+    <RadioButton x:Name="ActualRadio" GroupName="scale" Content="{x:Static res:Strings.Dlg_PrintActualSize}" />
+    <CheckBox x:Name="AutoRotateBox" IsChecked="True" Content="{x:Static res:Strings.Dlg_PrintAutoRotate}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_PrintButton}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    </StackPanel>
+  </StackPanel>
+</Window>

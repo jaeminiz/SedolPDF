@@ -32,6 +32,7 @@ public sealed partial class MainWindow : Window
 
         var prompts = new AvaloniaPrompts(this);
         _vm.AttachWorkflow(new FileWorkflow(_pdfium, new SaveService([]), new SettingsStore(SettingsStore.DefaultPath), prompts), prompts);
+        _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts));
 
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -87,7 +88,10 @@ public sealed partial class MainWindow : Window
         flyout.Items.Add(Item("file.save"));
         flyout.Items.Add(Item("file.saveAs"));
         flyout.Items.Add(new Separator());
-        flyout.Items.Add(Item("file.print"));
+        var printItem = Item("file.print");
+        ToolTip.SetShowOnDisabled(printItem, true);
+        flyout.Opening += (_, _) => ToolTip.SetTip(printItem, _vm.PrintDisabledTip);
+        flyout.Items.Add(printItem);
         flyout.Items.Add(new Separator());
         flyout.Items.Add(Item("file.prefs"));
         flyout.Items.Add(Item("file.about"));

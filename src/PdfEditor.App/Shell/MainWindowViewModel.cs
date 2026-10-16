@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Avalonia.Threading;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Panels;
+using PdfEditor.App.Printing;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Shell.Ribbon;
 using PdfEditor.App.Viewer;
@@ -65,6 +66,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private FileWorkflow? _workflow;
     private IUserPrompts? _prompts;
     private Action<Action> _post = a => a();
+    private IPrintService? _printService;
+    private AsyncRelayCommand _printCommand = null!;
     private AsyncRelayCommand _newCommand = null!, _openCommand = null!, _saveCommand = null!, _saveAsCommand = null!, _closeActiveCommand = null!;
     public IRelayCommand<string> SelectRibbonTabCommand { get; }
 
@@ -162,6 +165,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RefreshDocumentStatus();
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(HasNoDocument));
+        OnPropertyChanged(nameof(PrintDisabledTip));
         NotifyFileCommands();
         foreach (var c in _docCommands) c.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ActiveThumbnails));
@@ -181,6 +185,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _saveCommand.NotifyCanExecuteChanged();
         _saveAsCommand.NotifyCanExecuteChanged();
         _closeActiveCommand.NotifyCanExecuteChanged();
+        _printCommand.NotifyCanExecuteChanged();
     }
 
     // ---- 파일 작업 (Task 11) ----
@@ -255,6 +260,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void NotifyDocCommands()
     {
         foreach (var c in _docCommands) c.NotifyCanExecuteChanged();
+    }
+
+    // ---- 인쇄 (Task 16) ----
+
+    /// <summary>인쇄 서비스를 연결한다. 연결 전에는 인쇄 명령이 비활성이다.</summary>
+    public void AttachPrinting(IPrintService service)
+    {
+        _printService = service;
+        _printCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanPrintActive() => _printService is not null && ActiveDocument?.Session is { Permissions.CanPrint: true };
+
+    /// <summary>인쇄가 제한된 문서면 비활성 사유(툴팁), 아니면 null.</summary>
+    public string? PrintDisabledTip => ActiveDocument?.Session is { Permissions.CanPrint: false } ? Strings.Msg_PrintRestricted : null;
+
+    private async Task PrintActiveAsync()
+    {
+        if (_printService is null || ActiveDocument is not { Session: { } s } d) return;
+        try { await _printService.PrintAsync(s, d.CurrentPageIndex); }
+        catch (Exception ex) { await ShowErrorAsync(ex); }
     }
 
     private async Task SaveActiveAsync()
@@ -421,7 +447,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("file.open", Strings.Cmd_Open, "open", G(Key.O), _openCommand);
         Reg("file.save", Strings.Cmd_Save, "save", G(Key.S), _saveCommand);
         Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift), _saveAsCommand);
-        Reg("file.print", Strings.Cmd_Print, "print", G(Key.P));
+        _printCommand = new AsyncRelayCommand(PrintActiveAsync, CanPrintActive);
+        Reg("file.print", Strings.Cmd_Print, "print", G(Key.P), _printCommand);
         Reg("file.prefs", Strings.Cmd_Preferences, null);
         Reg("file.about", Strings.Cmd_About, null);
         Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));

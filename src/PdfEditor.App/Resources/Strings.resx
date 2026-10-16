@@ -218,4 +218,16 @@
   <data name="Search_PageLabel" xml:space="preserve"><value>{0}쪽</value></data>
   <data name="Cmd_FindNext" xml:space="preserve"><value>다음 결과</value></data>
   <data name="Cmd_FindPrev" xml:space="preserve"><value>이전 결과</value></data>
+  <data name="Dlg_PrintTitle" xml:space="preserve"><value>인쇄 옵션</value></data>
+  <data name="Dlg_PrintAnnotations" xml:space="preserve"><value>주석 포함</value></data>
+  <data name="Dlg_PrintNoAnnotations" xml:space="preserve"><value>주석 제외</value></data>
+  <data name="Dlg_PrintFit" xml:space="preserve"><value>용지에 맞춤</value></data>
+  <data name="Dlg_PrintActualSize" xml:space="preserve"><value>실제 크기</value></data>
+  <data name="Dlg_PrintAutoRotate" xml:space="preserve"><value>용지 방향에 맞춰 자동 회전</value></data>
+  <data name="Dlg_PrintButton" xml:space="preserve"><value>인쇄…</value></data>
+  <data name="Dlg_PrintProgressTitle" xml:space="preserve"><value>인쇄 중</value></data>
+  <data name="Dlg_PrintProgress" xml:space="preserve"><value>{0}/{1}쪽 인쇄 중</value></data>
+  <data name="Msg_PrintRestricted" xml:space="preserve"><value>이 문서는 인쇄가 제한되어 있습니다.</value></data>
+  <data name="Msg_PrintDone" xml:space="preserve"><value>인쇄 작업을 보냈습니다.</value></data>
+  <data name="Msg_PrintFailed" xml:space="preserve"><value>인쇄하지 못했습니다. 프린터 상태를 확인하세요.</value></data>
 </root>

@@ -48,3 +48,11 @@ PDFium 157 (bblanchon/pdfium-binaries, 소스 브랜치 chromium/8100) 기준. �
 | 상태 표시줄 | 페이지 이동 `|‹ ‹ [3/12] › ›|` | 이동 단추 4개는 비활성(Task 12에서 연결), 번호 입력칸은 문서가 있을 때만 | |
 | 비활성 단추 | — | 모든 문서 명령이 아직 비활성(자리 표시용)이라 회색 | Task 11~17에서 연결 |
 | 창 이동 | — | 빈 제목 영역을 끌어 이동하는지 **검증 필요**(캡처로는 확인 못 함) | |
+
+## 인쇄 (Task 16)
+`PrintJobTests`(Microsoft Print to PDF, DOCINFO 출력 파일 = 임시 경로. 물리 프린터로는 보내지 않음), 2026-10-16.
+- **HDC를 만든 스레드와 다른 스레드에서 쓰기: 성공.** 테스트 스레드에서 `CreateDCW("WINSPOOL","Microsoft Print to PDF")`로 만든 HDC로, PdfiumThread에서 `StartDocW` → 쪽마다 `StartPage`/`FPDF_RenderPage`/`EndPage` → `EndDoc`을 호출해 선택한 2쪽(3쪽 중 [0,2])이 든 PDF가 만들어졌다. 대안(비트맵 렌더 + `StretchDIBits`)은 필요 없었다. 검증 필요: 다른 프린터 드라이버(실제 PCL/PS 프린터)에서도 같은지는 확인하지 못함.
+- **취소:** 1쪽 뒤 취소하면 `AbortDoc` 후 `OperationCanceledException`, 완성된 3쪽 PDF는 남지 않는다.
+- **주석 인쇄 규칙:** `FPDF_PRINTING` 플래그를 쓰면 주석 플래그의 **Print 비트(4)가 없는 주석은 PDFium이 그리지 않는다**(같은 파일을 화면용으로 렌더하면 그려짐). 앱이 만드는 주석(M2~)은 반드시 Print 플래그를 켜야 인쇄된다. 주석 제외 옵션은 `FPDF_ANNOT`을 빼서 구현했고 흰 쪽이 나온다.
+- **A1 도면을 A4(Microsoft Print to PDF 기본 용지)에 맞춤 인쇄:** 가로형 A1(2383.9×1683.8pt)이 세로 A4(595.3×841.9pt)에서 자동 회전(Rotate=1)되어 가로·세로 모두 용지에 꽉 맞고(비율 유지, 가운데) 잘림 없음. 주석 포함 시 스티커 메모 아이콘이 회전된 위치(왼쪽 위)에 보이고, 제외 시 사라짐. 실제 크기(ActualSize)는 A1 가운데 부분만 A4에 잘려 나온다(설계대로).
+- **검증 필요(사용자 수동 확인):** 실제 Win32 인쇄 대화상자(`PrintDlgExW`: 프린터 선택, 페이지 범위·현재 페이지, 매수/한 부씩, 파일로 인쇄 체크)와 실제 프린터 출력은 자동 테스트·합성 입력 없이 확인하지 못했다. 쪽 범위·현재 쪽 해석(`PD_PAGENUMS`/`PD_CURRENTPAGE`)은 코드만 작성됨.

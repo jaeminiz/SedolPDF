@@ -39,6 +39,7 @@ internal static unsafe partial class NativeMethods
     public const uint FPDF_ERR_PASSWORD = 4;
     public const int FPDFBitmap_BGRA = 4;
     public const int FPDF_ANNOT = 0x01;
+    public const int FPDF_PRINTING = 0x800;
 
     private const string Lib = "pdfium";
 
@@ -64,4 +65,8 @@ internal static unsafe partial class NativeMethods
     [LibraryImport(Lib)] public static partial void FPDFBitmap_Destroy(IntPtr bitmap);
     [LibraryImport(Lib)]
     public static partial void FPDF_RenderPageBitmapWithMatrix(IntPtr bitmap, IntPtr page, FsMatrix* matrix, FsRectF* clipping, int flags);
+
+    /// <summary>Windows 전용: 장치 컨텍스트(HDC, 프린터 포함)에 그린다.</summary>
+    [LibraryImport(Lib)]
+    public static partial void FPDF_RenderPage(IntPtr hdc, IntPtr page, int startX, int startY, int sizeX, int sizeY, int rotate, int flags);
 }

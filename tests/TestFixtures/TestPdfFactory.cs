@@ -189,7 +189,7 @@ public static class TestPdfFactory
     }
 
     /// <summary>기존 파일의 pageIndex 쪽에 스티커 메모 1개를 추가한다.</summary>
-    public static void AddTextAnnotation(string path, int pageIndex)
+    public static void AddTextAnnotation(string path, int pageIndex, bool printFlag = false)
     {
         using var doc = PdfReader.Open(path, PdfDocumentOpenMode.Modify);
         var annot = new PdfTextAnnotation
@@ -198,6 +198,8 @@ public static class TestPdfFactory
             Icon = PdfTextAnnotationIcon.Note,
             Rectangle = new PdfRectangle(new XRect(100, 100, 24, 24)),
         };
+        // 주석 플래그의 Print 비트(4)가 없으면 인쇄(FPDF_PRINTING) 때 PDFium이 그리지 않는다.
+        if (printFlag) annot.Flags |= PdfAnnotationFlags.Print;
         doc.Pages[pageIndex].Annotations.Add(annot);
         doc.Save(path);
     }

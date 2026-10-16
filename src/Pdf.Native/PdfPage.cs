@@ -106,6 +106,19 @@ public sealed class PdfPage : IDisposable
         }
     }
 
+    /// <summary>
+    /// 장치 컨텍스트(프린터 HDC 등)에 인쇄용으로 그린다. (x, y, width, height)는 회전을 적용한 뒤의 장치 좌표 사각형.
+    /// rotate: 0 정상, 1 시계 방향 90도. StartPage/EndPage는 호출자가 맡는다.
+    /// </summary>
+    public void RenderToDc(IntPtr hdc, int x, int y, int width, int height, int rotate, bool withAnnotations)
+    {
+        Check();
+        if (hdc == IntPtr.Zero) throw new ArgumentException("HDC가 없습니다.", nameof(hdc));
+        if (rotate is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(rotate));
+        NativeMethods.FPDF_RenderPage(hdc, _handle, x, y, width, height, rotate,
+            (withAnnotations ? NativeMethods.FPDF_ANNOT : 0) | NativeMethods.FPDF_PRINTING);
+    }
+
     private unsafe byte[] RenderCore(double scale, int tileX, int tileY, int tileW, int tileH, bool withAnnotations)
     {
         var buffer = new byte[checked(tileW * tileH * 4)];
