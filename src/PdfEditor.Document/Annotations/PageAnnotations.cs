@@ -12,6 +12,23 @@ public sealed record AnnotationView(Annotation Data, bool ModelDrawn);
 public sealed record PageAnnotations(PageId Page, ImmutableArray<AnnotationView> Items)
 {
     public static PageAnnotations Empty(PageId page) => new(page, []);
+
+    /// <summary>
+    /// 텍스트 바꾸기 묶음(StrikeOut + Caret, A11): 대표(StrikeOut)가 맨 앞, 이어서 그것을 Group으로 가리키는 항목들.
+    /// 묶이지 않은 주석은 자기 하나만, 없는 주석은 빈 목록.
+    /// </summary>
+    public IReadOnlyList<Annotation> GroupOf(AnnotId id)
+    {
+        var self = Items.FirstOrDefault(v => v.Data.Id == id)?.Data;
+        if (self is null) return [];
+        var rep = self.InReplyTo is { } pid && self.ReplyKind == ReplyType.Group
+            ? Items.FirstOrDefault(v => v.Data.Id == pid)?.Data ?? self
+            : self;
+        var list = new List<Annotation> { rep };
+        foreach (var v in Items)
+            if (v.Data.Id != rep.Id && v.Data.InReplyTo == rep.Id && v.Data.ReplyKind == ReplyType.Group) list.Add(v.Data);
+        return list;
+    }
 }
 
 public sealed record AnnotationsChangedEventArgs(IReadOnlyList<PageId> Pages);

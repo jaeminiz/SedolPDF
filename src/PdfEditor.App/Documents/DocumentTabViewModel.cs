@@ -14,6 +14,9 @@ public enum ToolKind
 {
     Hand, TextSelect, AnnotSelect, Pencil, Eraser, HighlightText, HighlightArea,
     Underline, StrikeOut, StickyNote, Rectangle, Ellipse,
+    // M3a
+    Line, Arrow, PolyLine, Polygon, Cloud, TextBox, Typewriter, Callout,
+    InsertText, ReplaceText, Stamp, FileAttach,
 }
 
 /// <summary>문서 탭 하나. 세션이 있으면 변경 표시(제목 끝 " •")와 쪽 수를 세션에서 따라간다.</summary>

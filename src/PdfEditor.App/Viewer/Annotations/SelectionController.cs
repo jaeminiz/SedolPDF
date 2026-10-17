@@ -4,13 +4,18 @@ using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.App.Viewer.Annotations;
 
-public enum HandleKind { None, Body, N, NE, E, SE, S, SW, W, NW }
+/// <summary>
+/// Body: 몸통(이동). N~NW: 상자 손잡이 8개. Vertex: 선·폴리라인·다각형의 꼭짓점(HitResult.Index번).
+/// LeaderTip: 설명선 지시선 끝점(Vertices[0]).
+/// </summary>
+public enum HandleKind { None, Body, N, NE, E, SE, S, SW, W, NW, Vertex, LeaderTip }
 
-public sealed record HitResult(AnnotId Id, HandleKind Handle);
+public sealed record HitResult(AnnotId Id, HandleKind Handle, int Index = 0);
 
 /// <summary>
 /// 선택·이동·크기 조절·삭제 로직. Avalonia를 참조하지 않는다(좌표는 PDF pt, 화면 고정 크기는 ptPerDip로 환산).
 /// 끌기 한 번 = 명령 하나. 시작 때 스냅숏의 현재 주석을 잡고 End에서 그 주석을 before로 쓴다.
+/// 텍스트 바꾸기 묶음(StrikeOut + Caret)은 하나를 고르면 둘 다 선택되고, 이동·삭제도 한 명령이다.
 /// 알려진 한계: 손대지 않은 원본(PDFium이 그림)을 끌면 미리보기가 타일의 원래 모양과 겹쳐 보인다.
 /// </summary>
 public sealed class SelectionController(Func<DateTimeOffset> clock)
@@ -22,6 +27,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     private bool _active;
     private PageId _page;
     private HandleKind _handle;
+    private int _vertex;
     private PdfPointF _start;
     private PdfRectF _bounds;
     private float _ptPerDip = 1f;
@@ -35,18 +41,42 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     /// <summary>끌기 중 바뀐 주석의 임시 모습. 끌기 중이 아니면 null.</summary>
     public IReadOnlyDictionary<AnnotId, Annotation?>? Previews { get; private set; }
 
+    /// <summary>선택한 주석 하나에 그릴 손잡이들 (화면 표시와 HitTest가 같은 목록을 쓴다).</summary>
+    public static IReadOnlyList<(HandleKind Kind, int Index, PdfPointF Center)> HandlesOf(Annotation a)
+    {
+        var list = new List<(HandleKind, int, PdfPointF)>();
+        switch (a.Kind)
+        {
+            case AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon when !a.Vertices.IsDefaultOrEmpty:
+                for (int i = 0; i < a.Vertices.Length; i++) list.Add((HandleKind.Vertex, i, a.Vertices[i]));
+                break;
+            case AnnotKind.FreeText:
+                if (a.Intent == FreeTextIntent.Callout && !a.Vertices.IsDefaultOrEmpty)
+                    list.Add((HandleKind.LeaderTip, 0, a.Vertices[0]));
+                foreach (var (k, c) in HandleCenters(BoxOf(a))) list.Add((k, 0, c));
+                break;
+            default:
+                if (AnnotationGeometry.CanResize(a.Kind) && a.Kind is not (AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon))
+                    foreach (var (k, c) in HandleCenters(AnnotationGeometry.ComputeRect(a))) list.Add((k, 0, c));
+                break;
+        }
+        return list;
+    }
+
+    /// <summary>글 상자: TextBox가 있으면 그것, 없으면 Rect.</summary>
+    private static PdfRectF BoxOf(Annotation a) => a.TextBox ?? a.Rect;
+
     public HitResult? HitTest(PageAnnotations page, AnnotationSelection sel, PdfPointF p, float ptPerDip)
     {
         if (sel.Page == page.Page && sel.Ids.Count == 1)
         {
             var a = page.Items.Select(v => v.Data).FirstOrDefault(x => x.Id == sel.Ids[0]);
-            if (a is not null && AnnotationGeometry.CanResize(a.Kind))
+            if (a is not null)
             {
-                var r = AnnotationGeometry.ComputeRect(a);
                 float half = HandleDip / 2f * ptPerDip;
-                foreach (var (kind, c) in HandleCenters(r))
+                foreach (var (kind, index, c) in HandlesOf(a))
                     if (Math.Abs(p.X - c.X) <= half && Math.Abs(p.Y - c.Y) <= half)
-                        return new HitResult(a.Id, kind);
+                        return new HitResult(a.Id, kind, index);
             }
         }
         var id = AnnotationHitTest.TopmostAt([.. page.Items.Select(v => v.Data)], p, HitToleranceDip * ptPerDip);
@@ -66,7 +96,21 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         yield return (HandleKind.W, new(r.Left, my));
     }
 
-    /// <summary>끌기 시작. Body를 선택에 없는 주석 위에서 시작하면 그 주석 하나로 선택을 바꾼다.</summary>
+    /// <summary>묶음(텍스트 바꾸기)의 다른 구성원까지 넣은 Id 목록. 묶이지 않은 주석은 그대로.</summary>
+    public static IReadOnlyList<AnnotId> ExpandGroups(PageAnnotations page, IEnumerable<AnnotId> ids)
+    {
+        var result = new List<AnnotId>();
+        foreach (var id in ids)
+        {
+            var group = page.GroupOf(id);   // 대표(StrikeOut)가 맨 앞
+            if (group.Count == 0) { if (!result.Contains(id)) result.Add(id); continue; }
+            foreach (var m in group)
+                if (!result.Contains(m.Id)) result.Add(m.Id);
+        }
+        return result;
+    }
+
+    /// <summary>끌기 시작. Body를 선택에 없는 주석 위에서 시작하면 그 주석(묶음이면 묶음 전체)으로 선택을 바꾼다.</summary>
     public void Begin(PageAnnotations page, AnnotationSelection sel, HitResult hit, PdfPointF p, PdfRectF pageBounds,
         float ptPerDip)
     {
@@ -76,30 +120,57 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         _bounds = pageBounds;
         _ptPerDip = ptPerDip;
         _handle = hit.Handle;
+        _vertex = hit.Index;
 
-        if (hit.Handle == HandleKind.Body && !(sel.Page == page.Page && sel.Ids.Contains(hit.Id)))
-            sel.Set(page.Page, [hit.Id]);
+        if (hit.Handle == HandleKind.Body)
+        {
+            IReadOnlyList<AnnotId> current = sel.Page == page.Page && sel.Ids.Contains(hit.Id) ? sel.Ids : [hit.Id];
+            var expanded = ExpandGroups(page, current);
+            if (!(sel.Page == page.Page && sel.Ids.SequenceEqual(expanded))) sel.Set(page.Page, expanded);
+        }
 
         IReadOnlyList<AnnotId> ids = hit.Handle == HandleKind.Body ? sel.Ids : [hit.Id];
         // 스냅숏의 현재 인스턴스만 쓴다 (낡은 before는 Apply가 거부한다)
         foreach (var v in page.Items)
             if (ids.Contains(v.Data.Id)) _targets.Add(v.Data);
         if (_targets.Count == 0 || hit.Handle == HandleKind.None) { _targets.Clear(); return; }
-        if (_handle != HandleKind.Body && (_targets.Count != 1 || !AnnotationGeometry.CanResize(_targets[0].Kind)))
+        if (_handle != HandleKind.Body && (_targets.Count != 1 || !HasHandle(_targets[0], _handle, _vertex)))
         {
             _targets.Clear();
             return;
         }
 
-        _union = AnnotationGeometry.ComputeRect(_targets[0]);
-        for (int i = 1; i < _targets.Count; i++) _union = _union.Union(AnnotationGeometry.ComputeRect(_targets[i]));
-        _startRect = _union;
+        if (_handle == HandleKind.Body)
+        {
+            _union = AnnotationGeometry.ComputeRect(_targets[0]);
+            for (int i = 1; i < _targets.Count; i++) _union = _union.Union(AnnotationGeometry.ComputeRect(_targets[i]));
+            _startRect = _union;
+        }
+        else
+        {
+            var t = _targets[0];
+            _union = AnnotationGeometry.ComputeRect(t);
+            _startRect = t.Kind == AnnotKind.FreeText ? BoxOf(t) : _union;
+        }
         _newRect = _startRect;
         _grabX = _grabY = 0;
-        if (_handle != HandleKind.Body)
+        if (_handle is HandleKind.Vertex or HandleKind.LeaderTip)
+        {
+            var v = _targets[0].Vertices[_handle == HandleKind.LeaderTip ? 0 : _vertex];
+            _grabX = p.X - v.X; _grabY = p.Y - v.Y;
+        }
+        else if (_handle != HandleKind.Body)
             foreach (var (k, c) in HandleCenters(_startRect))
                 if (k == _handle) { _grabX = p.X - c.X; _grabY = p.Y - c.Y; }
         _active = true;
+    }
+
+    // 현재 스냅숏의 주석에 그 손잡이가 실제로 있는지 (낡은 HitResult 방어)
+    private static bool HasHandle(Annotation a, HandleKind kind, int index)
+    {
+        foreach (var (k, i, _) in HandlesOf(a))
+            if (k == kind && i == index) return true;
+        return false;
     }
 
     public void Move(PdfPointF p)
@@ -111,12 +182,33 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
             ComputeDelta(p);
             foreach (var t in _targets) map[t.Id] = AnnotationGeometry.Translate(t, _dx, _dy);
         }
+        else if (_handle is HandleKind.Vertex or HandleKind.LeaderTip)
+        {
+            // 끈 꼭짓점 하나만 옮긴다 (나머지 점은 그대로)
+            var t = _targets[0];
+            int idx = _handle == HandleKind.LeaderTip ? 0 : _vertex;
+            var old = t.Vertices[idx];
+            var np = new PdfPointF(
+                Math.Clamp(p.X - _grabX, _bounds.Left, _bounds.Right), Math.Clamp(p.Y - _grabY, _bounds.Bottom, _bounds.Top));
+            _dx = np.X - old.X; _dy = np.Y - old.Y;
+            var moved = t with { Vertices = t.Vertices.SetItem(idx, np) };
+            map[t.Id] = moved with { Rect = AnnotationGeometry.ComputeRect(moved) };
+        }
         else
         {
             _newRect = ComputeResizeRect(p);
-            map[_targets[0].Id] = AnnotationGeometry.Resize(_targets[0], _newRect);
+            var t = _targets[0];
+            map[t.Id] = t.Kind == AnnotKind.FreeText ? WithBox(t, _newRect) : AnnotationGeometry.Resize(t, _newRect);
         }
         Previews = map;
+    }
+
+    // FreeText는 글 상자만 바꾼다 (글자 크기·지시선 그대로). 새 상자는 끄는 손잡이로 이미 계산된 값을 그대로 쓴다
+    // (AnnotationGeometry.Resize는 최소 크기를 Left/Bottom 기준으로 맞춰 N·W 손잡이에서 튈 수 있다).
+    private static Annotation WithBox(Annotation a, PdfRectF box)
+    {
+        var b = a.TextBox is null ? a with { Rect = box } : a with { TextBox = box };
+        return b with { Rect = AnnotationGeometry.ComputeRect(b) };
     }
 
     public ChangeAnnotationsCommand? End(PdfPointF p)
@@ -125,7 +217,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         Move(p);
         var now = clock();
         float minPt = MinMoveDip * _ptPerDip;
-        bool moved = _handle == HandleKind.Body
+        bool moved = _handle is HandleKind.Body or HandleKind.Vertex or HandleKind.LeaderTip
             ? Math.Abs(_dx) >= minPt || Math.Abs(_dy) >= minPt
             : Math.Abs(_newRect.Left - _startRect.Left) >= minPt || Math.Abs(_newRect.Right - _startRect.Right) >= minPt
               || Math.Abs(_newRect.Bottom - _startRect.Bottom) >= minPt || Math.Abs(_newRect.Top - _startRect.Top) >= minPt;
@@ -149,11 +241,12 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         _dx = _dy = 0;
     }
 
-    /// <summary>선택한 주석을 지우는 명령. 호출한 쪽이 실행한 뒤 선택을 Clear/Prune해야 한다.</summary>
+    /// <summary>선택한 주석(묶음이면 묶음 전체)을 지우는 명령. 호출한 쪽이 실행한 뒤 선택을 Clear/Prune해야 한다.</summary>
     public ChangeAnnotationsCommand? DeleteSelected(PageAnnotations page, AnnotationSelection sel)
     {
         if (sel.Page != page.Page || sel.Ids.Count == 0) return null;
-        var items = page.Items.Select(v => v.Data).Where(a => sel.Ids.Contains(a.Id)).ToList();
+        var ids = ExpandGroups(page, sel.Ids);
+        var items = page.Items.Select(v => v.Data).Where(a => ids.Contains(a.Id)).ToList();
         return items.Count == 0 ? null : ChangeAnnotationsCommand.Delete(page.Page, items);
     }
 

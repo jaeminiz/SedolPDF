@@ -231,6 +231,206 @@ public class SelectionControllerTests
         Assert.Null(Make().DeleteSelected(Snap(a), Sel()));
     }
 
+    // ---- M3a: 새 유형의 손잡이와 묶음 ----
+
+    private static Annotation Line(long id, params (float, float)[] pts)
+    {
+        var a = new Annotation
+        {
+            Id = new AnnotId(id), Kind = AnnotKind.Line, BorderWidth = 2f,
+            Vertices = [.. pts.Select(p => new PdfPointF(p.Item1, p.Item2))],
+        };
+        return a with { Rect = AnnotationGeometry.ComputeRect(a) };
+    }
+
+    private static Annotation Poly(long id, AnnotKind kind, params (float, float)[] pts)
+    {
+        var a = Line(id, pts) with { Kind = kind };
+        return a with { Rect = AnnotationGeometry.ComputeRect(a) };
+    }
+
+    private static Annotation FreeText(long id, PdfRectF box, params (float, float)[] leader)
+    {
+        var a = new Annotation
+        {
+            Id = new AnnotId(id), Kind = AnnotKind.FreeText, BorderWidth = 1f,
+            Intent = leader.Length > 0 ? FreeTextIntent.Callout : FreeTextIntent.TextBox,
+            Vertices = [.. leader.Select(p => new PdfPointF(p.Item1, p.Item2))],
+        };
+        a = leader.Length > 0 ? a with { TextBox = box } : a with { Rect = box };
+        return a with { Rect = AnnotationGeometry.ComputeRect(a) };
+    }
+
+    [Fact]
+    public void LineEndpointHandle_MovesOnlyThatEnd()
+    {
+        var line = Line(1, (100, 100), (300, 200));
+        var c = Make();
+        var hit = c.HitTest(Snap(line), Sel(1), new(301, 199), 1f);
+        Assert.Equal(new HitResult(line.Id, HandleKind.Vertex, 1), hit);
+        Assert.Equal(new HitResult(line.Id, HandleKind.Vertex, 0), c.HitTest(Snap(line), Sel(1), new(100, 100), 1f));
+
+        c.Begin(Snap(line), Sel(1), hit!, new(301, 199), Bounds, 1f);   // grabbed 1,-1 off centre
+        var cmd = c.End(new(351, 249));
+        var ch = Changes(cmd!);
+        Assert.Single(ch);
+        Assert.Same(line, ch[0].Before);
+        var after = ch[0].After!;
+        Assert.Equal(new PdfPointF(100, 100), after.Vertices[0]);
+        Assert.Equal(new PdfPointF(350, 250), after.Vertices[1]);
+        Assert.Equal(AnnotationGeometry.ComputeRect(after), after.Rect);
+        Assert.Equal(Now, after.ModifiedAt);
+
+        // unselected line: body drag moves the whole line
+        var hitBody = c.HitTest(Snap(line), Sel(), new(200, 150), 1f);
+        Assert.Equal(HandleKind.Body, hitBody!.Handle);
+        c.Begin(Snap(line), Sel(), hitBody, new(200, 150), Bounds, 1f);
+        var moved = Changes(c.End(new(210, 160))!)[0].After!;
+        Assert.Equal(new PdfPointF(110, 110), moved.Vertices[0]);
+        Assert.Equal(new PdfPointF(310, 210), moved.Vertices[1]);
+
+        // 1 DIP no-op
+        c.Begin(Snap(line), Sel(1), hit!, new(301, 199), Bounds, 1f);
+        Assert.Null(c.End(new(301.5f, 199.5f)));
+    }
+
+    [Fact]
+    public void PolygonVertexHandle_MovesOnlyThatVertex()
+    {
+        var poly = Poly(1, AnnotKind.Polygon, (100, 100), (200, 100), (200, 200), (100, 200));
+        Assert.Equal(4, SelectionController.HandlesOf(poly).Count);   // vertices only, no box handles
+        var c = Make();
+        var hit = c.HitTest(Snap(poly), Sel(1), new(200, 200), 1f);
+        Assert.Equal(new HitResult(poly.Id, HandleKind.Vertex, 2), hit);
+        c.Begin(Snap(poly), Sel(1), hit!, new(200, 200), Bounds, 1f);
+        var after = Changes(c.End(new(260, 240))!)[0].After!;
+        Assert.Equal(poly.Vertices[0], after.Vertices[0]);
+        Assert.Equal(poly.Vertices[1], after.Vertices[1]);
+        Assert.Equal(new PdfPointF(260, 240), after.Vertices[2]);
+        Assert.Equal(poly.Vertices[3], after.Vertices[3]);
+
+        // polyline vertices too, and drag is clamped to the page
+        var pl = Poly(2, AnnotKind.PolyLine, (10, 10), (50, 50), (90, 10));
+        c.Begin(Snap(pl), Sel(2), new HitResult(pl.Id, HandleKind.Vertex, 0), new(10, 10), Bounds, 1f);
+        var pa = Changes(c.End(new(-100, 900))!)[0].After!;
+        Assert.Equal(new PdfPointF(0, 800), pa.Vertices[0]);
+        Assert.Equal(pl.Vertices[1], pa.Vertices[1]);
+    }
+
+    [Fact]
+    public void StaleVertexHandle_IsIgnored()
+    {
+        var line = Line(1, (100, 100), (300, 200));
+        var c = Make();
+        c.Begin(Snap(line), Sel(1), new HitResult(line.Id, HandleKind.Vertex, 5), new(300, 200), Bounds, 1f);
+        Assert.Null(c.End(new(400, 400)));
+    }
+
+    [Fact]
+    public void FreeText_BoxHandles_ResizeBoxOnly_AndLeaderTipMovesTip()
+    {
+        var box = new PdfRectF(200, 260, 360, 300);
+        var co = FreeText(1, box, (100, 100), (200, 280));
+        var c = Make();
+        Assert.Equal(1 + 8, SelectionController.HandlesOf(co).Count);   // leader tip + 8 box handles
+
+        // N handle sits on the box top (not on the union with the leader)
+        var hitN = c.HitTest(Snap(co), Sel(1), new(280, 300), 1f);
+        Assert.Equal(HandleKind.N, hitN!.Handle);
+        c.Begin(Snap(co), Sel(1), hitN, new(280, 300), Bounds, 1f);
+        var a1 = Changes(c.End(new(280, 340))!)[0].After!;
+        Assert.Equal(new PdfRectF(200, 260, 360, 340), a1.TextBox);
+        Assert.Equal(co.Vertices, a1.Vertices);   // leader unchanged
+
+        // W handle grows the box leftwards while the right edge stays put
+        var hitW = c.HitTest(Snap(co), Sel(1), new(200, 280), 1f);
+        // (the leader's end vertex sits on this spot but is not a handle; box W handle wins)
+        Assert.Equal(HandleKind.W, hitW!.Handle);
+        c.Begin(Snap(co), Sel(1), hitW, new(200, 280), Bounds, 1f);
+        var a2 = Changes(c.End(new(150, 280))!)[0].After!;
+        Assert.Equal(new PdfRectF(150, 260, 360, 300), a2.TextBox);
+
+        // leader tip handle moves only Vertices[0]
+        var hitTip = c.HitTest(Snap(co), Sel(1), new(100, 100), 1f);
+        Assert.Equal(HandleKind.LeaderTip, hitTip!.Handle);
+        c.Begin(Snap(co), Sel(1), hitTip, new(100, 100), Bounds, 1f);
+        var a3 = Changes(c.End(new(80, 60))!)[0].After!;
+        Assert.Equal(new PdfPointF(80, 60), a3.Vertices[0]);
+        Assert.Equal(co.Vertices[1], a3.Vertices[1]);
+        Assert.Equal(box, a3.TextBox);
+
+        // plain text box: resize changes Rect
+        var tb = FreeText(2, new PdfRectF(100, 100, 300, 140));
+        c.Begin(Snap(tb), Sel(2), new HitResult(tb.Id, HandleKind.SE), new(300, 100), Bounds, 1f);
+        var a4 = Changes(c.End(new(340, 80))!)[0].After!;
+        Assert.Equal(new PdfRectF(100, 80, 340, 140), a4.Rect);
+    }
+
+    private static (Annotation Strike, Annotation Caret) Group()
+    {
+        var strike = new Annotation
+        {
+            Id = new AnnotId(10), Kind = AnnotKind.StrikeOut,
+            Quads = [PdfQuadF.FromRect(new PdfRectF(100, 500, 200, 512))],
+        };
+        strike = strike with { Rect = AnnotationGeometry.ComputeRect(strike) };
+        var caret = new Annotation
+        {
+            Id = new AnnotId(11), Kind = AnnotKind.Caret, Rect = new PdfRectF(197, 500, 204, 512),
+            InReplyTo = strike.Id, ReplyKind = ReplyType.Group,
+        };
+        return (strike, caret);
+    }
+
+    [Fact]
+    public void SelectingGroupMember_SelectsBoth()
+    {
+        var (strike, caret) = Group();
+        var other = Square(3, 400, 400, 450, 450);
+        var snap = Snap(strike, caret, other);
+        var sel = Sel();
+        var c = Make();
+
+        // pressing the caret selects the whole group
+        c.Begin(snap, sel, new HitResult(caret.Id, HandleKind.Body), new(200, 506), Bounds, 1f);
+        Assert.Equal([strike.Id, caret.Id], sel.Ids);
+
+        // moving it is ONE command over both members
+        var cmd = c.End(new(220, 516));
+        var ch = Changes(cmd!);
+        Assert.Equal(2, ch.Length);
+        Assert.Same(strike, ch[0].Before);
+        Assert.Same(caret, ch[1].Before);
+        Assert.Equal(new PdfRectF(120, 510, 220, 522), ch[0].After!.Rect);
+        Assert.Equal(strike.Id, ch[1].After!.InReplyTo);   // group link preserved
+
+        // deleting one selected member deletes the whole group in one command
+        var del = c.DeleteSelected(snap, Sel(11));
+        var dch = Changes(del!);
+        Assert.Equal(2, dch.Length);
+        Assert.All(dch, x => Assert.Null(x.After));
+        Assert.DoesNotContain(dch, x => x.Before!.Id == other.Id);
+
+        // a selected member whose partner is not selected gets the partner added on Begin
+        var sel2 = Sel(10);
+        c.Begin(snap, sel2, new HitResult(strike.Id, HandleKind.Body), new(150, 506), Bounds, 1f);
+        Assert.Equal([strike.Id, caret.Id], sel2.Ids);
+
+        // an ungrouped annotation still selects alone
+        var sel3 = Sel();
+        c.Begin(snap, sel3, new HitResult(other.Id, HandleKind.Body), new(420, 420), Bounds, 1f);
+        Assert.Equal([other.Id], sel3.Ids);
+    }
+
+    [Fact]
+    public void ExpandGroups_HandlesMissingAndDuplicate()
+    {
+        var (strike, caret) = Group();
+        var snap = Snap(strike, caret);
+        Assert.Equal([strike.Id, caret.Id], SelectionController.ExpandGroups(snap, [caret.Id, strike.Id]));
+        Assert.Equal([new AnnotId(99)], SelectionController.ExpandGroups(snap, [new AnnotId(99)]));
+    }
+
     [Fact]
     public void Prune_AfterUndoRemovesDeletedIds()
     {
