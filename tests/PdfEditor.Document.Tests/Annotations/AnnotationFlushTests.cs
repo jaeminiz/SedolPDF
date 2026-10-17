@@ -326,11 +326,31 @@ public class AnnotationFlushTests : IDisposable
             var p = s.GetLoadedPage(page);
             return (h, h.Select(i => { using var a = p.GetAnnotation(i); return a.Subtype; }).ToArray());
         });
-        Assert.Equal(2, hidden.Length);
+        // 손댄 원본 2개 + 저장으로 PDF에 들어간 새 Circle(맨 끝). 셋 다 주석 층이 그리므로 타일에서 숨긴다.
+        Assert.Equal(3, hidden.Length);
         Assert.Contains(PdfAnnotSubtype.Square, subtypes);
         Assert.Contains(PdfAnnotSubtype.Ink, subtypes);
+        Assert.Contains(PdfAnnotSubtype.Circle, subtypes);
         Assert.Equal(1, hidden[0]);   // Square는 번호 1 그대로
         Assert.Equal(4, hidden[1]);   // Ink [7]: Text·Popup·답글 3개가 빠져 4
+    }
+
+    [Fact]
+    public async Task NewAnnotation_AfterFlush_HiddenInTiles_EvenAfterDelete()
+    {
+        // 저장(Flush) 뒤에는 새 주석도 PDFium 문서에 들어 있다. 그 주석은 주석 층(ModelDrawn)이 그리므로
+        // 타일에서는 숨겨야 한다: 안 숨기면 두 번 그려지고(반투명이면 진해짐), 저장 뒤 지운 주석이 타일에 남는다.
+        await using var s = await OpenMixed();
+        var page = s.Pages[0].Id;
+        var added = Mk(s, AnnotKind.Highlight, new PdfRectF(10, 10, 60, 60), "h");
+        await Exec(s, page, null, added);
+        await Flush(s);
+        var idx = await s.Thread.InvokeAsync(() => s.GetLoadedPage(page).AnnotationCount - 1);
+        Assert.True(s.Annotations.Get(page).Items.Single(i => i.Data.Id == added.Id).ModelDrawn);
+        Assert.Contains(idx, await s.Thread.InvokeAsync(() => s.Annotations.HiddenPdfIndices(page)));
+
+        await Exec(s, page, added, null);   // 저장 뒤 지움: 다음 Flush 전까지 PDFium에는 남아 있다
+        Assert.Contains(idx, await s.Thread.InvokeAsync(() => s.Annotations.HiddenPdfIndices(page)));
     }
 
     [Fact]

@@ -116,14 +116,18 @@ public sealed class AnnotationStore
         st.Dirty = true;
     }
 
-    /// <summary>타일에서 숨길 PDFium 주석 번호: 손대거나 지운 원본.</summary>
+    /// <summary>
+    /// 타일에서 숨길 PDFium 주석 번호: 주석 층이 그리는 항목(손댄 원본, 저장으로 PDF에 들어간 새 주석) 전부와
+    /// 지웠지만 아직 Flush 전이라 PDF에 남은 항목. 새 주석을 빼면 저장 뒤 두 번 그려지고(반투명은 진해짐),
+    /// 저장 뒤 지운 새 주석이 다시 그린 타일에 남는다(M2 마무리 검토).
+    /// </summary>
     public IReadOnlySet<int> HiddenPdfIndices(PageId page)
     {
         _thread.AssertOnThread();
         var set = new HashSet<int>();
         if (_pages.TryGetValue(page, out var st))
             foreach (var e in st.Entries)
-                if (e.IsOriginal && e.Owned && e.PdfIndex is int i) set.Add(i);
+                if ((!e.IsOriginal || e.Owned) && e.PdfIndex is int i) set.Add(i);
         return set;
     }
 
