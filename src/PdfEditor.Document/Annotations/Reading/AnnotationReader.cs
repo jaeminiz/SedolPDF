@@ -284,7 +284,7 @@ public static class AnnotationReader
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return new OriginalAnnotation(index, subtype, null, ReadOnlyReason.Malformed);
+            return new OriginalAnnotation(index, subtype, null, ReadOnlyReason.Malformed, Info: InfoOf(index, subtype, ReadOnlyReason.Malformed, el));
         }
 
         OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r, groupParent, Info: InfoOf(index, subtype, r, el));

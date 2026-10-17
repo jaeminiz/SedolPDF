@@ -218,6 +218,50 @@ public class AnnotationReaderTests : IDisposable
     }
 
     [Fact]
+    public void Read_MalformedOriginals_StillListedAsReadOnly_NonDictionaryHasNoRow()
+    {
+        var p = P("malformed-info.pdf");
+        using (var doc = new PdfSharp.Pdf.PdfDocument())
+        {
+            var page = doc.AddPage();
+            PdfDictionary Make(string subtype)
+            {
+                var d = new PdfDictionary(doc);
+                d.Elements["/Subtype"] = new PdfName(subtype);
+                d.Elements["/Rect"] = new PdfArray(doc, new PdfReal(10), new PdfReal(20), new PdfReal(50), new PdfReal(60));
+                d.Elements["/T"] = new PdfString("kim");
+                d.Elements["/Contents"] = new PdfString("keep me");
+                doc.Internals.AddObject(d);
+                return d;
+            }
+            var badQuads = Make("/Underline");
+            badQuads.Elements["/QuadPoints"] = new PdfArray(doc, new PdfReal(1), new PdfReal(2), new PdfReal(3));   // 8의 배수가 아님
+            var badBorder = Make("/Square");   // 값 하나가 엉뚱한 형식이어도 (예외가 나도) 줄은 남는다
+            badBorder.Elements["/Border"] = new PdfInteger(5);
+            badBorder.Elements["/BS"] = new PdfInteger(5);
+            badBorder.Elements["/C"] = new PdfName("/Oops");
+            page.Elements["/Annots"] = new PdfArray(doc, PdfSharp.Pdf.PdfNull.Value, new PdfInteger(7), badQuads.Reference!, badBorder.Reference!);
+            doc.Save(p);
+        }
+
+        var r = AnnotationReader.Read(File.ReadAllBytes(p), null, [0])[0];
+        Assert.Null(r[0].Info);   // 딕셔너리가 아닌 항목은 줄이 없다
+        Assert.Null(r[1].Info);
+        var q = r[2].Info;
+        Assert.NotNull(q);
+        Assert.Equal(ReadOnlyReason.Malformed, q.Reason);
+        Assert.Equal("kim", q.Author);
+        Assert.Equal("keep me", q.Contents);
+        Assert.Equal(10, q.Rect.Left);
+        if (r[3].Data is null)   // 읽을 수 없다고 판정했다면 반드시 줄이 있어야 한다
+        {
+            var b = r[3].Info;
+            Assert.NotNull(b);
+            Assert.Equal("keep me", b.Contents);
+        }
+    }
+
+    [Fact]
     public void Read_WrongPassword_ThrowsAnnotationReadException()
     {
         var p = P("enc.pdf");
