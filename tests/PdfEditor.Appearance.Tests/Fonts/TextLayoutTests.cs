@@ -1,5 +1,6 @@
 using Pdf.Native;
 using PdfEditor.Appearance.Fonts;
+using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.Appearance.Tests.Fonts;
 

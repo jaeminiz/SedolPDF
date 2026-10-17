@@ -114,7 +114,7 @@ public class AnnotationFlushTests : IDisposable
         var page = s.Pages[0].Id;
         var made = new List<Annotation>();
         int k = 0;
-        foreach (var kind in Enum.GetValues<AnnotKind>())
+        foreach (var kind in Enum.GetValues<AnnotKind>().Where(k => !k.IsPatchKind()))
         {
             var a = Mk(s, kind, kind == AnnotKind.Text ? new PdfRectF(100, 400, 120, 420) : new PdfRectF(100 + 10 * k, 100 + 30 * k, 200 + 10 * k, 130 + 30 * k), kind.ToString());
             made.Add(a);
@@ -145,7 +145,7 @@ public class AnnotationFlushTests : IDisposable
     {
         await using var s = await DocumentSession.CreateNewAsync(_t);
         var page = s.Pages[0].Id;
-        foreach (var kind in Enum.GetValues<AnnotKind>())
+        foreach (var kind in Enum.GetValues<AnnotKind>().Where(k => !k.IsPatchKind()))
             await Exec(s, page, null, Mk(s, kind, new PdfRectF(100, 100, 150, 140), kind.ToString()));
         var path = await FlushAndSave(s, "keys.pdf");
         foreach (var r in ReadRaw(path))

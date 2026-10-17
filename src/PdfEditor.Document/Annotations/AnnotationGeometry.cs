@@ -29,9 +29,38 @@ public static class AnnotationGeometry
                     for (int i = 1; i < a.Quads.Length; i++) r = r.Union(a.Quads[i].Bounds);
                     return r;
                 }
+            case AnnotKind.Line:
+            case AnnotKind.PolyLine:
+            case AnnotKind.Polygon:
+                return a.Vertices.IsDefaultOrEmpty ? a.Rect : PdfRectF.FromPoints(a.Vertices).Inflate(PointMargin(a));
+            case AnnotKind.FreeText:
+                {
+                    var box = a.TextBox ?? a.Rect;
+                    if (a.Vertices.IsDefaultOrEmpty) return box;
+                    return box.Union(PdfRectF.FromPoints(a.Vertices).Inflate(a.BorderWidth / 2f + EndingSize(a)));
+                }
             default:
                 return a.Rect;
         }
+    }
+
+    /// <summary>선 끝 모양(화살표 등)의 크기. A7: L = max(6, 4.5 x 두께). 끝 모양이 없으면 0.</summary>
+    public static float EndingSize(Annotation a)
+        => a.StartEnding != LineEnding.None || a.EndEnding != LineEnding.None ? Math.Max(6f, 4.5f * a.BorderWidth) : 0f;
+
+    /// <summary>클라우드 반원 지름(A8): 6 + 4n pt.</summary>
+    public static float CloudDiameter(float intensity) => 6f + 4f * intensity;
+
+    // 점 경계에 더하는 여유: 두께/2 + 선 끝 크기, Polygon 클라우드는 + RD(d/2 + 두께/2).
+    private static float PointMargin(Annotation a)
+    {
+        float m = a.BorderWidth / 2f;
+        if (a.Kind == AnnotKind.Polygon)
+        {
+            if (a.CloudIntensity > 0) m += CloudDiameter(a.CloudIntensity) / 2f + a.BorderWidth / 2f;
+        }
+        else m += EndingSize(a);
+        return m;
     }
 
     public static Annotation Translate(Annotation a, float dx, float dy)
@@ -40,21 +69,36 @@ public static class AnnotationGeometry
             : [.. a.InkStrokes.Select(s => ImmutableArray.CreateRange(s.Select(p => new PdfPointF(p.X + dx, p.Y + dy))))];
         var quads = a.Quads.IsDefault ? a.Quads
             : [.. a.Quads.Select(q => new PdfQuadF(Move(q.P1, dx, dy), Move(q.P2, dx, dy), Move(q.P3, dx, dy), Move(q.P4, dx, dy)))];
-        return a with { Rect = a.Rect.Offset(dx, dy), InkStrokes = strokes, Quads = quads };
+        var verts = a.Vertices.IsDefault ? a.Vertices
+            : [.. a.Vertices.Select(p => Move(p, dx, dy))];
+        return a with
+        {
+            Rect = a.Rect.Offset(dx, dy), InkStrokes = strokes, Quads = quads,
+            Vertices = verts, TextBox = a.TextBox?.Offset(dx, dy),
+        };
     }
 
-    public static bool CanResize(AnnotKind k) => k is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle;
+    public static bool CanResize(AnnotKind k)
+        => k is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle or AnnotKind.Line or AnnotKind.PolyLine
+            or AnnotKind.Polygon or AnnotKind.FreeText or AnnotKind.Stamp;
 
     public static Annotation Resize(Annotation a, PdfRectF newRect)
     {
         if (!CanResize(a.Kind)) throw new NotSupportedException($"{a.Kind} annotations cannot be resized.");
         newRect = ClampMin(newRect);
-        if (a.Kind != AnnotKind.Ink) return a with { Rect = newRect };
+        if (a.Kind == AnnotKind.FreeText)
+        {
+            // 글자 크기는 그대로, 글 상자만 바꾼다. 지시선은 그대로.
+            var boxed = a.TextBox is null ? a with { Rect = newRect } : a with { TextBox = newRect };
+            return boxed with { Rect = ComputeRect(boxed) };
+        }
+        bool isInk = a.Kind == AnnotKind.Ink;
+        if (!isInk && a.Kind is not (AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon)) return a with { Rect = newRect };
 
-        var pts = InkPoints(a);
+        var pts = isInk ? InkPoints(a) : a.Vertices.IsDefault ? [] : [.. a.Vertices];
         if (pts.Count == 0) return a with { Rect = newRect };
 
-        float m = InkMargin(a);
+        float m = isInk ? InkMargin(a) : PointMargin(a);
         var old = PdfRectF.FromPoints(pts);
         var dst = newRect.Inflate(-m);
         if (dst.Width < 0)
@@ -72,8 +116,9 @@ public static class AnnotationGeometry
             old.Width > 0 ? dst.Left + (p.X - old.Left) / old.Width * dst.Width : dst.Left,
             old.Height > 0 ? dst.Bottom + (p.Y - old.Bottom) / old.Height * dst.Height : dst.Bottom);
 
-        var strokes = ImmutableArray.CreateRange(a.InkStrokes.Select(s => ImmutableArray.CreateRange(s.Select(Map))));
-        var resized = a with { InkStrokes = strokes };
+        var resized = isInk
+            ? a with { InkStrokes = ImmutableArray.CreateRange(a.InkStrokes.Select(s => ImmutableArray.CreateRange(s.Select(Map)))) }
+            : a with { Vertices = ImmutableArray.CreateRange(pts.Select(Map)) };
         return resized with { Rect = ComputeRect(resized) };
     }
 

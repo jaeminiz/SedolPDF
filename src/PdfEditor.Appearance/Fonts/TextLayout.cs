@@ -1,10 +1,9 @@
 using System.Collections.Immutable;
 using System.Text;
 using Pdf.Native;
+using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.Appearance.Fonts;
-
-public enum TextAlign { Left, Center, Right }
 
 /// <summary>
 /// 배치된 글리프 하나. <see cref="Origin"/>은 기준선 위의 왼쪽 점(PDF 사용자 좌표, 커닝 반영).

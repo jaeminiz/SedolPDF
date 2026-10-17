@@ -43,6 +43,9 @@ public sealed class AnnotationStore
     private ImmutableDictionary<PageId, PageAnnotations> _snapshot = ImmutableDictionary<PageId, PageAnnotations>.Empty;
     private long _nextId;
 
+    /// <summary>세션당 하나인 그림·첨부 바이트 보관소(패치 때 쓴다).</summary>
+    public AnnotationAssets Assets { get; } = new();
+
     internal AnnotationStore(PdfiumThread thread, Action<PageId> bumpAnnotRevision)
     {
         _thread = thread;

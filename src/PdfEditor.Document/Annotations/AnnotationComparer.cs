@@ -9,8 +9,19 @@ public static class AnnotationComparer
     {
         if (a.Kind != b.Kind || a.Color != b.Color || a.FillColor != b.FillColor
             || a.Contents != b.Contents || a.Author != b.Author || a.Subject != b.Subject
-            || a.Name != b.Name || a.Flags != b.Flags)
+            || a.Name != b.Name || a.Flags != b.Flags
+            || a.StartEnding != b.StartEnding || a.EndEnding != b.EndEnding || a.Intent != b.Intent
+            || a.Align != b.Align || a.TextColor != b.TextColor || a.InReplyTo != b.InReplyTo
+            || a.ReplyKind != b.ReplyKind || a.Stamp != b.Stamp
+            || a.AttachmentId != b.AttachmentId || a.AttachmentName != b.AttachmentName)
             return false;
+        if (!Near(a.CloudIntensity, b.CloudIntensity, tol) || !Near(a.FontSizePt, b.FontSizePt, tol)) return false;
+        if (a.TextBox.HasValue != b.TextBox.HasValue || (a.TextBox.HasValue && !Near(a.TextBox.Value, b.TextBox!.Value, tol))) return false;
+        var va = a.Vertices.IsDefault ? [] : a.Vertices;
+        var vb = b.Vertices.IsDefault ? [] : b.Vertices;
+        if (va.Length != vb.Length) return false;
+        for (int i = 0; i < va.Length; i++)
+            if (!Near(va[i], vb[i], tol)) return false;
         if (!Near(a.Opacity, b.Opacity, tol) || !Near(a.BorderWidth, b.BorderWidth, tol)) return false;
         if (!Near(a.Rect, b.Rect, tol)) return false;
 

@@ -35,6 +35,18 @@ public static class AnnotationHitTest
                 foreach (var q in a.Quads)
                     if (q.Bounds.Inflate(tolPt).Contains(p)) return true;
                 return false;
+            case AnnotKind.Line:
+            case AnnotKind.PolyLine:
+                return PolylineHit(a.Vertices, closed: false, p, half + tolPt, a.Rect, tolPt);
+            case AnnotKind.Polygon:
+                if (a.Vertices.IsDefaultOrEmpty) return a.Rect.Inflate(tolPt).Contains(p);
+                if (a.FillColor is not null && a.Vertices.Length >= 3 && PointInPolygon(a.Vertices, p)) return true;
+                return PolylineHit(a.Vertices, closed: true, p, half + tolPt, a.Rect, tolPt);
+            case AnnotKind.FreeText:
+                {
+                    if ((a.TextBox ?? a.Rect).Inflate(tolPt).Contains(p)) return true;
+                    return a.Vertices.Length > 1 && PolylineHit(a.Vertices, closed: false, p, half + tolPt, a.Rect, tolPt);
+                }
             default:
                 return a.Rect.Inflate(tolPt).Contains(p);
         }
@@ -58,6 +70,28 @@ public static class AnnotationHitTest
                 if (DistToSegment(p, s[i - 1], s[i]) <= limit) return true;
         }
         return false;
+    }
+
+    private static bool PolylineHit(System.Collections.Immutable.ImmutableArray<PdfPointF> v, bool closed, PdfPointF p, float limit,
+        PdfRectF fallback, float tolPt)
+    {
+        if (v.IsDefaultOrEmpty) return fallback.Inflate(tolPt).Contains(p);
+        if (v.Length == 1) return Dist(p, v[0]) <= limit;
+        for (int i = 1; i < v.Length; i++)
+            if (DistToSegment(p, v[i - 1], v[i]) <= limit) return true;
+        return closed && v.Length > 2 && DistToSegment(p, v[^1], v[0]) <= limit;
+    }
+
+    private static bool PointInPolygon(System.Collections.Immutable.ImmutableArray<PdfPointF> v, PdfPointF p)
+    {
+        bool inside = false;
+        for (int i = 0, j = v.Length - 1; i < v.Length; j = i++)
+        {
+            if ((v[i].Y > p.Y) != (v[j].Y > p.Y)
+                && p.X < (v[j].X - v[i].X) * (double)(p.Y - v[i].Y) / (v[j].Y - v[i].Y) + v[i].X)
+                inside = !inside;
+        }
+        return inside;
     }
 
     private static double Dist(PdfPointF a, PdfPointF b)
