@@ -55,6 +55,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
 
         var pending = new List<(PdfDictionary Annot, string ParentNm, string? ReplyType, int Page)>();
         var popups = new List<(int Page, PdfDictionary Parent, EnsurePopup Op)>();
+        var images = new Dictionary<string, PdfReference>(StringComparer.Ordinal);   // 이미지 XObject는 문서마다 id당 한 번만 만든다
 
         // ① Patches — 번호가 바뀌기 전
         foreach (var patch in plan.Patches)
@@ -70,7 +71,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                 throw new InvalidOperationException($"Annotation /NM mismatch: expected '{patch.Nm}', found '{nm}'.");
             if (patch.Subtype is not null && dict.Elements.GetName("/Subtype") != "/" + patch.Subtype)
                 throw new InvalidOperationException($"Annotation /Subtype mismatch: expected '{patch.Subtype}'.");
-            ApplyOps(doc, dict, patch.PageIndex, patch.Ops, pending, popups);
+            ApplyOps(doc, dict, patch.PageIndex, patch.Ops, pending, popups, assets, images);
         }
 
         // ② Creates — 끝에 붙임
@@ -85,7 +86,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             dict.Elements["/F"] = new PdfInteger(c.Flags);
             doc.Internals.AddObject(dict);
             arr.Elements.Add(dict.Reference!);
-            ApplyOps(doc, dict, c.PageIndex, c.Ops, pending, popups);
+            ApplyOps(doc, dict, c.PageIndex, c.Ops, pending, popups, assets, images);
         }
 
         // /IRT는 같은 계획에서 새로 만든 부모도 가리킬 수 있으므로 Creates 뒤에 건다.
@@ -135,7 +136,8 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     // ---- 고치기 ----
 
     private void ApplyOps(PdfDocument doc, PdfDictionary annot, int page, IEnumerable<PatchOp> ops,
-        List<(PdfDictionary, string, string?, int)> pending, List<(int, PdfDictionary, EnsurePopup)> popups)
+        List<(PdfDictionary, string, string?, int)> pending, List<(int, PdfDictionary, EnsurePopup)> popups,
+        AnnotationAssets assets, Dictionary<string, PdfReference> images)
     {
         // AP 폼을 먼저 만들고(SetAppearanceStream), 자원 추가(AddAp*)는 그 뒤에 한다 — 순서가 뒤바뀌어도 자원이 사라지지 않게.
         foreach (var op in ops.OfType<SetAppearanceStream>()) SetAppearance(doc, annot, op);
@@ -191,9 +193,12 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                 case AddApFont o:
                     AddApFontResource(doc, annot, o);
                     break;
-                case AddApImage:
-                case EmbedFile:
-                    throw new NotSupportedException($"{op.GetType().Name} is not implemented yet (later M3a task).");
+                case AddApImage o:
+                    AddApImageResource(doc, annot, o, assets, images);
+                    break;
+                case EmbedFile o:
+                    EmbedFileAttachment(doc, annot, o, assets);
+                    break;
                 default:
                     throw new NotSupportedException($"Unknown patch op {op.GetType().Name}.");
             }
@@ -244,6 +249,61 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             resources.Elements["/Font"] = fonts;
         }
         fonts.Elements[op.ResourceName.StartsWith('/') ? op.ResourceName : "/" + op.ResourceName] = fontRef;
+    }
+
+    /// <summary>AP 폼의 /Resources /XObject /이름 에 이미지를 넣는다. 같은 이미지 id는 문서에 한 번만 만들고 참조를 나눠 쓴다.</summary>
+    private static void AddApImageResource(PdfDocument doc, PdfDictionary annot, AddApImage op, AnnotationAssets assets, Dictionary<string, PdfReference> images)
+    {
+        var form = Resolve(Resolve(annot.Elements["/AP"])?.Elements["/N"])
+            ?? throw new InvalidOperationException("AddApImage needs an annotation appearance stream (/AP /N).");
+        if (!images.TryGetValue(op.ImageId, out var imageRef))
+        {
+            if (!assets.HasImage(op.ImageId)) throw new InvalidOperationException($"Image '{op.ImageId}' is not in the annotation assets.");
+            var (data, _, _, format) = assets.GetImage(op.ImageId);
+            imageRef = ImageEmbedder.Embed(doc, data, format);
+            images[op.ImageId] = imageRef;
+        }
+        var resources = Resolve(form.Elements["/Resources"]);
+        if (resources is null)
+        {
+            resources = new PdfDictionary(doc);
+            form.Elements["/Resources"] = resources;
+        }
+        var xobjects = Resolve(resources.Elements["/XObject"]);
+        if (xobjects is null)
+        {
+            xobjects = new PdfDictionary(doc);
+            resources.Elements["/XObject"] = xobjects;
+        }
+        xobjects.Elements[op.ResourceName.StartsWith('/') ? op.ResourceName : "/" + op.ResourceName] = imageRef;
+    }
+
+    /// <summary>/FS &lt;&lt;/Type /Filespec /F /UF /EF &lt;&lt;/F 스트림&gt;&gt;&gt;&gt; 를 만들어 주석에 건다. 스트림은 Flate로 압축하고 /Params /Size를 적는다.</summary>
+    private static void EmbedFileAttachment(PdfDocument doc, PdfDictionary annot, EmbedFile op, AnnotationAssets assets)
+    {
+        if (!assets.HasFile(op.AttachmentId)) throw new InvalidOperationException($"Attachment '{op.AttachmentId}' is not in the annotation assets.");
+        var (_, data) = assets.GetFile(op.AttachmentId);
+        if (data.Length > AnnotationAssets.MaxFileBytes)
+            throw new InvalidOperationException($"Attachment is larger than {AnnotationAssets.MaxFileBytes / (1024 * 1024)} MB.");
+
+        var stream = new PdfDictionary(doc);
+        stream.Elements["/Type"] = new PdfName("/EmbeddedFile");
+        var pars = new PdfDictionary(doc);
+        pars.Elements["/Size"] = new PdfInteger(data.Length);
+        stream.Elements["/Params"] = pars;
+        stream.CreateStream(PdfSharp.Pdf.Filters.Filtering.FlateDecode.Encode(data, PdfFlateEncodeMode.BestCompression));
+        stream.Elements["/Filter"] = new PdfName("/FlateDecode");
+        doc.Internals.AddObject(stream);
+
+        var ef = new PdfDictionary(doc);
+        ef.Elements["/F"] = stream.Reference!;
+        var fs = new PdfDictionary(doc);
+        fs.Elements["/Type"] = new PdfName("/Filespec");
+        fs.Elements["/F"] = MakeString(op.FileName);
+        fs.Elements["/UF"] = MakeString(op.FileName);
+        fs.Elements["/EF"] = ef;
+        doc.Internals.AddObject(fs);
+        annot.Elements["/FS"] = fs.Reference!;
     }
 
     private static void AddApOpacityResource(PdfDocument doc, PdfDictionary annot, AddApOpacity op)

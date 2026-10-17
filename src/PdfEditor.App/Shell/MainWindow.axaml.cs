@@ -52,10 +52,10 @@ public sealed partial class MainWindow : Window
         var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
         _settings = new SettingsStore(paths.SettingsPath);
         PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
-        var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance, patcher), _settings, prompts);
+        var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance, patcher, services.Assets), _settings, prompts);
         _vm.AttachWorkflow(workflow, prompts);
-        _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher));
-        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance, patcher), _settings,
+        _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher, services.Assets));
+        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance, patcher, services.Assets), _settings,
             new AvaloniaRecoveryUi(this), prompts);
         _recovery.Attach(workflow);
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();

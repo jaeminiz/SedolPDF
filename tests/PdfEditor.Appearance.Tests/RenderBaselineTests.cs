@@ -39,7 +39,9 @@ public class RenderBaselineTests : IDisposable
     private static readonly PdfColor Yellow = new(255, 235, 0);
     private static readonly PdfColor Blue = new(30, 90, 220);
     private static readonly AppFont Font = AppFont.Load(FontTestSupport.FontPath());
-    private static readonly PaintContext Ctx = new(Font, AnnotationAssets.Empty);
+    /// <summary>그림 스탬프·첨부 파일 바이트. 모양 만들기와 저장(패치)이 같은 보관소를 쓴다.</summary>
+    private static readonly AnnotationAssets Assets = new();
+    private static readonly PaintContext Ctx = new(Font, Assets);
 
     private static Annotation Make(DocumentSession s, AnnotKind kind, PdfRectF rect, Func<Annotation, Annotation> f)
         => f(new Annotation
@@ -124,9 +126,17 @@ public class RenderBaselineTests : IDisposable
             TextColor = new PdfColor(150, 30, 30),
         }), Ctx),
         "freetext_callout" => Callout(s),
-        "attachment" => Make(s, AnnotKind.FileAttachment, new PdfRectF(90, 90, 110, 110), a => a with
+        "file_attachment" => Make(s, AnnotKind.FileAttachment, new PdfRectF(90, 90, 110, 110), a => a with
         {
-            Color = Blue, AttachmentId = "a1", AttachmentName = "a.txt",
+            Color = Blue, AttachmentName = "a.txt", AttachmentId = Assets.AddFile("a.txt", "attachment baseline"u8.ToArray()),
+        }),
+        "stamp_builtin" => Make(s, AnnotKind.Stamp, new PdfRectF(20, 70, 180, 130), a => a with
+        {
+            Stamp = new StampSpec(StampKind.Builtin, "Approved", "승인 Approved", null),
+        }),
+        "stamp_image" => Make(s, AnnotKind.Stamp, new PdfRectF(30, 50, 170, 150), a => a with
+        {
+            Stamp = new StampSpec(StampKind.Image, "", null, Assets.AddImage(TestImages.GradientWithHole())),
         }),
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
@@ -157,7 +167,7 @@ public class RenderBaselineTests : IDisposable
             var bounds = await _t.InvokeAsync(() => s.GetLoadedPage(id).BoundsPt);
             foreach (var a in make(s, bounds))
                 await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, a));
-            await new SaveService([], new PdfAppearanceSource(Font), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(Font)).SaveAsync(s, target);
+            await new SaveService([], new PdfAppearanceSource(Font, Assets), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(Font), Assets).SaveAsync(s, target);
         }
         return await _t.InvokeAsync(() =>
         {
@@ -210,64 +220,15 @@ public class RenderBaselineTests : IDisposable
         else if (File.Exists(actual)) File.Delete(actual);
     }
 
-    /// <summary>
-    /// Kinds that only a later patch task (Task 10: file attachment) can write into a file: their Painter output is rendered as plain page content
-    /// (200x200 pt page, no opacity) so the shape is verified through PDFium without the save pipeline.
-    /// </summary>
-    private static readonly HashSet<string> DirectKinds = ["attachment"];
-
-    private async Task<(byte[] Bgra, int W, int H)> RenderDirectAsync(string name)
-    {
-        string content;
-        await using (var s = await DocumentSession.OpenAsync(_t, Blank200(name + ".src.pdf"), null))
-        {
-            var a = Representative(s, name) with { Opacity = 1f };
-            content = PdfContentWriter.Write(AnnotationPainter.Paint(a, 0));
-        }
-        var objs = new[]
-        {
-            "<< /Type /Catalog /Pages 2 0 R >>",
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Resources << >> >>",
-            $"<< /Length {content.Length} >>\nstream\n{content}endstream",
-        };
-        var sb = new System.Text.StringBuilder("%PDF-1.7\n");
-        var offs = new List<int>();
-        for (int i = 0; i < objs.Length; i++)
-        {
-            offs.Add(sb.Length);
-            sb.Append($"{i + 1} 0 obj\n{objs[i]}\nendobj\n");
-        }
-        int xref = sb.Length;
-        sb.Append($"xref\n0 {objs.Length + 1}\n0000000000 65535 f \n");
-        foreach (var o in offs) sb.Append($"{o:D10} 00000 n \n");
-        sb.Append($"trailer\n<< /Size {objs.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
-        var path = Path.Combine(_dir, name + ".direct.pdf");
-        File.WriteAllBytes(path, System.Text.Encoding.Latin1.GetBytes(sb.ToString()));
-        return await _t.InvokeAsync(() =>
-        {
-            using var doc = PdfDocument.Open(_t, path);
-            using var page = doc.LoadPage(0);
-            var size = new PageTransform(page.BoundsPt, page.Rotation, Scale).ViewSize;
-            int w = (int)Math.Ceiling(size.W), h = (int)Math.Ceiling(size.H);
-            return (page.RenderTile(Scale, 0, 0, w, h, withAnnotations: true), w, h);
-        });
-    }
-
     [Theory]
     [InlineData("ink")][InlineData("highlight")] [InlineData("underline")] [InlineData("strikeout")]
     [InlineData("text")] [InlineData("square_fill")] [InlineData("circle")] [InlineData("highlight_area")]
     [InlineData("line_arrows")] [InlineData("polyline")] [InlineData("polygon_fill")] [InlineData("cloud_square")]
-    [InlineData("cloud_polygon")] [InlineData("caret")] [InlineData("attachment")]
+    [InlineData("cloud_polygon")] [InlineData("caret")] [InlineData("file_attachment")]
+    [InlineData("stamp_builtin")] [InlineData("stamp_image")]
     [InlineData("freetext_box")] [InlineData("freetext_typewriter")] [InlineData("freetext_callout")] [InlineData("freetext_center")]
     public async Task Baseline_PerKind(string name)
     {
-        if (DirectKinds.Contains(name))
-        {
-            var d = await RenderDirectAsync(name);
-            CompareToBaseline(name, d.Bgra, d.W, d.H);
-            return;
-        }
         var r = await RenderAsync(Blank200(name + ".src.pdf"), (s, _) => [Representative(s, name)], 0, name + ".pdf", Scale);
         CompareToBaseline(name, r.Bgra, r.W, r.H);
     }

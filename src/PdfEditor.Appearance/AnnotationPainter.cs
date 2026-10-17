@@ -14,12 +14,13 @@ public static class AnnotationPainter
     private static readonly PdfColor DefaultTextIcon = new(0xFF, 0xD4, 0x00);
     private static readonly PdfColor TextIconLine = PdfColor.FromHex("#5C4A00");
 
-    /// <summary>ctx는 글자가 있는 유형(FreeText)에만 필요하다. 없으면 그 유형은 InvalidOperationException.</summary>
+    /// <summary>ctx는 글자가 있는 유형(FreeText, 글자·기본 스탬프)에, 그림 스탬프는 가로세로 비율을 위해 필요하다. 없으면 그 유형은 InvalidOperationException.</summary>
     public static AppearanceDrawing Paint(Annotation a, int pageRotation, PaintContext? ctx = null)
     {
         var ops = new List<PaintOp>();
         var texts = ImmutableArray<TextRunOp>.Empty;
         PdfRectF? textBounds = null;
+        var images = ImmutableArray<ImageOp>.Empty;
         switch (a.Kind)
         {
             case AnnotKind.Ink: PaintInk(a, ops); break;
@@ -35,11 +36,12 @@ public static class AnnotationPainter
             case AnnotKind.Caret: PaintCaret(a, ops); break;
             case AnnotKind.FileAttachment: Icons.PaintAttachment(a, pageRotation, ops); break;
             case AnnotKind.FreeText: (texts, textBounds) = FreeTextPainter.Paint(a, ctx, ops); break;
+            case AnnotKind.Stamp: (texts, images, textBounds) = StampPainter.Paint(a, ctx, ops); break;
         }
         var arr = ops.ToImmutableArray();
         var bounds = ComputeBounds(arr);
         if (textBounds is { } tb) bounds = arr.Length == 0 ? tb : bounds.Union(tb);
-        return new AppearanceDrawing(arr, a.Kind == AnnotKind.FreeText ? 1f : a.Opacity, bounds) { Texts = texts };
+        return new AppearanceDrawing(arr, a.Kind == AnnotKind.FreeText ? 1f : a.Opacity, bounds) { Texts = texts, Images = images };
     }
 
     /// <summary>타자기 주석의 Rect를 글 배치 결과에 맞춘다(왼쪽 위 고정). 다른 유형은 그대로.</summary>

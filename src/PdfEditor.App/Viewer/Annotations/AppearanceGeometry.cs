@@ -56,6 +56,9 @@ public static class AppearanceGeometry
     /// <summary>ImageOp.ImageId에 해당하는 비트맵을 돌려준다(AnnotationAssets). 없거나 null을 돌려주면 자리 표시 사각형을 그리고 캐시하지 않는다.</summary>
     public static Func<string, IImage?>? ImageResolver { get; set; }
 
+    /// <summary>그림 스탬프의 가로세로 비율을 알기 위한 보관소(PDF AP를 만들 때와 같은 것). 앱 시작 때 정한다.</summary>
+    public static AnnotationAssets Assets { get; set; } = AnnotationAssets.Empty;
+
     private static readonly ConditionalWeakTable<Annotation, Dictionary<int, CachedAppearance>> Cache = new();
 
     public static CachedAppearance Get(Annotation a, int pageRotation)
@@ -65,7 +68,7 @@ public static class AppearanceGeometry
         lock (perRot)
         {
             if (perRot.TryGetValue(rot, out var c)) return c;
-            c = FromDrawing(AnnotationPainter.Paint(a, rot, TextFont is { } f ? new PaintContext(f, AnnotationAssets.Empty) : null));
+            c = FromDrawing(AnnotationPainter.Paint(a, rot, TextFont is { } f ? new PaintContext(f, Assets) : null));
             if (c.Complete) perRot[rot] = c;   // 그림이 아직 없으면 캐시하지 않아 다음에 다시 만든다
             return c;
         }

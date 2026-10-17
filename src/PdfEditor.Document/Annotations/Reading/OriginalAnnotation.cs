@@ -14,6 +14,8 @@ public enum ReadOnlyReason
     Malformed,
     /// <summary>선 끝 모양 이름을 모른다(ROpenArrow 등). 그리지 못하므로 읽기 전용.</summary>
     UnsupportedLineEnding,
+    /// <summary>원본 스탬프·파일 첨부 주석: 우리 Painter가 다시 그릴 수 없으므로 읽기 전용이고 화면은 PDFium이 원본 AP를 그린다.</summary>
+    OriginalAppearanceOnly,
 }
 
 /// <summary>

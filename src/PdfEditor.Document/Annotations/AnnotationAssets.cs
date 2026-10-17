@@ -11,7 +11,7 @@ public sealed class AnnotationAssets
 {
     public const int MaxImageBytes = 25 * 1024 * 1024;
     public const int MaxImagePixels = 16384;
-    public const int MaxFileBytes = 64 * 1024 * 1024;
+    public const int MaxFileBytes = 25 * 1024 * 1024;
 
     public static AnnotationAssets Empty { get; } = new(readOnly: true);
 

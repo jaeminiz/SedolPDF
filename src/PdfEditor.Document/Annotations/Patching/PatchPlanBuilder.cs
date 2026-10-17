@@ -32,8 +32,7 @@ public static class PatchPlanBuilder
             foreach (var e in entries)
             {
                 // 새 패치 길 주석: PDFium 문서에 없으므로(PdfIndex 없음) 매번 새로 만든다.
-                if (!e.Deleted && !e.IsOriginal && e.Current.Kind is AnnotKind.FreeText or AnnotKind.Line
-                    or AnnotKind.PolyLine or AnnotKind.Polygon or AnnotKind.Caret)
+                if (!e.Deleted && !e.IsOriginal && e.Current.Kind.IsPatchKind())
                 {
                     var m = e.Current;
                     var ap = (appearance ?? throw new InvalidOperationException($"{m.Kind} needs an IAppearanceSource to build its appearance."))
@@ -63,8 +62,7 @@ public static class PatchPlanBuilder
                         ops.Add(new RemoveKeys(["/IC"]));
                     ops.AddRange(SquareCloudOps(e.Current, original: true));
                 }
-                else if (e.IsOriginal && e.Owned && e.Current.Kind is AnnotKind.FreeText or AnnotKind.Line
-                    or AnnotKind.PolyLine or AnnotKind.Polygon or AnnotKind.Caret)
+                else if (e.IsOriginal && e.Owned && e.Current.Kind.IsPatchKind())
                 {
                     // ④ 손댄 원본(패치 길): 같은 Ops를 그 자리에서 적용한다(A13). 모르는 키는 그대로 남는다.
                     var ap = (appearance ?? throw new InvalidOperationException($"{e.Current.Kind} needs an IAppearanceSource to build its appearance."))
@@ -94,7 +92,70 @@ public static class PatchPlanBuilder
     }
 
     internal static ImmutableArray<PatchOp> PatchKindOps(Annotation m, PatchAppearance ap, bool isNew)
-        => m.Kind == AnnotKind.FreeText ? FreeTextOps(m, ap, isNew) : ShapeOps(m, ap, isNew);
+        => m.Kind switch
+        {
+            AnnotKind.FreeText => FreeTextOps(m, ap, isNew),
+            AnnotKind.Stamp => StampOps(m, ap, isNew),
+            AnnotKind.FileAttachment => AttachmentOps(m, ap, isNew),
+            _ => ShapeOps(m, ap, isNew),
+        };
+
+    /// <summary>PDF /Name: 기본 스탬프는 그 이름, 글자·그림 스탬프는 우리 이름(표준 이름을 쓰지 않는다).</summary>
+    internal const string CustomStampName = "SedolCustom";
+
+    /// <summary>스탬프: AP(둥근 테두리+글자 또는 그림), /Name, 글꼴·그림 자원. 원본 스탬프는 읽기 전용이라 새 스탬프만 온다.</summary>
+    internal static ImmutableArray<PatchOp> StampOps(Annotation m, PatchAppearance ap, bool isNew)
+    {
+        var spec = m.Stamp ?? throw new InvalidOperationException("A Stamp annotation needs a StampSpec.");
+        var ops = ImmutableArray.CreateBuilder<PatchOp>();
+        ops.Add(new SetAppearanceStream(ap.Content, ap.BBox));
+        AddOpacity(ops, m);
+        if (!isNew) ops.Add(new SetNumbers("/Rect", [m.Rect.Left, m.Rect.Bottom, m.Rect.Right, m.Rect.Top]));
+        ops.Add(new SetName("/Name", spec.Kind == StampKind.Builtin && spec.BuiltinName.Length > 0 ? spec.BuiltinName : CustomStampName));
+        AddCommonKeys(ops, m, isNew);
+        if (spec.Kind == StampKind.Image)
+            ops.Add(new AddApImage("Im1", spec.ImageId ?? throw new InvalidOperationException("An image stamp needs an ImageId.")));
+        else if (!ap.Font.Glyphs.IsDefaultOrEmpty) ops.Add(new AddApFont("F1", ap.Font));
+        return ops.ToImmutable();
+    }
+
+    /// <summary>파일 첨부: AP(클립 아이콘), /Name /Paperclip, /FS(EmbedFile).</summary>
+    internal static ImmutableArray<PatchOp> AttachmentOps(Annotation m, PatchAppearance ap, bool isNew)
+    {
+        var ops = ImmutableArray.CreateBuilder<PatchOp>();
+        ops.Add(new SetAppearanceStream(ap.Content, ap.BBox));
+        AddOpacity(ops, m);
+        if (!isNew) ops.Add(new SetNumbers("/Rect", [m.Rect.Left, m.Rect.Bottom, m.Rect.Right, m.Rect.Top]));
+        ops.Add(new SetName("/Name", "Paperclip"));
+        if (m.Color is { } c) ops.Add(new SetNumbers("/C", [c.R / 255f, c.G / 255f, c.B / 255f]));
+        else ops.Add(new RemoveKeys(["/C"]));
+        AddCommonKeys(ops, m, isNew);
+        ops.Add(new EmbedFile(m.AttachmentName ?? "attachment", m.AttachmentId ?? throw new InvalidOperationException("A file attachment needs an AttachmentId.")));
+        return ops.ToImmutable();
+    }
+
+    private static void AddOpacity(ImmutableArray<PatchOp>.Builder ops, Annotation m)
+    {
+        if (m.Opacity < 1f)
+        {
+            ops.Add(new AddApOpacity(m.Opacity));
+            ops.Add(new SetReal("/CA", m.Opacity));
+        }
+        else ops.Add(new RemoveKeys(["/CA"]));
+    }
+
+    private static void AddCommonKeys(ImmutableArray<PatchOp>.Builder ops, Annotation m, bool isNew)
+    {
+        if (m.Contents is not null)
+        {
+            ops.Add(new SetString("/Contents", m.Contents));
+            ops.Add(new SetString("/RC", AnnotationFlusher.MinimalXhtml(m.Contents)));
+        }
+        if (m.Author is not null) ops.Add(new SetString("/T", m.Author));
+        if (m.Subject is not null) ops.Add(new SetString("/Subj", m.Subject));
+        if (m.ModifiedAt is { } mod) ops.Add(new SetString("/M", PdfDate.Format(mod)));
+        if (isNew) ops.Add(new SetString("/CreationDate", PdfDate.Format(m.CreatedAt ?? m.ModifiedAt ?? DateTimeOffset.Now)));
+    }
 
     /// <summary>Square 클라우드: /BE &lt;&lt;/S /C /I n&gt;&gt; + /RD(Painter와 같은 안쪽 간격). 클라우드가 아니면 손댄 원본의 낡은 /BE·/RD만 지운다.</summary>
     internal static ImmutableArray<PatchOp> SquareCloudOps(Annotation m, bool original)

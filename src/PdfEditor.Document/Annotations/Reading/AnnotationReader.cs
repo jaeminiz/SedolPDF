@@ -56,6 +56,34 @@ public static class AnnotationReader
         }
     }
 
+    /// <summary>
+    /// 원본 파일 첨부 주석의 첨부 파일을 꺼낸다(/FS /EF /UF 또는 /F). 그 번호가 파일 첨부 주석이 아니거나 첨부 스트림이 없으면 null.
+    /// 문서를 열 수 없으면 AnnotationReadException.
+    /// </summary>
+    public static (string Name, byte[] Data)? ReadAttachment(byte[] pdf, string? password, int page, int index)
+    {
+        try
+        {
+            using var ms = new MemoryStream(pdf, writable: false);
+            using var doc = password is null
+                ? PdfReader.Open(ms, PdfDocumentOpenMode.Import)
+                : PdfReader.Open(ms, password, PdfDocumentOpenMode.Import);
+            var annots = doc.Pages[page].Elements.GetArray("/Annots");
+            if (annots is null || index < 0 || index >= annots.Elements.Count) return null;
+            if (Resolve(annots.Elements[index]) is not PdfDictionary annot || annot.Elements.GetName("/Subtype") != "/FileAttachment") return null;
+            if (Resolve(annot.Elements["/FS"]) is not PdfDictionary fs) return null;
+            if (Resolve(fs.Elements["/EF"]) is not PdfDictionary ef) return null;
+            var file = Resolve(ef.Elements["/UF"]) as PdfDictionary ?? Resolve(ef.Elements["/F"]) as PdfDictionary;
+            if (file?.Stream is not { } stream) return null;
+            string name = Str(fs.Elements, "/UF") ?? Str(fs.Elements, "/F") ?? "attachment";
+            return (name, stream.UnfilteredValue);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            throw new AnnotationReadException("Cannot read the attached file.", e);
+        }
+    }
+
     private static List<OriginalAnnotation> ReadPage(PdfSharp.Pdf.PdfPage page)
     {
         var list = new List<OriginalAnnotation>();
@@ -84,6 +112,7 @@ public static class AnnotationReader
             if (name is not null && SubtypeByName.TryGetValue(name, out int st)) subtype = st;
             var kind = AnnotKindExtensions.FromPdfSubtype(subtype);
 
+            if (subtype is PdfAnnotSubtype.Stamp or PdfAnnotSubtype.FileAttachment) return Fail(ReadOnlyReason.OriginalAppearanceOnly);
             if (kind is null) return Fail(ReadOnlyReason.UnsupportedType);
             if (e.ContainsKey("/IRT")) return Fail(ReadOnlyReason.Reply);
             if (e.ContainsKey("/State")) return Fail(ReadOnlyReason.ReviewState);
