@@ -9,7 +9,11 @@ using PdfEditor.TestFixtures;
 
 namespace PdfEditor.Exchange.Tests;
 
-/// <summary>XFDF 가져오기 강화(M3b Task 6 수정 1회): 깊은 중첩, 첨부 폭탄, 선형 답글 사슬, 거대한 좌표 목록.</summary>
+[CollectionDefinition("XfdfHardening", DisableParallelization = true)]
+public sealed class XfdfHardeningCollection;
+
+/// <summary>XFDF 가져오기 강화(M3b Task 6 수정): 깊은 중첩, 첨부 폭탄, 선형 답글 사슬, 거대한 좌표 목록.</summary>
+[Collection("XfdfHardening")]   // 할당량 측정이 다른 테스트의 할당에 흔들리지 않도록 혼자 실행
 public class XfdfHardeningTests : IDisposable
 {
     private static long _next;
@@ -228,6 +232,53 @@ public class XfdfHardeningTests : IDisposable
         Assert.Equal("Kim", a.Author);
         Assert.Equal(256, a.Subject!.Length);
         Assert.Equal("abc\nline\td", a.Contents);
+    }
+
+    [Fact]
+    public async Task ReplaceByNm_KeepsAttachmentBytes_NoDuplicates()
+    {
+        var s = await OpenBlankAsync();
+        var assets = new AnnotationAssets();
+        string fid = assets.AddFile("memo.txt", [1, 2, 3, 250]);
+        var att = new Annotation { Id = s.Annotations.NewId(), Kind = AnnotKind.FileAttachment, Rect = new PdfRectF(0, 0, 10, 10), Name = "att", AttachmentId = fid, AttachmentName = "memo.txt" };
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, att));
+        string xml = XfdfWriter.Write([(0, att)], "x.pdf", assets).ToString();
+
+        for (int i = 0; i < 2; i++)   // 두 번째는 같은 NM 교체
+        {
+            var plan = XfdfImport.Plan(s, XfdfReader.Read(new MemoryStream(Encoding.UTF8.GetBytes(xml)), s.Annotations.NewId, assets));
+            Assert.Empty(plan.Skipped);
+            await s.Commands.ExecuteAsync(plan.Command!);
+        }
+        var now = s.Annotations.Get(s.Pages[0].Id).Items.Single().Data;
+        Assert.Equal(att.Id, now.Id);
+        Assert.Equal(new byte[] { 1, 2, 3, 250 }, assets.GetFile(now.AttachmentId!).Data);
+    }
+
+    [Fact]
+    public async Task Plan_AttachmentIntoReadOnlyAssets_SkippedEntry()
+    {
+        var s = await OpenBlankAsync();
+        var plan = XfdfImport.Plan(s, Read(Wrap(string.Format(Att, 0, "a.txt")), AnnotationAssets.Empty));
+        Assert.Equal(0, plan.Imported);
+        Assert.Single(plan.Skipped);
+        Assert.Contains("cannot be stored", plan.Skipped[0]);
+    }
+
+    [Fact]
+    public async Task AnnotationChangedBetweenReadAndPlan_ReplaceUsesCurrentInstance()
+    {
+        var s = await OpenBlankAsync();
+        var v1 = new Annotation { Id = s.Annotations.NewId(), Kind = AnnotKind.Square, Rect = new PdfRectF(0, 0, 10, 10), Name = "same", Contents = "v1" };
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, v1));
+        var read = Read(Wrap("<square page=\"0\" rect=\"0,0,10,10\" name=\"same\"><contents>from file</contents></square>"));
+        var v2 = v1 with { Contents = "edited meanwhile" };
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Replace(s.Pages[0].Id, [(v1, v2)]));
+        var plan = XfdfImport.Plan(s, read);
+        await s.Commands.ExecuteAsync(plan.Command!);   // 오래된 before를 쓰면 여기서 예외
+        Assert.Equal("from file", s.Annotations.Get(s.Pages[0].Id).Items.Single().Data.Contents);
+        await s.Commands.UndoAsync();
+        Assert.Equal("edited meanwhile", s.Annotations.Get(s.Pages[0].Id).Items.Single().Data.Contents);
     }
 
     [Fact]

@@ -185,7 +185,7 @@ public static class XfdfImport
         // 첨부 파일은 가져오기로 확정된 주석만 저장소에 넣는다.
         foreach (var e in entries.Where(e => !e.Dropped && e.Final.Kind == AnnotKind.FileAttachment))
         {
-            var stored = r.StoreAttachment(e.Final, out var serr);
+            var stored = r.StoreAttachment(e.Final, e.Source.A.Id, out var serr);
             if (stored is null) { e.Dropped = true; skipped.Add($"{e.Element}: {serr}"); }
             else e.Final = stored;
         }

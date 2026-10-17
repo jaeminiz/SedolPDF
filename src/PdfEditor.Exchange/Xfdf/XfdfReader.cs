@@ -26,12 +26,18 @@ public sealed record XfdfReadResult(IReadOnlyList<(int PageIndex, Annotation A)>
     internal AnnotationAssets? Assets { get; set; }
     internal Dictionary<AnnotId, (string Name, byte[] Data)> Pending { get; set; } = new();
 
+    /// <summary>들고 있는 첨부 바이트를 놓는다(가져오기가 끝나면 부른다).</summary>
+    public void ReleasePending() => Pending = new();
+
     /// <summary>가져오기로 확정된 첨부 주석의 파일을 저장소에 넣고 AttachmentId를 채운다. 실패하면 null과 이유.</summary>
-    public Annotation? StoreAttachment(Annotation a, out string? error)
+    public Annotation? StoreAttachment(Annotation a, out string? error) => StoreAttachment(a, a.Id, out error);
+
+    /// <summary>sourceId: 파일에서 읽을 때의 주석 Id(바꾸기로 a.Id가 기존 Id로 바뀐 뒤에도 첨부를 찾는다).</summary>
+    public Annotation? StoreAttachment(Annotation a, AnnotId sourceId, out string? error)
     {
         error = null;
         if (a.Kind != AnnotKind.FileAttachment) return a;
-        if (!Pending.TryGetValue(a.Id, out var f) || Assets is null) { error = "attachment data is missing"; return null; }
+        if (!Pending.TryGetValue(sourceId, out var f) || Assets is null) { error = "attachment data is missing"; return null; }
         try { return a with { AttachmentId = Assets.AddFile(f.Name, f.Data), AttachmentName = f.Name }; }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException) { error = "attachment cannot be stored: " + e.Message; return null; }
     }
