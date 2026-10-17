@@ -155,7 +155,7 @@ public static class AnnotationPainter
         var pts = v.ToArray();
 
         // Outward unit directions at both ends (zero when the end segment is degenerate).
-        PdfPointF dirS = Unit(v[0], v[1]), dirE = Unit(v[n - 1], v[n - 2]);
+        PdfPointF dirS = OutwardDir(v[0], v[1]), dirE = OutwardDir(v[n - 1], v[n - 2]);
         float insetS = LineEndings.ShaftInset(a.StartEnding, size), insetE = LineEndings.ShaftInset(a.EndEnding, size);
         if (n == 2)
         {
@@ -176,8 +176,8 @@ public static class AnnotationPainter
         LineEndings.Add(ops, a.EndEnding, v[n - 1], dirE, size, color, a.FillColor, a.BorderWidth);
     }
 
-    /// <summary>from에서 to쪽으로 향하는 단위 벡터가 아니라, to에서 from쪽(바깥)으로 향하는 단위 벡터.</summary>
-    private static PdfPointF Unit(PdfPointF from, PdfPointF to)
+    /// <summary>to에서 from쪽으로 향하는 단위 벡터. from이 선의 끝점이고 to가 그 다음 점이면 끝점에서 바깥으로 향한다(두 점이 같으면 0 벡터).</summary>
+    private static PdfPointF OutwardDir(PdfPointF from, PdfPointF to)
     {
         float dx = from.X - to.X, dy = from.Y - to.Y;
         float len = MathF.Sqrt(dx * dx + dy * dy);

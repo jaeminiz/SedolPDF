@@ -197,4 +197,30 @@ public class ReplaceGroupTests : IDisposable
             Assert.Equal("/Group", cd.Elements.GetName("/RT"));
         }
     }
+
+    [Fact]
+    public async Task Encrypted_FailedCaretMember_StillHidesStrikeOutParent()
+    {
+        AnnotatedPdfFactory.CreateReplaceGroup(P("g.pdf"));
+        // Caret에 /State를 넣어 읽기에 실패하게 만든 뒤 열기 암호를 건다 (패치를 못 하는 문서)
+        using (var doc = PdfReader.Open(P("g.pdf"), PdfDocumentOpenMode.Modify))
+        {
+            var annots = Deref<PdfArray>(doc.Pages[0].Elements["/Annots"]);
+            var caret = Deref<PdfDictionary>(annots.Elements[1]);
+            caret.Elements["/State"] = new PdfString("Accepted");
+            doc.SecuritySettings.UserPassword = "pw";
+            doc.SecuritySettings.OwnerPassword = "pw-owner";
+            doc.Save(P("g-enc.pdf"));
+        }
+
+        var raw = AnnotationReader.Read(File.ReadAllBytes(P("g-enc.pdf")), "pw", [0])[0];
+        Assert.Null(raw[1].Data);
+        Assert.Equal(0, raw[1].GroupParentIndex);   // 실패해도 부모 번호는 남는다
+
+        await using var s = await DocumentSession.OpenAsync(_t, P("g-enc.pdf"), "pw");
+        await s.AnnotationsReady;
+        var kinds = s.Annotations.Get(s.Pages[0].Id).Items.Select(v => v.Data.Kind).ToList();
+        Assert.DoesNotContain(AnnotKind.StrikeOut, kinds);   // 부모 StrikeOut은 모델에 없다 (PDFium이 원본 모양으로 그린다)
+        Assert.DoesNotContain(AnnotKind.Caret, kinds);
+    }
 }

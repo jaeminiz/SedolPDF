@@ -273,7 +273,7 @@ public sealed class DocumentSession : IAsyncDisposable
     /// </summary>
     private static void MakePatchDependentReadOnly(List<OriginalAnnotation> list)
     {
-        var parents = new HashSet<int>(list.Where(o => o.Data is { Kind: AnnotKind.Caret } && o.GroupParentIndex is not null).Select(o => o.GroupParentIndex!.Value));
+        var parents = new HashSet<int>(list.Where(o => o.GroupParentIndex is not null && o.Data is null or { Kind: AnnotKind.Caret }).Select(o => o.GroupParentIndex!.Value));
         for (int i = 0; i < list.Count; i++)
         {
             var o = list[i];

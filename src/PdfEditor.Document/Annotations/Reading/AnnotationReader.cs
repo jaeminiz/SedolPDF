@@ -142,6 +142,7 @@ public static class AnnotationReader
     private static OriginalAnnotation ReadOne(int index, PdfItem? item, PdfArray annots)
     {
         int subtype = 0;
+        int? groupParent = null;   // 읽기에 실패한 묶음 Caret도 부모 번호를 간직한다 (암호 문서에서 부모를 숨기기 위해)
         try
         {
             if (Resolve(item) is not PdfDictionary dict)
@@ -154,7 +155,6 @@ public static class AnnotationReader
 
             if (subtype is PdfAnnotSubtype.Stamp or PdfAnnotSubtype.FileAttachment) return Fail(ReadOnlyReason.OriginalAppearanceOnly);
             if (kind is null) return Fail(ReadOnlyReason.UnsupportedType);
-            int? groupParent = null;
             if (e.ContainsKey("/IRT"))
             {
                 // /RT /Group인 Caret만 묶음 후보다(부모 판정은 ReadPage). 나머지 답글은 읽기 전용.
@@ -255,7 +255,7 @@ public static class AnnotationReader
             return new OriginalAnnotation(index, subtype, null, ReadOnlyReason.Malformed);
         }
 
-        OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r);
+        OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r, groupParent);
     }
 
     /// <summary>/Annots에서 target이 가리키는 딕셔너리의 번호. 없으면 null.</summary>

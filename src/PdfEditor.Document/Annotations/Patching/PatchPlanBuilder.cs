@@ -280,11 +280,16 @@ public static class PatchPlanBuilder
         ops.Add(new SetString("/DA", $"{N(tc.R / 255f)} {N(tc.G / 255f)} {N(tc.B / 255f)} rg /Helv {N(m.FontSizePt)} Tf"));
         ops.Add(new SetInteger("/Q", (int)m.Align));
 
+        // AP는 불투명하게 그리므로 손댄 원본에 남은 낡은 /CA는 지운다.
+        if (!isNew) ops.Add(new RemoveKeys(["/CA"]));
+
         var intent = m.Intent ?? FreeTextIntent.TextBox;
+        // 지시선 점이 2~3개가 아닌 설명선은 읽을 수 없는 주석이 되므로 텍스트 상자로 쓴다(/IT 없음).
+        if (intent == FreeTextIntent.Callout && (m.Vertices.IsDefault || m.Vertices.Length is not (2 or 3))) intent = FreeTextIntent.TextBox;
         if (intent == FreeTextIntent.TextBox) ops.Add(new RemoveKeys(["/IT"]));
         else ops.Add(new SetName("/IT", intent == FreeTextIntent.Typewriter ? "/FreeTextTypeWriter" : "/FreeTextCallout"));
 
-        if (intent == FreeTextIntent.Callout && !m.Vertices.IsDefaultOrEmpty)
+        if (intent == FreeTextIntent.Callout)
         {
             ops.Add(new SetNumbers("/CL", [.. m.Vertices.SelectMany(v => new[] { v.X, v.Y })]));
             ops.Add(new SetName("/LE", m.EndEnding.ToPdfName()));
