@@ -33,3 +33,10 @@ M3b(주석 관리) 작업 중에 확인한 것을 Task별로 쌓는다. 마일�
 ### 직접 확인하지 못한 것 (검증 필요)
 - 실제 마우스·키보드로 줄 클릭 이동, 메뉴 선택, 답글 입력, Enter·Shift+Enter 동작 (자동 테스트와 UI 자동화 `Invoke`로 메뉴 → "답글"까지만 확인).
 - 다른 뷰어(Acrobat·PDF-XChange)에서 답글·상태가 같은 모양으로 보이는지(V3 점검 항목).
+
+### Task 3 수정 1 — 한글 IME와 답글 입력칸
+- 입력칸은 IME가 키를 먹었거나(`Key.ImeProcessed`) 조합 중인 글자(`TextPresenter.PreeditText`)가 있으면 Enter·Esc를 무시한다. 조합을 끝내는 Enter가 답글을 확정하지 않고, 그다음 Enter가 확정한다. 확정할 때는 입력칸의 글을 직접 읽어 `Draft`에 넣어 마지막 글자가 빠지지 않게 한다.
+- 쓰던 답글은 주석 Id 기준으로 모델이 들고 있어, 같은 쪽 줄이 다시 만들어져도(다른 주석 편집·실행 취소) 입력칸과 글이 이어진다. 답글을 달거나 취소하면 지워진다.
+- 자동 테스트: `CommitReply_UsesCurrentText_WhenDraftLagsBehind`, `ReplyDraft_SurvivesRebuildOfItsPage_AndIsClearedAfterCommit`, `ImeProcessedEnter_DoesNotCommit_PlainEnterDoes`(헤드리스에서 `ImeProcessed` 키를 보냄), Document 쪽 `EncryptedDoc_DeleteOriginalParent_RemovesItsUnmodeledReplies`(암호 문서에서 원본 부모를 지우면 모델에 없는 원본 답글·상태·Popup도 저장 때 파일에서 지워짐).
+- **검증 필요:** 실제 한글 IME(Windows 한글 입력기)로 조합 중 Enter·Esc를 눌렀을 때의 동작. 헤드리스는 IME 조합(`PreeditText`)을 흉내 내지 못해 `ImeProcessed` 경로만 검사했고, `PreeditText` 검사는 코드로만 있고 실제 입력으로 확인하지 않았다.
+- 같은 위험이 있는 다른 편집기(FreeText·스티커 메모)는 Ctrl+Enter를 쓰므로 범위 밖이지만, 그 편집기들이 Enter/Esc를 조합 중에 먹는지는 확인하지 않았다(검증 필요).

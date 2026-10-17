@@ -59,10 +59,12 @@ public sealed partial class CommentsPanel : UserControl
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Source is not TextBox { Tag: "reply" } tb || tb.DataContext is not CommentItem item || Vm is not { } vm) return;
+        // 한글 등 IME가 키를 먹었거나 조합 중인 글자가 있으면 Enter·Esc는 조합을 끝내는 키다 — 답글을 확정/취소하지 않는다(그다음 Enter가 확정).
+        if (e.Key == Key.ImeProcessed || IsComposing(tb)) return;
         if (e.Key == Key.Enter && (e.KeyModifiers & KeyModifiers.Shift) == 0)
         {
             e.Handled = true;   // Shift+Enter는 그대로 줄바꿈
-            _ = vm.CommitReplyAsync(item);
+            _ = vm.CommitReplyAsync(item, tb.Text ?? "");   // Draft 연결이 아직 못 받은 글이 없게 입력칸의 글을 직접 넘긴다
         }
         else if (e.Key == Key.Escape)
         {
@@ -70,6 +72,10 @@ public sealed partial class CommentsPanel : UserControl
             vm.CancelReply(item);
         }
     }
+
+    /// <summary>입력칸이 IME 조합 중인 글자(밑줄 표시 중인 글)를 갖고 있는가.</summary>
+    private static bool IsComposing(TextBox tb)
+        => tb.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Any(p => !string.IsNullOrEmpty(p.PreeditText));
 
     private void ShowMenu(Control target, CommentItem item)
     {

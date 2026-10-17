@@ -194,15 +194,50 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>입력칸에서 확정: 쓴 글로 답글을 달고 칸을 닫는다.</summary>
-    public async Task CommitReplyAsync(CommentItem item)
+    /// <param name="currentText">입력칸이 지금 가진 글. 한글 조합 중인 마지막 글자처럼 Draft 연결이 아직 못 받은 글이 있을 수 있어 화면이 직접 넘긴다.</param>
+    public async Task CommitReplyAsync(CommentItem item, string? currentText = null)
     {
+        if (currentText is not null) item.Ui.Draft = currentText;
         string text = item.Ui.Draft;
         if (string.IsNullOrWhiteSpace(text)) { CancelReply(item); return; }
+        // 답글이 달리면 목록이 다시 만들어지는데, 그때 이 줄의 임시 글(_drafts)이 남아 있으면 새 줄에서 입력칸이 다시 열린다 — 먼저 지운다.
+        if (item.Id is { } id) _drafts.Remove(id);
         try { await ReplyAsync(item, text); }
-        catch (Exception ex) { _tab.RaiseNotice(ex.Message); return; }
+        catch (Exception ex)
+        {
+            if (item.Id is { } rid && item.Ui.IsReplying) _drafts[rid] = item.Ui.Draft;
+            _tab.RaiseNotice(ex.Message);
+            return;
+        }
         item.Ui.Draft = "";
         item.Ui.IsReplying = false;
     }
+
+    /// <summary>열려 있는 답글 입력칸과 쓰던 글 (주석 Id 기준). 목록을 다시 만들어도(쪽 구조 변경·다른 쪽 편집) 그대로 이어진다.</summary>
+    private readonly Dictionary<AnnotId, string> _drafts = [];
+
+    private CommentItem BindUi(CommentItem item)
+    {
+        if (item.Id is not { } id) return item;
+        if (_drafts.TryGetValue(id, out var draft))
+        {
+            item.Ui.Draft = draft;
+            item.Ui.IsReplying = true;
+        }
+        item.Ui.PropertyChanged += (_, e) =>
+        {
+            if (_disposed) return;
+            if (e.PropertyName == nameof(CommentRowUi.IsReplying))
+            {
+                if (item.Ui.IsReplying) _drafts[id] = item.Ui.Draft; else _drafts.Remove(id);
+            }
+            else if (e.PropertyName == nameof(CommentRowUi.Draft) && item.Ui.IsReplying) _drafts[id] = item.Ui.Draft;
+        };
+        return item;
+    }
+
+    /// <summary>테스트용: 이 주석에 열려 있는 입력칸의 쓰던 글 (없으면 null).</summary>
+    public string? DraftFor(AnnotId id) => _drafts.TryGetValue(id, out var d) ? d : null;
 
     public void CancelReply(CommentItem item)
     {
@@ -405,7 +440,7 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
             if (IsGroupMember(a)) continue;                              // 묶음 구성원은 대표 줄에 들어간다
             if (RootOf(a) != a) continue;                                // 답글은 아래에서
             groupMembers.TryGetValue(a.Id, out var members);
-            var g = new Group(MakeItem(snap, id, number, a, members, withState, depth: 0), [], seq++);
+            var g = new Group(BindUi(MakeItem(snap, id, number, a, members, withState, depth: 0)), [], seq++);
             groups.Add(g);
             byRoot[a.Id] = g;
         }
@@ -415,7 +450,7 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
             if (a.State is not null || !a.IsThreadMember() || IsGroupMember(a)) continue;
             var root = RootOf(a);
             if (root == a || !byRoot.TryGetValue(root.Id, out var g)) continue;
-            g.Replies.Add(MakeItem(snap, id, number, a, null, withState, depth: 1));
+            g.Replies.Add(BindUi(MakeItem(snap, id, number, a, null, withState, depth: 1)));
         }
         foreach (var g in groups) StableSortReplies(g.Replies);
 

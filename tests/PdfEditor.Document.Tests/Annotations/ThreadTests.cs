@@ -380,4 +380,32 @@ public class ThreadTests : IDisposable
         Assert.Contains(items, v => v.Data.Name == "note-1");
         await Svc().SaveAsync(s, P("thx-out.pdf"));   // 아무것도 안 바꿨으니 저장은 된다
     }
+
+    [Fact]
+    public async Task EncryptedDoc_DeleteOriginalParent_RemovesItsUnmodeledReplies()
+    {
+        // 암호 문서: 원본 답글·상태는 모델에 없다. 부모(note-1)를 지우면 저장 때 그 답글·상태·Popup도 파일에서 지워져야 한다(고아 방지, ComputeRemoval).
+        AnnotatedPdfFactory.CreateThreads(P("thc.pdf"));
+        using (var doc = PdfReader.Open(P("thc.pdf"), PdfDocumentOpenMode.Modify))
+        {
+            doc.SecuritySettings.UserPassword = "pw";
+            doc.SecuritySettings.OwnerPassword = "pw-owner";
+            doc.Save(P("thc-enc.pdf"));
+        }
+        await using (var s = await DocumentSession.OpenAsync(_t, P("thc-enc.pdf"), "pw"))
+        {
+            await s.AnnotationsReady;
+            var id = s.Pages[0].Id;
+            var note = s.Annotations.Get(id).Items.Single(v => v.Data.Name == "note-1").Data;
+            await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.DeleteThread(id, s.Annotations.DeleteSetOf(id, note.Id)));
+            await Svc().SaveAsync(s, P("thc-out.pdf"));
+        }
+        using var back = PdfReader.Open(P("thc-out.pdf"), "pw", PdfDocumentOpenMode.Import);
+        var annots = back.Pages[0].Annotations;
+        var names = new List<string?>();
+        for (int i = 0; i < annots.Count; i++) names.Add(annots[i].Elements.GetString("/NM"));
+        // 남는 것: 링크와 그 위의 읽기 전용 답글(다른 부모). 부모를 지운 스레드(note-1, reply-1, reply-2, state-1~3, Popup)는 없다.
+        Assert.DoesNotContain(names, n => n is "note-1" or "reply-1" or "reply-2" or "state-1" or "state-2" or "state-3");
+        Assert.Equal(2, annots.Count);
+    }
 }

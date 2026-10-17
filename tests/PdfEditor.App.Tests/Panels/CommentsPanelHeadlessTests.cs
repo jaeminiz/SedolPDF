@@ -95,4 +95,55 @@ public class CommentsPanelHeadlessTests : PanelTestBase
         }
         finally { await s.DisposeAsync(); }
     }
+
+    [Fact]
+    public async Task ImeProcessedEnter_DoesNotCommit_PlainEnterDoes()
+    {
+        string p = Path.Combine(Dir, "ime.pdf");
+        TestPdfFactory.CreateLabeled(p, [(400, 600)]);
+        var s = await PdfEditor.Document.DocumentSession.OpenAsync(Thread, p, null);
+        await s.AnnotationsReady;
+        var page = s.Pages[0].Id;
+        await s.Commands.ExecuteAsync(new ChangeAnnotationsCommand(page, [new(null, new Annotation
+        {
+            Id = s.Annotations.NewId(), Kind = AnnotKind.Square, Rect = new PdfRectF(10, 10, 50, 40), Color = new PdfColor(200, 0, 0),
+            Author = "kim", Contents = "root", CreatedAt = DateTimeOffset.Now, ModifiedAt = DateTimeOffset.Now, Flags = PdfAnnotFlags.Print,
+        })]));
+        try
+        {
+            var r = HeadlessUi.Run(() =>
+            {
+                if (!Application.Current!.Styles.OfType<Avalonia.Themes.Fluent.FluentTheme>().Any())
+                    Application.Current.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
+                var tab = new DocumentTabViewModel(s, "a.pdf", a => Dispatcher.UIThread.Post(a));
+                var vm = new CommentsViewModel(tab);
+                var panel = new CommentsPanel { DataContext = vm };
+                var w = new Window { Width = 320, Height = 600, Content = panel };
+                w.Show();
+                Pump(() => { w.UpdateLayout(); return panel.GetVisualDescendants().OfType<ListBoxItem>().Any(); });
+                var root = vm.Items[0];
+                vm.ReplyCommand.Execute(root);
+                w.UpdateLayout();
+                var box = panel.GetVisualDescendants().OfType<TextBox>().First(t => t.Name == "ReplyBox");
+                box.Focus();
+                box.Text = "가나다";
+
+                // IME가 먹은 Enter: 조합을 끝내는 키 → 답글을 달지 않는다
+                w.KeyPress(Key.ImeProcessed, RawInputModifiers.None, PhysicalKey.Enter, null);
+                for (int i = 0; i < 20; i++) { Dispatcher.UIThread.RunJobs(); System.Threading.Thread.Sleep(10); }
+                bool stillOpen = root.Ui.IsReplying && vm.Items.Count == 1;
+
+                // 그다음 Enter가 확정
+                w.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+                Pump(() => vm.Items.Count == 2);
+                bool committed = vm.Items.Any(i => i.Depth == 1 && i.Contents == "가나다");
+                vm.Dispose();
+                w.Close();
+                return (stillOpen, committed);
+            });
+            Assert.True(r.stillOpen);
+            Assert.True(r.committed);
+        }
+        finally { await s.DisposeAsync(); }
+    }
 }

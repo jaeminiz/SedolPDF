@@ -496,4 +496,50 @@ public class CommentsViewModelTests : PanelTestBase
         Assert.True(vm.CanReply);
         Assert.Null(vm.ReplyNotice);
     }
+
+    [Fact]
+    public async Task CommitReply_UsesCurrentText_WhenDraftLagsBehind()
+    {
+        var tab = await OpenLabeled(1);
+        await Add(tab, tab.Session!.Pages[0].Id, Note(tab, "kim", "root note"));
+        using var vm = new CommentsViewModel(tab);
+        var root = vm.Items[0];
+        vm.ReplyCommand.Execute(root);
+        root.Ui.Draft = "안녕하세";   // 마지막 글자가 아직 연결에 못 들어온 상태
+
+        await vm.CommitReplyAsync(root, "안녕하세요");
+
+        Assert.Equal(["root note", "안녕하세요"], vm.Items.Select(i => i.Contents));
+        Assert.DoesNotContain(vm.Items, i => i.Ui.IsReplying);
+    }
+
+    [Fact]
+    public async Task ReplyDraft_SurvivesRebuildOfItsPage_AndIsClearedAfterCommit()
+    {
+        var tab = await OpenLabeled(1);
+        var page = tab.Session!.Pages[0].Id;
+        await Add(tab, page, Note(tab, "kim", "root note"));
+        using var vm = new CommentsViewModel(tab);
+        var root = vm.Items[0];
+        vm.ReplyCommand.Execute(root);
+        root.Ui.Draft = "half typed";
+
+        await Add(tab, page, Note(tab, "lee", "another", x: 200, y: 200));   // 같은 쪽 줄이 다시 만들어진다
+        var rebuilt = vm.Items.Single(i => i.Contents == "root note");
+        Assert.NotSame(root, rebuilt);
+        Assert.True(rebuilt.Ui.IsReplying);
+        Assert.Equal("half typed", rebuilt.Ui.Draft);
+
+        await vm.CommitReplyAsync(rebuilt);
+        Assert.DoesNotContain(vm.Items, i => i.Ui.IsReplying);
+        Assert.Null(vm.DraftFor(rebuilt.Id!.Value));
+        Assert.Contains(vm.Items, i => i.Depth == 1 && i.Contents == "half typed");
+
+        // 취소하면 다시 만들어도 열리지 않는다
+        var again = vm.Items.Single(i => i.Contents == "root note");
+        vm.ReplyCommand.Execute(again);
+        vm.CancelReply(again);
+        await Add(tab, page, Note(tab, "lee", "third", x: 300, y: 300));
+        Assert.DoesNotContain(vm.Items, i => i.Ui.IsReplying);
+    }
 }
