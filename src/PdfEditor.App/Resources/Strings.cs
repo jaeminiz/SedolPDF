@@ -82,6 +82,13 @@ public static class Strings
     public static string Dlg_XfdfFiles => Get(nameof(Dlg_XfdfFiles));
     public static string Dlg_ExportXfdfTitle => Get(nameof(Dlg_ExportXfdfTitle));
     public static string Msg_XfdfExported => Get(nameof(Msg_XfdfExported));
+    public static string Cmd_ImportXfdf => Get(nameof(Cmd_ImportXfdf));
+    public static string Dlg_ImportXfdfTitle => Get(nameof(Dlg_ImportXfdfTitle));
+    public static string Dlg_Details => Get(nameof(Dlg_Details));
+    public static string Dlg_XfdfDetailsTitle => Get(nameof(Dlg_XfdfDetailsTitle));
+    public static string Msg_XfdfImported => Get(nameof(Msg_XfdfImported));
+    public static string Err_XfdfInvalid => Get(nameof(Err_XfdfInvalid));
+    public static string Err_XfdfTooLarge => Get(nameof(Err_XfdfTooLarge));
     public static string Cmd_AnnotStyle => Get(nameof(Cmd_AnnotStyle));
     public static string Cmd_EditText => Get(nameof(Cmd_EditText));
     public static string Cmd_EditObject => Get(nameof(Cmd_EditObject));

@@ -73,6 +73,13 @@
   <data name="Dlg_XfdfFiles" xml:space="preserve"><value>XFDF 파일</value></data>
   <data name="Dlg_ExportXfdfTitle" xml:space="preserve"><value>주석을 XFDF로 내보내기</value></data>
   <data name="Msg_XfdfExported" xml:space="preserve"><value>주석 {0}개를 내보냈습니다.</value></data>
+  <data name="Cmd_ImportXfdf" xml:space="preserve"><value>XFDF 가져오기</value></data>
+  <data name="Dlg_ImportXfdfTitle" xml:space="preserve"><value>XFDF에서 주석 가져오기</value></data>
+  <data name="Dlg_Details" xml:space="preserve"><value>자세히</value></data>
+  <data name="Dlg_XfdfDetailsTitle" xml:space="preserve"><value>가져오기 상세</value></data>
+  <data name="Msg_XfdfImported" xml:space="preserve"><value>주석 {0}개를 가져왔습니다. 건너뜀 {1}개</value></data>
+  <data name="Err_XfdfInvalid" xml:space="preserve"><value>올바른 XFDF 파일이 아니어서 가져올 수 없습니다.</value></data>
+  <data name="Err_XfdfTooLarge" xml:space="preserve"><value>XFDF 파일이 너무 커서 가져올 수 없습니다.</value></data>
   <data name="Cmd_AnnotStyle" xml:space="preserve"><value>주석 스타일</value></data>
   <data name="Cmd_EditText" xml:space="preserve"><value>텍스트 편집</value></data>
   <data name="Cmd_EditObject" xml:space="preserve"><value>개체 편집</value></data>

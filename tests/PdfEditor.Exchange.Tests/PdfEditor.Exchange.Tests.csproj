@@ -18,6 +18,11 @@
     <ProjectReference Include="..\..\src\PdfEditor.Exchange\PdfEditor.Exchange.csproj" />
     <ProjectReference Include="..\..\src\PdfEditor.Document\PdfEditor.Document.csproj" />
     <ProjectReference Include="..\..\src\Pdf.Native\Pdf.Native.csproj" />
+    <ProjectReference Include="..\TestFixtures\TestFixtures.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\fixtures\xfdf\*.xfdf" Link="fixtures\xfdf\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

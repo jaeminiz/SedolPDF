@@ -74,6 +74,33 @@ public sealed class AvaloniaPrompts(Window owner) : IUserPrompts
         return file?.TryGetLocalPath();
     }
 
+    public async Task<string?> PickOpenXfdfAsync()
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Strings.Dlg_ImportXfdfTitle,
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType(Strings.Dlg_XfdfFiles) { Patterns = ["*.xfdf"], MimeTypes = ["application/vnd.adobe.xfdf"] }],
+        });
+        return files.Select(f => f.TryGetLocalPath()).FirstOrDefault(p => p is not null);
+    }
+
+    public async Task ShowXfdfImportResultAsync(string message, IReadOnlyList<string> details)
+    {
+        if (details.Count == 0)
+        {
+            await ShowInfoAsync(message);
+            return;
+        }
+        var dlg = new MessageDialog(Strings.Dlg_InfoTitle, message, [Strings.Dlg_Ok, Strings.Dlg_Details]);
+        await dlg.ShowDialog(owner);
+        if (dlg.Result != 1) return;
+        const int MaxLines = 20;   // 대화상자는 스크롤이 없어 화면 안에 들어오는 만큼만
+        string text = string.Join(Environment.NewLine, details.Take(MaxLines).Select(d => d.Length > 120 ? d[..120] + "..." : d));
+        if (details.Count > MaxLines) text += Environment.NewLine + "... +" + (details.Count - MaxLines);
+        await new MessageDialog(Strings.Dlg_XfdfDetailsTitle, text, [Strings.Dlg_Ok]).ShowDialog(owner);
+    }
+
     public Task ShowErrorAsync(string message)
         => new MessageDialog(Strings.Dlg_ErrorTitle, message, [Strings.Dlg_Ok]).ShowDialog(owner);
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xfdf xmlns="http://ns.adobe.com/xfdf/" xml:space="preserve">
+<f href="review.pdf"/>
+<ids original="0123456789ABCDEF0123456789ABCDEF" modified="FEDCBA9876543210FEDCBA9876543210"/>
+<annots>
+<highlight color="#FFFF00" coords="20,180,120,180,20,160,120,160" creationdate="D:20260301103000+09'00'" date="D:20260301103000+09'00'" flags="print" name="acro-hl-1" opacity="1" page="0" rect="20,160,120,180" subject="Highlight" title="Kim Review"><contents-richtext><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Acrobat:11.0.0" xfa:spec="2.0.2"><p dir="ltr"><span style="font-size:12.0pt">Check this value</span></p></body></contents-richtext><contents>Check this value</contents></highlight>
+<popup flags="print,nozoom,norotate" open="no" page="0" rect="130,100,330,200" parent="acro-hl-1" name="acro-popup-1"/>
+<text color="#FFD100" creationdate="D:20260301110000+09'00'" date="D:20260301110000+09'00'" flags="print,nozoom,norotate" icon="Comment" name="acro-note-1" page="0" rect="150,150,168,168" subject="Sticky Note" title="Kim Review"><contents>Is this the right tolerance?</contents></text>
+<text color="#FFD100" creationdate="D:20260302090000+09'00'" date="D:20260302090000+09'00'" flags="print,nozoom,norotate" icon="Comment" inreplyto="acro-note-1" name="acro-reply-1" page="0" replyType="R" rect="150,150,168,168" subject="Sticky Note" title="Lee"><contents>Yes, confirmed with the supplier.</contents></text>
+<text color="#FFD100" creationdate="D:20260302093000+09'00'" date="D:20260302093000+09'00'" flags="hidden,print,nozoom,norotate" icon="Comment" inreplyto="acro-note-1" name="acro-state-1" page="0" replyType="R" rect="150,150,168,168" state="Accepted" statemodel="Review" subject="Sticky Note" title="Lee"><contents>Lee set the status to Accepted</contents></text>
+<square color="#FF0000" creationdate="D:20260301120000+09'00'" date="D:20260301120000+09'00'" flags="print" interior-color="#FFFFC0" name="acro-sq-1" opacity="0.5" page="0" rect="30,30,100,80" subject="Rectangle" title="Kim Review" width="2"><contents>Box</contents></square>
+<ink color="#0000FF" flags="print" name="acro-ink-1" page="0" rect="10,10,60,40" title="Kim Review" width="1.5"><inklist><gesture>10,10;30,40;60,10</gesture><gesture>12,12;40,30</gesture></inklist></ink>
+<line color="#FF0000" flags="print" head="OpenArrow" tail="None" name="acro-line-1" page="0" rect="10,100,90,140" start="10,100" end="90,140" title="Kim Review" width="1"/>
+<freetext color="#000000" flags="print" interior-color="#FFFF99" name="acro-ft-1" page="0" rect="20,20,160,60" title="Kim Review" justification="centered"><contents>Revise drawing</contents><defaultappearance>0.1 0.2 0.3 rg /Helv 14 Tf</defaultappearance><defaultstyle>font: Helvetica 14.0pt; text-align:center; color:#000000</defaultstyle></freetext>
+<stamp icon="SBApproved" flags="print" name="acro-stamp-1" page="1" rect="20,20,120,60" title="Kim Review"/>
+<widget name="acro-widget-1" page="0" rect="0,0,10,10"/>
+<sound name="acro-sound-1" page="0" rect="0,0,10,10"/>
+</annots>
+</xfdf>

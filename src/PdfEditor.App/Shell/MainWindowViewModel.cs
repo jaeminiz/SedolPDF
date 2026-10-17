@@ -413,6 +413,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    /// <summary>XFDF 가져오기(M3b Task 6): 파일을 고르고 주석을 가져와 결과(건너뜀 포함)를 알린다. 실패는 알림으로, 앱은 죽지 않는다.</summary>
+    private async Task ImportXfdfAsync(DocumentTabViewModel d)
+    {
+        if (_prompts is null || d.Session is null) return;
+        try
+        {
+            if (await _prompts.PickOpenXfdfAsync() is not { } path) return;
+            var outcome = await XfdfImporter.ImportAsync(d, DocumentTabViewModel.Appearance?.Assets ?? PdfEditor.Document.Annotations.AnnotationAssets.Empty, path);
+            await _prompts.ShowXfdfImportResultAsync(string.Format(Strings.Msg_XfdfImported, outcome.Imported, outcome.SkippedCount), outcome.Details);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await ShowErrorAsync(ex);
+        }
+    }
+
     private async Task ShowErrorAsync(Exception ex)
     {
         if (_prompts is not null) await _prompts.ShowErrorAsync(ErrorMessages.For(ex));
@@ -603,6 +619,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             DocCmd(_ => { ActiveLeftPanel = PanelKind.Comments; IsLeftPanelVisible = true; }));
         Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers");
         Reg("annot.importExport", Strings.Cmd_ImportExport, "share");
+        Reg("annot.importXfdf", Strings.Cmd_ImportXfdf, "share", null, DocCmd(d => _ = ImportXfdfAsync(d)));
         Reg("annot.exportXfdf", Strings.Cmd_ExportXfdf, "share", null, DocCmd(d => _ = ExportXfdfAsync(d)));
         Reg("annot.style", Strings.Cmd_AnnotStyle, "pen");
 
@@ -675,6 +692,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                         T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach),
                         T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp),
                         I("annot.commentList", Strings.Cmd_CommentList),
+                        I("annot.importXfdf", Strings.Cmd_ImportXfdf),
                         I("annot.exportXfdf", Strings.Cmd_ExportXfdf),
                     ])),
             ],

@@ -29,6 +29,8 @@ public static class ErrorMessages
             SaveStage.Replace => Strings.Err_Save_Replace,
             _ => Strings.Err_Unexpected,
         },
+        PdfEditor.Exchange.Xfdf.XfdfFormatException { Failure: PdfEditor.Exchange.Xfdf.XfdfFailure.TooLarge } => Strings.Err_XfdfTooLarge,
+        PdfEditor.Exchange.Xfdf.XfdfFormatException => Strings.Err_XfdfInvalid,
         UnauthorizedAccessException => Strings.Err_AccessDenied,
         FileNotFoundException or DirectoryNotFoundException => Strings.Err_Pdfium_2,
         _ => Strings.Err_Unexpected,
