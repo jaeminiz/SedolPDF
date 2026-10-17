@@ -212,7 +212,7 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
         Assert.Equal(120f, sq.Rect.Height, 1);
 
         string outPath = Path.Combine(_dir, "out.pdf");
-        await new SaveService([], new PdfEditor.Appearance.PdfAppearanceSource()).SaveAsync(s, outPath);
+        await new SaveService([], new PdfEditor.Appearance.PdfAppearanceSource(), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, outPath);
         var s2 = await DocumentSession.OpenAsync(_t, outPath, null);
         _sessions.Add(s2);
         await s2.AnnotationsReady;

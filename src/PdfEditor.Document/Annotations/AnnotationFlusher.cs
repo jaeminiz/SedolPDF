@@ -1,6 +1,7 @@
 using System.Security;
 using System.Text;
 using Pdf.Native;
+using PdfEditor.Document.Saving;
 
 namespace PdfEditor.Document.Annotations;
 
@@ -26,34 +27,16 @@ internal static class AnnotationFlusher
         int rotation = page.Rotation;
 
         var survivors = entries.Where(e => !e.Deleted).ToList();
-        var deleted = entries.Where(e => e.Deleted && e.PdfIndex is not null).ToList();
+        // 패치 가능한 문서: 삭제된 원본은 PDFium에서 지우지 않고(타일에서만 숨김) 저장 파일에서만 패치로 지운다(A4).
+        // 그래야 실행 취소하면 원래 키·Popup·답글이 그대로 돌아온다. 패치를 못 하는(암호) 문서는 M2 방식.
+        bool keepOriginals = SavePolicy.CanPatch(s);
+        var kept = entries.Where(e => e.Deleted && e.IsOriginal && e.PdfIndex is not null && keepOriginals).ToList();
+        var deleted = entries.Where(e => e.Deleted && e.PdfIndex is not null && !kept.Contains(e)).ToList();
+        foreach (var k in kept)
+            if (k.PdfIndex!.Value < 0 || k.PdfIndex.Value >= n0) throw new InvalidOperationException("Annotation index is out of range.");
 
-        // 지울 번호 R: 삭제 항목 + 딸린 Popup + (원본이면) 그 항목을 IRT로 가리키는 답글과 그 Popup
         var survivorIdx = new HashSet<int>(survivors.Where(e => e.PdfIndex is not null).Select(e => e.PdfIndex!.Value));
-        var remove = new SortedSet<int>();
-        foreach (var d in deleted)
-        {
-            int i = d.PdfIndex!.Value;
-            if (i < 0 || i >= n0) throw new InvalidOperationException("Annotation index is out of range.");
-            remove.Add(i);
-            if (d.IsOriginal && page.GetLinkedAnnotationIndex(i, "Popup") is int pop && !survivorIdx.Contains(pop)) remove.Add(pop);
-        }
-        if (deleted.Any(d => d.IsOriginal))
-        {
-            bool grew;
-            do
-            {
-                grew = false;
-                for (int i = 0; i < n0; i++)
-                {
-                    if (remove.Contains(i) || survivorIdx.Contains(i)) continue;
-                    if (page.GetLinkedAnnotationIndex(i, "IRT") is not int parent || !remove.Contains(parent)) continue;
-                    remove.Add(i);
-                    grew = true;
-                    if (page.GetLinkedAnnotationIndex(i, "Popup") is int pop && !survivorIdx.Contains(pop)) remove.Add(pop);
-                }
-            } while (grew);
-        }
+        var remove = ComputeRemoval(page, n0, deleted, survivorIdx);
         foreach (int i in remove.Reverse()) page.RemoveAnnotation(i);
 
         int Shift(int old)
@@ -64,6 +47,7 @@ internal static class AnnotationFlusher
         }
 
         var newIndices = new Dictionary<AnnotEntry, int>();
+        foreach (var k in kept) newIndices[k] = Shift(k.PdfIndex!.Value);
         int created = 0;
         foreach (var e in survivors)
         {
@@ -89,6 +73,39 @@ internal static class AnnotationFlusher
         if (page.AnnotationCount != n0 - remove.Count + created)
             throw new InvalidOperationException("Annotation count after flush does not match the expected count.");
         s.Annotations.CompleteFlush(pageId, newIndices);
+    }
+
+    /// <summary>
+    /// 지울 번호: 삭제 항목 + 딸린 Popup + (원본이면) 그 항목을 /IRT로 가리키는 답글과 그 Popup.
+    /// Flush(M2 방식)와 PatchPlanBuilder(저장 파일에서 지우기)가 같은 규칙을 쓴다. 살아 있는 항목의 번호(survivorIdx)는 지우지 않는다.
+    /// </summary>
+    internal static SortedSet<int> ComputeRemoval(PdfPage page, int n0, IReadOnlyList<AnnotEntry> deleted, ISet<int> survivorIdx)
+    {
+        var remove = new SortedSet<int>();
+        foreach (var d in deleted)
+        {
+            int i = d.PdfIndex!.Value;
+            if (i < 0 || i >= n0) throw new InvalidOperationException("Annotation index is out of range.");
+            remove.Add(i);
+            if (d.IsOriginal && page.GetLinkedAnnotationIndex(i, "Popup") is int pop && !survivorIdx.Contains(pop)) remove.Add(pop);
+        }
+        if (deleted.Any(d => d.IsOriginal))
+        {
+            bool grew;
+            do
+            {
+                grew = false;
+                for (int i = 0; i < n0; i++)
+                {
+                    if (remove.Contains(i) || survivorIdx.Contains(i)) continue;
+                    if (page.GetLinkedAnnotationIndex(i, "IRT") is not int parent || !remove.Contains(parent)) continue;
+                    remove.Add(i);
+                    grew = true;
+                    if (page.GetLinkedAnnotationIndex(i, "Popup") is int pop && !survivorIdx.Contains(pop)) remove.Add(pop);
+                }
+            } while (grew);
+        }
+        return remove;
     }
 
     private static void Write(PdfAnnotation a, Annotation m, bool isNew, int rotation, IAppearanceSource appearance)

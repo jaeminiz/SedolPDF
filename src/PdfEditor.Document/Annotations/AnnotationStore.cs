@@ -15,6 +15,8 @@ internal sealed class AnnotEntry
     public bool IsOriginal;
     public bool Owned;
     public bool Deleted;
+    /// <summary>손대지 않은 원본을 지웠다(패치 가능 문서: PDFium에는 그대로 남음). 실행 취소하면 손대지 않은 원본으로 돌아간다.</summary>
+    public bool UntouchedDelete;
     public long Revision;
     public long FlushedRevision;
 
@@ -97,9 +99,17 @@ public sealed class AnnotationStore
             }
             else if (entry.Deleted)
             {
+                // 손대지 않은 원본을 지웠다가 그대로 되살리면 다시 PDFium이 그리는 원본이다(키·Popup·답글 그대로).
+                bool untouched = entry.UntouchedDelete && Equals(entry.Current, after);
                 entry.Deleted = false;
                 entry.Current = after!;
                 entry.Revision++;
+                if (untouched)
+                {
+                    entry.Owned = false;
+                    entry.UntouchedDelete = false;
+                    _bumpAnnotRevision(page);
+                }
             }
             else throw new InvalidOperationException("An annotation with the same Id already exists.");
         }
@@ -108,6 +118,7 @@ public sealed class AnnotationStore
             if (entry is null || entry.Deleted || !ReferenceEquals(entry.Current, before))
                 throw new InvalidOperationException("Annotation changed or missing (command built from stale state).");
             bool wasHidden = entry.IsOriginal && entry.Owned;
+            if (after is null && entry.IsOriginal && !entry.Owned) entry.UntouchedDelete = true;
             if (entry.IsOriginal) entry.Owned = true;
             if (after is null) entry.Deleted = true; else entry.Current = after;
             entry.Revision++;
@@ -176,6 +187,13 @@ public sealed class AnnotationStore
             if (st.Entries.Any(e => e.NeedsFlush)) yield return (id, st.Entries.ToArray());
     }
 
+    /// <summary>PatchPlanBuilder용: 쪽별 항목 복사본.</summary>
+    internal IEnumerable<(PageId Page, IReadOnlyList<AnnotEntry> Entries)> AllPages()
+    {
+        _thread.AssertOnThread();
+        foreach (var (id, st) in _pages) yield return (id, st.Entries.ToArray());
+    }
+
     /// <summary>Flush가 끝난 뒤: 새 PDFium 번호를 받고, 지워진 항목은 버리고, 반영한 Revision을 기록한다.</summary>
     internal void CompleteFlush(PageId page, IReadOnlyDictionary<AnnotEntry, int> newIndices)
     {
@@ -187,7 +205,8 @@ public sealed class AnnotationStore
             if (!e.Deleted && !newIndices.ContainsKey(e))
                 throw new InvalidOperationException("CompleteFlush needs a new PDF index for every surviving annotation entry.");
         var hiddenBefore = HiddenPdfIndices(page);
-        st.Entries.RemoveAll(e => e.Deleted);
+        // 패치 가능 문서에서 지운 원본은 PDFium에 남아 있으므로(newIndices에 번호가 있음) 항목도 남긴다.
+        st.Entries.RemoveAll(e => e.Deleted && !newIndices.ContainsKey(e));
         foreach (var e in st.Entries)
         {
             e.PdfIndex = newIndices[e];

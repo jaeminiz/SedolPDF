@@ -132,14 +132,14 @@ public class M2CompatSampleTests : IDisposable
             Assert.NotEqual(ink.InkStrokes.Length, erased.Length);
             await s.Commands.ExecuteAsync(new ChangeAnnotationsCommand(p3, [new AnnotationChange(ink, ink with { InkStrokes = erased })]));
 
-            await new SaveService([], new PdfAppearanceSource()).SaveAsync(s, target);
+            await new SaveService([], new PdfAppearanceSource(), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, target);
 
             // ---- 다시 열어 확인 (PDFium + 읽기) ----
             var bytes = File.ReadAllBytes(target);
             var back = AnnotationReader.Read(bytes, null, [0, 1, 2]);
-            Assert.Equal(8, back[0].Count);
-            Assert.All(back[0], o => Assert.Equal(ReadOnlyReason.None, o.Reason));
-            Assert.Equal(2, back[1].Count);
+            Assert.Equal(9, back[0].Count);   // 새 메모의 Popup 1개 포함 (M3a Task 3)
+            Assert.All(back[0].Where(o => o.Subtype != PdfAnnotSubtype.Popup), o => Assert.Equal(ReadOnlyReason.None, o.Reason));
+            Assert.Equal(3, back[1].Count);   // Text + Popup + Ink
             Assert.Contains(back[0], o => o.Data!.Contents == "영역 강조: 이 부분 치수 재확인");
             var movedSquare = back[2].First(o => o.Data?.Kind == AnnotKind.Square).Data!;
             Assert.Equal(r.Left + 120, movedSquare.Rect.Left, 0.5);

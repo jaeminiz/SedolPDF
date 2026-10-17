@@ -92,7 +92,7 @@ public class ScreenMatchesPdfTests : IDisposable
             if (rotation != 0) await _t.InvokeAsync(() => s.GetLoadedPage(id).Rotation = rotation);
             bounds = await _t.InvokeAsync(() => s.GetLoadedPage(id).BoundsPt);
             await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, Representative(s, name)));
-            await new SaveService([], new PdfAppearanceSource()).SaveAsync(s, target);
+            await new SaveService([], new PdfAppearanceSource(), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, target);
             model = s.Annotations.Get(id);   // 새 주석 = ModelDrawn
         }
         Assert.Contains(model.Items, i => i.ModelDrawn);

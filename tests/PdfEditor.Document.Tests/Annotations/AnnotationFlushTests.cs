@@ -44,6 +44,14 @@ public class AnnotationFlushTests : IDisposable
         return path;
     }
 
+    /// <summary>저장 서비스(패치 단계 포함)로 저장한다 — 삭제된 원본은 이 길로만 파일에서 지워진다(A4).</summary>
+    private async Task<string> SavePatched(DocumentSession s, string name)
+    {
+        var path = P(name);
+        await new Saving.SaveService([], _ap, new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, path);
+        return path;
+    }
+
     private static Annotation Mk(DocumentSession s, AnnotKind kind, PdfRectF rect, string tag) => new()
     {
         Id = s.Annotations.NewId(),
@@ -198,7 +206,7 @@ public class AnnotationFlushTests : IDisposable
         var page = s.Pages[0].Id;
         var text = s.Annotations.Get(page).Items.Select(i => i.Data).Single(a => a.Kind == AnnotKind.Text);
         await Exec(s, page, text, null);
-        var path = await FlushAndSave(s, "deltext.pdf");
+        var path = await SavePatched(s, "deltext.pdf");
 
         var after = ReadRaw(path);
         Assert.Equal(10, after.Count);
@@ -291,17 +299,17 @@ public class AnnotationFlushTests : IDisposable
         var page = s.Pages[0].Id;
         var sq = s.Annotations.Get(page).Items[0].Data;
         await Exec(s, page, sq, null);
-        Assert.Equal(12, ReadRaw(await FlushAndSave(s, "d1.pdf")).Count);
+        Assert.Equal(12, ReadRaw(await SavePatched(s, "d1.pdf")).Count);
         await s.Commands.UndoAsync();
-        var path = await FlushAndSave(s, "d2.pdf");
+        var path = await SavePatched(s, "d2.pdf");
         var after = ReadRaw(path);
         Assert.Equal(13, after.Count);
-        Assert.Equal("Square", after[12].Subtype);
-        Assert.Equal(100, after[12].Rect[0], 0.01);
-        Assert.Equal(300, after[12].Rect[2], 0.01);
-        Assert.True((after[12].Flags & PdfAnnotFlags.Print) != 0);
-        // 지운 뒤 번호가 당겨져도 나머지 원본 주석은 그대로
-        Assert.Equal("Highlight", after[1].Subtype);
+        // 패치 가능 문서(A4): PDFium에서 지우지 않았으므로 되살린 원본은 제자리(번호 1)에 원래 모습 그대로다.
+        Assert.Equal("Square", after[1].Subtype);
+        Assert.Equal(100, after[1].Rect[0], 0.01);
+        Assert.Equal(300, after[1].Rect[2], 0.01);
+        Assert.Equal("abc", after[1].XKeep);
+        Assert.Equal("Highlight", after[2].Subtype);
     }
 
     [Fact]
@@ -326,13 +334,15 @@ public class AnnotationFlushTests : IDisposable
             var p = s.GetLoadedPage(page);
             return (h, h.Select(i => { using var a = p.GetAnnotation(i); return a.Subtype; }).ToArray());
         });
-        // 손댄 원본 2개 + 저장으로 PDF에 들어간 새 Circle(맨 끝). 셋 다 주석 층이 그리므로 타일에서 숨긴다.
-        Assert.Equal(3, hidden.Length);
+        // 손댄 원본 2개 + 지운 원본 Text(패치 가능 문서에서는 PDFium에 남음) + 저장으로 PDF에 들어간 새 Circle(맨 끝). 모두 타일에서 숨긴다.
+        Assert.Equal(4, hidden.Length);
+        Assert.Contains(PdfAnnotSubtype.Text, subtypes);
         Assert.Contains(PdfAnnotSubtype.Square, subtypes);
         Assert.Contains(PdfAnnotSubtype.Ink, subtypes);
         Assert.Contains(PdfAnnotSubtype.Circle, subtypes);
         Assert.Equal(1, hidden[0]);   // Square는 번호 1 그대로
-        Assert.Equal(4, hidden[1]);   // Ink [7]: Text·Popup·답글 3개가 빠져 4
+        Assert.Equal(3, hidden[1]);   // 지운 Text [3]는 PDFium에 그대로 남아 번호도 그대로
+        Assert.Equal(7, hidden[2]);   // Ink [7]
     }
 
     [Fact]

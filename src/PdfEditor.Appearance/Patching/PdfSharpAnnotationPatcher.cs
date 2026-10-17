@@ -39,6 +39,8 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             string nm = dict.Elements.GetString("/NM");
             if (nm != patch.Nm)
                 throw new InvalidOperationException($"Annotation /NM mismatch: expected '{patch.Nm}', found '{nm}'.");
+            if (patch.Subtype is not null && dict.Elements.GetName("/Subtype") != "/" + patch.Subtype)
+                throw new InvalidOperationException($"Annotation /Subtype mismatch: expected '{patch.Subtype}'.");
             ApplyOps(doc, dict, patch.PageIndex, patch.Ops, pending, popups);
         }
 

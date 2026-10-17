@@ -93,7 +93,7 @@ public class RenderBaselineTests : IDisposable
             var bounds = await _t.InvokeAsync(() => s.GetLoadedPage(id).BoundsPt);
             foreach (var a in make(s, bounds))
                 await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, a));
-            await new SaveService([], new PdfAppearanceSource()).SaveAsync(s, target);
+            await new SaveService([], new PdfAppearanceSource(), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, target);
         }
         return await _t.InvokeAsync(() =>
         {

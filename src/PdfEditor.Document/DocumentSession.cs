@@ -430,11 +430,11 @@ public sealed class DocumentSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// 저장 파일에 적용할 패치 계획을 모델에서 만드는 함수(Task 3에서 PatchPlanBuilder로 교체). 지금은 빈 계획.
+    /// 저장 파일에 적용할 패치 계획을 모델에서 만드는 함수(기본: PatchPlanBuilder.Build).
     /// 돌려준 계획은 임시 파일(SaveCopy 결과)에만 적용한다 — 편집 중인 문서는 바꾸지 않는다.
     /// 테스트가 손으로 만든 계획을 끼울 수 있도록 internal.
     /// </summary>
-    internal Func<DocumentSession, PatchPlan> PlanFactory { get; set; } = static _ => PatchPlan.Empty;
+    internal Func<DocumentSession, PatchPlan> PlanFactory { get; set; } = static s => PatchPlanBuilder.Build(s);
 
     /// <summary>구조를 바꾸는 명령 전후에 CommandStack이 부른다.</summary>
     public void ReleasePageHandles()

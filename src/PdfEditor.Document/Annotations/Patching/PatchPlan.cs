@@ -3,8 +3,8 @@ using Pdf.Native;
 
 namespace PdfEditor.Document.Annotations.Patching;
 
-/// <summary>임시 파일의 기존 주석을 그 자리에서 고친다. /NM이 Nm과 다르면 InvalidOperationException.</summary>
-public sealed record AnnotationPatch(int PageIndex, int AnnotIndex, string Nm, ImmutableArray<PatchOp> Ops);
+/// <summary>임시 파일의 기존 주석을 그 자리에서 고친다. /NM이 Nm과 다르거나, Subtype이 있는데 /Subtype이 다르면 InvalidOperationException.</summary>
+public sealed record AnnotationPatch(int PageIndex, int AnnotIndex, string Nm, ImmutableArray<PatchOp> Ops, string? Subtype = null);
 
 /// <summary>새 주석 딕셔너리를 만들어 /Annots 끝에 붙인 뒤 Ops를 적용한다.</summary>
 public sealed record AnnotationCreate(int PageIndex, string Subtype, string Nm, PdfRectF Rect, int Flags, ImmutableArray<PatchOp> Ops);
@@ -40,7 +40,7 @@ public sealed record PatchPlan(
                 if (p.PageIndex == pageIndex) delta += CountPopups(p.Ops);
         if (!Removals.IsDefaultOrEmpty)
             foreach (var r in Removals)
-                if (r.PageIndex == pageIndex) delta -= r.AnnotIndices.Length;
+                if (r.PageIndex == pageIndex) delta -= r.AnnotIndices.Distinct().Count();   // 적용기도 중복 번호는 한 번만 지운다
         return delta;
     }
 
