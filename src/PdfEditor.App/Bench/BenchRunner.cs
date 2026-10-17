@@ -12,7 +12,7 @@ using PdfEditor.App.Viewer;
 
 namespace PdfEditor.App.Bench;
 
-public sealed record BenchOptions(string Pdf, string Out, int Annots = 0);
+public sealed record BenchOptions(string Pdf, string Out, int Annots = 0, int TextBoxes = 0);
 
 /// <summary>
 /// `--bench &lt;pdf&gt; --out &lt;json&gt;`: 창을 띄워 문서를 열고 첫 화면 시간·스크롤 중 회색 비율·타일 렌더 시간·최대 작업 집합을 JSON으로 쓰고 종료한다.
@@ -25,14 +25,15 @@ public static class BenchRunner
     public static BenchOptions? Parse(string[] args)
     {
         string? pdf = null, outPath = null;
-        int annots = 0;
+        int annots = 0, textBoxes = 0;
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--bench" && i + 1 < args.Length) pdf = args[++i];
             else if (args[i] == "--out" && i + 1 < args.Length) outPath = args[++i];
             else if (args[i] == "--annots" && i + 1 < args.Length) int.TryParse(args[++i], out annots);
+            else if (args[i] == "--textboxes" && i + 1 < args.Length) int.TryParse(args[++i], out textBoxes);
         }
-        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath), annots);
+        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath), annots, textBoxes);
     }
 
     public static async Task RunAsync(MainWindow window, BenchOptions o)
@@ -109,7 +110,8 @@ public static class BenchRunner
 
         double[] t;
         lock (tiles) t = tiles.ToArray();
-        var overlay = o.Annots > 0 ? await MeasureOverlayAsync(view, tab, o.Annots) : [];
+        var overlay = o.Annots > 0 ? await MeasureOverlayAsync(view, tab, o.Annots, textBoxes: false)
+            : o.TextBoxes > 0 ? await MeasureOverlayAsync(view, tab, o.TextBoxes, textBoxes: true) : [];
         return new BenchReport
         {
             Pdf = Path.GetFileName(o.Pdf),
@@ -131,7 +133,8 @@ public static class BenchRunner
             Sweep = sweep,
             Fast = fast,
             PeakWorkingSetMb = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0,
-            OverlayAnnotCount = o.Annots,
+            OverlayAnnotCount = o.Annots > 0 ? o.Annots : o.TextBoxes,
+            OverlayAnnotKind = o.Annots > 0 ? "Ink" : o.TextBoxes > 0 ? "FreeText" : "",
             OverlayDrawMsP95 = BenchStats.Percentile(overlay, 95),
             OverlayDrawMsP50 = BenchStats.Percentile(overlay, 50),
             OverlayDrawMsMax = overlay.Length == 0 ? 0 : overlay.Max(),
@@ -139,15 +142,34 @@ public static class BenchRunner
         };
     }
 
-    /// <summary>첫 쪽에 Ink 주석(획 3개씩) n개를 올리고, 프레임을 150번 그리며 주석 층 그리기 시간을 모은다. 이 시간에는 타일 그리기가 들어 있지 않다.</summary>
-    private static async Task<double[]> MeasureOverlayAsync(DocumentView view, DocumentTabViewModel tab, int n)
+    /// <summary>첫 쪽에 Ink 주석(획 3개씩, textBoxes면 한글·영문이 든 FreeText 텍스트 상자 12pt) n개를 올리고, 프레임을 150번 그리며 주석 층 그리기 시간을 모은다. 이 시간에는 타일 그리기가 들어 있지 않다.</summary>
+    private static async Task<double[]> MeasureOverlayAsync(DocumentView view, DocumentTabViewModel tab, int n, bool textBoxes)
     {
         var session = tab.Session!;
         await session.AnnotationsReady;
         var page = session.Pages[0].Id;
         var rng = new Random(12345);
         var changes = new List<AnnotationChange>(n);
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < n && textBoxes; i++)
+        {
+            // 10열 격자: 칸 55 x 38 pt, 글 2~3줄이 상자 안에 들어간다
+            float left = 20 + (i % 10) * 56f, top = 800 - (i / 10) * 39f;
+            changes.Add(new AnnotationChange(null, new Annotation
+            {
+                Id = session.Annotations.NewId(),
+                Kind = AnnotKind.FreeText,
+                Intent = FreeTextIntent.TextBox,
+                Rect = new PdfRectF(left, top - 36, left + 54, top),
+                Contents = $"\uB3C4\uBA74 \uAC80\uD1A0 {i} ABC",
+                FontSizePt = 9f,
+                TextColor = new PdfColor(0, 0, 0),
+                Color = new PdfColor(220, 30, 30),
+                FillColor = new PdfColor(255, 245, 157),
+                BorderWidth = 1f,
+                Name = Guid.NewGuid().ToString("D"),
+            }));
+        }
+        for (int i = 0; i < n && !textBoxes; i++)
         {
             var strokes = new List<ImmutableArray<PdfPointF>>();
             float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;

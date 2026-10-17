@@ -75,6 +75,8 @@ public sealed class BenchReport
     public double PeakWorkingSetMb { get; init; }
     /// <summary>`--annots N`로 올린 주석 개수(0 = 재지 않음).</summary>
     public int OverlayAnnotCount { get; init; }
+    /// <summary>올린 주석 종류(`--annots` = Ink, `--textboxes` = FreeText).</summary>
+    public string OverlayAnnotKind { get; init; } = "";
     /// <summary>프레임마다 주석 층(AnnotationOverlay.DrawPage)을 그리는 시간의 95번째 백분위수(ms). 주석을 올리지 않았으면 0.</summary>
     public double OverlayDrawMsP95 { get; init; }
     public double OverlayDrawMsP50 { get; init; }
