@@ -37,8 +37,8 @@ public static class PatchPlanBuilder
                     var m = e.Current;
                     var ap = (appearance ?? throw new InvalidOperationException($"{m.Kind} needs an IAppearanceSource to build its appearance."))
                         .BuildPatchAppearance(m, rotation);
-                    creates.Add(new AnnotationCreate(pageIndex, m.Kind.ToString(), m.Name ?? Guid.NewGuid().ToString("D"), m.Rect,
-                        m.Flags | PdfAnnotFlags.Print, PatchKindOps(m, ap, isNew: true)));
+                    creates.Add(new AnnotationCreate(pageIndex, m.Kind.ToString(), StableName(m), m.Rect,
+                        m.Flags | PdfAnnotFlags.Print, PatchKindOps(m, ap, isNew: true, ReplyParentNm(m, entries, page, n0))));
                     continue;
                 }
 
@@ -91,14 +91,40 @@ public static class PatchPlanBuilder
         return new PatchPlan(patches.ToImmutable(), creates.ToImmutable(), removals.ToImmutable());
     }
 
-    internal static ImmutableArray<PatchOp> PatchKindOps(Annotation m, PatchAppearance ap, bool isNew)
+    internal static ImmutableArray<PatchOp> PatchKindOps(Annotation m, PatchAppearance ap, bool isNew, string? replyParentNm = null)
         => m.Kind switch
         {
             AnnotKind.FreeText => FreeTextOps(m, ap, isNew),
             AnnotKind.Stamp => StampOps(m, ap, isNew),
             AnnotKind.FileAttachment => AttachmentOps(m, ap, isNew),
-            _ => ShapeOps(m, ap, isNew),
+            _ => ShapeOps(m, ap, isNew, replyParentNm),
         };
+
+    // 이 실행(프로세스)에서만 쓰는 접두어. 저장할 때마다 같은 /NM을 만들되, 다른 실행·다른 파일의 /NM과는 겹치지 않는다.
+    private static readonly string SessionToken = Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// 새 패치 길 주석의 /NM: 모델에 이름이 있으면 그것, 없으면 (실행 토큰 + 주석 Id)로 정해 저장 때마다 같다
+    /// (Caret이 StrikeOut을 /IRT로 가리킬 때와 반복 저장 때 /NM이 흔들리지 않게).
+    /// </summary>
+    internal static string StableName(Annotation m) => m.Name ?? $"{SessionToken}-{m.Id.Value}";
+
+    /// <summary>
+    /// 새 Caret이 묶음(Group)이면 부모 StrikeOut의 /NM. Flush가 끝난 뒤이므로 PDFium 문서의 주석에서 읽는다(Flush가 /NM을 보장).
+    /// 부모가 살아 있지 않거나 /NM을 알 수 없으면 null — 묶지 않고 Caret만 저장한다.
+    /// </summary>
+    private static string? ReplyParentNm(Annotation m, IReadOnlyList<AnnotEntry> entries, Pdf.Native.PdfPage page, int n0)
+    {
+        if (m.Kind != AnnotKind.Caret || m.InReplyTo is not { } pid || m.ReplyKind != ReplyType.Group) return null;
+        var parent = entries.FirstOrDefault(x => !x.Deleted && x.Current.Id == pid);
+        if (parent is null) return null;
+        if (parent.PdfIndex is int i && i >= 0 && i < n0)
+        {
+            using var a = page.GetAnnotation(i);
+            if (a.GetString("NM") is { Length: > 0 } nm) return nm;
+        }
+        return parent.Current.Kind.IsPatchKind() && !parent.IsOriginal ? StableName(parent.Current) : parent.Current.Name;
+    }
 
     /// <summary>PDF /Name: 기본 스탬프는 그 이름, 글자·그림 스탬프는 우리 이름(표준 이름을 쓰지 않는다).</summary>
     internal const string CustomStampName = "SedolCustom";
@@ -173,7 +199,7 @@ public static class PatchPlanBuilder
     /// 선·폴리라인·다각형·Caret의 키 목록(A3). 새 주석과 손댄 원본이 같은 목록을 쓴다(원본은 Rect·CreationDate 차이만).
     /// 선 끝 /LE는 선·폴리라인에서 이름 두 개의 배열(시작, 끝)이다(FreeText의 /LE는 이름 하나).
     /// </summary>
-    internal static ImmutableArray<PatchOp> ShapeOps(Annotation m, PatchAppearance ap, bool isNew)
+    internal static ImmutableArray<PatchOp> ShapeOps(Annotation m, PatchAppearance ap, bool isNew, string? replyParentNm = null)
     {
         var ops = ImmutableArray.CreateBuilder<PatchOp>();
         ops.Add(new SetAppearanceStream(ap.Content, ap.BBox));
@@ -211,6 +237,8 @@ public static class PatchPlanBuilder
                     ops.Add(new SetName("/Sy", "/None"));
                     ops.Add(new SetNumbers("/RD", [0f, 0f, 0f, 0f]));
                 }
+                // 텍스트 바꾸기 묶음: 새 Caret이 /IRT(부모 StrikeOut) + /RT /Group을 건다. 원본 Caret은 이미 갖고 있으므로 건드리지 않는다.
+                if (isNew && replyParentNm is not null) ops.Add(new SetInReplyTo(replyParentNm, "/Group"));
                 break;
         }
 

@@ -95,7 +95,14 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             var parent = FindByNm(doc, page, parentNm)
                 ?? throw new InvalidOperationException($"Reply parent '{parentNm}' not found on page {page + 1}.");
             if (parent.Reference is null)
-                throw new InvalidOperationException("Reply parent must be an indirect object.");
+            {
+                // PDFium이 저장한 주석은 /Annots 안에 직접 객체로 있을 수 있다: 간접 객체로 올리고 배열 항목을 참조로 바꾼다.
+                var arr = GetAnnots(doc, page, create: false)!;
+                int at = arr.Elements.ToList().FindIndex(x => ReferenceEquals(Resolve(x), parent));
+                if (at < 0) throw new InvalidOperationException("Reply parent must be an indirect object.");
+                doc.Internals.AddObject(parent);
+                arr.Elements[at] = parent.Reference!;
+            }
             annot.Elements["/IRT"] = parent.Reference;
             if (replyType is not null) annot.Elements["/RT"] = new PdfName("/" + replyType.TrimStart('/'));
         }

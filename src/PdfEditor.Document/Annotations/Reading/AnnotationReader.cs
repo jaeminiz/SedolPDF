@@ -126,13 +126,20 @@ public static class AnnotationReader
         int i = 0;
         foreach (var item in annots.Elements)
         {
-            list.Add(ReadOne(i, item));
+            list.Add(ReadOne(i, item, annots));
             i++;
+        }
+        // 텍스트 바꾸기 묶음: 부모가 편집 가능한 StrikeOut일 때만 Caret을 편집할 수 있다. 아니면 M2처럼 읽기 전용 답글.
+        for (int k = 0; k < list.Count; k++)
+        {
+            if (list[k].GroupParentIndex is not int p) continue;
+            if (p < 0 || p >= list.Count || list[p].Data is not { Kind: AnnotKind.StrikeOut })
+                list[k] = new OriginalAnnotation(list[k].Index, list[k].Subtype, null, ReadOnlyReason.Reply);
         }
         return list;
     }
 
-    private static OriginalAnnotation ReadOne(int index, PdfItem? item)
+    private static OriginalAnnotation ReadOne(int index, PdfItem? item, PdfArray annots)
     {
         int subtype = 0;
         try
@@ -147,7 +154,14 @@ public static class AnnotationReader
 
             if (subtype is PdfAnnotSubtype.Stamp or PdfAnnotSubtype.FileAttachment) return Fail(ReadOnlyReason.OriginalAppearanceOnly);
             if (kind is null) return Fail(ReadOnlyReason.UnsupportedType);
-            if (e.ContainsKey("/IRT")) return Fail(ReadOnlyReason.Reply);
+            int? groupParent = null;
+            if (e.ContainsKey("/IRT"))
+            {
+                // /RT /Group인 Caret만 묶음 후보다(부모 판정은 ReadPage). 나머지 답글은 읽기 전용.
+                if (kind != AnnotKind.Caret || e.GetName("/RT") != "/Group" || FindIndex(annots, e["/IRT"]) is not int pi || pi == index)
+                    return Fail(ReadOnlyReason.Reply);
+                groupParent = pi;
+            }
             if (e.ContainsKey("/State")) return Fail(ReadOnlyReason.ReviewState);
             // 클라우드 테두리(/BE /S /C, /I > 0)는 Square·Polygon에서 편집할 수 있다(A8). /I가 없거나 0 이하면 클라우드가 아니다(ISO 기본값 0).
             // Circle 클라우드는 Painter가 그리지 못하므로 읽기 전용이다.
@@ -234,7 +248,7 @@ public static class AnnotationReader
                 TextColor = ft?.TextColor,
                 Align = ft?.Align ?? TextAlign.Left,
             };
-            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None);
+            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -242,6 +256,15 @@ public static class AnnotationReader
         }
 
         OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r);
+    }
+
+    /// <summary>/Annots에서 target이 가리키는 딕셔너리의 번호. 없으면 null.</summary>
+    private static int? FindIndex(PdfArray annots, PdfItem? target)
+    {
+        if (Resolve(target) is not PdfDictionary d) return null;
+        for (int i = 0; i < annots.Elements.Count; i++)
+            if (ReferenceEquals(Resolve(annots.Elements[i]), d)) return i;
+        return null;
     }
 
     /// <summary>

@@ -70,6 +70,32 @@ public static class AnnotatedPdfFactory
         Save(doc, path);
     }
 
+    /// <summary>
+    /// 텍스트 바꾸기 묶음(Acrobat 방식). /Annots 순서: [0] StrikeOut(NM strike-1), [1] Caret(/IRT→0, /RT /Group, NM caret-1),
+    /// [2] Text 메모(NM note-1), [3] Caret(/IRT→2, /RT /Group: 부모가 StrikeOut이 아니므로 읽기 전용 답글로 남아야 함).
+    /// </summary>
+    public static void CreateReplaceGroup(string path)
+    {
+        using var doc = NewDoc(out var page);
+        var strike = Markup(doc, "StrikeOut", 100, 300, 300, 315, [1, 0, 0]);
+        strike.Elements["/NM"] = new PdfString("strike-1");
+        var caret = Annot(doc, "Caret", 296, 296, 312, 316, "0 0 1 rg 296 296 16 20 re f");
+        caret.Elements["/NM"] = new PdfString("caret-1");
+        caret.Elements["/C"] = Nums(doc, 0, 0, 1);
+        caret.Elements["/Contents"] = new PdfString("new text", PdfStringEncoding.Unicode);
+        caret.Elements["/Sy"] = new PdfName("/None");
+        caret.Elements["/IRT"] = strike.Reference!;
+        caret.Elements["/RT"] = new PdfName("/Group");
+        var note = TextNote(doc);
+        note.Elements["/NM"] = new PdfString("note-1");
+        var odd = Annot(doc, "Caret", 396, 396, 412, 416, "0 0 1 rg 396 396 16 20 re f");
+        odd.Elements["/NM"] = new PdfString("caret-2");
+        odd.Elements["/IRT"] = note.Reference!;
+        odd.Elements["/RT"] = new PdfName("/Group");
+        SetAnnots(doc, page, [strike, caret, note, odd]);
+        Save(doc, path);
+    }
+
     /// <summary>[1] Square, [3] Text, [4] Popup만 있고 사용자(열기) 암호가 걸린 문서.</summary>
     public static void CreateEncryptedWithAnnotations(string path, string userPassword)
     {

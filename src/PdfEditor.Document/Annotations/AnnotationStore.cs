@@ -67,17 +67,45 @@ public sealed class AnnotationStore
         var st = State(page);
         if (st.Attached) throw new InvalidOperationException("Originals are already attached to this page.");
         st.Attached = true;
+        // 묶음 Caret의 부모는 같은 쪽 원본이어야 한다(PDFium 번호로 찾는다). 부모를 붙이지 못했으면 그 Caret도 붙이지 않는다(읽기 전용).
+        var idByPdfIndex = new Dictionary<int, AnnotId>();
+        foreach (var o in originals)
+            if (o.Data is { Kind: AnnotKind.StrikeOut }) idByPdfIndex[o.Index] = NewId();
         foreach (var o in originals)
         {
             if (o.Data is null) continue;
+            var data = o.Data;
+            if (o.GroupParentIndex is int pi)
+            {
+                if (!idByPdfIndex.TryGetValue(pi, out var parentId)) continue;
+                data = data with { InReplyTo = parentId, ReplyKind = ReplyType.Group };
+            }
             st.Entries.Add(new AnnotEntry
             {
-                Current = o.Data with { Id = NewId() },
+                Current = data with { Id = idByPdfIndex.TryGetValue(o.Index, out var preset) ? preset : NewId() },
                 PdfIndex = o.Index,
                 IsOriginal = true,
             });
         }
         st.Dirty = true;
+    }
+
+    /// <summary>
+    /// 텍스트 바꾸기 묶음(StrikeOut + Caret, A11): 대표(StrikeOut)가 맨 앞, 이어서 그것을 Group으로 가리키는 항목들.
+    /// 묶이지 않은 주석은 자기 하나만, 없는 주석은 빈 목록. 스냅숏(Publish된 것)을 읽으므로 어느 스레드에서나 부를 수 있다.
+    /// </summary>
+    public IReadOnlyList<Annotation> GroupOf(PageId page, AnnotId id)
+    {
+        var items = Get(page).Items;
+        var self = items.FirstOrDefault(v => v.Data.Id == id)?.Data;
+        if (self is null) return [];
+        var rep = self.InReplyTo is { } pid && self.ReplyKind == ReplyType.Group
+            ? items.FirstOrDefault(v => v.Data.Id == pid)?.Data ?? self
+            : self;
+        var list = new List<Annotation> { rep };
+        foreach (var v in items)
+            if (v.Data.Id != rep.Id && v.Data.InReplyTo == rep.Id && v.Data.ReplyKind == ReplyType.Group) list.Add(v.Data);
+        return list;
     }
 
     public void Apply(PageId page, Annotation? before, Annotation? after)
