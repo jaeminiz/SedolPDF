@@ -1,10 +1,15 @@
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Patching;
 
 namespace PdfEditor.Document.Saving;
 
 /// <summary>전체 저장 → 같은 폴더 임시 파일 → 후처리 → 다시 열어 검증 → 교체. 실패하면 원본은 그대로.</summary>
-public sealed class SaveService(IReadOnlyList<ISavePostProcessor> postProcessors, IAppearanceSource? appearance = null)
+public sealed class SaveService(
+    IReadOnlyList<ISavePostProcessor> postProcessors,
+    IAppearanceSource? appearance = null,
+    IAnnotationPatcher? patcher = null,
+    AnnotationAssets? assets = null)
 {
     public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default)
     {
@@ -14,16 +19,25 @@ public sealed class SaveService(IReadOnlyList<ISavePostProcessor> postProcessors
         try
         {
             // ① 쓰기 + 검증용 값 수집 (같은 전용 스레드 작업)
-            int[] expected = await s.Thread.InvokeAsync(() =>
+            var (flushed, plan) = await s.Thread.InvokeAsync(() =>
             {
                 // Flush는 트랜잭션이 아니다: 예외가 나면 문서가 일부만 바뀌었을 수 있으므로 SaveCopy 없이 중단한다(원본은 그대로).
-                s.FlushIfNeeded(appearance);
+                var p = s.FlushIfNeeded(appearance);
                 s.Document.SaveCopy(tmp);
-                return CollectAnnotCounts(s.Document);
+                return (CollectAnnotCounts(s.Document), p);
             }, ct).ConfigureAwait(false);
 
-            // ② 후처리
+            // ② 패치(PDFsharp, 임시 파일에만) + 후처리
             stage = SaveStage.PostProcess;
+            int[] expected = (int[])flushed.Clone();
+            if (!plan.IsEmpty && SavePolicy.CanPatch(s))
+            {
+                if (patcher is null)
+                    throw new InvalidOperationException("Annotation patch plan needs an IAnnotationPatcher.");
+                ct.ThrowIfCancellationRequested();
+                patcher.Apply(tmp, s.Password, plan, assets ?? AnnotationAssets.Empty);
+                for (int i = 0; i < expected.Length; i++) expected[i] += plan.CountDelta(i);
+            }
             foreach (var pp in postProcessors)
             {
                 ct.ThrowIfCancellationRequested();

@@ -1,5 +1,7 @@
 ﻿using Pdf.Native;
+using PdfEditor.Appearance.Patching;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.Document.Saving;
 using PdfEditor.Pages;
 using PdfEditor.TestFixtures;
@@ -281,5 +283,96 @@ public class SaveServiceTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(p));
         Assert.Empty(Directory.GetFiles(_dir, "~*.tmp"));
         Assert.True(s.IsDirty);
+    }
+
+    // ---- 패치 단계 (M3a Task 1) ----
+
+    private static PatchPlan LinePlusRemoveLink() => new(
+        [],
+        [new AnnotationCreate(0, "Line", "line-1", new PdfRectF(50, 50, 150, 90), 4,
+            [new SetNumbers("/L", [50f, 50f, 150f, 90f]),
+             new SetAppearanceStream("1 0 0 RG 2 w 50 50 m 150 90 l S", new PdfRectF(50, 50, 150, 90))])],
+        [new AnnotationRemoval(0, [0])]);
+
+    private static PatchPlan PopupOnSquare() => new(
+        [new AnnotationPatch(0, 1, "", [new EnsurePopup(new PdfRectF(300, 600, 480, 720), false)])],
+        [], []);
+
+    private async Task<int[]> AnnotCountsOf(string path)
+    {
+        await using var s = await DocumentSession.OpenAsync(_t, path, null);
+        return await s.Thread.InvokeAsync(() =>
+        {
+            var r = new int[s.Document.PageCount];
+            for (int i = 0; i < r.Length; i++) { using var pg = s.Document.LoadPage(i); r[i] = pg.AnnotationCount; }
+            return r;
+        });
+    }
+
+    private static int PopupCount(string path)
+    {
+        using var d = PdfSharp.Pdf.IO.PdfReader.Open(path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var item = d.Pages[0].Elements["/Annots"];
+        var arr = (PdfSharp.Pdf.PdfArray)((item as PdfSharp.Pdf.Advanced.PdfReference)?.Value ?? item)!;
+        int n = 0;
+        foreach (var e in arr.Elements)
+        {
+            var dict = (PdfSharp.Pdf.PdfDictionary)((e as PdfSharp.Pdf.Advanced.PdfReference)?.Value ?? e);
+            if (dict.Elements.GetName("/Subtype") == "/Popup") n++;
+        }
+        return n;
+    }
+
+    [Fact]
+    public async Task Save_WithPlan_VerifyAccountsForCountDelta()
+    {
+        var p = P("mixed.pdf");
+        AnnotatedPdfFactory.CreateMixed(p);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        s.PlanFactory = _ => LinePlusRemoveLink();   // 13 + 1(Line) - 1(Link)
+
+        await new SaveService([], null, new PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, p);
+
+        Assert.Equal(new[] { 13 }, await AnnotCountsOf(p));
+        Assert.Empty(Directory.GetFiles(_dir, "~*.tmp"));
+    }
+
+    [Fact]
+    public async Task Save_PlanButNoPatcher_ThrowsStagePostProcess_OriginalIntact()
+    {
+        var p = P("mixed.pdf");
+        AnnotatedPdfFactory.CreateMixed(p);
+        var before = File.ReadAllBytes(p);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        s.PlanFactory = _ => LinePlusRemoveLink();
+
+        var ex = await Assert.ThrowsAsync<SaveException>(() => Svc().SaveAsync(s, p));
+        Assert.Equal(SaveStage.PostProcess, ex.Stage);
+        Assert.IsType<InvalidOperationException>(ex.InnerException);
+        Assert.Equal(before, File.ReadAllBytes(p));
+        Assert.Empty(Directory.GetFiles(_dir, "~*.tmp"));
+    }
+
+    [Fact]
+    public async Task SaveTwice_PatchesNotDuplicated()
+    {
+        var p = P("mixed.pdf");
+        AnnotatedPdfFactory.CreateMixed(p);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        s.PlanFactory = _ => PopupOnSquare();
+        var svc = new SaveService([], null, new PdfSharpAnnotationPatcher(() => []));
+
+        await svc.SaveAsync(s, P("first.pdf"));
+        await svc.SaveAsync(s, P("second.pdf"));
+        await svc.SaveAsync(s, P("third.pdf"));
+
+        foreach (var name in new[] { "first.pdf", "second.pdf", "third.pdf" })
+        {
+            Assert.Equal(new[] { 14 }, await AnnotCountsOf(P(name)));
+            Assert.Equal(2, PopupCount(P(name)));   // 원래 Popup 1 + 새 Popup 1
+        }
     }
 }

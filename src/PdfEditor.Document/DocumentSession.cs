@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.Document.Annotations.Reading;
 using PdfEditor.Document.Commands;
 
@@ -413,17 +414,27 @@ public sealed class DocumentSession : IAsyncDisposable
     /// 저장·복구용: appearance가 없는데 반영할 주석 변경이 있으면 InvalidOperationException, 있으면 Flush한다.
     /// 예외가 나면 문서가 일부만 바뀌었을 수 있으므로 호출자는 쓰기를 중단해야 한다.
     /// </summary>
-    public void FlushIfNeeded(IAppearanceSource? appearance)
+    public PatchPlan FlushIfNeeded(IAppearanceSource? appearance)
     {
         Thread.AssertOnThread();
         if (appearance is null)
         {
             if (Annotations.HasUnflushedChanges)
                 throw new InvalidOperationException("Annotation changes need an IAppearanceSource to be written.");
-            return;
         }
-        FlushAnnotations(appearance);
+        else
+        {
+            FlushAnnotations(appearance);
+        }
+        return PlanFactory(this);
     }
+
+    /// <summary>
+    /// 저장 파일에 적용할 패치 계획을 모델에서 만드는 함수(Task 3에서 PatchPlanBuilder로 교체). 지금은 빈 계획.
+    /// 돌려준 계획은 임시 파일(SaveCopy 결과)에만 적용한다 — 편집 중인 문서는 바꾸지 않는다.
+    /// 테스트가 손으로 만든 계획을 끼울 수 있도록 internal.
+    /// </summary>
+    internal Func<DocumentSession, PatchPlan> PlanFactory { get; set; } = static _ => PatchPlan.Empty;
 
     /// <summary>구조를 바꾸는 명령 전후에 CommandStack이 부른다.</summary>
     public void ReleasePageHandles()

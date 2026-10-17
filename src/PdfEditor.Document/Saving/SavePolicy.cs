@@ -10,4 +10,7 @@ public static class SavePolicy
 
     /// <summary>암호화가 유지되지 않으면 복구 파일에 암호 없는 사본을 남기지 않는다.</summary>
     public static bool CanWriteRecovery(DocumentSession s) => !s.IsEncrypted || PreservesEncryption;
+
+    /// <summary>PDFsharp 패치 단계를 쓸 수 있는가. 암호 PDF(사용자·권한 암호)는 건너뛴다(A2).</summary>
+    public static bool CanPatch(DocumentSession s) => !s.IsEncrypted;
 }
