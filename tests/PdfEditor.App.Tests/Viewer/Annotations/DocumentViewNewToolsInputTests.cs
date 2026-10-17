@@ -312,6 +312,29 @@ public class DocumentViewNewToolsInputTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Typewriter_Commit_WhenFitFails_RaisesNoticeInsteadOfThrowing()
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var h = Show(s);
+        var notices = new List<string>();
+        h.Tab.NoticeRequested += notices.Add;
+        SetTool(h, ToolKind.Typewriter);
+        Click(h, At(h, 100, 100));
+        var box = EditorBox(h);
+        HeadlessUi.Run(() =>
+        {
+            box.Text = "글꼴 없음";
+            // 앱 글꼴이 없을 때 FitTypewriter가 던지는 것과 같은 예외
+            h.Tab.Tools.FitTypewriter = _ => throw new InvalidOperationException("font missing");
+            return 0;
+        });
+        CloseFreeText(h);   // 예외가 올라오면 여기서 테스트가 실패한다
+        HeadlessUi.Run(() => { Pump(() => notices.Count == 1); return 0; });
+        Assert.Equal(Strings.Msg_AnnotationFailed, notices[0]);
+        Assert.Empty(Items(h));
+    }
+
+    [Fact]
     public async Task Stamp_Click_PlacesLastStamp_CenteredAtClick()
     {
         var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));

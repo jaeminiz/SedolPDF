@@ -201,6 +201,7 @@ public sealed partial class DocumentView : Control
     private void DisposeState(ViewState st)
     {
         if (_editState is not null && ReferenceEquals(_editState, st)) CloseStickyEditor(commit: false);
+        if (_ftState is not null && ReferenceEquals(_ftState, st)) CloseFreeTextEditor(commit: false);
         if (ReferenceEquals(_state, st))
         {
             st.Tab.PropertyChanged -= OnTabPropertyChanged;

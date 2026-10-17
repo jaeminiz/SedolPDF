@@ -598,23 +598,32 @@ public sealed partial class DocumentView
         _ftAnnot = null;
         if (st is null || orig is null || st.Disposed || _ftEditor is null) { ClearEditPreview(); return; }
         string text = _ftEditor.Text;
-        var tools = st.Tab.Tools;
-        var now = DateTimeOffset.Now;
-        PdfEditor.Document.Commands.IUndoableCommand? cmd = null;
-        if (_ftIsNew)
+        try
         {
-            if (text.Trim().Length > 0)
-                cmd = ChangeAnnotationsCommand.Add(_ftPage, tools.FitForCommit(orig with { Contents = text, ModifiedAt = now }));
+            var tools = st.Tab.Tools;
+            var now = DateTimeOffset.Now;
+            PdfEditor.Document.Commands.IUndoableCommand? cmd = null;
+            if (_ftIsNew)
+            {
+                if (text.Trim().Length > 0)
+                    cmd = ChangeAnnotationsCommand.Add(_ftPage, tools.FitForCommit(orig with { Contents = text, ModifiedAt = now }));
+            }
+            else
+            {
+                var cur = st.Session.Annotations.Get(_ftPage).Items.FirstOrDefault(v => v.Data.Id == orig.Id)?.Data;
+                if (cur is not null && text != (cur.Contents ?? ""))
+                    cmd = ChangeAnnotationsCommand.Replace(_ftPage, [(cur, tools.FitForCommit(cur with { Contents = text, ModifiedAt = now }))]);
+            }
+            if (cmd is null) { ClearEditPreview(); return; }
+            WarnMissingGlyphs(st, text, orig.FontSizePt);
+            _ = RunAnnotationCommandAsync(st, cmd, _ftPage, null);
         }
-        else
+        catch (Exception)
         {
-            var cur = st.Session.Annotations.Get(_ftPage).Items.FirstOrDefault(v => v.Data.Id == orig.Id)?.Data;
-            if (cur is not null && text != (cur.Contents ?? ""))
-                cmd = ChangeAnnotationsCommand.Replace(_ftPage, [(cur, tools.FitForCommit(cur with { Contents = text, ModifiedAt = now }))]);
+            // 글꼴이 없는 등으로 상자를 맞추지 못했다. Popup.Closed·탭 전환에서 불리므로 예외를 올리지 않는다.
+            ClearEditPreview();
+            st.Tab.RaiseNotice(Strings.Msg_AnnotationFailed);
         }
-        if (cmd is null) { ClearEditPreview(); return; }
-        WarnMissingGlyphs(st, text, orig.FontSizePt);
-        _ = RunAnnotationCommandAsync(st, cmd, _ftPage, null);
     }
 
     // 글꼴에 없는 글자가 있으면 한 번 알린다 (.notdef를 그리지 않고 건너뛴다).
