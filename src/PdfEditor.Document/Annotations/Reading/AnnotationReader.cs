@@ -124,13 +124,16 @@ public static class AnnotationReader
 
             PdfColor? color = e.ContainsKey("/C")
                 ? ReadColor(e.GetArray("/C"))
-                : (kind == AnnotKind.Highlight ? PdfColor.FromHex("#FFFF00") : PdfColor.FromHex("#000000"));
+                : (kind == AnnotKind.Highlight ? PdfColor.FromHex("#FFFF00") : kind == AnnotKind.FreeText ? null : PdfColor.FromHex("#000000"));
             PdfColor? fill = e.ContainsKey("/IC") ? ReadColor(e.GetArray("/IC")) : null;
+
+            var ft = kind == AnnotKind.FreeText ? ReadFreeText(e, rect.Value) : null;
+            if (ft is { Failure: not ReadOnlyReason.None }) return Fail(ft.Failure);
 
             var data = new Annotation
             {
                 Kind = kind.Value,
-                Rect = rect.Value,
+                Rect = ft?.Rect ?? rect.Value,
                 Color = color,
                 FillColor = fill,
                 Opacity = (float)(Num(e, "/CA") ?? 1.0),
@@ -144,6 +147,13 @@ public static class AnnotationReader
                 ModifiedAt = Date(Str(e, "/M")),
                 CreatedAt = Date(Str(e, "/CreationDate")),
                 Flags = flags,
+                Intent = ft?.Intent,
+                TextBox = ft?.TextBox,
+                Vertices = ft?.Vertices ?? [],
+                EndEnding = ft?.EndEnding ?? LineEnding.None,
+                FontSizePt = ft?.FontSizePt ?? 12f,
+                TextColor = ft?.TextColor,
+                Align = ft?.Align ?? TextAlign.Left,
             };
             return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None);
         }
@@ -153,6 +163,68 @@ public static class AnnotationReader
         }
 
         OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r);
+    }
+
+    private sealed record FreeTextData(
+        ReadOnlyReason Failure, PdfRectF Rect, FreeTextIntent Intent, PdfRectF? TextBox, ImmutableArray<PdfPointF> Vertices,
+        LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align);
+
+    /// <summary>FreeText 전용 값: /IT, /DA, /Q, /CL, /RD, /LE. 지원하지 않는 /IT·/LE는 UnsupportedType, 모양이 망가진 /CL은 Malformed.</summary>
+    private static FreeTextData ReadFreeText(PdfDictionary.DictionaryElements e, PdfRectF rect)
+    {
+        FreeTextData Bad(ReadOnlyReason r) => new(r, rect, FreeTextIntent.TextBox, null, [], LineEnding.None, 12f, null, TextAlign.Left);
+
+        FreeTextIntent intent;
+        switch (e.GetName("/IT"))
+        {
+            case null or "": intent = FreeTextIntent.TextBox; break;
+            case "/FreeTextTypeWriter": intent = FreeTextIntent.Typewriter; break;
+            case "/FreeTextCallout": intent = FreeTextIntent.Callout; break;
+            default: return Bad(ReadOnlyReason.UnsupportedType);
+        }
+
+        var (size, color) = DefaultAppearance.Parse(Str(e, "/DA"));
+        float fontSize = size is > 0f ? size.Value : 12f;   // 0 = 자동 크기: 12로 둔다
+        int q = Int(e, "/Q") ?? 0;
+        var align = q == 1 ? TextAlign.Center : q == 2 ? TextAlign.Right : TextAlign.Left;
+
+        // /RD: Rect에서 안쪽 글 상자까지의 차이(왼쪽, 아래, 오른쪽, 위).
+        PdfRectF inner = rect;
+        var rd = Numbers(e.GetArray("/RD"));
+        if (rd is { Length: 4 } && rd.All(v => v >= 0))
+        {
+            var r = new PdfRectF((float)(rect.Left + rd[0]), (float)(rect.Bottom + rd[1]), (float)(rect.Right - rd[2]), (float)(rect.Top - rd[3]));
+            if (r.Width > 0 && r.Height > 0) inner = r;
+        }
+
+        var verts = ImmutableArray<PdfPointF>.Empty;
+        var ending = LineEnding.None;
+        if (intent == FreeTextIntent.Callout)
+        {
+            var cl = Numbers(e.GetArray("/CL"));
+            if (cl is null || (cl.Length != 4 && cl.Length != 6)) return Bad(ReadOnlyReason.Malformed);
+            var b = ImmutableArray.CreateBuilder<PdfPointF>(cl.Length / 2);
+            for (int i = 0; i < cl.Length; i += 2) b.Add(new PdfPointF((float)cl[i], (float)cl[i + 1]));
+            verts = b.ToImmutable();
+
+            // /LE: ISO 32000은 이름 하나, 일부 프로그램은 배열로 쓴다(첫 항목이 지시선 시작점).
+            string? le = Resolve(e["/LE"]) switch
+            {
+                PdfName n => n.Value,
+                PdfArray a when a.Elements.Count > 0 => (Resolve(a.Elements[0]) as PdfName)?.Value,
+                _ => null,
+            };
+            if (le is not null)
+            {
+                if (LineEndingExtensions.FromPdfName(le) is not { } parsed) return Bad(ReadOnlyReason.UnsupportedType);
+                ending = parsed;
+            }
+        }
+
+        // 설명선은 Rect 전체(지시선 포함)와 글 상자를 따로 갖는다. 나머지는 안쪽 상자가 곧 Rect다.
+        return intent == FreeTextIntent.Callout
+            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align)
+            : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align);
     }
 
     private static PdfItem? Resolve(PdfItem? item)

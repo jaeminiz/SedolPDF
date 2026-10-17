@@ -426,6 +426,7 @@ public sealed class DocumentSession : IAsyncDisposable
         {
             FlushAnnotations(appearance);
         }
+        CurrentAppearance = appearance;
         return PlanFactory(this);
     }
 
@@ -434,7 +435,10 @@ public sealed class DocumentSession : IAsyncDisposable
     /// 돌려준 계획은 임시 파일(SaveCopy 결과)에만 적용한다 — 편집 중인 문서는 바꾸지 않는다.
     /// 테스트가 손으로 만든 계획을 끼울 수 있도록 internal.
     /// </summary>
-    internal Func<DocumentSession, PatchPlan> PlanFactory { get; set; } = static s => PatchPlanBuilder.Build(s);
+    internal Func<DocumentSession, PatchPlan> PlanFactory { get; set; } = static s => PatchPlanBuilder.Build(s, s.CurrentAppearance);
+
+    /// <summary>가장 최근 FlushIfNeeded에 쓴 AP 공급자. 기본 PlanFactory가 FreeText의 AP를 만들 때 쓴다.</summary>
+    internal IAppearanceSource? CurrentAppearance { get; private set; }
 
     /// <summary>구조를 바꾸는 명령 전후에 CommandStack이 부른다.</summary>
     public void ReleasePageHandles()

@@ -18,6 +18,14 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     private readonly Func<byte[]> _fontData = fontData;
     private readonly object _fontLock = new();
     private AppFont? _font;
+    private bool _ownsFont = true;
+
+    /// <summary>앱이 화면·AP와 함께 쓰는 AppFont 하나를 공유한다. 이 패처는 그 글꼴을 닫지 않는다.</summary>
+    public PdfSharpAnnotationPatcher(AppFont font) : this(() => font.Data)
+    {
+        _font = font;
+        _ownsFont = false;
+    }
 
     /// <summary>글꼴이 필요한데 공급자가 비어 있는 바이트를 주면 InvalidOperationException.</summary>
     private AppFont GetFont()
@@ -34,7 +42,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
 
     public void Dispose()
     {
-        lock (_fontLock) { _font?.Dispose(); _font = null; }
+        lock (_fontLock) { if (_ownsFont) _font?.Dispose(); _font = null; }
     }
 
     public void Apply(string pdfPath, string? password, PatchPlan plan, AnnotationAssets assets)

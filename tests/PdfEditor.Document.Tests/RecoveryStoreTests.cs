@@ -225,22 +225,47 @@ public class RecoveryStoreTests : IDisposable
         return n;
     }
 
-    // Task 8 이후 FreeText 계획으로 바꾼다 (지금은 EnsurePopup으로 패치된 사본인지 확인).
     [Fact]
     public async Task Recovery_PatchedCopy_FreeTextRestored()
     {
-        string p = P("mixed.pdf");
-        AnnotatedPdfFactory.CreateMixed(p);
+        // 편집 중인 PDFium 문서에는 FreeText가 없다. 복구 파일은 패치된 사본이어야 FreeText가 들어 있다(Review Focus 5).
+        string p = P("blank.pdf");
+        TestPdfFactory.CreateBlank(p, 1, 300, 400);
+        using var font = PdfEditor.Appearance.Fonts.AppFont.Load(FontPath());
         await using var s = await DocumentSession.OpenAsync(_t, p, null);
         await s.AnnotationsReady;
-        s.PlanFactory = _ => PopupOnSquarePlan();
-        var store = new RecoveryStore(P("recovery"), null, new PdfSharpAnnotationPatcher(() => []));
+        var ft = new Annotation
+        {
+            Id = s.Annotations.NewId(), Kind = AnnotKind.FreeText, Intent = FreeTextIntent.TextBox, Rect = new PdfRectF(40, 200, 220, 280),
+            Contents = "복구 확인 ABC", FontSizePt = 12f, TextColor = new PdfColor(0, 0, 0), Color = new PdfColor(229, 55, 45), BorderWidth = 1f,
+            Name = Guid.NewGuid().ToString("D"), Flags = PdfAnnotFlags.Print,
+        };
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, ft));
+        using var patcher = new PdfSharpAnnotationPatcher(font);
+        var store = new RecoveryStore(P("recovery"), new PdfEditor.Appearance.PdfAppearanceSource(font), patcher);
 
         await store.WriteAsync(s);
 
         var e = Assert.Single(store.List());
-        Assert.Equal(2, PopupCount(e.RecoveryPdfPath));   // 원래 Popup 1 + 패치로 붙은 Popup 1
         Assert.Empty(Directory.GetFiles(P("recovery"), "*.tmp"));
+        await using var r = await DocumentSession.OpenRecoveredAsync(_t, e, true, null);
+        await r.AnnotationsReady;
+        var v = Assert.Single(r.Annotations.Get(r.Pages[0].Id).Items);
+        Assert.Equal(AnnotKind.FreeText, v.Data.Kind);
+        Assert.Equal("복구 확인 ABC", v.Data.Contents);
+        Assert.False(v.ModelDrawn);   // 복구본에서는 파일에 있던(원본) 주석으로 읽힌다
+    }
+
+    private static string FontPath()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var f = Path.Combine(dir.FullName, "assets", "fonts", "NotoSansKR-Regular.otf");
+            if (File.Exists(f)) return f;
+            dir = dir.Parent;
+        }
+        throw new FileNotFoundException("assets/fonts/NotoSansKR-Regular.otf");
     }
 
     [Fact]

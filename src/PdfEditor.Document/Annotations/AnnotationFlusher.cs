@@ -51,6 +51,13 @@ internal static class AnnotationFlusher
         int created = 0;
         foreach (var e in survivors)
         {
+            if (e.Current.Kind.IsPatchKind())
+            {
+                // 패치 길 주석(A3)은 PDFium이 만들거나 고칠 수 없다. 새 주석은 PDFium 문서에 없고(번호 -1 = 없음) 저장 때
+                // PatchPlanBuilder가 임시 파일에만 만든다. 손댄 원본은 PDFium 문서에 그대로 두고 패치가 그 자리에서 고친다.
+                newIndices[e] = e.PdfIndex is int po ? Shift(po) : -1;
+                continue;
+            }
             if (e.PdfIndex is int old)
             {
                 int idx = Shift(old);
@@ -148,7 +155,7 @@ internal static class AnnotationFlusher
         if (a.GetString(key) != value) a.SetString(key, value);
     }
 
-    private static string MinimalXhtml(string text)
+    internal static string MinimalXhtml(string text)
     {
         var sb = new StringBuilder("<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\">");
         foreach (var line in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))

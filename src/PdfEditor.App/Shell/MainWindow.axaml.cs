@@ -45,10 +45,10 @@ public sealed partial class MainWindow : Window
         FileTabButton.Flyout = BuildFileMenu();
 
         var prompts = new AvaloniaPrompts(this);
-        var appearance = new PdfEditor.Appearance.PdfAppearanceSource();
-        // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 둔다. 없으면 글꼴이 필요한 패치에서 예외.
-        var patcher = new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(
-            PdfEditor.Appearance.Fonts.AppFontFile.CachedProvider(AppContext.BaseDirectory));
+        // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
+        var services = AppearanceServices.Create(AppContext.BaseDirectory);
+        var appearance = services.Appearance;
+        var patcher = services.Patcher;
         var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
         _settings = new SettingsStore(paths.SettingsPath);
         PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;

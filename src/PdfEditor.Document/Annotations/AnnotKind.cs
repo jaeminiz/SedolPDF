@@ -39,6 +39,7 @@ public static class AnnotKindExtensions
         PdfAnnotSubtype.Text => AnnotKind.Text,
         PdfAnnotSubtype.Square => AnnotKind.Square,
         PdfAnnotSubtype.Circle => AnnotKind.Circle,
+        PdfAnnotSubtype.FreeText => AnnotKind.FreeText,
         _ => null,
     };
 

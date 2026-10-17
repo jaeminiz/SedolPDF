@@ -212,7 +212,7 @@ public sealed class AnnotationStore
         st.Entries.RemoveAll(e => e.Deleted && !newIndices.ContainsKey(e));
         foreach (var e in st.Entries)
         {
-            e.PdfIndex = newIndices[e];
+            e.PdfIndex = newIndices[e] < 0 ? null : newIndices[e];   // -1: PDFium 문서에 없는 패치 길 주석
             e.FlushedRevision = e.Revision;
         }
         if (!hiddenBefore.SetEquals(HiddenPdfIndices(page))) _bumpAnnotRevision(page);

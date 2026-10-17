@@ -1,6 +1,8 @@
 using System.Drawing;
 using System.Runtime.CompilerServices;
 using Pdf.Native;
+using PdfEditor.Appearance.Fonts;
+using PdfEditor.Appearance.Tests.Fonts;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Saving;
@@ -36,6 +38,8 @@ public class RenderBaselineTests : IDisposable
     private static readonly PdfColor Red = new(229, 55, 45);
     private static readonly PdfColor Yellow = new(255, 235, 0);
     private static readonly PdfColor Blue = new(30, 90, 220);
+    private static readonly AppFont Font = AppFont.Load(FontTestSupport.FontPath());
+    private static readonly PaintContext Ctx = new(Font, AnnotationAssets.Empty);
 
     private static Annotation Make(DocumentSession s, AnnotKind kind, PdfRectF rect, Func<Annotation, Annotation> f)
         => f(new Annotation
@@ -104,12 +108,40 @@ public class RenderBaselineTests : IDisposable
             Vertices = [new PdfPointF(50, 60), new PdfPointF(40, 140), new PdfPointF(150, 150), new PdfPointF(160, 80)],
         }),
         "caret" => Make(s, AnnotKind.Caret, new PdfRectF(85, 85, 115, 115), a => a with { Color = Red }),
+        "freetext_box" => Make(s, AnnotKind.FreeText, new PdfRectF(25, 90, 175, 170), a => a with
+        {
+            Intent = FreeTextIntent.TextBox, Contents = "가나다 도면 검토 ABC\n두 번째 줄 가나다라마바사아자차", FontSizePt = 14,
+            Color = Red, FillColor = new PdfColor(255, 245, 157), BorderWidth = 2, TextColor = new PdfColor(20, 40, 120),
+        }),
+        "freetext_center" => Make(s, AnnotKind.FreeText, new PdfRectF(25, 90, 175, 170), a => a with
+        {
+            Intent = FreeTextIntent.TextBox, Contents = "중앙 정렬\nCENTER 가운데", FontSizePt = 16, Align = TextAlign.Center,
+            Color = Blue, BorderWidth = 1, TextColor = new PdfColor(0, 0, 0),
+        }),
+        "freetext_typewriter" => AnnotationPainter.FitTypewriter(Make(s, AnnotKind.FreeText, new PdfRectF(20, 130, 180, 180), a => a with
+        {
+            Intent = FreeTextIntent.Typewriter, Contents = "타자기 가나다 ABC\nType 한글 123", FontSizePt = 15,
+            TextColor = new PdfColor(150, 30, 30),
+        }), Ctx),
+        "freetext_callout" => Callout(s),
         "attachment" => Make(s, AnnotKind.FileAttachment, new PdfRectF(90, 90, 110, 110), a => a with
         {
             Color = Blue, AttachmentId = "a1", AttachmentName = "a.txt",
         }),
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
+
+    private static Annotation Callout(DocumentSession s)
+    {
+        var box = new PdfRectF(95, 100, 185, 160);
+        var a = Make(s, AnnotKind.FreeText, box, x => x with
+        {
+            Intent = FreeTextIntent.Callout, Contents = "도면 검토\n필요 CHECK", FontSizePt = 14, TextBox = box,
+            Vertices = [new PdfPointF(25, 35), new PdfPointF(60, 90), new PdfPointF(95, 130)], EndEnding = LineEnding.OpenArrow,
+            Color = Red, FillColor = new PdfColor(255, 255, 255), BorderWidth = 2, TextColor = new PdfColor(0, 0, 0),
+        });
+        return a with { Rect = AnnotationGeometry.ComputeRect(a) };
+    }
 
     /// <summary>쪽 0에 (회전 후) 주석을 더하고 저장 → 다시 열어 쪽 0을 scale로 그린다.</summary>
     private async Task<(byte[] Bgra, int W, int H, int Rotation)> RenderAsync(
@@ -125,7 +157,7 @@ public class RenderBaselineTests : IDisposable
             var bounds = await _t.InvokeAsync(() => s.GetLoadedPage(id).BoundsPt);
             foreach (var a in make(s, bounds))
                 await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, a));
-            await new SaveService([], new PdfAppearanceSource(), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, target);
+            await new SaveService([], new PdfAppearanceSource(Font), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(Font)).SaveAsync(s, target);
         }
         return await _t.InvokeAsync(() =>
         {
@@ -227,6 +259,7 @@ public class RenderBaselineTests : IDisposable
     [InlineData("text")] [InlineData("square_fill")] [InlineData("circle")] [InlineData("highlight_area")]
     [InlineData("line_arrows")] [InlineData("polyline")] [InlineData("polygon")] [InlineData("cloud_square")]
     [InlineData("cloud_polygon_cw")] [InlineData("caret")] [InlineData("attachment")]
+    [InlineData("freetext_box")] [InlineData("freetext_typewriter")] [InlineData("freetext_callout")] [InlineData("freetext_center")]
     public async Task Baseline_PerKind(string name)
     {
         if (DirectKinds.Contains(name))
