@@ -9,3 +9,4 @@ private/
 TestResults/
 .omc/
 tests/fixtures/baseline/*.actual.png
+artifacts/
