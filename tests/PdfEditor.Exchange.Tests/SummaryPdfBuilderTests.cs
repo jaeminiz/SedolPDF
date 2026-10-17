@@ -4,6 +4,11 @@ using PdfEditor.Exchange.Summary;
 
 namespace PdfEditor.Exchange.Tests;
 
+/// <summary>다른 시험과 동시에 돌지 않는다: PDFium은 한 번에 한 스레드에서만 써야 하고, 메모리 시험은 프로세스 전체 관리 메모리를 재기 때문.</summary>
+[CollectionDefinition("SummarySerial", DisableParallelization = true)]
+public sealed class SummarySerialCollection;
+
+[Collection("SummarySerial")]
 public sealed class SummaryPdfBuilderTests : IDisposable
 {
     private static readonly SummaryText Ko = new(
@@ -197,6 +202,63 @@ public sealed class SummaryPdfBuilderTests : IDisposable
         string all = Squash(string.Concat(Texts(Out())));
         Assert.Contains("1F600", all);   // 끝에 알림 문구
         Assert.Contains("okend", all);
+    }
+
+    /// <summary>쪽을 하나씩 만들어 주는 열거. 새 쪽을 요청할 때 앞의 쪽 그림이 아직 살아 있는 수와 관리 메모리 최고치를 잰다.</summary>
+    private sealed class LazyPages(int count, int w, int h)
+    {
+        private readonly List<WeakReference> _issued = [];
+        public int Requested { get; private set; }
+        public int MaxAliveWhenRequesting { get; private set; }
+        public long PeakGrowth { get; private set; }
+
+        public IEnumerable<SummaryPage> Pages()
+        {
+            long baseline = GC.GetTotalMemory(true);
+            for (int i = 0; i < count; i++)
+            {
+                if (i % 10 == 0)
+                {
+                    // 앞서 준 쪽 그림 중 아직 안 놓인 것의 수 (요청 시점 = 빌더가 앞 쪽을 다 쓰고 다음을 달라고 할 때)
+                    GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+                    MaxAliveWhenRequesting = Math.Max(MaxAliveWhenRequesting, _issued.Count(r => r.IsAlive));
+                    PeakGrowth = Math.Max(PeakGrowth, GC.GetTotalMemory(false) - baseline);
+                }
+                Requested++;
+                yield return Make(i);
+            }
+        }
+
+        private SummaryPage Make(int i)
+        {
+            var bgra = Gray(w, h);
+            _issued.Add(new WeakReference(bgra));
+            var e = new SummaryEntry(i + 1, "k", "a", T0, "메모 " + i, [], new PdfRectF(10, 10, 60, 40));
+            return new SummaryPage(i + 1, bgra, w, h, [e]);
+        }
+    }
+
+    [Fact]
+    public void Summary_PagesConsumedLazily_AtMostFewAliveAtATime()
+    {
+        var lazy = new LazyPages(40, 200, 280);
+        SummaryPdfBuilder.Build(new SummaryInput("l.pdf", T0, lazy.Pages()) { Text = Ko }, _font, Out(), CancellationToken.None);
+        Assert.Equal(40, lazy.Requested);
+        // 빌더가 쪽 그림을 쥐고 있지 않으면 새 쪽을 요청할 때 앞 쪽은 (한 쪽쯤 빼고) 모두 놓여 있다.
+        Assert.True(lazy.MaxAliveWhenRequesting <= 2, "alive=" + lazy.MaxAliveWhenRequesting);
+        Assert.True(Texts(Out()).Count > 0);
+    }
+
+    [Fact]
+    public void Summary_300Pages_PeakManagedGrowthFarBelowHoldingAllBitmaps()
+    {
+        // 636x900 BGRA = 2.3 MB. 전부 쥐고 있으면 300쪽 = 약 690 MB. 한 쪽씩 쓰면 쪽 그림 하나 + 압축된 그림(합성 단색이라 아주 작음)뿐이다.
+        // 느슨한 한계: 150 MB (시험 환경의 GC 변동을 넉넉히 둔 값).
+        var lazy = new LazyPages(300, 636, 900);
+        var r = SummaryPdfBuilder.Build(new SummaryInput("big.pdf", T0, lazy.Pages()) { Text = Ko }, _font, Out(), CancellationToken.None);
+        Assert.Equal(300, lazy.Requested);
+        Assert.Equal(300, r.EntryCount);
+        Assert.True(lazy.PeakGrowth < 150L * 1024 * 1024, "peak growth MB=" + lazy.PeakGrowth / 1048576.0);
     }
 
     private sealed class SyncProgress(Action<int> a) : IProgress<int>

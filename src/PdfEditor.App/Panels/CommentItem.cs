@@ -23,6 +23,9 @@ public sealed record CommentItem(
     /// <summary>화면 전용 상태 (줄 모양 계산에는 쓰지 않는다).</summary>
     public CommentRowUi Ui { get; } = new();
 
+    /// <summary>읽기 전용 원본의 PDF 하위 유형(PdfAnnotSubtype). 편집 가능한 줄은 null. 요약에서 링크·양식 칸을 가를 때 쓴다.</summary>
+    public int? ReadOnlySubtype { get; init; }
+
     public bool IsReply => Depth > 0;
     public bool IsReadOnly => !Editable;
     public bool HasState => State != ReviewState.None;

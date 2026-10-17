@@ -43,8 +43,8 @@ public static class AnnotationSummaryRunner
         return plans;
     }
 
-    // 링크·양식 칸은 코멘트가 아니라서 요약에서 뺀다 (코멘트 목록에는 읽기 전용으로 보인다)
-    private static bool IsNotAComment(CommentItem i) => i.KindName == Strings.AnnotKind_Link || i.KindName == Strings.AnnotKind_Widget;
+    // 링크·양식 칸은 코멘트가 아니라서 요약에서 뺀다 (코멘트 목록에는 읽기 전용으로 보인다). 화면 문구가 아니라 PDF 하위 유형으로 가른다.
+    private static bool IsNotAComment(CommentItem i) => i.ReadOnlySubtype is PdfAnnotSubtype.Link or PdfAnnotSubtype.Widget;
 
     public static SummaryText Text() => new(
         Strings.Summary_CreatedFormat, Strings.Summary_CountFormat, Strings.Summary_PageHeadingFormat,
@@ -80,25 +80,26 @@ public static class AnnotationSummaryRunner
                 patched = await t.InvokeAsync(() => PdfDocument.Open(t, path, pw), ct).ConfigureAwait(false);
             }
 
-            int number = 0, done = 0;
-            var pages = new List<SummaryPage>(plans.Count);
-            foreach (var pp in plans)
+            // 쪽 그림은 빌더가 쪽을 하나씩 요청할 때 그때 그린다(지연 열거): 한 번에 쪽 그림 하나만 메모리에 있고,
+            // 빌더가 압축해 쓴 뒤 놓는다. 이 열거는 스레드 풀(빌더를 돌리는 스레드)에서 돌며, PDFium 일은 전용 스레드에 쪽마다 넣고 기다린다.
+            IEnumerable<SummaryPage> Pages()
             {
-                ct.ThrowIfCancellationRequested();
-                var doc = patched;
-                int idx = pp.PageIndex;
-                var rendered = await t.InvokeAsync(() => Render(doc ?? s.Document, idx), ct).ConfigureAwait(false);
-                var entries = new List<SummaryEntry>(pp.Groups.Count);
-                foreach (var (root, replies) in pp.Groups)
+                int number = 0;
+                foreach (var pp in plans)
                 {
-                    entries.Add(ToEntry(root, ++number, replies, rendered.Transform));
+                    ct.ThrowIfCancellationRequested();
+                    var doc = patched;
+                    int idx = pp.PageIndex;
+                    var rendered = t.InvokeAsync(() => Render(doc ?? s.Document, idx), ct).GetAwaiter().GetResult();
+                    var entries = new List<SummaryEntry>(pp.Groups.Count);
+                    foreach (var (root, replies) in pp.Groups)
+                        entries.Add(ToEntry(root, ++number, replies, rendered.Transform));
+                    yield return new SummaryPage(idx + 1, rendered.Bgra, rendered.W, rendered.H, entries);
                 }
-                pages.Add(new SummaryPage(idx + 1, rendered.Bgra, rendered.W, rendered.H, entries));
-                progress?.Report(++done);
             }
 
-            var input = new SummaryInput(s.DisplayName, DateTimeOffset.Now, pages) { Text = Text() };
-            var result = await Task.Run(() => SummaryPdfBuilder.Build(input, font, outputPath, ct), ct).ConfigureAwait(false);
+            var input = new SummaryInput(s.DisplayName, DateTimeOffset.Now, Pages()) { Text = Text() };
+            var result = await Task.Run(() => SummaryPdfBuilder.Build(input, font, outputPath, ct, progress), ct).ConfigureAwait(false);
             return new SummaryOutcome(result.EntryCount, result.SummaryPageCount, result.MissingCodepoints.Count);
         }
         finally

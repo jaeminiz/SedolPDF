@@ -39,7 +39,11 @@ public sealed record SummaryEntry(
 /// <summary>주석이 있는 쪽 하나. PageImageBgra는 ImageW×ImageH×4 바이트(BGRA, 위에서 아래로).</summary>
 public sealed record SummaryPage(int PageNumber, byte[] PageImageBgra, int ImageW, int ImageH, IReadOnlyList<SummaryEntry> Entries);
 
-public sealed record SummaryInput(string DocumentName, DateTimeOffset CreatedAt, IReadOnlyList<SummaryPage> Pages)
+/// <summary>
+/// Pages는 한 번만 순서대로 읽는다. 지연 열거(iterator)를 넘기면 쪽 그림을 하나씩 만들고 빌더가 압축해 쓴 뒤 놓아 주므로
+/// 쪽이 아무리 많아도 한 번에 쪽 그림 하나(+ 압축된 그림들)만 메모리에 있다.
+/// </summary>
+public sealed record SummaryInput(string DocumentName, DateTimeOffset CreatedAt, IEnumerable<SummaryPage> Pages)
 {
     public SummaryText Text { get; init; } = SummaryText.English;
 }
@@ -83,6 +87,7 @@ public static class SummaryPdfBuilder
             flow.Doc.Save(tmp);
             ct.ThrowIfCancellationRequested();
             File.Move(tmp, outputPath, overwrite: true);
+            progress?.Report(flow.Processed);   // 저장까지 끝났다는 마지막 알림 (쪽 수와 같은 값)
             return result;
         }
         finally
@@ -114,6 +119,7 @@ public static class SummaryPdfBuilder
         private int _imageSeq;
 
         public PdfDoc Doc { get; } = new();
+        public int Processed { get; private set; }
 
         public Flow(SummaryInput input, AppFont font, CancellationToken ct)
         {
@@ -130,18 +136,19 @@ public static class SummaryPdfBuilder
             Doc.Info.Title = _in.DocumentName;
             Doc.Info.Creator = "SedolPDF";
 
-            var pages = _in.Pages.Where(p => p.Entries.Count > 0).ToList();
-            int total = pages.Sum(p => Count(p.Entries));
-
             NewPage();
-            DrawHeader(total);
-            int done = 0;
-            foreach (var sp in pages)
+            DrawHeader();
+            int done = 0, total = 0;
+            foreach (var sp in _in.Pages)   // 지연 열거: 한 쪽씩 받아 쓰고 놓는다
             {
                 _ct.ThrowIfCancellationRequested();
+                if (sp.Entries.Count == 0) continue;
+                total += Count(sp.Entries);
                 DrawSourcePage(sp);
-                progress?.Report(++done);
+                Processed = ++done;
+                progress?.Report(done);
             }
+            WriteCountLine(total);
             DrawMissingNotice();
             FinishDocument();
             return new SummaryBuildResult(_pages.Count, total, [.. _missing]);
@@ -226,16 +233,35 @@ public static class SummaryPdfBuilder
 
         // ---- 머리말·쪽 머리 ----
 
-        private void DrawHeader(int total)
+        // 주석 수 줄은 쪽을 다 읽은 뒤에야 알 수 있어, 자리만 잡아 두고 끝에 쓴다.
+        private Canvas? _countCanvas;
+        private float _countTop;
+        private int _countInsertAt;   // 내용 스트림 안의 자리: 제목·만든 시각 바로 다음(글자 추출 순서가 자연스럽게)
+
+        private void DrawHeader()
         {
             Emit(Lay(_in.DocumentName, TitleSize, ContentW), TitleSize, Black, Margin);
             _y -= 2;
             string created = string.Format(CultureInfo.CurrentCulture, _t.CreatedFormat,
                 _in.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
             Emit(Lay(created, SubSize, ContentW), SubSize, Gray, Margin);
-            Emit(Lay(string.Format(CultureInfo.CurrentCulture, _t.CountFormat, total), SubSize, ContentW), SubSize, Gray, Margin);
+            _countCanvas = _cur;
+            _countTop = _y;
+            _countInsertAt = _cur.Content.Length;
+            _y -= SubSize * LineFactor;
             _y -= SectionGap;
             Rule(_y + SectionGap / 2);
+        }
+
+        private void WriteCountLine(int total)
+        {
+            if (_countCanvas is null) return;
+            var lt = Lay(string.Format(CultureInfo.CurrentCulture, _t.CountFormat, total), SubSize, ContentW);
+            if (lt.Lines.Length == 0 || lt.Lines[0].IsDefaultOrEmpty) return;
+            var line = lt.Lines[0];
+            var tmp = new StringBuilder();
+            AppendTextLine(tmp, line, Margin, _countTop + line[0].Origin.Y, SubSize, Gray);
+            _countCanvas.Content.Insert(_countInsertAt, tmp.ToString());
         }
 
         private void Rule(float y)
@@ -406,7 +432,8 @@ public static class SummaryPdfBuilder
                 page.Elements["/Resources"] = res;
 
                 var stream = new PdfDictionary(Doc);
-                stream.CreateStream(Encoding.Latin1.GetBytes(c.Content.ToString()));
+                stream.CreateStream(PdfSharp.Pdf.Filters.Filtering.FlateDecode.Encode(Encoding.Latin1.GetBytes(c.Content.ToString()), PdfFlateEncodeMode.Default));
+                stream.Elements["/Filter"] = new PdfName("/FlateDecode");
                 Doc.Internals.AddObject(stream);
                 page.Elements["/Contents"] = stream.Reference!;
             }

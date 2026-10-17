@@ -461,7 +461,7 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
         foreach (var ro in snap.ReadOnly)
         {
             var item = new CommentItem(id, number, null, ro.Index, ReadOnlyKindName(ro.Subtype), ro.Author, ro.Contents, ro.ModifiedAt,
-                ReviewState.None, 0, false, ro.Rect, AnnotKindExtensions.FromPdfSubtype(ro.Subtype) is { } rk ? IconFor(new Annotation { Kind = rk }, false) : "generic");
+                ReviewState.None, 0, false, ro.Rect, AnnotKindExtensions.FromPdfSubtype(ro.Subtype) is { } rk ? IconFor(new Annotation { Kind = rk }, false) : "generic") { ReadOnlySubtype = ro.Subtype };
             groups.Add(new Group(item, [], seq++));
         }
         _cache[id] = groups;
