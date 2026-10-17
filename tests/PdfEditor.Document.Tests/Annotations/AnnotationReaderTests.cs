@@ -367,7 +367,7 @@ public class AnnotationReaderTests : IDisposable
     }
 
     [Fact]
-    public void Read_CloudSquare_EditableWithRd_PlainSquareWithRd_StillReadOnly()
+    public void Read_CloudSquare_EditableWithRd_PlainSquareWithRd_StillReadOnly_CircleCloudReadOnly()
     {
         var r = ReadWith((doc, page) =>
         {
@@ -387,8 +387,8 @@ public class AnnotationReaderTests : IDisposable
         Assert.Equal(1f, r[0].Data!.CloudIntensity);
         Assert.Equal(new PdfRectF(10, 10, 110, 60), r[0].Data!.Rect);
         Assert.Equal(ReadOnlyReason.RectDifferences, r[1].Reason);
-        Assert.Equal(ReadOnlyReason.None, r[2].Reason);   // Circle은 클라우드로 그리지 못하므로 매끈한 타원으로 읽는다
-        Assert.Equal(0f, r[2].Data!.CloudIntensity);
+        Assert.Equal(ReadOnlyReason.CloudBorder, r[2].Reason);   // Circle 클라우드는 Painter가 그리지 못하므로 읽기 전용
+        Assert.Null(r[2].Data);
     }
 
     [Fact]
@@ -406,5 +406,59 @@ public class AnnotationReaderTests : IDisposable
         Assert.Equal(AnnotKind.Caret, o.Data!.Kind);
         Assert.Equal("ins", o.Data.Contents);
         Assert.Equal("#FF0000", o.Data.Color!.Value.ToHex());
+    }
+
+    [Fact]
+    public void Read_CloudBeWithZeroOrMissingIntensity_IsNotACloud()
+    {
+        var r = ReadWith((doc, page) =>
+        {
+            var be0 = new PdfDictionary(doc);
+            be0.Elements["/S"] = new PdfName("/C");
+            be0.Elements["/I"] = new PdfInteger(0);
+            var a = Add(doc, page, "Square", 10, 10, 110, 60);
+            a.Elements["/BE"] = be0;
+            var be1 = new PdfDictionary(doc);
+            be1.Elements["/S"] = new PdfName("/C");
+            var b = Add(doc, page, "Polygon", 10, 10, 110, 60);
+            b.Elements["/Vertices"] = Nums(doc, 20, 20, 100, 20, 60, 50);
+            b.Elements["/BE"] = be1;
+            // /I 0인 클라우드는 클라우드가 아니므로 /RD가 있으면 일반 사각형처럼 읽기 전용
+            var c = Add(doc, page, "Square", 10, 10, 110, 60);
+            c.Elements["/BE"] = be0;
+            c.Elements["/RD"] = Nums(doc, 5, 5, 5, 5);
+        });
+        Assert.Equal(0f, r[0].Data!.CloudIntensity);
+        Assert.Equal(0f, r[1].Data!.CloudIntensity);
+        Assert.Equal(ReadOnlyReason.RectDifferences, r[2].Reason);
+    }
+
+    [Fact]
+    public void Read_LineWithLeaderCaptionOrMeasure_ReadOnlyUnsupportedLineFeatures()
+    {
+        var r = ReadWith((doc, page) =>
+        {
+            PdfDictionary Line()
+            {
+                var d = Add(doc, page, "Line", 10, 10, 110, 60);
+                d.Elements["/L"] = Nums(doc, 20, 20, 100, 50);
+                return d;
+            }
+            Line().Elements["/LL"] = new PdfInteger(10);
+            Line().Elements["/LLE"] = new PdfInteger(5);
+            Line().Elements["/LLO"] = new PdfInteger(3);
+            Line().Elements["/Cap"] = new PdfBoolean(true);
+            Line().Elements["/CO"] = Nums(doc, 4, 0);
+            Line().Elements["/Measure"] = new PdfDictionary(doc);
+            Line().Elements["/LL"] = new PdfInteger(0);          // 의미 없는 값은 괜찮다
+            Line().Elements["/Cap"] = new PdfBoolean(false);
+            var pl = Add(doc, page, "PolyLine", 10, 10, 110, 60);
+            pl.Elements["/Vertices"] = Nums(doc, 20, 20, 60, 50, 100, 20);
+            pl.Elements["/Measure"] = new PdfDictionary(doc);
+        });
+        for (int i = 0; i < 6; i++) Assert.Equal(ReadOnlyReason.UnsupportedLineFeatures, r[i].Reason);
+        Assert.Equal(ReadOnlyReason.None, r[6].Reason);
+        Assert.Equal(ReadOnlyReason.None, r[7].Reason);
+        Assert.Equal(ReadOnlyReason.UnsupportedLineFeatures, r[8].Reason);
     }
 }

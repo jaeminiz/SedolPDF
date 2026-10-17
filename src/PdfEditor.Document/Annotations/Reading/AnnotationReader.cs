@@ -116,15 +116,18 @@ public static class AnnotationReader
             if (kind is null) return Fail(ReadOnlyReason.UnsupportedType);
             if (e.ContainsKey("/IRT")) return Fail(ReadOnlyReason.Reply);
             if (e.ContainsKey("/State")) return Fail(ReadOnlyReason.ReviewState);
-            // 클라우드 테두리(/BE /S /C)는 Square·Polygon에서 편집할 수 있다(A8). Circle은 클라우드로 그리지 못하므로 매끈한 타원으로 읽는다.
+            // 클라우드 테두리(/BE /S /C, /I > 0)는 Square·Polygon에서 편집할 수 있다(A8). /I가 없거나 0 이하면 클라우드가 아니다(ISO 기본값 0).
+            // Circle 클라우드는 Painter가 그리지 못하므로 읽기 전용이다.
             float cloud = 0f;
             bool cloudBe = false;
-            if (e.GetDictionary("/BE") is { } be && be.Elements.GetName("/S") == "/C")
+            if (e.GetDictionary("/BE") is { } be && be.Elements.GetName("/S") == "/C" && (Num(be.Elements, "/I") ?? 0.0) > 0.0)
             {
+                if (kind == AnnotKind.Circle) return Fail(ReadOnlyReason.CloudBorder);
                 cloudBe = true;
-                if (kind is AnnotKind.Square or AnnotKind.Polygon)
-                    cloud = Math.Clamp((float)(Num(be.Elements, "/I") ?? 1.0), MinCloudIntensity, 2f);
+                cloud = Math.Clamp((float)Num(be.Elements, "/I")!.Value, 0.01f, 2f);
             }
+            if (kind is AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon && HasLineFeatures(e, kind.Value))
+                return Fail(ReadOnlyReason.UnsupportedLineFeatures);
 
             var bs = e.GetDictionary("/BS");
             if (bs is not null)
@@ -208,8 +211,20 @@ public static class AnnotationReader
         OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r);
     }
 
-    /// <summary>클라우드 /I가 0이거나 없을 때 쓰는 최소 세기(모델에서 0은 "클라우드 아님"이다).</summary>
-    private const float MinCloudIntensity = 0.25f;
+    /// <summary>
+    /// 선의 지시선(/LL /LLE /LLO)·캡션(/Cap /CP /CO)·/Measure 중 의미 있는 값이 있는가. 우리 모델·Painter는 이를 그리지도 지우지도 못하므로
+    /// 손대면 정보가 사라진다 → 읽기 전용. /Measure는 세 유형 모두, 나머지는 Line만 해당.
+    /// </summary>
+    private static bool HasLineFeatures(PdfDictionary.DictionaryElements e, AnnotKind kind)
+    {
+        if (Resolve(e["/Measure"]) is not null) return true;
+        if (kind != AnnotKind.Line) return false;
+        foreach (var k in new[] { "/LL", "/LLE", "/LLO" })
+            if (Num(e, k) is { } v && v != 0) return true;
+        if (Resolve(e["/Cap"]) is PdfBoolean { Value: true }) return true;
+        var co = Numbers(Resolve(e["/CO"]) as PdfArray);
+        return co is not null && co.Any(v => v != 0);
+    }
 
     private sealed record ShapeData(ReadOnlyReason Failure, ImmutableArray<PdfPointF> Vertices, LineEnding Start, LineEnding End);
 

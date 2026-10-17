@@ -205,8 +205,12 @@ public static class PatchPlanBuilder
                 else ops.Add(new RemoveKeys(["/BE"]));
                 break;
             case AnnotKind.Caret:
-                ops.Add(new SetName("/Sy", "/None"));
-                ops.Add(new SetNumbers("/RD", [0f, 0f, 0f, 0f]));
+                // 새 Caret만 /Sy·/RD를 정한다. 손댄 원본의 /Sy(/P 등)는 그대로 둔다.
+                if (isNew)
+                {
+                    ops.Add(new SetName("/Sy", "/None"));
+                    ops.Add(new SetNumbers("/RD", [0f, 0f, 0f, 0f]));
+                }
                 break;
         }
 

@@ -291,7 +291,7 @@ public class PatchKindsRoundTripTests : IDisposable
         Assert.Equal([PdfAnnotSubtype.Caret], await PdfiumSubtypes(target));
     }
 
-    /// <summary>다른 프로그램이 만든 Line(모르는 키 /Foo, /LL 포함)을 파일로 만든다.</summary>
+    /// <summary>다른 프로그램이 만든 Line(모르는 키 /Foo 포함, /LL 없음)을 파일로 만든다.</summary>
     private string MakeOriginalLine()
     {
         string p = P($"orig-{Guid.NewGuid():N}.pdf");
@@ -392,6 +392,93 @@ public class PatchKindsRoundTripTests : IDisposable
         await s.Commands.UndoAsync();
         await Svc().SaveAsync(s, target);
         Assert.Single(ReadBack(target));
+    }
+
+    [Fact]
+    public async Task TouchedOriginalLine_OpacityKept_AfterSavingTwice()
+    {
+        string pdf = MakeOriginalLine();
+        await using var s = await DocumentSession.OpenAsync(_t, pdf, null);
+        await s.AnnotationsReady;
+        var id = s.Pages[0].Id;
+        var before = Assert.Single(s.Annotations.Get(id).Items).Data;
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Replace(id, [(before, before with { Opacity = 0.5f })]));
+        string target = P("opacity.pdf");
+        for (int i = 0; i < 2; i++)
+        {
+            await Svc().SaveAsync(s, target);
+            using var doc = PdfReader.Open(target, PdfDocumentOpenMode.Import);
+            Assert.Equal(1, AnnotCount(doc));
+            var d = AnnotDict(doc, 0);
+            Assert.Equal(0.5, ((PdfReal)d.Elements["/CA"]!).Value, 3);
+            var form = Deref<PdfDictionary>(Deref<PdfDictionary>(d.Elements["/AP"]).Elements["/N"]);
+            var gs = Deref<PdfDictionary>(Deref<PdfDictionary>(Deref<PdfDictionary>(form.Elements["/Resources"]).Elements["/ExtGState"]).Elements["/GS"]);
+            Assert.Equal(0.5, ((PdfReal)gs.Elements["/CA"]!).Value, 3);
+            Assert.Equal("/Bar", d.Elements.GetName("/Foo"));
+        }
+        Assert.Equal(0.5f, Assert.Single(ReadBack(target)).Data!.Opacity, 3);
+    }
+
+    [Fact]
+    public async Task TouchedOriginalCaret_SyKept()
+    {
+        string p = P("caret-orig.pdf");
+        TestPdfFactory.CreateBlank(p, 1, 200, 200);
+        using (var doc = PdfReader.Open(p, PdfDocumentOpenMode.Modify))
+        {
+            var d = new PdfDictionary(doc);
+            d.Elements["/Type"] = new PdfName("/Annot");
+            d.Elements["/Subtype"] = new PdfName("/Caret");
+            d.Elements["/Rect"] = Arr(doc, 50, 50, 70, 70);
+            d.Elements["/Sy"] = new PdfName("/P");
+            d.Elements["/F"] = new PdfInteger(4);
+            d.Elements["/NM"] = new PdfString("orig-caret");
+            doc.Internals.AddObject(d);
+            var arr = new PdfArray(doc);
+            arr.Elements.Add(d.Reference!);
+            doc.Pages[0].Elements["/Annots"] = arr;
+            doc.Save(p);
+        }
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        var id = s.Pages[0].Id;
+        var before = Assert.Single(s.Annotations.Get(id).Items).Data;
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Replace(id, [(before, before with { Color = Red })]));
+        string target = P("caret-touched.pdf");
+        await Svc().SaveAsync(s, target);
+        using var saved = PdfReader.Open(target, PdfDocumentOpenMode.Import);
+        Assert.Equal("/P", AnnotDict(saved, 0).Elements.GetName("/Sy"));
+        Assert.Equal(Red, Assert.Single(ReadBack(target)).Data!.Color);
+    }
+
+    [Fact]
+    public async Task MixedPage_PdfiumKindsAndPatchLine_CountsAndIndices()
+    {
+        AnnotatedPdfFactory.CreateMixed(P("mixed.pdf"));
+        await using var s = await DocumentSession.OpenAsync(_t, P("mixed.pdf"), null);
+        await s.AnnotationsReady;
+        var id = s.Pages[0].Id;
+        var origSubtypes = await PdfiumSubtypes(P("mixed.pdf"));
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, Arrow(s)));
+        // PDFium 길 새 주석(Square, 메모)도 같은 쪽에 더한다.
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, Make(s, AnnotKind.Square, new PdfRectF(30, 30, 90, 80), x => x with { Color = Blue, BorderWidth = 2 })));
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(id, Make(s, AnnotKind.Text, new PdfRectF(150, 150, 170, 170), x => x with { Color = Yellow, Contents = "memo" })));
+
+        string target = P("mixed-out.pdf");
+        for (int i = 0; i < 2; i++)
+        {
+            await Svc().SaveAsync(s, target);
+            var subs = await PdfiumSubtypes(target);
+            // 원본 13개는 같은 번호·같은 유형으로 앞에, 새 주석(Square, Text, Popup, Line)이 뒤에 붙는다.
+            Assert.Equal(origSubtypes, subs.Take(origSubtypes.Count).ToList());
+            var tail = subs.Skip(origSubtypes.Count).ToList();
+            Assert.Equal(4, tail.Count);
+            Assert.Single(tail, t => t == PdfAnnotSubtype.Line);
+            Assert.Single(tail, t => t == PdfAnnotSubtype.Popup);
+            Assert.Single(tail, t => t == PdfAnnotSubtype.Square);
+            Assert.Single(tail, t => t == PdfAnnotSubtype.Text);
+            Assert.Equal(1, ReadBack(target).Count(o => o.Data?.Kind == AnnotKind.Line));
+        }
     }
 
     private sealed class Tol : IEqualityComparer<double>
