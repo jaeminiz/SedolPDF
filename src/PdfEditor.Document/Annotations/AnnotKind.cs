@@ -40,6 +40,10 @@ public static class AnnotKindExtensions
         PdfAnnotSubtype.Square => AnnotKind.Square,
         PdfAnnotSubtype.Circle => AnnotKind.Circle,
         PdfAnnotSubtype.FreeText => AnnotKind.FreeText,
+        PdfAnnotSubtype.Line => AnnotKind.Line,
+        PdfAnnotSubtype.PolyLine => AnnotKind.PolyLine,
+        PdfAnnotSubtype.Polygon => AnnotKind.Polygon,
+        PdfAnnotSubtype.Caret => AnnotKind.Caret,
         _ => null,
     };
 

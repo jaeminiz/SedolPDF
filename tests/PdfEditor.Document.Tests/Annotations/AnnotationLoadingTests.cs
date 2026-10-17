@@ -27,7 +27,7 @@ public class AnnotationLoadingTests : IDisposable
         AnnotatedPdfFactory.CreateMixed(P("m.pdf"));
         await using var s = await DocumentSession.OpenAsync(_t, P("m.pdf"), null);
         await s.AnnotationsReady;
-        Assert.Equal(9, s.Annotations.Get(s.Pages[0].Id).Items.Length);
+        Assert.Equal(10, s.Annotations.Get(s.Pages[0].Id).Items.Length);
         Assert.True(s.OriginalAnnotationsEditable);
     }
 
@@ -40,7 +40,7 @@ public class AnnotationLoadingTests : IDisposable
         Assert.False(s.AnnotationsReady.IsCompleted);   // 풀어 주기 전에는 시작하지 않는다
         s.ReleaseOriginalsLoad();
         await s.AnnotationsReady.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(9, s.Annotations.Get(s.Pages[0].Id).Items.Length);
+        Assert.Equal(10, s.Annotations.Get(s.Pages[0].Id).Items.Length);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class AnnotationLoadingTests : IDisposable
         AnnotatedPdfFactory.CreateMixed(P("m.pdf"));
         await using var s = await DocumentSession.OpenAsync(_t, P("m.pdf"), null, deferOriginals: true);
         await s.AnnotationsReady.WaitAsync(TimeSpan.FromSeconds(10));   // 렌더러가 없어도 끝난다
-        Assert.Equal(9, s.Annotations.Get(s.Pages[0].Id).Items.Length);
+        Assert.Equal(10, s.Annotations.Get(s.Pages[0].Id).Items.Length);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class AnnotationLoadingTests : IDisposable
         var entry = new RecoveryEntry(Guid.NewGuid(), P("m.pdf"), null, null, "m.pdf", DateTimeOffset.UtcNow);
         await using var s = await DocumentSession.OpenRecoveredAsync(_t, entry, false, null);
         await s.AnnotationsReady;
-        Assert.Equal(9, s.Annotations.Get(s.Pages[0].Id).Items.Length);
+        Assert.Equal(10, s.Annotations.Get(s.Pages[0].Id).Items.Length);
     }
 
     [Fact]
@@ -112,6 +112,6 @@ public class AnnotationLoadingTests : IDisposable
             _ => o,
         }).ToList();
         await s.Thread.InvokeAsync(() => { s.AttachOriginalsVerified(s.Pages[0].Id, list); s.Annotations.Publish(); });
-        Assert.Equal(7, s.Annotations.Get(s.Pages[0].Id).Items.Length);   // 9 - 2
+        Assert.Equal(8, s.Annotations.Get(s.Pages[0].Id).Items.Length);   // 10 - 2 (클라우드 Square도 편집 가능)
     }
 }

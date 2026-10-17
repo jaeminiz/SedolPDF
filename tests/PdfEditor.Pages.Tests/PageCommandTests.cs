@@ -290,7 +290,7 @@ public class PageCommandTests : IDisposable
         Assert.NotNull(originals);
         await s.Commands.ExecuteAsync(new ImportPagesCommand(src, [0], 1, originals));
         Assert.Equal(3, s.Pages.Length);
-        Assert.Equal(9, s.Annotations.Get(s.Pages[1].Id).Items.Length);
+        Assert.Equal(10, s.Annotations.Get(s.Pages[1].Id).Items.Length);
         Assert.Empty(s.Annotations.Get(s.Pages[0].Id).Items);
     }
 

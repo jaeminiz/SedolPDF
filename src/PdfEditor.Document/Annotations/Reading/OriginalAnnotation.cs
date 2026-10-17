@@ -12,6 +12,8 @@ public enum ReadOnlyReason
     RectDifferences,
     HiddenFlag,
     Malformed,
+    /// <summary>선 끝 모양 이름을 모른다(ROpenArrow 등). 그리지 못하므로 읽기 전용.</summary>
+    UnsupportedLineEnding,
 }
 
 /// <summary>

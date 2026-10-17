@@ -47,8 +47,8 @@ public class MergeServiceTests : IDisposable
             "m", CancellationToken.None);
         Assert.Equal(3, s.Pages.Length);
         Assert.Empty(s.Annotations.Get(s.Pages[0].Id).Items);
-        Assert.Equal(9, s.Annotations.Get(s.Pages[1].Id).Items.Length);
-        Assert.Equal(9, s.Annotations.Get(s.Pages[2].Id).Items.Length);
+        Assert.Equal(10, s.Annotations.Get(s.Pages[1].Id).Items.Length);
+        Assert.Equal(10, s.Annotations.Get(s.Pages[2].Id).Items.Length);
         Assert.True(s.OriginalAnnotationsEditable);
     }
 

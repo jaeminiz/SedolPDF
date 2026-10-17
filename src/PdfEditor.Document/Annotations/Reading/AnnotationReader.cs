@@ -87,7 +87,15 @@ public static class AnnotationReader
             if (kind is null) return Fail(ReadOnlyReason.UnsupportedType);
             if (e.ContainsKey("/IRT")) return Fail(ReadOnlyReason.Reply);
             if (e.ContainsKey("/State")) return Fail(ReadOnlyReason.ReviewState);
-            if (e.GetDictionary("/BE")?.Elements.GetName("/S") == "/C") return Fail(ReadOnlyReason.CloudBorder);
+            // 클라우드 테두리(/BE /S /C)는 Square·Polygon에서 편집할 수 있다(A8). Circle은 클라우드로 그리지 못하므로 매끈한 타원으로 읽는다.
+            float cloud = 0f;
+            bool cloudBe = false;
+            if (e.GetDictionary("/BE") is { } be && be.Elements.GetName("/S") == "/C")
+            {
+                cloudBe = true;
+                if (kind is AnnotKind.Square or AnnotKind.Polygon)
+                    cloud = Math.Clamp((float)(Num(be.Elements, "/I") ?? 1.0), MinCloudIntensity, 2f);
+            }
 
             var bs = e.GetDictionary("/BS");
             if (bs is not null)
@@ -97,7 +105,8 @@ public static class AnnotationReader
                     return Fail(ReadOnlyReason.StyledBorder);
             }
 
-            if (kind is AnnotKind.Square or AnnotKind.Circle && HasNonZeroRd(e.GetArray("/RD")))
+            // /RD: 일반 사각형·타원에서는 모양이 달라지므로 읽기 전용. 클라우드 Square는 /RD가 클라우드 안쪽 간격이라 허용한다.
+            if (kind is AnnotKind.Square or AnnotKind.Circle && !cloudBe && HasNonZeroRd(e.GetArray("/RD")))
                 return Fail(ReadOnlyReason.RectDifferences);
 
             int flags = Int(e, "/F") ?? 0;
@@ -130,10 +139,15 @@ public static class AnnotationReader
             var ft = kind == AnnotKind.FreeText ? ReadFreeText(e, rect.Value) : null;
             if (ft is { Failure: not ReadOnlyReason.None }) return Fail(ft.Failure);
 
+            var shape = kind is AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon ? ReadShape(e, kind.Value) : null;
+            if (shape is { Failure: not ReadOnlyReason.None }) return Fail(shape.Failure);
+
             var data = new Annotation
             {
                 Kind = kind.Value,
                 Rect = ft?.Rect ?? rect.Value,
+                CloudIntensity = cloud,
+                StartEnding = shape?.Start ?? LineEnding.None,
                 Color = color,
                 FillColor = fill,
                 Opacity = (float)(Num(e, "/CA") ?? 1.0),
@@ -149,8 +163,8 @@ public static class AnnotationReader
                 Flags = flags,
                 Intent = ft?.Intent,
                 TextBox = ft?.TextBox,
-                Vertices = ft?.Vertices ?? [],
-                EndEnding = ft?.EndEnding ?? LineEnding.None,
+                Vertices = ft?.Vertices ?? shape?.Vertices ?? [],
+                EndEnding = ft?.EndEnding ?? shape?.End ?? LineEnding.None,
                 FontSizePt = ft?.FontSizePt ?? 12f,
                 TextColor = ft?.TextColor,
                 Align = ft?.Align ?? TextAlign.Left,
@@ -163,6 +177,50 @@ public static class AnnotationReader
         }
 
         OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r);
+    }
+
+    /// <summary>클라우드 /I가 0이거나 없을 때 쓰는 최소 세기(모델에서 0은 "클라우드 아님"이다).</summary>
+    private const float MinCloudIntensity = 0.25f;
+
+    private sealed record ShapeData(ReadOnlyReason Failure, ImmutableArray<PdfPointF> Vertices, LineEnding Start, LineEnding End);
+
+    /// <summary>Line(/L, /LE), PolyLine·Polygon(/Vertices; PolyLine은 /LE). 모양이 망가지면 Malformed, 모르는 선 끝 이름은 UnsupportedLineEnding.</summary>
+    private static ShapeData ReadShape(PdfDictionary.DictionaryElements e, AnnotKind kind)
+    {
+        ShapeData Bad(ReadOnlyReason r) => new(r, [], LineEnding.None, LineEnding.None);
+
+        var n = Numbers(e.GetArray(kind == AnnotKind.Line ? "/L" : "/Vertices"));
+        int min = kind switch { AnnotKind.Line => 2, AnnotKind.PolyLine => 2, _ => 3 };
+        if (n is null || n.Length % 2 != 0 || n.Length / 2 < min || (kind == AnnotKind.Line && n.Length != 4))
+            return Bad(ReadOnlyReason.Malformed);
+        var verts = ImmutableArray.CreateBuilder<PdfPointF>(n.Length / 2);
+        for (int i = 0; i < n.Length; i += 2) verts.Add(new PdfPointF((float)n[i], (float)n[i + 1]));
+
+        LineEnding start = LineEnding.None, end = LineEnding.None;
+        if (kind != AnnotKind.Polygon)
+        {
+            // /LE: 이름 둘의 배열(시작, 끝). 이름 하나만 있으면 시작 끝 모양으로 본다.
+            var names = new List<string>();
+            switch (Resolve(e["/LE"]))
+            {
+                case PdfName single: names.Add(single.Value); break;
+                case PdfArray arr:
+                    foreach (var item in arr.Elements)
+                    {
+                        if (Resolve(item) is not PdfName nm) return Bad(ReadOnlyReason.UnsupportedLineEnding);
+                        names.Add(nm.Value);
+                    }
+                    break;
+            }
+            LineEnding? Parse(int i)
+                => i < names.Count ? LineEndingExtensions.FromPdfName(names[i]) : LineEnding.None;
+            var s = Parse(0);
+            var t = Parse(1);
+            if (s is null || t is null || names.Count > 2) return Bad(ReadOnlyReason.UnsupportedLineEnding);
+            start = s.Value;
+            end = t.Value;
+        }
+        return new ShapeData(ReadOnlyReason.None, verts.ToImmutable(), start, end);
     }
 
     private sealed record FreeTextData(

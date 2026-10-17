@@ -51,6 +51,10 @@ public static class AnnotationGeometry
     /// <summary>클라우드 반원 지름(A8): 6 + 4n pt.</summary>
     public static float CloudDiameter(float intensity) => 6f + 4f * intensity;
 
+    /// <summary>Square 클라우드의 /RD(= Rect에서 안쪽 사각형까지): d/2 + 두께/2, 작은 상자는 짧은 변의 1/4로 제한(A8).</summary>
+    public static float CloudRectInset(PdfRectF rect, float intensity, float borderWidth)
+        => Math.Min(CloudDiameter(intensity) / 2f + borderWidth / 2f, Math.Min(rect.Width, rect.Height) / 4f);
+
     // 점 경계에 더하는 여유: 두께/2 + 선 끝 크기, Polygon 클라우드는 + RD(d/2 + 두께/2).
     private static float PointMargin(Annotation a)
     {

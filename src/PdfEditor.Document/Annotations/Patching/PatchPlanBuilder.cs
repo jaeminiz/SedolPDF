@@ -32,13 +32,14 @@ public static class PatchPlanBuilder
             foreach (var e in entries)
             {
                 // 새 패치 길 주석: PDFium 문서에 없으므로(PdfIndex 없음) 매번 새로 만든다.
-                if (!e.Deleted && !e.IsOriginal && e.Current.Kind == AnnotKind.FreeText)
+                if (!e.Deleted && !e.IsOriginal && e.Current.Kind is AnnotKind.FreeText or AnnotKind.Line
+                    or AnnotKind.PolyLine or AnnotKind.Polygon or AnnotKind.Caret)
                 {
                     var m = e.Current;
-                    var ap = (appearance ?? throw new InvalidOperationException("FreeText needs an IAppearanceSource to build its appearance."))
+                    var ap = (appearance ?? throw new InvalidOperationException($"{m.Kind} needs an IAppearanceSource to build its appearance."))
                         .BuildPatchAppearance(m, rotation);
-                    creates.Add(new AnnotationCreate(pageIndex, "FreeText", m.Name ?? Guid.NewGuid().ToString("D"), m.Rect,
-                        m.Flags | PdfAnnotFlags.Print, FreeTextOps(m, ap, isNew: true)));
+                    creates.Add(new AnnotationCreate(pageIndex, m.Kind.ToString(), m.Name ?? Guid.NewGuid().ToString("D"), m.Rect,
+                        m.Flags | PdfAnnotFlags.Print, PatchKindOps(m, ap, isNew: true)));
                     continue;
                 }
 
@@ -60,14 +61,18 @@ public static class PatchPlanBuilder
                     ops.Add(new RemoveKeys(["/BS"]));
                     if (e.Current.Kind is AnnotKind.Square or AnnotKind.Circle && e.Current.FillColor is null)
                         ops.Add(new RemoveKeys(["/IC"]));
+                    ops.AddRange(SquareCloudOps(e.Current, original: true));
                 }
-                else if (e.IsOriginal && e.Owned && e.Current.Kind == AnnotKind.FreeText)
+                else if (e.IsOriginal && e.Owned && e.Current.Kind is AnnotKind.FreeText or AnnotKind.Line
+                    or AnnotKind.PolyLine or AnnotKind.Polygon or AnnotKind.Caret)
                 {
-                    // ④ 손댄 원본 FreeText: 같은 Ops를 그 자리에서 적용한다(A13). 모르는 키는 그대로 남는다.
-                    var ap = (appearance ?? throw new InvalidOperationException("FreeText needs an IAppearanceSource to build its appearance."))
+                    // ④ 손댄 원본(패치 길): 같은 Ops를 그 자리에서 적용한다(A13). 모르는 키는 그대로 남는다.
+                    var ap = (appearance ?? throw new InvalidOperationException($"{e.Current.Kind} needs an IAppearanceSource to build its appearance."))
                         .BuildPatchAppearance(e.Current, rotation);
-                    ops.AddRange(FreeTextOps(e.Current, ap, isNew: false));
+                    ops.AddRange(PatchKindOps(e.Current, ap, isNew: false));
                 }
+                if (!e.IsOriginal && e.Current.Kind == AnnotKind.Square)
+                    ops.AddRange(SquareCloudOps(e.Current, original: false));   // 새 클라우드 사각형: PDFium 길 + /BE·/RD 패치
                 if (ops.Count == 0) continue;
 
                 using var a = page.GetAnnotation(idx);
@@ -86,6 +91,84 @@ public static class PatchPlanBuilder
 
         if (patches.Count == 0 && creates.Count == 0 && removals.Count == 0) return PatchPlan.Empty;
         return new PatchPlan(patches.ToImmutable(), creates.ToImmutable(), removals.ToImmutable());
+    }
+
+    internal static ImmutableArray<PatchOp> PatchKindOps(Annotation m, PatchAppearance ap, bool isNew)
+        => m.Kind == AnnotKind.FreeText ? FreeTextOps(m, ap, isNew) : ShapeOps(m, ap, isNew);
+
+    /// <summary>Square 클라우드: /BE &lt;&lt;/S /C /I n&gt;&gt; + /RD(Painter와 같은 안쪽 간격). 클라우드가 아니면 손댄 원본의 낡은 /BE·/RD만 지운다.</summary>
+    internal static ImmutableArray<PatchOp> SquareCloudOps(Annotation m, bool original)
+    {
+        if (m.Kind != AnnotKind.Square) return [];
+        if (m.CloudIntensity > 0)
+        {
+            float rd = AnnotationGeometry.CloudRectInset(m.Rect, m.CloudIntensity, m.BorderWidth);
+            return [new SetBorderEffect(m.CloudIntensity), new SetNumbers("/RD", [rd, rd, rd, rd])];
+        }
+        return original ? [new RemoveKeys(["/BE", "/RD"])] : [];
+    }
+
+    /// <summary>
+    /// 선·폴리라인·다각형·Caret의 키 목록(A3). 새 주석과 손댄 원본이 같은 목록을 쓴다(원본은 Rect·CreationDate 차이만).
+    /// 선 끝 /LE는 선·폴리라인에서 이름 두 개의 배열(시작, 끝)이다(FreeText의 /LE는 이름 하나).
+    /// </summary>
+    internal static ImmutableArray<PatchOp> ShapeOps(Annotation m, PatchAppearance ap, bool isNew)
+    {
+        var ops = ImmutableArray.CreateBuilder<PatchOp>();
+        ops.Add(new SetAppearanceStream(ap.Content, ap.BBox));
+        if (m.Opacity < 1f)
+        {
+            ops.Add(new AddApOpacity(m.Opacity));
+            ops.Add(new SetReal("/CA", m.Opacity));
+        }
+        else ops.Add(new RemoveKeys(["/CA"]));
+        if (!isNew) ops.Add(new SetNumbers("/Rect", [m.Rect.Left, m.Rect.Bottom, m.Rect.Right, m.Rect.Top]));
+
+        if (m.Color is { } c) ops.Add(new SetNumbers("/C", [c.R / 255f, c.G / 255f, c.B / 255f]));
+        else ops.Add(new RemoveKeys(["/C"]));
+
+        switch (m.Kind)
+        {
+            case AnnotKind.Line:
+                if (m.Vertices.Length >= 2)
+                    ops.Add(new SetNumbers("/L", [m.Vertices[0].X, m.Vertices[0].Y, m.Vertices[1].X, m.Vertices[1].Y]));
+                ops.Add(new SetNames("/LE", [m.StartEnding.ToPdfName(), m.EndEnding.ToPdfName()]));
+                break;
+            case AnnotKind.PolyLine:
+                ops.Add(new SetNumbers("/Vertices", [.. m.Vertices.SelectMany(v => new[] { v.X, v.Y })]));
+                ops.Add(new SetNames("/LE", [m.StartEnding.ToPdfName(), m.EndEnding.ToPdfName()]));
+                break;
+            case AnnotKind.Polygon:
+                ops.Add(new SetNumbers("/Vertices", [.. m.Vertices.SelectMany(v => new[] { v.X, v.Y })]));
+                if (m.CloudIntensity > 0) ops.Add(new SetBorderEffect(m.CloudIntensity));
+                else ops.Add(new RemoveKeys(["/BE"]));
+                break;
+            case AnnotKind.Caret:
+                ops.Add(new SetName("/Sy", "/None"));
+                ops.Add(new SetNumbers("/RD", [0f, 0f, 0f, 0f]));
+                break;
+        }
+
+        if (m.Kind != AnnotKind.Caret)
+        {
+            // 두께는 /Border에 쓰므로 낡은 /BS는 지운다(M2 한계 1과 같은 이유).
+            ops.Add(new RemoveKeys(["/BS"]));
+            ops.Add(new SetNumbers("/Border", [0f, 0f, m.BorderWidth]));
+            // /IC: 선·폴리라인은 끝 모양의 채움색, 다각형은 안쪽 채움색.
+            if (m.FillColor is { } f) ops.Add(new SetNumbers("/IC", [f.R / 255f, f.G / 255f, f.B / 255f]));
+            else ops.Add(new RemoveKeys(["/IC"]));
+        }
+
+        if (m.Contents is not null)
+        {
+            ops.Add(new SetString("/Contents", m.Contents));
+            ops.Add(new SetString("/RC", AnnotationFlusher.MinimalXhtml(m.Contents)));
+        }
+        if (m.Author is not null) ops.Add(new SetString("/T", m.Author));
+        if (m.Subject is not null) ops.Add(new SetString("/Subj", m.Subject));
+        if (m.ModifiedAt is { } mod) ops.Add(new SetString("/M", PdfDate.Format(mod)));
+        if (isNew) ops.Add(new SetString("/CreationDate", PdfDate.Format(m.CreatedAt ?? m.ModifiedAt ?? DateTimeOffset.Now)));
+        return ops.ToImmutable();
     }
 
     /// <summary>

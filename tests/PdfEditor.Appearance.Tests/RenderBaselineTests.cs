@@ -92,7 +92,7 @@ public class RenderBaselineTests : IDisposable
             Vertices = [new PdfPointF(35, 60), new PdfPointF(80, 140), new PdfPointF(120, 70), new PdfPointF(165, 135)],
             StartEnding = LineEnding.Diamond, EndEnding = LineEnding.OpenArrow,
         }),
-        "polygon" => Make(s, AnnotKind.Polygon, new PdfRectF(20, 40, 180, 160), a => a with
+        "polygon_fill" => Make(s, AnnotKind.Polygon, new PdfRectF(20, 40, 180, 160), a => a with
         {
             Color = Blue, FillColor = Yellow, BorderWidth = 3,
             Vertices = [new PdfPointF(40, 60), new PdfPointF(160, 70), new PdfPointF(120, 150), new PdfPointF(60, 120)],
@@ -101,7 +101,7 @@ public class RenderBaselineTests : IDisposable
         {
             Color = Red, BorderWidth = 2, CloudIntensity = 1,
         }),
-        "cloud_polygon_cw" => Make(s, AnnotKind.Polygon, new PdfRectF(20, 40, 180, 160), a => a with
+        "cloud_polygon" => Make(s, AnnotKind.Polygon, new PdfRectF(20, 40, 180, 160), a => a with
         {
             Color = Blue, FillColor = Yellow, Opacity = 0.7f, BorderWidth = 2, CloudIntensity = 1,
             // clockwise on purpose: bulges must still point outward
@@ -211,10 +211,10 @@ public class RenderBaselineTests : IDisposable
     }
 
     /// <summary>
-    /// Kinds that only the patch stage (Task 9/10) can write into a file: their Painter output is rendered as plain page content
+    /// Kinds that only a later patch task (Task 10: file attachment) can write into a file: their Painter output is rendered as plain page content
     /// (200x200 pt page, no opacity) so the shape is verified through PDFium without the save pipeline.
     /// </summary>
-    private static readonly HashSet<string> DirectKinds = ["line_arrows", "polyline", "polygon", "cloud_polygon_cw", "caret", "attachment"];
+    private static readonly HashSet<string> DirectKinds = ["attachment"];
 
     private async Task<(byte[] Bgra, int W, int H)> RenderDirectAsync(string name)
     {
@@ -257,8 +257,8 @@ public class RenderBaselineTests : IDisposable
     [Theory]
     [InlineData("ink")][InlineData("highlight")] [InlineData("underline")] [InlineData("strikeout")]
     [InlineData("text")] [InlineData("square_fill")] [InlineData("circle")] [InlineData("highlight_area")]
-    [InlineData("line_arrows")] [InlineData("polyline")] [InlineData("polygon")] [InlineData("cloud_square")]
-    [InlineData("cloud_polygon_cw")] [InlineData("caret")] [InlineData("attachment")]
+    [InlineData("line_arrows")] [InlineData("polyline")] [InlineData("polygon_fill")] [InlineData("cloud_square")]
+    [InlineData("cloud_polygon")] [InlineData("caret")] [InlineData("attachment")]
     [InlineData("freetext_box")] [InlineData("freetext_typewriter")] [InlineData("freetext_callout")] [InlineData("freetext_center")]
     public async Task Baseline_PerKind(string name)
     {

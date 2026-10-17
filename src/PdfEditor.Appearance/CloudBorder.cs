@@ -14,8 +14,7 @@ internal static class CloudBorder
     /// <summary>Square의 클라우드 안쪽 사각형(= Rect를 RD만큼 줄임).</summary>
     public static ImmutableArray<PdfPointF> RectPolygon(PdfRectF rect, float intensity, float borderWidth)
     {
-        float rd = AnnotationGeometry.CloudDiameter(intensity) / 2f + borderWidth / 2f;
-        rd = Math.Min(rd, Math.Min(rect.Width, rect.Height) / 4f);
+        float rd = AnnotationGeometry.CloudRectInset(rect, intensity, borderWidth);
         return [
             new(rect.Left + rd, rect.Bottom + rd), new(rect.Right - rd, rect.Bottom + rd),
             new(rect.Right - rd, rect.Top - rd), new(rect.Left + rd, rect.Top - rd),

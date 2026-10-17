@@ -159,6 +159,12 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                     annot.Elements[o.Key] = arr;
                     break;
                 }
+                case SetReal o:
+                    annot.Elements[o.Key] = new PdfReal(o.Value);
+                    break;
+                case AddApOpacity o:
+                    AddApOpacityResource(doc, annot, o);
+                    break;
                 case SetString o:
                     annot.Elements[o.Key] = MakeString(o.Value);
                     break;
@@ -238,6 +244,29 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             resources.Elements["/Font"] = fonts;
         }
         fonts.Elements[op.ResourceName.StartsWith('/') ? op.ResourceName : "/" + op.ResourceName] = fontRef;
+    }
+
+    private static void AddApOpacityResource(PdfDocument doc, PdfDictionary annot, AddApOpacity op)
+    {
+        var form = Resolve(Resolve(annot.Elements["/AP"])?.Elements["/N"])
+            ?? throw new InvalidOperationException("AddApOpacity needs an annotation appearance stream (/AP /N).");
+        var resources = Resolve(form.Elements["/Resources"]);
+        if (resources is null)
+        {
+            resources = new PdfDictionary(doc);
+            form.Elements["/Resources"] = resources;
+        }
+        var states = Resolve(resources.Elements["/ExtGState"]);
+        if (states is null)
+        {
+            states = new PdfDictionary(doc);
+            resources.Elements["/ExtGState"] = states;
+        }
+        var gs = new PdfDictionary(doc);
+        gs.Elements["/Type"] = new PdfName("/ExtGState");
+        gs.Elements["/CA"] = new PdfReal(op.Opacity);
+        gs.Elements["/ca"] = new PdfReal(op.Opacity);
+        states.Elements["/GS"] = gs;
     }
 
     // ---- 도우미 ----

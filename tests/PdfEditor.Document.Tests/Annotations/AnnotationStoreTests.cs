@@ -64,7 +64,7 @@ public class AnnotationStoreTests : IDisposable
     {
         await using var s = await OpenMixed();
         var items = s.Annotations.Get(s.Pages[0].Id).Items;
-        Assert.Equal(9, items.Length);
+        Assert.Equal(10, items.Length);
         Assert.All(items, i => Assert.False(i.ModelDrawn));
         Assert.False(await s.Thread.InvokeAsync(() => s.Annotations.HasUnflushedChanges));
         await Assert.ThrowsAsync<InvalidOperationException>(() => s.Thread.InvokeAsync(
@@ -99,7 +99,7 @@ public class AnnotationStoreTests : IDisposable
         var page = s.Pages[0].Id;
         var first = s.Annotations.Get(page).Items[0].Data;
         await s.Thread.InvokeAsync(() => { s.Annotations.Apply(page, first, null); s.Publish(); });
-        Assert.Equal(8, s.Annotations.Get(page).Items.Length);
+        Assert.Equal(9, s.Annotations.Get(page).Items.Length);
         Assert.DoesNotContain(s.Annotations.Get(page).Items, i => i.Data.Id == first.Id);
         var hidden = await s.Thread.InvokeAsync(() => s.Annotations.HiddenPdfIndices(page));
         Assert.Contains(1, hidden);
