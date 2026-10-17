@@ -301,6 +301,12 @@
   <data name="AnnotKind_Caret" xml:space="preserve"><value>텍스트 삽입</value></data>
   <data name="AnnotKind_Stamp" xml:space="preserve"><value>스탬프</value></data>
   <data name="AnnotKind_FileAttachment" xml:space="preserve"><value>파일 첨부</value></data>
+  <data name="AnnotKind_Reply" xml:space="preserve"><value>답글</value></data>
+  <data name="AnnotKind_ReplaceText" xml:space="preserve"><value>텍스트 바꾸기</value></data>
+  <data name="AnnotKind_Link" xml:space="preserve"><value>링크</value></data>
+  <data name="AnnotKind_Widget" xml:space="preserve"><value>양식 필드</value></data>
+  <data name="AnnotKind_Squiggly" xml:space="preserve"><value>물결 밑줄</value></data>
+  <data name="AnnotKind_Other" xml:space="preserve"><value>기타 주석</value></data>
   <data name="FreeText_Hint" xml:space="preserve"><value>Ctrl+Enter: 확인, Esc: 취소, 바깥을 누르면 확인</value></data>
   <data name="Prop_Annot_LineStart" xml:space="preserve"><value>시작 모양</value></data>
   <data name="Prop_Annot_LineEnd" xml:space="preserve"><value>끝 모양</value></data>

@@ -31,6 +31,24 @@ public class AnnotationReaderTests : IDisposable
     }
 
     [Fact]
+    public void Read_ReadOnlyOriginals_CarryListInfo_PopupHasNone()
+    {
+        var r = ReadMixed();
+        var link = r[0].Info;
+        Assert.NotNull(link);
+        Assert.Equal(0, link.Index);
+        Assert.Equal(PdfAnnotSubtype.Link, link.Subtype);
+        Assert.Equal(ReadOnlyReason.UnsupportedType, link.Reason);
+        Assert.NotEqual(default, link.Rect);
+        Assert.Null(r[4].Info);   // Popup은 목록에 없다
+        var reply = r[5].Info;    // /RT /Group 답글: 읽기 전용이지만 내용이 보인다
+        Assert.NotNull(reply);
+        Assert.Equal(AnnotatedPdfFactory.ReplyText, reply.Contents);
+        Assert.Equal(ReadOnlyReason.Reply, reply.Reason);
+        Assert.Null(r[1].Info);   // 편집 가능한 항목은 Data가 있으므로 Info가 없다
+    }
+
+    [Fact]
     public void Read_Mixed_ClassifiesEachIndex()
     {
         var r = ReadMixed();

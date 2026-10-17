@@ -271,6 +271,13 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     public PdfEditor.App.Panels.LayersViewModel? Layers { get; set; }
     public PdfEditor.App.Panels.PropertiesViewModel? Properties { get; set; }
 
+    /// <summary>코멘트 목록 모델(M3b). 패널을 열 때 만든다.</summary>
+    public PdfEditor.App.Panels.CommentsViewModel? Comments { get; set; }
+
+    /// <summary>쪽의 이 사각형(PDF 사용자 좌표)이 화면 안에 보이도록 스크롤해 달라는 요청. 문서 화면이 받는다.</summary>
+    public event Action<PageId, Pdf.Native.PdfRectF>? RevealRequested;
+    public void RequestReveal(PageId page, Pdf.Native.PdfRectF rect) => RevealRequested?.Invoke(page, rect);
+
     /// <summary>검색 패널 모델. 문서 화면이 현재 결과(CurrentHit)를 읽어 강조한다.</summary>
     public PdfEditor.App.Panels.SearchViewModel? Search { get; set; }
 

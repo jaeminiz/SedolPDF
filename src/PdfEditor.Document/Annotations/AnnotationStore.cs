@@ -35,6 +35,7 @@ public sealed class AnnotationStore
         public readonly List<AnnotEntry> Entries = [];
         public bool Attached;
         public bool Dirty;
+        public ImmutableArray<ReadOnlyAnnotationInfo> ReadOnly = [];
     }
 
     private readonly PdfiumThread _thread;
@@ -85,18 +86,26 @@ public sealed class AnnotationStore
         var idByPdfIndex = new Dictionary<int, AnnotId>();
         foreach (var o in originals)
             if (o.Data is not null && (o.Data.Kind == AnnotKind.StrikeOut || parentIndices.Contains(o.Index))) idByPdfIndex[o.Index] = NewId();
+        var readOnly = ImmutableArray.CreateBuilder<ReadOnlyAnnotationInfo>();
         foreach (var o in originals)
         {
-            if (o.Data is null || !Attachable(o.Index, [])) continue;
+            if (o.Data is null)
+            {
+                if (o.Info is { } ro) readOnly.Add(ro);   // 읽기 전용 원본(Popup은 Info가 없다)
+                continue;
+            }
+            // 편집 가능으로 읽었지만 붙이지 못한 항목(부모 사슬 끊김)은 읽기 전용 답글로 목록에 남긴다.
+            void Skip() { if (ReadOnlyAnnotationInfo.From(o, ReadOnlyReason.Reply) is { } ro) readOnly.Add(ro); }
+            if (!Attachable(o.Index, [])) { Skip(); continue; }
             var data = o.Data;
             if (o.GroupParentIndex is int pi)
             {
-                if (!idByPdfIndex.TryGetValue(pi, out var parentId)) continue;
+                if (!idByPdfIndex.TryGetValue(pi, out var parentId)) { Skip(); continue; }
                 data = data with { InReplyTo = parentId, ReplyKind = ReplyType.Group };
             }
             else if (o.ReplyParentIndex is int ri)
             {
-                if (!idByPdfIndex.TryGetValue(ri, out var parentId)) continue;
+                if (!idByPdfIndex.TryGetValue(ri, out var parentId)) { Skip(); continue; }
                 data = data with { InReplyTo = parentId, ReplyKind = ReplyType.Reply };
             }
             st.Entries.Add(new AnnotEntry
@@ -106,6 +115,7 @@ public sealed class AnnotationStore
                 IsOriginal = true,
             });
         }
+        st.ReadOnly = readOnly.ToImmutable();
         st.Dirty = true;
     }
 
@@ -215,8 +225,8 @@ public sealed class AnnotationStore
             var items = ImmutableArray.CreateBuilder<AnnotationView>(st.Entries.Count);
             foreach (var e in st.Entries)
                 if (!e.Deleted) items.Add(new AnnotationView(e.Current, !e.IsOriginal || e.Owned));
-            ImmutableInterlocked.AddOrUpdate(ref _snapshot, id,
-                new PageAnnotations(id, items.ToImmutable()), (_, _) => new PageAnnotations(id, items.ToImmutable()));
+            var pageSnapshot = new PageAnnotations(id, items.ToImmutable()) { ReadOnly = st.ReadOnly };
+            ImmutableInterlocked.AddOrUpdate(ref _snapshot, id, pageSnapshot, (_, _) => pageSnapshot);
             (changed ??= []).Add(id);
         }
         if (changed is not null) Changed?.Invoke(new AnnotationsChangedEventArgs(changed));

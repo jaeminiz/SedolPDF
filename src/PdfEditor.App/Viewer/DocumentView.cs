@@ -467,8 +467,8 @@ public sealed partial class DocumentView : Control
             if (on) { s.PropertyChanged += OnSearchPropertyChanged; s.Results.CollectionChanged += OnSearchResultsChanged; }
             else { s.PropertyChanged -= OnSearchPropertyChanged; s.Results.CollectionChanged -= OnSearchResultsChanged; }
         }
-        if (on) { st.Tab.TextSelection.Changed += OnSelectionChanged; st.Tab.Selection.Changed += OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested += SetAnnotationPreview; }
-        else { st.Tab.TextSelection.Changed -= OnSelectionChanged; st.Tab.Selection.Changed -= OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested -= SetAnnotationPreview; }
+        if (on) { st.Tab.TextSelection.Changed += OnSelectionChanged; st.Tab.Selection.Changed += OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested += SetAnnotationPreview; st.Tab.RevealRequested += OnRevealRequested; }
+        else { st.Tab.TextSelection.Changed -= OnSelectionChanged; st.Tab.Selection.Changed -= OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested -= SetAnnotationPreview; st.Tab.RevealRequested -= OnRevealRequested; }
         if (on) { st.HitsByPage = null; RefreshSelection(st); }
     }
 
@@ -488,6 +488,13 @@ public sealed partial class DocumentView : Control
     }
 
     private void OnAnnotSelectionChanged() => InvalidateVisual();
+
+    // 코멘트 목록에서 주석을 눌렀을 때: 그 사각형을 검색 결과처럼 화면 안으로 스크롤한다 (쪽 정보가 아직 없으면 도착한 뒤 다시).
+    private void OnRevealRequested(PageId page, Pdf.Native.PdfRectF r)
+    {
+        _revealPending = new SearchHit(page, 0, 0, 0, "", [new System.Drawing.RectangleF(r.Left, r.Bottom, r.Right - r.Left, r.Top - r.Bottom)]);
+        TryReveal();
+    }
 
     private void OnSelectionChanged()
     {

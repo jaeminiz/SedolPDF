@@ -310,6 +310,12 @@ public static class Strings
     public static string AnnotKind_Caret => Get(nameof(AnnotKind_Caret));
     public static string AnnotKind_Stamp => Get(nameof(AnnotKind_Stamp));
     public static string AnnotKind_FileAttachment => Get(nameof(AnnotKind_FileAttachment));
+    public static string AnnotKind_Reply => Get(nameof(AnnotKind_Reply));
+    public static string AnnotKind_ReplaceText => Get(nameof(AnnotKind_ReplaceText));
+    public static string AnnotKind_Link => Get(nameof(AnnotKind_Link));
+    public static string AnnotKind_Widget => Get(nameof(AnnotKind_Widget));
+    public static string AnnotKind_Squiggly => Get(nameof(AnnotKind_Squiggly));
+    public static string AnnotKind_Other => Get(nameof(AnnotKind_Other));
     public static string FreeText_Hint => Get(nameof(FreeText_Hint));
     public static string Prop_Annot_LineStart => Get(nameof(Prop_Annot_LineStart));
     public static string Prop_Annot_LineEnd => Get(nameof(Prop_Annot_LineEnd));

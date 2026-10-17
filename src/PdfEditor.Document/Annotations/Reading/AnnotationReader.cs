@@ -134,7 +134,7 @@ public static class AnnotationReader
         {
             if (list[k].GroupParentIndex is not int p) continue;
             if (p < 0 || p >= list.Count || list[p].Data is not { Kind: AnnotKind.StrikeOut })
-                list[k] = new OriginalAnnotation(list[k].Index, list[k].Subtype, null, ReadOnlyReason.Reply);
+                list[k] = new OriginalAnnotation(list[k].Index, list[k].Subtype, null, ReadOnlyReason.Reply, Info: ReadOnlyAnnotationInfo.From(list[k], ReadOnlyReason.Reply));
         }
         // 답글·검토 상태: 부모 사슬이 끝까지 편집 가능한 항목이어야 한다(부모가 읽기 전용이거나 사슬이 순환하면 읽기 전용 답글).
         var broken = new List<int>();
@@ -152,7 +152,7 @@ public static class AnnotationReader
             if (!ok) broken.Add(k);
         }
         foreach (int k in broken)
-            list[k] = new OriginalAnnotation(list[k].Index, list[k].Subtype, null, ReadOnlyReason.Reply);
+            list[k] = new OriginalAnnotation(list[k].Index, list[k].Subtype, null, ReadOnlyReason.Reply, Info: ReadOnlyAnnotationInfo.From(list[k], ReadOnlyReason.Reply));
         return list;
     }
 
@@ -160,12 +160,14 @@ public static class AnnotationReader
     {
         int subtype = 0;
         int? groupParent = null;   // 읽기에 실패한 묶음 Caret도 부모 번호를 간직한다 (암호 문서에서 부모를 숨기기 위해)
+        PdfDictionary.DictionaryElements? el = null;
         try
         {
             if (Resolve(item) is not PdfDictionary dict)
                 return new OriginalAnnotation(index, 0, null, ReadOnlyReason.Malformed);
 
             var e = dict.Elements;
+            el = e;
             string? name = e.GetName("/Subtype");
             if (name is not null && SubtypeByName.TryGetValue(name, out int st)) subtype = st;
             var kind = AnnotKindExtensions.FromPdfSubtype(subtype);
@@ -285,7 +287,22 @@ public static class AnnotationReader
             return new OriginalAnnotation(index, subtype, null, ReadOnlyReason.Malformed);
         }
 
-        OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r, groupParent);
+        OriginalAnnotation Fail(ReadOnlyReason r) => new(index, subtype, null, r, groupParent, Info: InfoOf(index, subtype, r, el));
+    }
+
+    /// <summary>읽기 전용 원본의 목록용 정보(작성자·내용·시각·위치). Popup과 읽을 수 없는 딕셔너리는 null. 값이 망가졌으면 빈 값으로 둔다.</summary>
+    private static ReadOnlyAnnotationInfo? InfoOf(int index, int subtype, ReadOnlyReason reason, PdfDictionary.DictionaryElements? e)
+    {
+        if (e is null || subtype == PdfAnnotSubtype.Popup) return null;
+        try
+        {
+            var rect = ReadRect(e.GetArray("/Rect")) ?? default;
+            return new ReadOnlyAnnotationInfo(index, subtype, rect, Str(e, "/T"), Str(e, "/Contents"), Date(Str(e, "/M")) ?? Date(Str(e, "/CreationDate")), reason);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new ReadOnlyAnnotationInfo(index, subtype, default, null, null, null, reason);
+        }
     }
 
     /// <summary>/Annots에서 target이 가리키는 딕셔너리의 번호. 없으면 null.</summary>

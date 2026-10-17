@@ -20,10 +20,10 @@ public abstract class PanelTestBase : IAsyncLifetime
         try { Directory.Delete(Dir, true); } catch { }
     }
 
-    protected async Task<DocumentTabViewModel> OpenTab(string path, string? password = null)
+    protected async Task<DocumentTabViewModel> OpenTab(string path, string? password = null, Action<Action>? post = null)
     {
         var s = await DocumentSession.OpenAsync(Thread, path, password);
         _sessions.Add(s);
-        return new DocumentTabViewModel(s, s.DisplayName, null);
+        return new DocumentTabViewModel(s, s.DisplayName, post);
     }
 }

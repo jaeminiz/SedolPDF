@@ -262,7 +262,7 @@ public sealed class DocumentSession : IAsyncDisposable
         int count = page.AnnotationCount;
         var verified = new List<OriginalAnnotation>(originals.Count);
         foreach (var o in originals)
-            verified.Add(o.Data is null || Matches(page, count, o) ? o : o with { Data = null, Reason = ReadOnlyReason.Malformed });
+            verified.Add(o.Data is null || Matches(page, count, o) ? o : o with { Data = null, Reason = ReadOnlyReason.Malformed, Info = ReadOnlyAnnotationInfo.From(o, ReadOnlyReason.Malformed) });
         if (!SavePolicy.CanPatch(this)) MakePatchDependentReadOnly(verified);
         Annotations.AttachOriginals(id, verified);
     }
@@ -279,7 +279,7 @@ public sealed class DocumentSession : IAsyncDisposable
             var o = list[i];
             if (o.Data is not { } d) continue;
             if (d.Kind.IsPatchKind() || d.CloudIntensity > 0f || parents.Contains(o.Index) || o.ReplyParentIndex is not null)
-                list[i] = o with { Data = null, Reason = ReadOnlyReason.OriginalAppearanceOnly };
+                list[i] = o with { Data = null, Reason = ReadOnlyReason.OriginalAppearanceOnly, Info = ReadOnlyAnnotationInfo.From(o, ReadOnlyReason.OriginalAppearanceOnly) };
         }
     }
 
