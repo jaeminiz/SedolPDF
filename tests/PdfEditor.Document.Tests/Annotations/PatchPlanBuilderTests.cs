@@ -208,6 +208,50 @@ public class PatchPlanBuilderTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteOriginal_AddNew_SaveDeleteNewUndoUndoSave_PdfIndexShiftConsistent()
+    {
+        await using var s = await OpenMixed();
+        var page = s.Pages[0].Id;
+        var before = ReadRaw(P("mixed.pdf"));
+        int sqIndex = before.FindIndex(a => a.Subtype == "Square");
+        var sq = s.Annotations.Get(page).Items.Select(i => i.Data).First(a => a.Kind == AnnotKind.Square);
+        var added = new Annotation
+        {
+            Id = s.Annotations.NewId(), Kind = AnnotKind.Square, Rect = new PdfRectF(300, 300, 380, 360),
+            Color = new PdfColor(0, 120, 255), BorderWidth = 2, Flags = PdfAnnotFlags.Print, Name = Guid.NewGuid().ToString("D"),
+        };
+
+        await Exec(s, page, sq, null);        // 원본 삭제 (PDFium 문서에는 남고 저장 때만 지워진다)
+        await Exec(s, page, null, added);     // 새 주석 (PDFium 문서 끝에 생긴다)
+        await Svc().SaveAsync(s, P("s1.pdf"));
+        var s1 = ReadRaw(P("s1.pdf"));
+        Assert.Equal(before.Count, s1.Count);   // 하나 지우고 하나 더함
+        Assert.Equal(before.Count(a => a.Subtype == "Square"), s1.Count(a => a.Subtype == "Square"));
+
+        await Exec(s, page, added, null);     // 새 것 삭제
+        await s.Commands.UndoAsync();         // 삭제 취소
+        await s.Commands.UndoAsync();         // 추가 취소
+        await Svc().SaveAsync(s, P("s2.pdf"));
+        var s2 = ReadRaw(P("s2.pdf"));
+
+        var expected = before.Where((_, i) => i != sqIndex).ToList();
+        Assert.Equal(expected.Count, s2.Count);
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.Equal(expected[i].Subtype, s2[i].Subtype);
+            Assert.Equal(expected[i].Keys, s2[i].Keys);
+            Assert.Equal(expected[i].XKeep, s2[i].XKeep);
+            Assert.Equal(expected[i].HasPopup, s2[i].HasPopup);
+            Assert.Equal(expected[i].HasIrt, s2[i].HasIrt);
+        }
+
+        // 마지막으로 원본 삭제도 취소하면 처음과 똑같다
+        await s.Commands.UndoAsync();
+        await Svc().SaveAsync(s, P("s3.pdf"));
+        Assert.Equal(before.Select(b => b.Keys), ReadRaw(P("s3.pdf")).Select(a => a.Keys));
+    }
+
+    [Fact]
     public async Task DeleteOriginal_Encrypted_FallsBackToPdfiumRemoval()
     {
         var p = P("enc.pdf");

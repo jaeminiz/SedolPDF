@@ -52,23 +52,23 @@ public class ScreenMatchesPdfTextTests : IDisposable
 
     private static readonly string Sample = "Hello 가나다 World\nTest 한글 AVAT";
 
-    private static AppearanceDrawing Build(AppFont font, float dxScreen = 0)
+    private static AppearanceDrawing Build(AppFont font, float dxScreen = 0, float dyScreen = 0)
     {
         AppearanceGeometry.TextFont = font;
         var laid = TextLayout.Layout(font, Sample, 16f, 170f, TextAlign.Left, new PdfPointF(12, 105));
         Assert.Empty(laid.MissingCodepoints);
-        var glyphs = laid.Lines.SelectMany(l => l).Select(g => g with { Origin = new PdfPointF(g.Origin.X + dxScreen, g.Origin.Y) }).ToImmutableArray();
+        var glyphs = laid.Lines.SelectMany(l => l).Select(g => g with { Origin = new PdfPointF(g.Origin.X + dxScreen, g.Origin.Y + dyScreen) }).ToImmutableArray();
         return new AppearanceDrawing([], 1f, laid.Bounds) { Texts = [new TextRunOp("F1", 16f, new PdfColor(20, 20, 20), glyphs)] };
     }
 
-    private async Task<(double Ratio, byte[] Pdfium, byte[] Screen, int W, int H)> CompareAsync(float screenShiftPt)
+    private async Task<(double Ratio, byte[] Pdfium, byte[] Screen, int W, int H)> CompareAsync(float screenShiftPt, float screenShiftYPt = 0)
     {
         const float W = 200, H = 120;
         using var font = AppFont.Load(FontPath());
         var pdfDrawing = Build(font);
-        var screenDrawing = Build(font, screenShiftPt);
+        var screenDrawing = Build(font, screenShiftPt, screenShiftYPt);
 
-        var path = Path.Combine(_dir, "text" + screenShiftPt + ".pdf");
+        var path = Path.Combine(_dir, "text" + screenShiftPt + "_" + screenShiftYPt + ".pdf");
         using (var doc = new PdfDoc())
         {
             var page = doc.AddPage();
@@ -134,6 +134,14 @@ public class ScreenMatchesPdfTextTests : IDisposable
     }
 
     [Fact]
+    public async Task TextRun_OnePointVerticalShift_IsDetected()
+    {
+        var (aligned, _, _, _, _) = await CompareAsync(0);
+        var (shifted, _, _, _, _) = await CompareAsync(0, 1f);
+        Assert.True(shifted > MaxInkMismatch, $"1pt vertical shift not detected: shifted {shifted:P2}, aligned {aligned:P2}, allowed {MaxInkMismatch:P1}");
+    }
+
+    [Fact]
     public void TextRun_WithoutTextFont_Throws()
     {
         using var font = AppFont.Load(FontPath());
@@ -166,6 +174,48 @@ public class ScreenMatchesPdfTextTests : IDisposable
         var a = new Annotation { Kind = AnnotKind.Square, Rect = new PdfRectF(0, 0, 20, 20), Color = new PdfColor(255, 0, 0), BorderWidth = 1 };
         var (c1, c2) = HeadlessUi.Run(() => (AppearanceGeometry.Get(a, 0), AppearanceGeometry.Get(a, 0)));
         Assert.True(c1.Complete);
+        Assert.Same(c1, c2);
+    }
+
+    [Fact]
+    public void Get_IncompleteImageResult_NotCached_UntilResolverProvidesBitmap()
+    {
+        var a = new Annotation
+        {
+            Kind = AnnotKind.Stamp, Rect = new PdfRectF(0, 0, 40, 20), Stamp = new StampSpec(StampKind.Image, "", null, "img-1"),
+        };
+        try
+        {
+            AppearanceGeometry.ImageResolver = _ => null;
+            var (c1, c2) = HeadlessUi.Run(() => (AppearanceGeometry.Get(a, 0), AppearanceGeometry.Get(a, 0)));
+            Assert.False(c1.Complete);
+            Assert.NotSame(c1, c2);   // 그림이 아직 없으면 캐시하지 않는다
+
+            var bmp = HeadlessUi.Run(() => new Avalonia.Media.Imaging.WriteableBitmap(
+                new Avalonia.PixelSize(2, 2), new Avalonia.Vector(96, 96), Avalonia.Platform.PixelFormat.Bgra8888, Avalonia.Platform.AlphaFormat.Premul));
+            AppearanceGeometry.ImageResolver = _ => bmp;
+            var (d1, d2) = HeadlessUi.Run(() => (AppearanceGeometry.Get(a, 0), AppearanceGeometry.Get(a, 0)));
+            Assert.True(d1.Complete);
+            Assert.Same(d1, d2);
+        }
+        finally { AppearanceGeometry.ImageResolver = null; }
+    }
+
+    [Fact]
+    public void Get_TextFontSetLater_IsPickedUp_NothingStaleCached()
+    {
+        var a = new Annotation
+        {
+            Kind = AnnotKind.FreeText, Intent = FreeTextIntent.TextBox, Rect = new PdfRectF(0, 0, 120, 40), Contents = "Hello 가나다",
+            FontSizePt = 12f, BorderWidth = 1f,
+        };
+        AppearanceGeometry.TextFont = null;
+        HeadlessUi.Run(() => Assert.Throws<InvalidOperationException>(() => AppearanceGeometry.Get(a, 0)));
+
+        using var font = AppFont.Load(FontPath());
+        AppearanceGeometry.TextFont = font;
+        var (c1, c2) = HeadlessUi.Run(() => (AppearanceGeometry.Get(a, 0), AppearanceGeometry.Get(a, 0)));
+        Assert.NotEmpty(c1.Texts);
         Assert.Same(c1, c2);
     }
 

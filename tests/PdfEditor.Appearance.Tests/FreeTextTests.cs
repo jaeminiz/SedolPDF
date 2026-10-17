@@ -303,6 +303,96 @@ public class FreeTextTests : IDisposable
     }
 
     [Fact]
+    public void OriginalFreeTextCallout_LeArrayOrName_BothRead()
+    {
+        foreach (var le in new PdfItem[] { new PdfName("/OpenArrow"), null! })
+        {
+            string pdf = MakeOtherAppFreeText("0 g /Helv 12 Tf", q: 0, extra: d =>
+            {
+                d.Elements["/IT"] = new PdfName("/FreeTextCallout");
+                d.Elements["/CL"] = Rect(d.Owner, 10, 10, 40, 60);
+                d.Elements["/RD"] = Rect(d.Owner, 0, 0, 0, 0);
+                d.Elements["/LE"] = le ?? new PdfArray(d.Owner, new PdfName("/OpenArrow"), new PdfName("/None"));
+            });
+            var o = Assert.Single(ReadBack(pdf));
+            Assert.Equal(ReadOnlyReason.None, o.Reason);
+            Assert.Equal(FreeTextIntent.Callout, o.Data!.Intent);
+            Assert.Equal(LineEnding.OpenArrow, o.Data.EndEnding);
+        }
+    }
+
+    [Fact]
+    public async Task OriginalFreeText_Touched_StaleCaRemoved()
+    {
+        string pdf = MakeOtherAppFreeText("0 g /Helv 12 Tf", q: 0, extra: d => d.Elements["/CA"] = new PdfReal(0.4));
+        await using var s = await DocumentSession.OpenAsync(_t, pdf, null);
+        await s.AnnotationsReady;
+        var id = s.Pages[0].Id;
+        var before = Assert.Single(s.Annotations.Get(id).Items).Data;
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Replace(id, [(before, before with { Contents = "touched" })]));
+        string target = Path.Combine(_dir, "ca.pdf");
+        await Svc().SaveAsync(s, target);
+        using var doc = PdfReader.Open(target, PdfDocumentOpenMode.Import);
+        Assert.False(AnnotDict(doc, 0).Elements.ContainsKey("/CA"));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task Callout_WithUnsupportedVertexCount_FallsBackToTextBox(int count)
+    {
+        await using var s = await OpenBlankAsync();
+        var box = new PdfRectF(90, 120, 190, 180);
+        var a = Box(s, box, "leader", x => x with
+        {
+            Intent = FreeTextIntent.Callout, TextBox = box,
+            Vertices = [.. Enumerable.Range(0, count).Select(i => new PdfPointF(10 + i * 15, 20 + i * 20))],
+        });
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, a));
+        string target = Path.Combine(_dir, $"co{count}.pdf");
+        await Svc().SaveAsync(s, target);
+        using (var doc = PdfReader.Open(target, PdfDocumentOpenMode.Import))
+        {
+            var d = AnnotDict(doc, 0);
+            Assert.False(d.Elements.ContainsKey("/IT"));
+            Assert.False(d.Elements.ContainsKey("/CL"));
+        }
+        var r = Assert.Single(ReadBack(target));
+        Assert.Equal(ReadOnlyReason.None, r.Reason);
+        Assert.Equal(FreeTextIntent.TextBox, r.Data!.Intent);
+    }
+
+    [Fact]
+    public async Task FreeText_DeleteNewAfterSave_ThenSaveAgain_Gone()
+    {
+        await using var s = await OpenBlankAsync();
+        var a = Box(s, new PdfRectF(20, 100, 120, 150), "first");
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, a));
+        string t1 = Path.Combine(_dir, "d1.pdf"), t2 = Path.Combine(_dir, "d2.pdf");
+        await Svc().SaveAsync(s, t1);
+        Assert.Single(ReadBack(t1));
+
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Delete(s.Pages[0].Id, [a]));
+        await Svc().SaveAsync(s, t2);
+        Assert.Empty(ReadBack(t2));
+        using var doc = PdfReader.Open(t2, PdfDocumentOpenMode.Import);
+        Assert.True(!doc.Pages[0].Elements.ContainsKey("/Annots") || Deref<PdfArray>(doc.Pages[0].Elements["/Annots"]).Elements.Count == 0);
+    }
+
+    [Fact]
+    public async Task FreeText_UndoOfAdd_ThenSave_NoAnnotation()
+    {
+        await using var s = await OpenBlankAsync();
+        var a = Box(s, new PdfRectF(20, 100, 120, 150), "undo me");
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, a));
+        await s.Commands.UndoAsync();
+        string target = Path.Combine(_dir, "u.pdf");
+        await Svc().SaveAsync(s, target);
+        Assert.Empty(ReadBack(target));
+    }
+
+    [Fact]
     public void Paint_FreeTextWithoutContext_ThrowsInvalidOperation()
     {
         var a = new Annotation { Kind = AnnotKind.FreeText, Rect = new PdfRectF(0, 0, 50, 50), Contents = "x" };

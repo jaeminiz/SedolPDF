@@ -321,6 +321,19 @@ public class AnnotationPainterTests
         Assert.True(op2.Path.OfType<CubicTo>().Count() < op.Path.OfType<CubicTo>().Count());
     }
 
+    [Fact]
+    public void Cloud_Polygon_EdgeOf3Point4Diameters_RoundsArcCountUp()
+    {
+        // d = 10: a 34 pt edge is 3.4 diameters; ceil gives 4 semicircles (each at most d wide), round would give 3
+        var a = new Annotation
+        {
+            Kind = AnnotKind.Polygon, Color = Red, BorderWidth = 1, CloudIntensity = 1,
+            Vertices = [P(0, 0), P(34, 0), P(34, 10), P(0, 10)], Rect = new PdfRectF(0, 0, 1, 1),
+        };
+        var cubics = Assert.Single(AnnotationPainter.Paint(a, 0).Ops).Path.OfType<CubicTo>().Count();
+        Assert.Equal((4 + 1 + 4 + 1) * 2, cubics);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

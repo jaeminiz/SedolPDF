@@ -239,6 +239,44 @@ public class PatchKindsRoundTripTests : IDisposable
         Assert.Equal(2f, r.Data.BorderWidth);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task OriginalSquare_BeWithNonPositiveIntensity_Touched_BeAndRdRemoved(int intensity)
+    {
+        string src = P($"be{intensity}.pdf");
+        TestPdfFactory.CreateBlank(src, 1, 200, 200);
+        using (var doc = PdfReader.Open(src, PdfDocumentOpenMode.Modify))
+        {
+            var d = new PdfDictionary(doc);
+            d.Elements["/Type"] = new PdfName("/Annot");
+            d.Elements["/Subtype"] = new PdfName("/Square");
+            d.Elements["/Rect"] = new PdfArray(doc, new PdfReal(30), new PdfReal(50), new PdfReal(170), new PdfReal(150));
+            d.Elements["/C"] = new PdfArray(doc, new PdfReal(1), new PdfReal(0), new PdfReal(0));
+            d.Elements["/F"] = new PdfInteger(4);
+            d.Elements["/NM"] = new PdfString("sq-be");
+            var be = new PdfDictionary(doc);
+            be.Elements["/S"] = new PdfName("/C");
+            be.Elements["/I"] = new PdfInteger(intensity);
+            d.Elements["/BE"] = be;
+            doc.Internals.AddObject(d);
+            doc.Pages[0].Elements["/Annots"] = new PdfArray(doc, d.Reference!);
+            doc.Save(src);
+        }
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await s.AnnotationsReady;
+        var before = Assert.Single(s.Annotations.Get(s.Pages[0].Id).Items).Data;
+        Assert.Equal(0f, before.CloudIntensity);
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Replace(s.Pages[0].Id, [(before, before with { Color = Blue })]));
+        string target = P($"be{intensity}-out.pdf");
+        await Svc().SaveAsync(s, target);
+
+        using var back = PdfReader.Open(target, PdfDocumentOpenMode.Import);
+        var saved = AnnotDict(back, 0);
+        Assert.False(saved.Elements.ContainsKey("/BE"));
+        Assert.False(saved.Elements.ContainsKey("/RD"));
+    }
+
     [Fact]
     public async Task CloudPolygon_SaveReopen()
     {
