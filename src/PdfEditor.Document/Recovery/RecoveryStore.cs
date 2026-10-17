@@ -63,8 +63,8 @@ public sealed class RecoveryStore(
     public async Task WriteAsync(DocumentSession s)
     {
         Directory.CreateDirectory(folder);
-        string pdf = PdfPath(s.Id), pdfTmp = pdf + ".tmp";
-        string json = JsonPath(s.Id), jsonTmp = json + ".tmp";
+        string pdf = PdfPath(s.Id), pdfTmp = pdf + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        string json = JsonPath(s.Id), jsonTmp = json + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             // 복사본은 PDFium 전용 스레드에서 쓴다. 세션 상태는 바꾸지 않는다(더티 유지).

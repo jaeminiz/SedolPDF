@@ -40,9 +40,12 @@ SedolPDF — 박재민, 박세현 (Copyright (c) 2026 박재민, 박세현)
 - 용도: 기본 한글 폰트 (`assets/fonts/NotoSansKR-Regular.otf`, 라이선스 원문 `assets/fonts/OFL.txt`). 앱에 포함해 배포 가능(기업 사용 무료), 폰트 파일 단독 판매만 금지
 - 라이선스: SIL Open Font License 1.1 (OFL-1.1)
 - 출처: https://github.com/notofonts/noto-cjk (Sans/SubsetOTF/KR)
+- 저작권 표시(글꼴 파일 안의 저작권 문구): Copyright 2014-2021 Adobe (http://www.adobe.com/). Noto is a trademark of Google Inc. — OFL은 사본마다 저작권 표시와 라이선스 원문을 함께 두라고 하므로 이 문구와 `assets/fonts/OFL.txt`를 패키지에 동봉한다(`build/package.ps1`이 필수 파일로 검사).
+- 확인 결과(2026-10-17, M3a Task 4): 글꼴 파일에 Reserved Font Name 선언이 없고, 포함 허용 값(`OS/2 fsType`)이 0(제한 없는 포함)이다. 글꼴 서브셋을 PDF 문서 안에 넣는 것은 OFL이 허용하는 "문서 포함"이며, 서브셋 글꼴 이름은 `XXXXXX+NotoSansKR-Regular`로 쓴다. 글꼴 파일 단독 판매만 금지.
 
 ## HarfBuzzSharp / PDFsharp
-- HarfBuzzSharp: MIT (spikes 단계에서만 사용), PDFsharp 6.2.4: MIT
+- HarfBuzzSharp 8.3.1.3 + HarfBuzzSharp.NativeAssets.Win32 8.3.1.3: MIT (래퍼) / HarfBuzz 본체는 Old MIT (원문은 위 표의 `licenses/pdfium/harfbuzz.txt`와 같은 라이선스). 앱은 글자 배치(셰이핑)·글꼴 서브셋(`hb_subset_*`)·글리프 윤곽선(`hb_font_draw_glyph`)에 쓰고, 서브셋·윤곽선은 네이티브 `libHarfBuzzSharp.dll`을 직접 호출한다.
+- PDFsharp 6.2.4: MIT
 - PDFsharp은 앱에서 레이어 목록 읽기(`PdfEditor.Document/Layers/LayerReader.cs`)에 쓴다. 6.5.0 이후는 AGPL이라 6.2.x에 고정.
 - System.Security.Cryptography.Pkcs 10.0.13: MIT (PDFsharp이 끌어오는 8.0.1에 알려진 취약점이 있어 직접 지정)
 

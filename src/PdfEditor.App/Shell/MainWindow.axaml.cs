@@ -46,8 +46,9 @@ public sealed partial class MainWindow : Window
 
         var prompts = new AvaloniaPrompts(this);
         var appearance = new PdfEditor.Appearance.PdfAppearanceSource();
-        // 글꼴 바이트 공급자는 Task 4(한글 글꼴)에서 채운다.
-        var patcher = new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => []);
+        // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 둔다. 없으면 글꼴이 필요한 패치에서 예외.
+        var patcher = new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(
+            PdfEditor.Appearance.Fonts.AppFontFile.CachedProvider(AppContext.BaseDirectory));
         var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
         _settings = new SettingsStore(paths.SettingsPath);
         PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;

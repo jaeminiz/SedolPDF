@@ -77,6 +77,22 @@ public class RecoveryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Write_OldStyleTmpLockedByOthers_StillSucceeds_NoTempLeft()
+    {
+        // 임시 파일 이름이 쓸 때마다 달라야 한다: 예전 이름(<id>.pdf.tmp)을 다른 쪽이 잡고 있어도 쓰기가 된다.
+        await using var s = await OpenDirty("lock.pdf");
+        var store = Store();
+        Directory.CreateDirectory(P("recovery"));
+        string oldStyle = Path.Combine(P("recovery"), s.Id.ToString("N") + ".pdf.tmp");
+        await using (var held = new FileStream(oldStyle, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+        {
+            await store.WriteAsync(s);
+            Assert.Single(store.List());
+        }
+        Assert.DoesNotContain(Directory.GetFiles(P("recovery"), "*.tmp"), f => !f.EndsWith(".pdf.tmp"));
+    }
+
+    [Fact]
     public async Task Write_List_Delete_RoundTrip()
     {
         await using var s = await OpenDirty("a.pdf");

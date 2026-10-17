@@ -1,4 +1,5 @@
 using System.Text;
+using PdfEditor.Appearance.Fonts;
 using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Annotations.Patching;
 using PdfSharp.Pdf;
@@ -11,10 +12,30 @@ namespace PdfEditor.Appearance.Patching;
 /// 패치 계획을 SaveCopy로 만든 임시 파일에 적용한다(PDFsharp 6.2.x, Modify 모드).
 /// 파일만 읽고 쓰며 편집 중인 PDFium 문서는 건드리지 않는다. 계획은 상태가 없으므로 같은 입력에서 항상 같은 결과가 나온다.
 /// </summary>
-public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher
+public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher, IDisposable
 {
-    // 글꼴 바이트 공급자: Task 4(AddApFont)에서 쓴다.
+    // 글꼴 바이트 공급자. AddApFont가 처음 나올 때 한 번 AppFont로 올려 두고 계속 쓴다(셰이핑은 AppFont 안에서 직렬화됨).
     private readonly Func<byte[]> _fontData = fontData;
+    private readonly object _fontLock = new();
+    private AppFont? _font;
+
+    /// <summary>글꼴이 필요한데 공급자가 비어 있는 바이트를 주면 InvalidOperationException.</summary>
+    private AppFont GetFont()
+    {
+        lock (_fontLock)
+        {
+            if (_font is not null) return _font;
+            byte[]? data = _fontData();
+            if (data is null || data.Length == 0)
+                throw new InvalidOperationException("Annotation needs the Noto Sans KR font, but the font file is missing or empty (assets/fonts/NotoSansKR-Regular.otf).");
+            return _font = AppFont.FromBytes(data);
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_fontLock) { _font?.Dispose(); _font = null; }
+    }
 
     public void Apply(string pdfPath, string? password, PatchPlan plan, AnnotationAssets assets)
     {
@@ -153,7 +174,9 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                 case SetInReplyTo o:
                     pending.Add((annot, o.ParentNm, o.ReplyType, page));
                     break;
-                case AddApFont:
+                case AddApFont o:
+                    AddApFontResource(doc, annot, o);
+                    break;
                 case AddApImage:
                 case EmbedFile:
                     throw new NotSupportedException($"{op.GetType().Name} is not implemented yet (later M3a task).");
@@ -185,6 +208,28 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         var ap = new PdfDictionary(doc);
         ap.Elements["/N"] = form.Reference!;
         annot.Elements["/AP"] = ap;
+    }
+
+    /// <summary>AP 폼의 /Resources /Font /이름 에 글꼴(Type0 서브셋)을 넣는다. 이미 있는 자원(/ExtGState 등)과 다른 글꼴은 그대로 둔다.</summary>
+    private void AddApFontResource(PdfDocument doc, PdfDictionary annot, AddApFont op)
+    {
+        var form = Resolve(Resolve(annot.Elements["/AP"])?.Elements["/N"])
+            ?? throw new InvalidOperationException("AddApFont needs an annotation appearance stream (/AP /N).");
+        var fontRef = FontEmbedder.Embed(doc, GetFont(), op.Font);
+
+        var resources = Resolve(form.Elements["/Resources"]);
+        if (resources is null)
+        {
+            resources = new PdfDictionary(doc);
+            form.Elements["/Resources"] = resources;
+        }
+        var fonts = Resolve(resources.Elements["/Font"]);
+        if (fonts is null)
+        {
+            fonts = new PdfDictionary(doc);
+            resources.Elements["/Font"] = fonts;
+        }
+        fonts.Elements[op.ResourceName.StartsWith('/') ? op.ResourceName : "/" + op.ResourceName] = fontRef;
     }
 
     // ---- 도우미 ----
