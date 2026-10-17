@@ -3,6 +3,7 @@ using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Patching;
 
 namespace PdfEditor.App.Printing;
 
@@ -16,7 +17,7 @@ public interface IPrintService
 /// 인쇄 흐름: 옵션 대화상자 → Win32 인쇄 대화상자 → 진행 대화상자(취소 가능) → 완료.
 /// 화면·실제 프린터 동작은 자동 테스트가 없다(검증 필요: 수동 확인).
 /// </summary>
-public sealed class AvaloniaPrintService(Window owner, IUserPrompts prompts, IAppearanceSource appearance) : IPrintService
+public sealed class AvaloniaPrintService(Window owner, IUserPrompts prompts, IAppearanceSource appearance, IAnnotationPatcher patcher) : IPrintService
 {
     public async Task PrintAsync(DocumentSession session, int currentPageIndex)
     {
@@ -43,7 +44,7 @@ public sealed class AvaloniaPrintService(Window owner, IUserPrompts prompts, IAp
         try
         {
             // 작업이 끝날 때까지 UI 스레드는 HDC를 건드리지 않는다.
-            await PrintJob.RunAsync(session, chosen.Dc, chosen.PageIndices, options, progress, cts.Token, appearance);
+            await PrintJob.RunAsync(session, chosen.Dc, chosen.PageIndices, options, progress, cts.Token, appearance, patcher);
         }
         catch (OperationCanceledException) { canceled = true; }
         catch (Exception)

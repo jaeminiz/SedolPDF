@@ -261,6 +261,7 @@ public static class Strings
     public static string Group_Annotate => Get(nameof(Group_Annotate));
     public static string Msg_AnnotationsRestricted => Get(nameof(Msg_AnnotationsRestricted));
     public static string Msg_OriginalAnnotationsReadOnly => Get(nameof(Msg_OriginalAnnotationsReadOnly));
+    public static string Msg_PatchFeaturesUnavailableEncrypted => Get(nameof(Msg_PatchFeaturesUnavailableEncrypted));
     public static string Msg_ComingInM3 => Get(nameof(Msg_ComingInM3));
     public static string AnnotKind_Ink => Get(nameof(AnnotKind_Ink));
     public static string AnnotKind_Highlight => Get(nameof(AnnotKind_Highlight));

@@ -375,4 +375,26 @@ public class SaveServiceTests : IDisposable
             Assert.Equal(2, PopupCount(P(name)));   // 원래 Popup 1 + 새 Popup 1
         }
     }
+
+    [Fact]
+    public async Task EncryptedDoc_PatchSkipped_M2AnnotationsSaved_StillEncrypted()
+    {
+        var p = P("enc.pdf");
+        TestPdfFactory.CreateEncrypted(p, 1, 595, 842, "secret");
+        var outp = P("out.pdf");
+        await using (var s = await DocumentSession.OpenAsync(_t, p, "secret"))
+        {
+            await s.AnnotationsReady;
+            await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, NewSquare(s)));
+            s.PlanFactory = _ => LinePlusRemoveLink();   // 암호 문서에서는 적용되면 안 된다 (A2)
+            Assert.False(SavePolicy.CanPatch(s));
+            await new SaveService([], new PdfEditor.Appearance.PdfAppearanceSource(), new PdfSharpAnnotationPatcher(() => []))
+                .SaveAsync(s, outp);
+        }
+        await Assert.ThrowsAsync<PdfPasswordRequiredException>(() => DocumentSession.OpenAsync(_t, outp, null));
+        await using var again = await DocumentSession.OpenAsync(_t, outp, "secret");
+        Assert.True(again.IsEncrypted);
+        await again.AnnotationsReady;
+        Assert.Equal(1, await again.Thread.InvokeAsync(() => again.GetLoadedPage(again.Pages[0].Id).AnnotationCount));
+    }
 }

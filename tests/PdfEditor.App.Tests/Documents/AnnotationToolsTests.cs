@@ -53,6 +53,26 @@ public class AnnotationToolsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task EncryptedDoc_PatchFeaturesUnavailable_NoticeShown()
+    {
+        string p = Path.Combine(Path.GetTempPath(), "pdfeditor-enc-" + Guid.NewGuid().ToString("N") + ".pdf");
+        TestPdfFactory.CreateEncrypted(p, 1, 400, 600, "secret");
+        try
+        {
+            var s = await DocumentSession.OpenAsync(_t, p, "secret");
+            _sessions.Add(s);
+            var tab = new DocumentTabViewModel(s, "a.pdf", null);
+            await s.AnnotationsReady;
+            Assert.False(tab.CanUsePatchFeatures);
+            Assert.True(tab.CanAnnotate);
+            Assert.Equal(Strings.Msg_PatchFeaturesUnavailableEncrypted, tab.AnnotationNotice);
+            Assert.True(tab.HasAnnotationNotice);
+            tab.Detach();
+        }
+        finally { try { File.Delete(p); } catch { } }
+    }
+
+    [Fact]
     public async Task AllowedDoc_AnnotationToolsEnabled()
     {
         var tab = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));

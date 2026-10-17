@@ -2,7 +2,9 @@
 using PdfEditor.App.Printing;
 using PdfEditor.Appearance;
 using PdfEditor.Document;
+using PdfEditor.Appearance.Patching;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.TestFixtures;
 
 namespace PdfEditor.App.Tests.Printing;
@@ -64,7 +66,7 @@ public class PrintJobTests : IAsyncLifetime
         try
         {
             var reported = new List<int>();
-            await PrintJob.RunAsync(s, dc, [0, 2], new PrintOptions(), new SyncProgress(reported.Add), CancellationToken.None, new PdfAppearanceSource(), outFile);
+            await PrintJob.RunAsync(s, dc, [0, 2], new PrintOptions(), new SyncProgress(reported.Add), CancellationToken.None, new PdfAppearanceSource(), null, outFile);
             Assert.Equal([1, 2], reported);
         }
         finally { PrintInterop.DeleteDc(dc); }
@@ -85,7 +87,7 @@ public class PrintJobTests : IAsyncLifetime
         try
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                PrintJob.RunAsync(s, dc, [0, 1, 2], new PrintOptions(), new SyncProgress(n => { if (n == 1) cts.Cancel(); }), cts.Token, new PdfAppearanceSource(), outFile));
+                PrintJob.RunAsync(s, dc, [0, 1, 2], new PrintOptions(), new SyncProgress(n => { if (n == 1) cts.Cancel(); }), cts.Token, new PdfAppearanceSource(), null, outFile));
         }
         finally { PrintInterop.DeleteDc(dc); }
 
@@ -111,7 +113,7 @@ public class PrintJobTests : IAsyncLifetime
         foreach (var (file, annots) in new[] { (with, true), (without, false) })
         {
             IntPtr dc = CreatePdfPrinterDc();
-            try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(WithAnnotations: annots), null, CancellationToken.None, new PdfAppearanceSource(), file); }
+            try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(WithAnnotations: annots), null, CancellationToken.None, new PdfAppearanceSource(), null, file); }
             finally { PrintInterop.DeleteDc(dc); }
         }
 
@@ -153,10 +155,55 @@ public class PrintJobTests : IAsyncLifetime
         Assert.True(s.IsDirty);
 
         IntPtr dc = CreatePdfPrinterDc();
-        try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(), null, CancellationToken.None, new PdfAppearanceSource(), outFile); }
+        try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(), null, CancellationToken.None, new PdfAppearanceSource(), null, outFile); }
         finally { PrintInterop.DeleteDc(dc); }
 
         Assert.True(s.IsDirty);   // 인쇄는 저장이 아니다
         Assert.True(await HasRedAsync(outFile), "저장 안 한 빨강 Square가 인쇄 결과에 없음");
+    }
+
+    [Fact]
+    public async Task Print_UsesPatchedCopy_LineAppears()
+    {
+        string src = Path.Combine(_dir, "plain.pdf");
+        string outFile = Path.Combine(_dir, "printed-line.pdf");
+        TestPdfFactory.CreateBlank(src, 1, 595.28f, 841.89f);
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await s.AnnotationsReady;
+        // 편집 중인 문서에는 없는 Line을 패치 계획으로만 만든다 (Review Focus 5).
+        s.PlanFactory = _ => new PatchPlan([],
+            [new AnnotationCreate(0, "Line", "line-1", new PdfRectF(90, 490, 310, 710), 4,
+                [new SetNumbers("/L", [100f, 500f, 300f, 700f]),
+                 new SetAppearanceStream("1 0 0 RG 6 w 100 500 m 300 700 l S", new PdfRectF(90, 490, 310, 710))])],
+            []);
+
+        IntPtr dc = CreatePdfPrinterDc();
+        try { await PrintJob.RunAsync(s, dc, [0], new PrintOptions(), null, CancellationToken.None, new PdfAppearanceSource(), new PdfSharpAnnotationPatcher(() => []), outFile); }
+        finally { PrintInterop.DeleteDc(dc); }
+
+        Assert.True(await HasRedAsync(outFile), "패치 계획의 Line이 인쇄 결과에 없음");
+        Assert.Empty(Directory.GetFiles(Path.GetTempPath(), "~sedol-print-*.pdf"));
+    }
+
+    [Fact]
+    public async Task Print_PatchFails_NothingPrinted_TempCleaned()
+    {
+        string src = Path.Combine(_dir, "plain.pdf");
+        string outFile = Path.Combine(_dir, "printed-fail.pdf");
+        TestPdfFactory.CreateBlank(src, 1, 595.28f, 841.89f);
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await s.AnnotationsReady;
+        s.PlanFactory = _ => new PatchPlan([new AnnotationPatch(0, 99, "x", [new SetName("/Foo", "Bar")])], [], []);
+
+        IntPtr dc = CreatePdfPrinterDc();
+        try
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => PrintJob.RunAsync(s, dc, [0], new PrintOptions(), null, CancellationToken.None,
+                new PdfAppearanceSource(), new PdfSharpAnnotationPatcher(() => []), outFile));
+        }
+        finally { PrintInterop.DeleteDc(dc); }
+
+        Assert.False(File.Exists(outFile));
+        Assert.Empty(Directory.GetFiles(Path.GetTempPath(), "~sedol-print-*.pdf"));
     }
 }

@@ -1,6 +1,8 @@
 ﻿using System.Security.Cryptography;
 using Pdf.Native;
+using PdfEditor.Appearance.Patching;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.Document.Recovery;
 using PdfEditor.Document.Saving;
 using PdfEditor.Pages;
@@ -187,5 +189,60 @@ public class RecoveryStoreTests : IDisposable
         Assert.Equal(sq.Name, v.Data.Name);
         Assert.False(v.ModelDrawn);   // 복구본에서는 파일에 있던(원본) 주석으로 읽힌다
         Assert.Equal(1, await r.Thread.InvokeAsync(() => r.GetLoadedPage(r.Pages[0].Id).AnnotationCount));
+    }
+
+    private static PatchPlan PopupOnSquarePlan() => new(
+        [new AnnotationPatch(0, 1, "", [new EnsurePopup(new PdfRectF(300, 600, 480, 720), false)])],
+        [], []);
+
+    private static int PopupCount(string path)
+    {
+        using var d = PdfSharp.Pdf.IO.PdfReader.Open(path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var item = d.Pages[0].Elements["/Annots"];
+        var arr = (PdfSharp.Pdf.PdfArray)((item as PdfSharp.Pdf.Advanced.PdfReference)?.Value ?? item)!;
+        int n = 0;
+        foreach (var e in arr.Elements)
+        {
+            var dict = (PdfSharp.Pdf.PdfDictionary)((e as PdfSharp.Pdf.Advanced.PdfReference)?.Value ?? e);
+            if (dict.Elements.GetName("/Subtype") == "/Popup") n++;
+        }
+        return n;
+    }
+
+    // Task 8 이후 FreeText 계획으로 바꾼다 (지금은 EnsurePopup으로 패치된 사본인지 확인).
+    [Fact]
+    public async Task Recovery_PatchedCopy_FreeTextRestored()
+    {
+        string p = P("mixed.pdf");
+        AnnotatedPdfFactory.CreateMixed(p);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        s.PlanFactory = _ => PopupOnSquarePlan();
+        var store = new RecoveryStore(P("recovery"), null, new PdfSharpAnnotationPatcher(() => []));
+
+        await store.WriteAsync(s);
+
+        var e = Assert.Single(store.List());
+        Assert.Equal(2, PopupCount(e.RecoveryPdfPath));   // 원래 Popup 1 + 패치로 붙은 Popup 1
+        Assert.Empty(Directory.GetFiles(P("recovery"), "*.tmp"));
+    }
+
+    [Fact]
+    public async Task Recovery_PlanButNoPatcher_Throws_KeepsPreviousRecovery()
+    {
+        string p = P("mixed.pdf");
+        AnnotatedPdfFactory.CreateMixed(p);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        var store = new RecoveryStore(P("recovery"));
+        await store.WriteAsync(s);
+        string pdf = Assert.Single(store.List()).RecoveryPdfPath;
+        var before = File.ReadAllBytes(pdf);
+
+        s.PlanFactory = _ => PopupOnSquarePlan();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.WriteAsync(s));
+
+        Assert.Equal(before, File.ReadAllBytes(pdf));
+        Assert.Empty(Directory.GetFiles(P("recovery"), "*.tmp"));
     }
 }

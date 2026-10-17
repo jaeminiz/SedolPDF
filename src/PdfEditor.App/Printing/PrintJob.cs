@@ -1,6 +1,9 @@
 using System.Runtime.InteropServices;
 using PdfEditor.Document;
+using Pdf.Native;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Annotations.Patching;
+using PdfEditor.Document.Saving;
 
 namespace PdfEditor.App.Printing;
 
@@ -13,7 +16,8 @@ public sealed class PrintJob
 {
     /// <param name="outputFile">지정하면 프린터가 그 파일에 직접 쓴다(Microsoft Print to PDF 등, 테스트·검증용). 보통 null.</param>
     public static async Task RunAsync(DocumentSession s, IntPtr hdc, IReadOnlyList<int> pageIndices, PrintOptions o,
-        IProgress<int>? progress, CancellationToken ct, IAppearanceSource appearance, string? outputFile = null)
+        IProgress<int>? progress, CancellationToken ct, IAppearanceSource appearance, IAnnotationPatcher? patcher, string? outputFile = null,
+        AnnotationAssets? assets = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(appearance);
@@ -23,7 +27,44 @@ public sealed class PrintJob
 
         var t = s.Thread;
         // 저장 안 한 주석도 인쇄되도록 같은 전용 스레드에서 먼저 PDFium 문서에 반영한다. 실패하면 StartDoc 전에 중단.
-        await t.InvokeAsync(() => s.FlushAnnotations(appearance)).ConfigureAwait(false);
+        // 패치 계획이 비어 있지 않으면(선·텍스트 상자 등은 편집 중인 문서에 없음) 임시 사본을 만들어 패치하고, 그 사본으로 인쇄한다.
+        string? tmp = null;
+        PdfDocument? patched = null;
+        try
+        {
+            var plan = await t.InvokeAsync(() =>
+            {
+                var p = s.FlushIfNeeded(appearance);
+                if (!p.IsEmpty && SavePolicy.CanPatch(s))
+                {
+                    if (patcher is null)
+                        throw new InvalidOperationException("Annotation patch plan needs an IAnnotationPatcher.");
+                    tmp = Path.Combine(Path.GetTempPath(), "~sedol-print-" + Guid.NewGuid().ToString("N") + ".pdf");
+                    s.Document.SaveCopy(tmp);
+                }
+                return p;
+            }).ConfigureAwait(false);
+            if (tmp is not null)
+            {
+                string path = tmp;
+                string? pw = s.Password;
+                await Task.Run(() => patcher!.Apply(path, pw, plan, assets ?? AnnotationAssets.Empty), ct).ConfigureAwait(false);
+                patched = await t.InvokeAsync(() => PdfDocument.Open(t, path, pw)).ConfigureAwait(false);
+            }
+            ct.ThrowIfCancellationRequested();
+            await PrintPagesAsync(s, patched, hdc, pageIndices, o, progress, ct, outputFile).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (patched is not null) { var d = patched; try { await t.InvokeAsync(() => d.Dispose()).ConfigureAwait(false); } catch (Exception) { } }
+            if (tmp is not null) { try { File.Delete(tmp); } catch (Exception) { } }
+        }
+    }
+
+    private static async Task PrintPagesAsync(DocumentSession s, PdfDocument? patched, IntPtr hdc, IReadOnlyList<int> pageIndices,
+        PrintOptions o, IProgress<int>? progress, CancellationToken ct, string? outputFile)
+    {
+        var t = s.Thread;
         string docName = s.DisplayName;
         int job = await t.InvokeAsync(() => PrintInterop.StartDoc(hdc, docName, outputFile)).ConfigureAwait(false);
         if (job <= 0) throw new PrintException("StartDoc failed", Marshal.GetLastWin32Error());
@@ -35,7 +76,7 @@ public sealed class PrintJob
             {
                 ct.ThrowIfCancellationRequested();
                 int idx = index;
-                await t.InvokeAsync(() => PrintPage(s, hdc, idx, o)).ConfigureAwait(false);
+                await t.InvokeAsync(() => PrintPage(patched ?? s.Document, hdc, idx, o)).ConfigureAwait(false);
                 progress?.Report(++done);
             }
             ct.ThrowIfCancellationRequested();
@@ -49,11 +90,11 @@ public sealed class PrintJob
         }
     }
 
-    private static void PrintPage(DocumentSession s, IntPtr hdc, int index, PrintOptions o)
+    private static void PrintPage(PdfDocument doc, IntPtr hdc, int index, PrintOptions o)
     {
         if (!PrintInterop.StartPageOk(hdc))
             throw new PrintException("StartPage failed", Marshal.GetLastWin32Error());
-        using (var page = s.Document.LoadPage(index))
+        using (var page = doc.LoadPage(index))
         {
             var size = page.SizePt;
             int w = PrintInterop.Caps(hdc, PrintInterop.HORZRES), h = PrintInterop.Caps(hdc, PrintInterop.VERTRES);

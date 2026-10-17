@@ -252,6 +252,7 @@
   <data name="Group_Annotate" xml:space="preserve"><value>주석</value></data>
   <data name="Msg_AnnotationsRestricted" xml:space="preserve"><value>이 문서는 주석 추가·수정이 제한되어 있습니다.</value></data>
   <data name="Msg_OriginalAnnotationsReadOnly" xml:space="preserve"><value>기존 주석을 읽을 수 없어 편집할 수 없습니다. 새 주석은 추가할 수 있습니다.</value></data>
+  <data name="Msg_PatchFeaturesUnavailableEncrypted" xml:space="preserve"><value>암호가 걸린 문서라 선·텍스트 상자·스탬프 등 일부 주석은 넣을 수 없습니다. 연필·강조·메모·사각형·타원은 쓸 수 있습니다.</value></data>
   <data name="Msg_ComingInM3" xml:space="preserve"><value>이 주석 도구는 이후 단계에서 제공됩니다.</value></data>
   <data name="AnnotKind_Ink" xml:space="preserve"><value>연필</value></data>
   <data name="AnnotKind_Highlight" xml:space="preserve"><value>강조</value></data>

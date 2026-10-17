@@ -6,6 +6,7 @@ using PdfEditor.App.Viewer;
 using PdfEditor.App.Viewer.Annotations;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Saving;
 
 namespace PdfEditor.App.Documents;
 
@@ -115,11 +116,24 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     public bool CanAnnotate => Session is { } s && s.Permissions.CanAnnotate;
 
     /// <summary>주석 관련 안내 문구(권한 없음 / 원본 주석을 읽지 못함). 없으면 null.</summary>
-    public string? AnnotationNotice =>
-        Session is null ? null
-        : !CanAnnotate ? Strings.Msg_AnnotationsRestricted
-        : !Session.OriginalAnnotationsEditable ? Strings.Msg_OriginalAnnotationsReadOnly
-        : null;
+    public string? AnnotationNotice
+    {
+        get
+        {
+            if (Session is null) return null;
+            string? notice = !CanAnnotate ? Strings.Msg_AnnotationsRestricted
+                : !Session.OriginalAnnotationsEditable ? Strings.Msg_OriginalAnnotationsReadOnly
+                : null;
+            // 암호 문서는 PDFsharp 패치 단계를 건너뛰므로 패치가 필요한 도구를 쓸 수 없다 (A2).
+            if (CanAnnotate && !CanUsePatchFeatures)
+                notice = notice is null ? Strings.Msg_PatchFeaturesUnavailableEncrypted
+                    : notice + " " + Strings.Msg_PatchFeaturesUnavailableEncrypted;
+            return notice;
+        }
+    }
+
+    /// <summary>선·텍스트 상자·스탬프처럼 저장 때 PDFsharp 패치가 필요한 주석을 이 문서에 넣을 수 있는가 (암호 문서는 불가).</summary>
+    public bool CanUsePatchFeatures => Session is { } s && SavePolicy.CanPatch(s);
 
     public bool HasAnnotationNotice => AnnotationNotice is not null;
 

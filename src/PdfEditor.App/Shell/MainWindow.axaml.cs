@@ -46,13 +46,15 @@ public sealed partial class MainWindow : Window
 
         var prompts = new AvaloniaPrompts(this);
         var appearance = new PdfEditor.Appearance.PdfAppearanceSource();
+        // 글꼴 바이트 공급자는 Task 4(한글 글꼴)에서 채운다.
+        var patcher = new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => []);
         var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
         _settings = new SettingsStore(paths.SettingsPath);
         PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
-        var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance), _settings, prompts);
+        var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance, patcher), _settings, prompts);
         _vm.AttachWorkflow(workflow, prompts);
-        _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance));
-        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance), _settings,
+        _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher));
+        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance, patcher), _settings,
             new AvaloniaRecoveryUi(this), prompts);
         _recovery.Attach(workflow);
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
