@@ -51,7 +51,17 @@ public sealed record CachedAppearance(IReadOnlyList<(Geometry Geometry, IBrush? 
 public static class AppearanceGeometry
 {
     /// <summary>글자 윤곽선을 가져올 앱 글꼴(Noto Sans KR). 앱 시작 때 한 번 정한다. 글자가 있는데 없으면 FromDrawing이 예외를 던진다.</summary>
-    public static AppFont? TextFont { get; set; }
+    public static AppFont? TextFont
+    {
+        get => _textFont ?? _textFontProvider?.Invoke();
+        set { _textFont = value; _textFontProvider = null; }   // 직접 정하면 공급자는 버린다(시험이 null로 되돌릴 수 있게)
+    }
+
+    private static AppFont? _textFont;
+    private static Func<AppFont?>? _textFontProvider;
+
+    /// <summary>글꼴을 글자가 있는 주석을 처음 그릴 때 공급자에게서 받는다(시작 때 읽지 않는다). TextFont를 직접 정하면 이 공급자는 지워진다.</summary>
+    public static void SetTextFontProvider(Func<AppFont?> provider) { _textFont = null; _textFontProvider = provider; }
 
     /// <summary>ImageOp.ImageId에 해당하는 비트맵을 돌려준다(AnnotationAssets). 없거나 null을 돌려주면 자리 표시 사각형을 그리고 캐시하지 않는다.</summary>
     public static Func<string, IImage?>? ImageResolver { get; set; }
@@ -68,7 +78,7 @@ public static class AppearanceGeometry
         lock (perRot)
         {
             if (perRot.TryGetValue(rot, out var c)) return c;
-            c = FromDrawing(AnnotationPainter.Paint(a, rot, new PaintContext(TextFont, Assets)));
+            c = FromDrawing(AnnotationPainter.Paint(a, rot, PaintContext.WithFontProvider(() => TextFont, Assets)));
             if (c.Complete) perRot[rot] = c;   // 그림이 아직 없으면 캐시하지 않아 다음에 다시 만든다
             return c;
         }

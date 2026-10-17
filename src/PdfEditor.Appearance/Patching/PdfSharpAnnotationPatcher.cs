@@ -19,6 +19,10 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     private readonly object _fontLock = new();
     private AppFont? _font;
     private bool _ownsFont = true;
+    private Func<AppFont?>? _sharedFont;   // 앱이 공유하는 AppFont를 처음 필요할 때 받아 온다(null이면 글꼴 없음)
+
+    /// <summary>앱이 화면·AP와 함께 쓰는 AppFont 하나를 처음 필요할 때(글자가 있는 주석을 저장할 때) 공급자에서 받아 쓴다. 이 패처는 그 글꼴을 닫지 않는다.</summary>
+    public static PdfSharpAnnotationPatcher Shared(Func<AppFont?> font) => new(() => []) { _sharedFont = font, _ownsFont = false };
 
     /// <summary>앱이 화면·AP와 함께 쓰는 AppFont 하나를 공유한다. 이 패처는 그 글꼴을 닫지 않는다.</summary>
     public PdfSharpAnnotationPatcher(AppFont font) : this(() => font.Data)
@@ -33,6 +37,8 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         lock (_fontLock)
         {
             if (_font is not null) return _font;
+            if (_sharedFont is not null)
+                return _font = _sharedFont() ?? throw new InvalidOperationException("Annotation needs the Noto Sans KR font, but the font file is missing or empty (assets/fonts/NotoSansKR-Regular.otf).");
             byte[]? data = _fontData();
             if (data is null || data.Length == 0)
                 throw new InvalidOperationException("Annotation needs the Noto Sans KR font, but the font file is missing or empty (assets/fonts/NotoSansKR-Regular.otf).");
