@@ -120,6 +120,156 @@ public class AnnotationToolsTests : IAsyncLifetime
         finally { try { File.Delete(p); } catch { } }
     }
 
+    private static readonly string[] PatchToolCommandIds =
+    [
+        "annot.line", "annot.arrow", "annot.polyline", "annot.polygon", "annot.cloud", "annot.textbox", "annot.typewriter",
+        "annot.callout", "annot.insertText", "annot.replaceText", "annot.stamp", "annot.attach",
+    ];
+
+    private async Task<DocumentTabViewModel> OpenEncryptedPatchKindsAsync(string? password = "secret")
+    {
+        string p = Path.Combine(_dir, Guid.NewGuid().ToString("N") + ".pdf");
+        AnnotatedPdfFactory.CreatePatchKinds(p, password);
+        var s = await DocumentSession.OpenAsync(_t, p, password);
+        _sessions.Add(s);
+        var tab = new DocumentTabViewModel(s, "a.pdf", null);
+        await s.AnnotationsReady;
+        return tab;
+    }
+
+    [Fact]
+    public async Task EncryptedDoc_PatchToolsDisabledWithNotice()
+    {
+        var tab = await OpenEncryptedPatchKindsAsync();
+        Assert.True(tab.CanAnnotate);
+        Assert.False(tab.CanUsePatchFeatures);
+        var vm = new MainWindowViewModel();
+        vm.Documents.Add(tab);
+        vm.ActiveDocument = tab;
+        vm.SelectedRibbonTab = "Annotate";
+        foreach (var id in PatchToolCommandIds)
+        {
+            var cmd = vm.Commands.Find(id)!.Command;
+            Assert.False(cmd.CanExecute(null), id);
+            cmd.Execute(null);   // 직접 실행해도 도구가 바뀌지 않는다
+            Assert.Equal(ToolKind.Hand, tab.Tool);
+        }
+        // 보이는 단추와 "더보기" 메뉴 항목 모두 이유 안내 툴팁을 가진다
+        var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).SelectMany(b => b.MoreItems is { } m ? m.Prepend(b) : [b])
+            .Where(b => b.Tool is { } t && AnnotationToolController.IsPatchTool(t)).ToList();
+        Assert.Equal(PatchToolCommandIds.Length, buttons.Select(b => b.Command.Id).Distinct().Count());
+        foreach (var b in buttons) Assert.Equal(Strings.Msg_PatchFeaturesUnavailableEncrypted, b.Tip);
+        Assert.Equal(Strings.Msg_PatchFeaturesUnavailableEncrypted, tab.AnnotationNotice);
+        tab.Detach();
+    }
+
+    [Fact]
+    public async Task EncryptedDoc_M2ToolsStillEnabled()
+    {
+        var tab = await OpenEncryptedPatchKindsAsync();
+        var vm = new MainWindowViewModel();
+        vm.Documents.Add(tab);
+        vm.ActiveDocument = tab;
+        vm.SelectedRibbonTab = "Annotate";
+        string[] m2 = ["annot.select", "annot.sticky", "annot.hlText", "annot.hlArea", "annot.underline", "annot.strike",
+                       "annot.rect", "annot.ellipse", "annot.pencil", "annot.eraser"];
+        foreach (var id in m2) Assert.True(vm.Commands.Find(id)!.Command.CanExecute(null), id);
+        vm.Commands.Find("annot.pencil")!.Command.Execute(null);
+        Assert.Equal(ToolKind.Pencil, tab.Tool);
+        var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).SelectMany(b => b.MoreItems is { } m ? m.Prepend(b) : [b])
+            .Where(b => b.Tool is { } t && t is not ToolKind.Hand && !AnnotationToolController.IsPatchTool(t)).ToList();
+        Assert.NotEmpty(buttons);
+        foreach (var b in buttons) Assert.Null(b.Tip);
+        tab.Detach();
+    }
+
+    [Fact]
+    public async Task UnencryptedDoc_PatchToolsEnabled_NoTip()
+    {
+        var tab = await OpenAsync(p => AnnotatedPdfFactory.CreatePatchKinds(p, null));
+        var vm = new MainWindowViewModel();
+        vm.Documents.Add(tab);
+        vm.ActiveDocument = tab;
+        vm.SelectedRibbonTab = "Annotate";
+        foreach (var id in PatchToolCommandIds) Assert.True(vm.Commands.Find(id)!.Command.CanExecute(null), id);
+        var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).SelectMany(b => b.MoreItems is { } m ? m.Prepend(b) : [b])
+            .Where(b => b.Tool is { } t && AnnotationToolController.IsPatchTool(t));
+        foreach (var b in buttons) Assert.Null(b.Tip);
+        tab.Detach();
+    }
+
+    [Fact]
+    public async Task EncryptedDoc_OriginalFreeTextReadOnly()
+    {
+        var open = await OpenAsync(p => AnnotatedPdfFactory.CreatePatchKinds(p, null));
+        await open.Session!.AnnotationsReady;
+        var openKinds = open.Session.Annotations.Get(open.Session.Pages[0].Id).Items.Select(v => v.Data.Kind).ToList();
+        // 암호 없는 문서에서는 모두 편집 가능 (고정물이 의미 있는지 확인)
+        Assert.Contains(AnnotKind.FreeText, openKinds);
+        Assert.Contains(AnnotKind.Line, openKinds);
+        Assert.Contains(AnnotKind.Polygon, openKinds);
+        Assert.Contains(AnnotKind.Caret, openKinds);
+        Assert.Equal(2, open.Session.Annotations.Get(open.Session.Pages[0].Id).Items.Count(v => v.Data.Kind == AnnotKind.Square));
+        open.Detach();
+
+        var tab = await OpenEncryptedPatchKindsAsync();
+        var s = tab.Session!;
+        var items = s.Annotations.Get(s.Pages[0].Id).Items.Select(v => v.Data).ToList();
+        // 편집할 수 있는 것: 일반 Square, Text, Ink. 패치가 필요한 원본(Line·FreeText·Polygon·Caret 묶음·클라우드)은 읽기 전용.
+        Assert.DoesNotContain(items, a => a.Kind is AnnotKind.FreeText or AnnotKind.Line or AnnotKind.Polygon or AnnotKind.PolyLine or AnnotKind.Caret);
+        Assert.DoesNotContain(items, a => a.CloudIntensity > 0f);
+        Assert.DoesNotContain(items, a => a.Kind == AnnotKind.StrikeOut);   // Caret 묶음의 부모도 읽기 전용
+        Assert.Single(items, a => a.Kind == AnnotKind.Square);
+        Assert.Single(items, a => a.Kind == AnnotKind.Text);
+        Assert.Single(items, a => a.Kind == AnnotKind.Ink);
+        tab.Detach();
+    }
+
+    [Fact]
+    public async Task EncryptedDoc_PanelCloudToggle_Disabled()
+    {
+        var tab = await OpenEncryptedPatchKindsAsync();
+        var s = tab.Session!;
+        var page = s.Pages[0].Id;
+        var square = s.Annotations.Get(page).Items.Select(v => v.Data).Single(a => a.Kind == AnnotKind.Square);
+        tab.Tool = ToolKind.AnnotSelect;
+        tab.Selection.Set(page, [square.Id]);
+        var panel = new PdfEditor.App.Panels.AnnotationPropertiesViewModel(tab);
+        panel.Refresh();
+        Assert.False(panel.ShowCloud);
+        await panel.SetCloudAsync(true);   // 직접 불러도 바뀌지 않는다
+        Assert.Equal(0f, s.Annotations.Get(page).Items.Select(v => v.Data).Single(a => a.Id == square.Id).CloudIntensity);
+        tab.Detach();
+    }
+
+    [Fact]
+    public async Task EncryptedDoc_SaveWithPatchKindEntry_ThrowsInsteadOfDropping()
+    {
+        var tab = await OpenEncryptedPatchKindsAsync();
+        var s = tab.Session!;
+        var page = s.Pages[0].Id;
+        var line = new Annotation
+        {
+            Id = s.Annotations.NewId(), Kind = AnnotKind.Line, Rect = new PdfRectF(10, 10, 80, 60),
+            Vertices = [new PdfPointF(10, 10), new PdfPointF(80, 60)], BorderWidth = 1f, Color = PdfColor.FromHex("#E5372D"),
+            Flags = PdfAnnotFlags.Print,
+        };
+        // 도구가 꺼져 있으므로 정상 경로로는 일어나지 않는다. 명령을 직접 실행해 가드를 시험한다.
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(page, line));
+        var save = new PdfEditor.Document.Saving.SaveService([], new NullAppearance());
+        string target = Path.Combine(_dir, "out.pdf");
+        var ex = await Assert.ThrowsAsync<PdfEditor.Document.Saving.SaveException>(() => save.SaveAsync(s, target));
+        Assert.Contains("patch", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(target));
+        tab.Detach();
+    }
+
+    private sealed class NullAppearance : IAppearanceSource
+    {
+        public string BuildContent(Annotation a, int pageRotation) => throw new InvalidOperationException("not expected");
+        public PatchAppearance BuildPatchAppearance(Annotation a, int pageRotation) => throw new InvalidOperationException("not expected");
+    }
+
     [Fact]
     public async Task AllowedDoc_AnnotationToolsEnabled()
     {

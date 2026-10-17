@@ -210,6 +210,13 @@ public sealed class AnnotationStore
         foreach (var (id, st) in _pages) yield return (id, st.Entries.ToArray());
     }
 
+    /// <summary>저장 때 패치가 있어야 파일에 쓸 수 있는 살아 있는 항목(패치 길 유형, 클라우드)이 있는가.</summary>
+    internal bool HasLivePatchDependentEntries()
+    {
+        _thread.AssertOnThread();
+        return _pages.Values.Any(st => st.Entries.Any(e => !e.Deleted && (e.Current.Kind.IsPatchKind() || e.Current.CloudIntensity > 0f)));
+    }
+
     /// <summary>Flush가 끝난 뒤: 새 PDFium 번호를 받고, 지워진 항목은 버리고, 반영한 Revision을 기록한다.</summary>
     internal void CompleteFlush(PageId page, IReadOnlyDictionary<AnnotEntry, int> newIndices)
     {

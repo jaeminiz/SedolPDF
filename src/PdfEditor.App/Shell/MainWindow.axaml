@@ -195,7 +195,7 @@
                     <Panel>
                       <rb:RibbonButton Label="{Binding Label}" IconKey="{Binding Command.IconKey}" IsVisible="{Binding !IsMore}"
                                        Command="{Binding Command.Command}" IsLarge="{Binding IsLarge}" IsChecked="{Binding IsChecked}"
-                                       ToolTip.Tip="{Binding Tip}" />
+                                       ToolTip.Tip="{Binding Tip}" ToolTip.ShowOnDisabled="True" />
                       <rb:RibbonMoreButton Label="{Binding Label}" IconKey="more" IsVisible="{Binding IsMore}"
                                            Items="{Binding MoreItems}" IsLarge="{Binding IsLarge}" />
                     </Panel>

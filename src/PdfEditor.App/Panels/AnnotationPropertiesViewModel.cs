@@ -189,7 +189,8 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     {
         ShowLineEndings = sel.Count > 0 && sel.All(a => a.Kind is AnnotKind.Line or AnnotKind.PolyLine);
         if (ShowLineEndings) { StartEnding = sel[0].StartEnding; EndEnding = sel[0].EndEnding; }
-        ShowCloud = sel.Count > 0 && sel.All(a => a.Kind is AnnotKind.Square or AnnotKind.Polygon);
+        // 클라우드 테두리(/BE)는 저장 때 패치로만 쓰므로 패치를 못 하는(암호) 문서에서는 켜고 끌 수 없다.
+        ShowCloud = _tab.CanUsePatchFeatures && sel.Count > 0 && sel.All(a => a.Kind is AnnotKind.Square or AnnotKind.Polygon);
         CloudOn = ShowCloud && sel[0].CloudIntensity > 0f;
         CloudIntensity = ShowCloud && sel[0].CloudIntensity > 0f ? Math.Clamp(sel[0].CloudIntensity, MinCloud, MaxCloud) : 1f;
         ShowText = sel.Count > 0 && sel.All(a => a.Kind == AnnotKind.FreeText);
@@ -344,12 +345,12 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
             null);
 
     /// <summary>클라우드 켜기·끄기 (사각형·다각형). 켜면 세기 1(또는 기존 값), 끄면 0.</summary>
-    public Task SetCloudAsync(bool on) =>
+    public Task SetCloudAsync(bool on) => !_tab.CanUsePatchFeatures ? Task.CompletedTask :
         EditAsync(a => a.Kind is not (AnnotKind.Square or AnnotKind.Polygon) ? a
             : a with { CloudIntensity = on ? (a.CloudIntensity > 0f ? a.CloudIntensity : 1f) : 0f, ModifiedAt = _clock() },
             null);
 
-    public Task SetCloudIntensityAsync(float v) =>
+    public Task SetCloudIntensityAsync(float v) => !_tab.CanUsePatchFeatures ? Task.CompletedTask :
         EditAsync(a => a.Kind is not (AnnotKind.Square or AnnotKind.Polygon) || a.CloudIntensity <= 0f ? a
             : a with { CloudIntensity = Math.Clamp(v, MinCloud, MaxCloud), ModifiedAt = _clock() },
             null);

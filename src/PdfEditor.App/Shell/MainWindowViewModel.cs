@@ -10,6 +10,7 @@ using PdfEditor.App.Printing;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Shell.Ribbon;
 using PdfEditor.App.Viewer;
+using PdfEditor.App.Viewer.Annotations;
 
 namespace PdfEditor.App.Shell;
 
@@ -44,12 +45,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return c;
     }
 
-    /// <summary>주석 도구를 고르는 명령. 주석 권한이 없는 문서에서는 비활성이다.</summary>
+    /// <summary>
+    /// 주석 도구를 고르는 명령. 주석 권한이 없는 문서에서는 비활성이다. 저장 때 PDFsharp 패치가 필요한 도구는
+    /// 패치를 못 하는(암호) 문서에서도 비활성이다 — 켜 두면 만든 주석이 저장 때 조용히 사라진다 (A2).
+    /// </summary>
     private RelayCommand ToolCmd(ToolKind tool)
     {
+        bool Allowed(DocumentTabViewModel d) => d.CanAnnotate && (!AnnotationToolController.IsPatchTool(tool) || d.CanUsePatchFeatures);
         var c = new RelayCommand(
-            () => { if (ActiveDocument is { Session: not null } d && d.CanAnnotate) d.Tool = tool; },
-            () => ActiveDocument is { Session: not null } d && d.CanAnnotate);
+            () => { if (ActiveDocument is { Session: not null } d && Allowed(d)) d.Tool = tool; },
+            () => ActiveDocument is { Session: not null } d && Allowed(d));
         _docCommands.Add(c);
         return c;
     }
@@ -196,7 +201,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void RefreshToolButtons()
     {
         var tool = ActiveDocument?.Tool;
-        foreach (var b in _toolButtons) b.IsChecked = tool is not null && b.Tool == tool;
+        foreach (var b in _toolButtons)
+        {
+            b.IsChecked = tool is not null && b.Tool == tool;
+            ApplyPatchTip(b);
+        }
+    }
+
+    // 암호 문서에서 꺼진 패치 도구에는 이유를 알리는 툴팁을 보인다.
+    private void ApplyPatchTip(RibbonButtonVm b)
+    {
+        bool noPatch = ActiveDocument is { Session: not null, CanAnnotate: true, CanUsePatchFeatures: false };
+        b.Tip = noPatch && b.Tool is { } t && AnnotationToolController.IsPatchTool(t)
+            ? Strings.Msg_PatchFeaturesUnavailableEncrypted : b.BaseTip;
     }
 
     private void NotifyFileCommands()
@@ -458,7 +475,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var more = i.MoreItems?.Select(m => MakeButton(m, large: false)).ToList();
         var b = new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, large, i.DisabledTip, i.Tool, more);
         b.IsChecked = i.Tool is { } t && ActiveDocument?.Tool == t;
-        if (i.Tool is not null) _toolButtons.Add(b);
+        if (i.Tool is not null) { _toolButtons.Add(b); ApplyPatchTip(b); }
         return b;
     }
 

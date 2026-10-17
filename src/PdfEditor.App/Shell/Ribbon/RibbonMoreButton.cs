@@ -36,6 +36,8 @@ public sealed class RibbonMoreButton : RibbonButton
                 ToggleType = MenuItemToggleType.CheckBox,
                 IsChecked = vm.IsChecked,
             };
+            ToolTip.SetTip(item, vm.Tip);   // 꺼진 항목의 이유 (암호 문서의 패치 도구)
+            ToolTip.SetShowOnDisabled(item, true);
             _flyout.Items.Add(item);
         }
     }

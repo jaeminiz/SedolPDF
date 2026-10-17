@@ -107,6 +107,48 @@ public static class AnnotatedPdfFactory
         Save(doc, path);
     }
 
+    /// <summary>
+    /// 패치 길 유형이 든 원본 주석 모음 (userPassword가 null이면 암호 없음). /Annots 순서: [0] Square, [1] Line, [2] FreeText,
+    /// [3] Polygon, [4] Square 클라우드, [5] StrikeOut(NM strike-1), [6] Caret(/IRT→5, /RT /Group), [7] Text, [8] Ink.
+    /// </summary>
+    public static void CreatePatchKinds(string path, string? userPassword)
+    {
+        using var doc = NewDoc(out var page);
+        var line = Annot(doc, "Line", 100, 500, 200, 540, "0 0 0 RG 100 500 m 200 540 l S");
+        line.Elements["/L"] = Nums(doc, 100, 500, 200, 540);
+        line.Elements["/C"] = Nums(doc, 0, 0, 0);
+        var ft = Annot(doc, "FreeText", 100, 420, 260, 460, "0 g 100 420 160 40 re S");
+        ft.Elements["/Contents"] = new PdfString("hello", PdfStringEncoding.Unicode);
+        ft.Elements["/DA"] = new PdfString("0 0 0 rg /Helv 12 Tf");
+        var poly = Annot(doc, "Polygon", 300, 420, 400, 520, "0 0 1 RG 300 420 m 400 420 l 350 520 l s");
+        poly.Elements["/Vertices"] = Nums(doc, 300, 420, 400, 420, 350, 520);
+        poly.Elements["/C"] = Nums(doc, 0, 0, 1);
+        var cloud = Annot(doc, "Square", 320, 300, 420, 360, "0 0 1 RG 320 300 100 60 re S");
+        cloud.Elements["/BE"] = Dict(doc, ("/S", new PdfName("/C")), ("/I", new PdfInteger(1)));
+        cloud.Elements["/C"] = Nums(doc, 0, 0, 1);
+        var strike = Markup(doc, "StrikeOut", 100, 250, 300, 265, [1, 0, 0]);
+        strike.Elements["/NM"] = new PdfString("strike-1");
+        var caret = Annot(doc, "Caret", 296, 246, 312, 266, "0 0 1 rg 296 246 16 20 re f");
+        caret.Elements["/NM"] = new PdfString("caret-1");
+        caret.Elements["/C"] = Nums(doc, 0, 0, 1);
+        caret.Elements["/Contents"] = new PdfString("new text", PdfStringEncoding.Unicode);
+        caret.Elements["/Sy"] = new PdfName("/None");
+        caret.Elements["/IRT"] = strike.Reference!;
+        caret.Elements["/RT"] = new PdfName("/Group");
+        var text = TextNote(doc);
+        var ink = Annot(doc, "Ink", 100, 150, 220, 200, "0 0 0 RG 2 w 100 150 m 220 200 l S");
+        ink.Elements["/InkList"] = new PdfArray(doc, Nums(doc, 100, 150, 220, 200));
+        ink.Elements["/Border"] = Nums(doc, 0, 0, 2);
+        ink.Elements["/C"] = Nums(doc, 0, 0, 0);
+        SetAnnots(doc, page, [RedSquare(doc), line, ft, poly, cloud, strike, caret, text, ink]);
+        if (userPassword is not null)
+        {
+            doc.SecuritySettings.UserPassword = userPassword;
+            doc.SecuritySettings.OwnerPassword = userPassword + "-owner";
+        }
+        Save(doc, path);
+    }
+
     /// <summary>사용자 암호 없음, 소유자 암호 있음. 주석 권한만 allowAnnotations로 정한다. 주석은 Square 1개.</summary>
     public static void CreateOwnerRestrictedWithAnnotations(string path, bool allowAnnotations)
     {

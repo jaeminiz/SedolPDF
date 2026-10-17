@@ -13,10 +13,13 @@ public sealed partial class RibbonButtonVm(AppCommand command, string label, boo
     IReadOnlyList<RibbonButtonVm>? moreItems = null)
     : ObservableObject
 {
+    /// <summary>리본 정의에 적힌 기본 툴팁 (문서 상태에 따른 안내가 없을 때 돌아간다).</summary>
+    public string? BaseTip { get; } = tip;
     public AppCommand Command { get; } = command;
     public string Label { get; } = label;
     public bool IsLarge { get; } = isLarge;
-    public string? Tip { get; } = tip;
+    /// <summary>툴팁. 암호 문서에서 패치 도구가 꺼진 이유처럼 활성 문서에 따라 바뀐다.</summary>
+    [ObservableProperty] private string? _tip = tip;
     public ToolKind? Tool { get; } = tool;
     /// <summary>"더보기 ▾" 단추의 메뉴 항목 (도구 항목은 켜진 도구에 체크 표시). 일반 단추는 null.</summary>
     public IReadOnlyList<RibbonButtonVm>? MoreItems { get; } = moreItems;

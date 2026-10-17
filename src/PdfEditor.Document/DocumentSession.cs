@@ -5,6 +5,7 @@ using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.Document.Annotations.Reading;
 using PdfEditor.Document.Commands;
+using PdfEditor.Document.Saving;
 
 namespace PdfEditor.Document;
 
@@ -262,7 +263,33 @@ public sealed class DocumentSession : IAsyncDisposable
         var verified = new List<OriginalAnnotation>(originals.Count);
         foreach (var o in originals)
             verified.Add(o.Data is null || Matches(page, count, o) ? o : o with { Data = null, Reason = ReadOnlyReason.Malformed });
+        if (!SavePolicy.CanPatch(this)) MakePatchDependentReadOnly(verified);
         Annotations.AttachOriginals(id, verified);
+    }
+
+    /// <summary>
+    /// 패치를 못 하는(암호) 문서: 저장 때 PDFsharp 패치가 있어야 쓸 수 있는 원본(선·폴리라인·다각형·FreeText·Caret 묶음과 그 부모,
+    /// 클라우드 Square)은 모델에 넣지 않는다 — 고쳐도 저장 때 조용히 버려지기 때문이다. PDFium이 원본 모양 그대로 그린다.
+    /// </summary>
+    private static void MakePatchDependentReadOnly(List<OriginalAnnotation> list)
+    {
+        var parents = new HashSet<int>(list.Where(o => o.Data is { Kind: AnnotKind.Caret } && o.GroupParentIndex is not null).Select(o => o.GroupParentIndex!.Value));
+        for (int i = 0; i < list.Count; i++)
+        {
+            var o = list[i];
+            if (o.Data is not { } d) continue;
+            if (d.Kind.IsPatchKind() || d.CloudIntensity > 0f || parents.Contains(o.Index))
+                list[i] = o with { Data = null, Reason = ReadOnlyReason.OriginalAppearanceOnly };
+        }
+    }
+
+    /// <summary>패치를 못 하는 문서에 패치가 필요한 주석이 들어 있으면 저장·인쇄·복구를 막는다 (조용히 버리지 않는다).</summary>
+    internal void EnsureNoPatchDependentEntries()
+    {
+        if (SavePolicy.CanPatch(this)) return;
+        if (Annotations.HasLivePatchDependentEntries())
+            throw new InvalidOperationException(
+                "The document cannot be patched (encrypted), but it contains annotations that need the patch stage (line, polygon, free text, caret, stamp, attachment or cloud). Refusing to write them silently dropped.");
     }
 
     private static bool Matches(PdfPage page, int count, OriginalAnnotation o)
@@ -417,6 +444,8 @@ public sealed class DocumentSession : IAsyncDisposable
     public PatchPlan FlushIfNeeded(IAppearanceSource? appearance)
     {
         Thread.AssertOnThread();
+        // 저장·인쇄·자동 복구가 모두 지나는 곳: 패치를 못 하는 문서에서 패치 길 주석을 조용히 버리지 않는다.
+        EnsureNoPatchDependentEntries();
         if (appearance is null)
         {
             if (Annotations.HasUnflushedChanges)
