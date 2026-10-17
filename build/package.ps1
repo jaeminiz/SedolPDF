@@ -119,6 +119,12 @@ if (-not $iscc) {
     $iscc = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 }
 if (-not $iscc) { Write-Host 'Inno Setup이 없어 설치 파일은 건너뜀'; exit 0 }
+$instLic = Join-Path $PSScriptRoot 'installer/LICENSE.txt'
+$licBytes = [System.IO.File]::ReadAllBytes($instLic)
+if ($licBytes.Length -lt 3 -or $licBytes[0] -ne 0xEF -or $licBytes[1] -ne 0xBB -or $licBytes[2] -ne 0xBF) { Fail 'build/installer/LICENSE.txt 에 UTF-8 BOM이 없습니다 (설치 화면에서 한글이 깨집니다).' }
+$instText = [System.Text.Encoding]::UTF8.GetString($licBytes, 3, $licBytes.Length - 3)
+$rootText = [System.IO.File]::ReadAllText((Join-Path $root 'LICENSE'), [System.Text.Encoding]::UTF8).TrimStart([char]0xFEFF)
+if (($instText -replace "`r`n", "`n") -ne ($rootText -replace "`r`n", "`n")) { Fail 'build/installer/LICENSE.txt 가 루트 LICENSE 와 다릅니다. LICENSE 를 고쳤다면 사본도 BOM을 붙여 다시 만드세요.' }
 $iss = Join-Path $PSScriptRoot 'installer/PdfEditor.iss'
 if (-not (Test-Path $iss)) { Write-Host "Inno Setup 스크립트($iss)가 아직 없어 설치 파일은 건너뜀"; exit 0 }
 & $iscc "/DAppVersion=$Version" "/DSourceDir=$publish" "/DOutputDir=$artifacts" $iss

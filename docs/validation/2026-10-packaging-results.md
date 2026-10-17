@@ -14,7 +14,7 @@
 - 도구: Inno Setup 6.7.3 (`winget install JRSoftware.InnoSetup`, 공식 jrsoftware.org 배포본, GitHub 릴리스 `is-6_7_3`에서 받음). 현재 사용자 위치 `%LOCALAPPDATA%\Programs\Inno Setup 6`에 설치됨(약 33 MB). 한국어 번역 `Korean.isl`은 기본 포함이라 따로 받지 않았습니다.
 - 기본값은 현재 사용자용(관리자 권한 불필요), 설치 시작 화면에서 "모든 사용자용"을 고를 수 있습니다. 기본 위치 `%LOCALAPPDATA%\Programs\SedolPDF`.
 - 선택 작업(둘 다 기본 끔): 바탕 화면 바로가기, PDF "연결 프로그램"에 추가(기본 프로그램은 바꾸지 않음). 시작 메뉴 바로가기는 항상 만듭니다.
-- 설치 마지막 화면: "SedolPDF 실행"(기본 켬), "타사 고지 보기"(기본 끔). 라이선스 화면에서 MIT 라이선스를 보여 줍니다.
+- 설치 시작 부분에 MIT 라이선스 고지를 안내 화면(동의 클릭 없음)으로 보여 줍니다. 한글이 깨지지 않도록 BOM이 있는 사본 `build/installer/LICENSE.txt`를 쓰고, `package.ps1`이 루트 `LICENSE`와 같은지 검사합니다. 마지막 화면: "SedolPDF 실행"(기본 켬), "타사 고지 보기"(메모장으로 열기, 기본 끔).
 - 제거: 프로그램 폴더, 시작 메뉴·바탕 화면 바로가기, (선택했다면) PDF 연결 레지스트리만 지웁니다. 사용자 설정(`%APPDATA%\SedolPDF`)과 복구 폴더(`%LOCALAPPDATA%\SedolPDF\Recovery`)는 남깁니다.
 - 업그레이드용 AppId(고정 GUID)는 `build/installer/PdfEditor.iss`에 있으며 바꾸면 안 됩니다. 바꾸면 이전 설치와 별개 프로그램으로 취급됩니다.
 - PDF 연결은 `.pdf`의 `OpenWithProgids`에 `SedolPDF.Document`를 추가하고, `Applications\SedolPDF.exe`에 열기 명령을 등록하는 방식입니다. (계획서의 `PdfEditor.App.exe`는 실행 파일 이름이 `SedolPDF.exe`로 바뀐 것을 반영해 고쳤습니다.)
@@ -37,10 +37,10 @@
 ## 확인하지 못한 것 (검증 필요 — 사용자 확인 부탁)
 - PDF 연결 작업: 이 PC의 파일 연결을 바꾸지 않으려고 시험하지 않았습니다. 설치 때 체크 후 "PDF 파일 > 연결 프로그램"에 SedolPDF가 나타나는지, 제거 후 사라지는지 확인해 주세요.
 - "모든 사용자용"(관리자 권한, `C:\Program Files\SedolPDF`) 설치·제거.
-- 설치 마법사 화면(한국어 문구, 라이선스 화면, 마지막 화면 선택 항목)을 눈으로 확인하지 않았습니다(무인 설치만 함).
+- 설치 마법사 화면(한국어 문구, MIT 안내 화면에서 "박재민, 박세현"이 깨지지 않는지, 마지막 화면 선택 항목)을 눈으로 확인하지 않았습니다(무인 설치만 함). BOM이 있는 사본을 쓰도록 고쳤지만 화면 표시는 직접 보지 못했습니다.
 - 설치 후 시작 메뉴에서 실행해 PDF 열기·저장, 업그레이드 후 설정 유지(설정 파일을 실제로 바꿔 둔 상태에서)는 하지 않았습니다. 앱 시작만 확인.
 - 바탕 화면 바로가기 작업.
-- 실행 중인 앱 위에 업그레이드할 때 앱 닫기 요청(CloseApplications) 동작.
+- 실행 중인 앱 위에 업그레이드할 때 앱 닫기 요청(CloseApplications)과 다시 시작(restart) 동작.
 
 ## SmartScreen 경고
 코드 서명을 하지 않았으므로(결정 P2) 인터넷에서 받은 설치 파일·exe를 처음 실행하면 Windows SmartScreen이 "Windows에서 PC를 보호했습니다 / 알 수 없는 게시자"를 띄울 수 있습니다. "추가 정보 → 실행"으로 진행합니다. 회사 PC는 보안 정책에 따라 막힐 수도 있습니다(검증 필요). 공개 배포 직전에 서명 여부를 다시 결정합니다.

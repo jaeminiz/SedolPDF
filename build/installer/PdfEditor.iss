@@ -28,7 +28,9 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-LicenseFile=..\..\LICENSE
+; MIT는 고지만 보여 주면 되므로 동의 클릭이 없는 안내 화면(InfoBeforeFile)을 씁니다.
+; LICENSE.txt는 루트 LICENSE의 사본이며 UTF-8 BOM이 있어야 한글이 깨지지 않습니다 (package.ps1이 두 파일이 같은지 검사).
+InfoBeforeFile=LICENSE.txt
 OutputDir={#OutputDir}
 OutputBaseFilename=SedolPDF-{#AppVersion}-setup-win-x64
 UninstallDisplayName=SedolPDF
@@ -64,7 +66,7 @@ Root: HKA; Subkey: "Software\Classes\SedolPDF.Document\shell\open\command"; Valu
 Root: HKA; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; ValueName: "SedolPDF.Document"; ValueData: ""; Flags: uninsdeletevalue; Tasks: pdfassoc
 
 [Run]
-Filename: "{app}\THIRD-PARTY-NOTICES.md"; Description: "타사 고지(사용한 오픈소스 목록) 보기"; Flags: postinstall shellexec skipifsilent unchecked
+Filename: "{win}\notepad.exe"; Parameters: """{app}\THIRD-PARTY-NOTICES.md"""; Description: "타사 고지(사용한 오픈소스 목록) 보기"; Flags: postinstall skipifsilent unchecked
 Filename: "{app}\SedolPDF.exe"; Description: "SedolPDF 실행"; Flags: postinstall nowait skipifsilent
 
 ; [UninstallDelete] 는 일부러 두지 않습니다: 제거해도 사용자 설정(%APPDATA%\SedolPDF)과 복구 폴더(%LOCALAPPDATA%\SedolPDF\Recovery)는 남깁니다.
