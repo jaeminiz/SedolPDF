@@ -223,7 +223,7 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <Border Grid.Column="1" Classes="card" Width="200" IsVisible="{Binding IsLeftPanelVisible}" ClipToBounds="True">
+      <Border Grid.Column="1" Classes="card" Width="{Binding LeftPanelWidth}" IsVisible="{Binding IsLeftPanelVisible}" ClipToBounds="True">
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="{Binding ActivePanelLabel}" FontWeight="SemiBold" Margin="10,8" />
           <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
@@ -231,7 +231,7 @@
           <Panel IsVisible="{Binding ShowBookmarks}"><panels:BookmarksPanel DataContext="{Binding ActiveBookmarks}" /></Panel>
           <Panel IsVisible="{Binding ShowAttachments}"><panels:AttachmentsPanel DataContext="{Binding ActiveAttachments}" /></Panel>
           <Panel IsVisible="{Binding ShowLayers}"><panels:LayersPanel DataContext="{Binding ActiveLayers}" /></Panel>
-          <Panel IsVisible="{Binding ShowComments}"><panels:CommentsPanel /></Panel>
+          <Panel IsVisible="{Binding ShowComments}"><panels:CommentsPanel DataContext="{Binding ActiveComments}" /></Panel>
           <Panel IsVisible="{Binding ShowSearch}"><panels:SearchPanel x:Name="SearchPanelView" DataContext="{Binding ActiveSearch}" /></Panel>
         </DockPanel>
       </Border>

@@ -325,4 +325,175 @@ public class CommentsViewModelTests : PanelTestBase
         Assert.Equal([other.Id.Value], ro.Selection.Ids);
         Assert.Equal([(link.Page, link.Rect)], shown);
     }
+
+    // ---- 답글·상태·삭제 (M3b Task 3) ----
+
+    private static IEnumerable<Annotation> AllOn(DocumentTabViewModel tab, PageId page)
+        => tab.Session!.Annotations.Get(page).Items.Select(v => v.Data);
+
+    [Fact]
+    public async Task Reply_OneCommand_AppearsIndented()
+    {
+        var tab = await OpenLabeled(1);
+        var page = tab.Session!.Pages[0].Id;
+        await Add(tab, page, Note(tab, "kim", "root note"));
+        using var vm = new CommentsViewModel(tab);
+        var root = Assert.Single(vm.Items);
+        long undoDepth = tab.Session.Commands.Version;
+
+        await vm.ReplyAsync(root, "  first reply  ");
+
+        Assert.Equal(undoDepth + 1, tab.Session.Commands.Version);   // 명령 하나
+        Assert.Equal(2, vm.Items.Count);
+        Assert.Equal(0, vm.Items[0].Depth);
+        Assert.Equal(1, vm.Items[1].Depth);
+        Assert.Equal("first reply", vm.Items[1].Contents);
+        Assert.Equal(Strings.AnnotKind_Reply, vm.Items[1].KindName);
+        Assert.Equal(DocumentTabViewModel.CurrentAuthor, vm.Items[1].Author);
+        var stored = AllOn(tab, page).Single(a => a.InReplyTo is not null);
+        Assert.Equal(root.Id, stored.InReplyTo);
+
+        await tab.Session.Commands.UndoAsync();
+        Assert.Single(vm.Items);
+        await tab.Session.Commands.RedoAsync();
+        Assert.Equal(2, vm.Items.Count);
+
+        // 빈 글은 아무것도 하지 않는다
+        await vm.ReplyAsync(root, "   ");
+        Assert.Equal(2, vm.Items.Count);
+    }
+
+    [Fact]
+    public async Task Reply_ToAnnotationWithReplies_GoesToThreadEnd()
+    {
+        var tab = await OpenLabeled(1);
+        var page = tab.Session!.Pages[0].Id;
+        await Add(tab, page, Note(tab, "kim", "root note"));
+        using var vm = new CommentsViewModel(tab);
+        var root = vm.Items[0];
+
+        await vm.ReplyAsync(root, "one");
+        await vm.ReplyAsync(root, "two");
+        await vm.ReplyAsync(vm.Items[1], "three (to the first reply)");
+
+        Assert.Equal(["root note", "one", "two", "three (to the first reply)"], vm.Items.Select(i => i.Contents));
+        Assert.Equal([0, 1, 1, 1], vm.Items.Select(i => i.Depth));
+    }
+
+    [Fact]
+    public async Task SetState_ShowsInRow_UndoReverts()
+    {
+        var tab = await OpenLabeled(1);
+        var page = tab.Session!.Pages[0].Id;
+        await Add(tab, page, Note(tab, "kim", "root note"));
+        using var vm = new CommentsViewModel(tab);
+        var root = vm.Items[0];
+        Assert.Equal(ReviewState.None, root.State);
+        long undoDepth = tab.Session.Commands.Version;
+
+        await vm.SetStateAsync(root, ReviewState.Accepted);
+        Assert.Equal(undoDepth + 1, tab.Session.Commands.Version);
+        Assert.Single(vm.Items);                                   // 상태 주석은 줄이 아니다
+        Assert.Equal(ReviewState.Accepted, vm.Items[0].State);
+
+        await vm.SetStateAsync(vm.Items[0], ReviewState.Rejected);
+        Assert.Equal(ReviewState.Rejected, vm.Items[0].State);
+
+        // 문구: 상태 이름 뒤에 조사를 붙이지 않는 틀
+        var state = AllOn(tab, page).Where(a => a.State == ReviewState.Rejected).Single();
+        Assert.Equal(string.Format(Strings.Comment_StateTemplate, DocumentTabViewModel.CurrentAuthor, Strings.State_Rejected), state.Contents);
+        Assert.DoesNotContain("로", state.Contents!.Replace(Strings.Comment_StateTemplate.Replace("{0}", "").Replace("{1}", ""), ""));
+
+        await tab.Session.Commands.UndoAsync();
+        Assert.Equal(ReviewState.Accepted, vm.Items[0].State);
+        await tab.Session.Commands.UndoAsync();
+        Assert.Equal(ReviewState.None, vm.Items[0].State);
+    }
+
+    [Fact]
+    public async Task SetState_OnReplyRow_AppliesToThreadRoot()
+    {
+        var tab = await OpenLabeled(1);
+        var page = tab.Session!.Pages[0].Id;
+        await Add(tab, page, Note(tab, "kim", "root note"));
+        using var vm = new CommentsViewModel(tab);
+        await vm.ReplyAsync(vm.Items[0], "reply");
+
+        await vm.SetStateAsync(vm.Items[1], ReviewState.Completed);
+
+        Assert.Equal(ReviewState.Completed, vm.Items[0].State);
+        Assert.Equal(2, vm.Items.Count);
+    }
+
+    [Fact]
+    public async Task Delete_RemovesThread()
+    {
+        var tab = await OpenLabeled(1);
+        var page = tab.Session!.Pages[0].Id;
+        await Add(tab, page, Note(tab, "kim", "root note"), Note(tab, "lee", "other", x: 100, y: 100));
+        using var vm = new CommentsViewModel(tab);
+        var root = vm.Items.Single(i => i.Contents == "root note");
+        await vm.ReplyAsync(root, "r1");
+        await vm.SetStateAsync(vm.Items.Single(i => i.Contents == "root note"), ReviewState.Accepted);
+        await vm.ReplyAsync(vm.Items.Single(i => i.Contents == "root note"), "r2");
+        Assert.Equal(4, vm.Items.Count);
+        Assert.Equal(5, AllOn(tab, page).Count());
+        long undoDepth = tab.Session!.Commands.Version;
+
+        await vm.DeleteAsync(vm.Items.Single(i => i.Contents == "root note"));
+
+        Assert.Equal(undoDepth + 1, tab.Session.Commands.Version);   // 명령 하나
+        Assert.Equal(["other"], vm.Items.Select(i => i.Contents));
+        Assert.Single(AllOn(tab, page));                               // 고아 답글·상태가 남지 않는다
+
+        await tab.Session.Commands.UndoAsync();
+        Assert.Equal(5, AllOn(tab, page).Count());
+        Assert.Equal(4, vm.Items.Count);
+        Assert.Equal(ReviewState.Accepted, vm.Items.Single(i => i.Depth == 0 && i.Contents == "root note").State);
+    }
+
+    [Fact]
+    public async Task Delete_ReadOnlyRow_Ignored()
+    {
+        var ro = await OpenFixture("mixed3.pdf", AnnotatedPdfFactory.CreateMixed);
+        using var vm = new CommentsViewModel(ro);
+        var link = vm.Items.Single(i => i.KindName == Strings.AnnotKind_Link);
+        int n = vm.Items.Count;
+        await vm.DeleteAsync(link);
+        Assert.Equal(n, vm.Items.Count);
+    }
+
+    [Fact]
+    public async Task Encrypted_ReplyAndStateDisabled()
+    {
+        string p = P("enc.pdf");
+        TestPdfFactory.CreateEncrypted(p, 1, 400, 600, "secret");
+        var tab = await OpenTab(p, "secret");
+        await tab.Session!.AnnotationsReady;
+        var page = tab.Session.Pages[0].Id;
+        await Add(tab, page, Note(tab, "kim", "root note"));
+        using var vm = new CommentsViewModel(tab);
+
+        Assert.False(vm.CanReply);
+        Assert.Equal(Strings.Msg_RepliesUnavailableEncrypted, vm.ReplyNotice);
+        var root = Assert.Single(vm.Items);          // 보기는 된다
+        long undoDepth = tab.Session.Commands.Version;
+
+        await vm.ReplyAsync(root, "nope");
+        await vm.SetStateAsync(root, ReviewState.Accepted);
+
+        Assert.Single(vm.Items);
+        Assert.Equal(undoDepth, tab.Session.Commands.Version);
+        Assert.Single(AllOn(tab, page));
+        Assert.False(vm.ReplyCommand.CanExecute(root));
+    }
+
+    [Fact]
+    public async Task NormalDoc_CanReply_NoNotice()
+    {
+        var tab = await OpenLabeled(1);
+        using var vm = new CommentsViewModel(tab);
+        Assert.True(vm.CanReply);
+        Assert.Null(vm.ReplyNotice);
+    }
 }

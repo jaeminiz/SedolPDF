@@ -148,6 +148,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public SearchViewModel? ActiveSearch => ActiveDocument?.Search;
     public BookmarksViewModel? ActiveBookmarks => ActiveDocument?.Bookmarks;
     public AttachmentsViewModel? ActiveAttachments => ActiveDocument?.Attachments;
+    public CommentsViewModel? ActiveComments => ActiveDocument?.Comments;
+
+    /// <summary>왼쪽 패널 폭: 코멘트 목록은 글이 길어 더 넓게.</summary>
+    public double LeftPanelWidth => ActiveLeftPanel == PanelKind.Comments ? 320 : 200;
     public LayersViewModel? ActiveLayers => ActiveDocument?.Layers;
     public PropertiesViewModel? ActiveProperties => ActiveDocument?.Properties;
     public bool HasQuickResults => QuickCommandResults.Count > 0;
@@ -190,6 +194,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveThumbnails));
         OnPropertyChanged(nameof(ActiveBookmarks));
         OnPropertyChanged(nameof(ActiveAttachments));
+        OnPropertyChanged(nameof(ActiveComments));
         OnPropertyChanged(nameof(ActiveLayers));
         OnPropertyChanged(nameof(ActiveProperties));
         OnPropertyChanged(nameof(ActiveSearch));
@@ -295,7 +300,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         tab.Properties = new PropertiesViewModel(tab);
         var search = tab.Search = new SearchViewModel(tab);
         tab.NoticeRequested += msg => { _ = _prompts!.ShowInfoAsync(msg); };
-        tab.Detached += () => { search.Clear(); thumbs.Dispose(); cmds.Dispose(); };
+        tab.Detached += () => { search.Clear(); thumbs.Dispose(); cmds.Dispose(); tab.Comments?.Dispose(); tab.Comments = null; };
     }
 
     private void NotifyDocCommands()
@@ -409,6 +414,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowAttachments));
         OnPropertyChanged(nameof(ShowLayers));
         OnPropertyChanged(nameof(ShowComments));
+        OnPropertyChanged(nameof(LeftPanelWidth));
         OnPropertyChanged(nameof(ShowSearch));
         LoadVisiblePanels();
     }
@@ -429,6 +435,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     case PanelKind.Bookmarks when d.Bookmarks is { } b: await b.LoadAsync(); break;
                     case PanelKind.Attachments when d.Attachments is { } a: await a.LoadAsync(); break;
                     case PanelKind.Layers when d.Layers is { } l: await l.LoadAsync(); break;
+                    case PanelKind.Comments when d.Comments is null:
+                        d.Comments = new CommentsViewModel(d);   // 처음 열 때 만든다. 탭을 닫을 때(Detached) 해제한다
+                        OnPropertyChanged(nameof(ActiveComments));
+                        break;
                 }
             }
             if (IsPropertiesPanelVisible && d.Properties is { } p) await p.LoadAsync();
@@ -544,7 +554,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("annot.eraser", Strings.Cmd_Eraser, "eraser", null, ToolCmd(ToolKind.Eraser));
         Reg("annot.stamp", Strings.Cmd_Stamp, "stamp", null, ToolCmd(ToolKind.Stamp));
         Reg("annot.more", Strings.Cmd_More, "more", null, DocCmd(_ => { }));
-        Reg("annot.commentList", Strings.Cmd_CommentList, "comments");
+        Reg("annot.commentList", Strings.Cmd_CommentList, "comments", null,
+            DocCmd(_ => { ActiveLeftPanel = PanelKind.Comments; IsLeftPanelVisible = true; }));
         Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers");
         Reg("annot.importExport", Strings.Cmd_ImportExport, "share");
         Reg("annot.style", Strings.Cmd_AnnotStyle, "pen");
@@ -617,6 +628,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                         T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser),
                         T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach),
                         T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp),
+                        I("annot.commentList", Strings.Cmd_CommentList),
                     ])),
             ],
             ["Edit"] =

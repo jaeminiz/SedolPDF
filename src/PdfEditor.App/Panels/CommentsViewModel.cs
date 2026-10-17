@@ -60,6 +60,8 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
     {
         _tab = tab;
         GoToCommand = new RelayCommand<CommentItem>(i => { if (i is not null) GoTo(i); });
+        ReplyCommand = new RelayCommand<CommentItem>(BeginReply, i => CanReply && i is { Editable: true });
+        DeleteCommand = new AsyncRelayCommand<CommentItem>(i => i is null ? Task.CompletedTask : DeleteSafeAsync(i), i => CanDelete(i));
         if (tab.Session is { } s)
         {
             s.Annotations.Changed += OnStoreChanged;
@@ -89,14 +91,184 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
 
     public ICommand GoToCommand { get; }
 
+    // ---- 화면의 거르기·정렬 선택 칸 (첫 항목 = 모두) ----
+    public IReadOnlyList<string> SortChoices { get; } = [Strings.Comment_SortPage, Strings.Comment_SortDate, Strings.Comment_SortAuthor, Strings.Comment_SortKind];
+    public IReadOnlyList<string> KindChoices => [Strings.Comment_AllKinds, .. Kinds];
+    public IReadOnlyList<string> AuthorChoices => [Strings.Comment_AllAuthors, .. Authors];
+    public IReadOnlyList<string> StateChoices { get; } =
+        [Strings.Comment_AllStates, .. Enum.GetValues<ReviewState>().Select(StateName)];
+
+    public int SortIndex
+    {
+        get => (int)SortBy;
+        set { if (value >= 0 && value <= (int)CommentSort.Kind) SortBy = (CommentSort)value; }
+    }
+
+    public int KindIndex
+    {
+        get => KindFilter.Count == 1 ? Math.Max(0, 1 + IndexOf(Kinds, KindFilter.First())) : 0;
+        set => KindFilter = value <= 0 || value > Kinds.Count ? NoKinds : new HashSet<string> { Kinds[value - 1] };
+    }
+
+    public int AuthorIndex
+    {
+        get => string.IsNullOrEmpty(AuthorFilter) ? 0 : Math.Max(0, 1 + IndexOf(Authors, AuthorFilter));
+        set => AuthorFilter = value <= 0 || value > Authors.Count ? null : Authors[value - 1];
+    }
+
+    public int StateIndex
+    {
+        get => StateFilter is { } s ? 1 + (int)s : 0;
+        set => StateFilter = value <= 0 ? null : (ReviewState)(value - 1);
+    }
+
+    private static int IndexOf(IReadOnlyList<string> list, string v)
+    {
+        for (int i = 0; i < list.Count; i++) if (list[i] == v) return i;
+        return -1;
+    }
+
+    partial void OnKindsChanged(IReadOnlyList<string> value) { OnPropertyChanged(nameof(KindChoices)); OnPropertyChanged(nameof(KindIndex)); }
+    partial void OnAuthorsChanged(IReadOnlyList<string> value) { OnPropertyChanged(nameof(AuthorChoices)); OnPropertyChanged(nameof(AuthorIndex)); }
+
+    public string CountText => string.Format(Strings.Comment_Count, ShownCount, TotalCount);
+    public bool IsEmptyList => ShownCount == 0;
+    partial void OnShownCountChanged(int value) { OnPropertyChanged(nameof(CountText)); OnPropertyChanged(nameof(IsEmptyList)); }
+    partial void OnTotalCountChanged(int value) => OnPropertyChanged(nameof(CountText));
+
+    /// <summary>답글 입력칸을 연다 (답글을 달 수 없는 문서에서는 실행 불가).</summary>
+    public IRelayCommand<CommentItem> ReplyCommand { get; }
+    public IAsyncRelayCommand<CommentItem> DeleteCommand { get; }
+
+    /// <summary>답글·검토 상태를 달 수 있는가: 주석 권한이 있고 저장 때 PDFsharp 패치가 되는 문서 (암호 문서는 불가, M3a A2).</summary>
+    public bool CanReply => _tab.Session is not null && _tab.CanAnnotate && _tab.CanUsePatchFeatures;
+
+    /// <summary>답글·상태를 달 수 없는 이유 (달 수 있거나 주석 권한 자체가 없으면 null — 그 경우는 탭의 안내가 알린다).</summary>
+    public string? ReplyNotice => _tab.Session is not null && _tab.CanAnnotate && !_tab.CanUsePatchFeatures
+        ? Strings.Msg_RepliesUnavailableEncrypted : null;
+
+    public bool HasReplyNotice => ReplyNotice is not null;
+
+    public static string StateName(ReviewState s) => s switch
+    {
+        ReviewState.Accepted => Strings.State_Accepted,
+        ReviewState.Rejected => Strings.State_Rejected,
+        ReviewState.Cancelled => Strings.State_Cancelled,
+        ReviewState.Completed => Strings.State_Completed,
+        _ => Strings.State_None,
+    };
+
+    public bool CanDelete(CommentItem? i) => i is { Editable: true, Id: not null } && _tab.CanAnnotate;
+
+    // ---- 답글·상태·삭제 (명령 하나씩, 작성자 = 설정의 작성자 이름) ----
+
+    /// <summary>parent 아래에 답글을 단다. parent가 이미 답글이 달린 주석이면 스레드 끝에 붙는다 (시각순).</summary>
+    public async Task ReplyAsync(CommentItem parent, string text)
+    {
+        text = text?.Trim() ?? "";
+        if (text.Length == 0 || !CanReply || !parent.Editable) return;
+        if (!Find(parent, out var s, out var snap, out var target)) return;
+        var reply = ThreadAnnotations.NewReply(s.Annotations, target, text, DocumentTabViewModel.CurrentAuthor, NextStamp(snap, target));
+        await _tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Add(parent.Page, reply));
+    }
+
+    /// <summary>스레드 뿌리의 검토 상태를 정한다 (줄이 답글이면 그 스레드의 뿌리에). 이미 그 상태면 아무것도 하지 않는다.</summary>
+    public async Task SetStateAsync(CommentItem root, ReviewState state)
+    {
+        if (!CanReply || !root.Editable) return;
+        if (!Find(root, out var s, out var snap, out var target)) return;
+        var top = ThreadRoot(snap, target);
+        if (snap.CurrentState(top.Id) == state) return;
+        var st = ThreadAnnotations.NewState(s.Annotations, top, state, DocumentTabViewModel.CurrentAuthor, NextStamp(snap, top),
+            Strings.Comment_StateTemplate, StateName(state));
+        await _tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Add(root.Page, st));
+    }
+
+    /// <summary>줄의 주석을 지운다 — 답글·상태·바꾸기 묶음 구성원까지 한 명령으로 (부모만 지우면 답글이 고아가 된다).</summary>
+    public async Task DeleteAsync(CommentItem item)
+    {
+        if (!CanDelete(item) || _tab.Session is not { } s) return;
+        var set = s.Annotations.DeleteSetOf(item.Page, item.Id!.Value);
+        if (set.Count == 0) return;
+        await _tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.DeleteThread(item.Page, set));
+    }
+
+    /// <summary>입력칸에서 확정: 쓴 글로 답글을 달고 칸을 닫는다.</summary>
+    public async Task CommitReplyAsync(CommentItem item)
+    {
+        string text = item.Ui.Draft;
+        if (string.IsNullOrWhiteSpace(text)) { CancelReply(item); return; }
+        try { await ReplyAsync(item, text); }
+        catch (Exception ex) { _tab.RaiseNotice(ex.Message); return; }
+        item.Ui.Draft = "";
+        item.Ui.IsReplying = false;
+    }
+
+    public void CancelReply(CommentItem item)
+    {
+        item.Ui.IsReplying = false;
+        item.Ui.Draft = "";
+    }
+
+    private void BeginReply(CommentItem? item)
+    {
+        if (item is null || !CanReply || !item.Editable) return;
+        foreach (var other in _items)
+            if (!ReferenceEquals(other, item) && other.Ui.IsReplying) other.Ui.IsReplying = false;   // 한 번에 하나
+        item.Ui.IsReplying = true;
+    }
+
+    private async Task DeleteSafeAsync(CommentItem item)
+    {
+        try { await DeleteAsync(item); }
+        catch (Exception ex) { _tab.RaiseNotice(ex.Message); }
+    }
+
+    /// <summary>상태 바꾸기를 화면에서 부를 때 (오류는 안내로).</summary>
+    public async Task SetStateSafeAsync(CommentItem item, ReviewState state)
+    {
+        try { await SetStateAsync(item, state); }
+        catch (Exception ex) { _tab.RaiseNotice(ex.Message); }
+    }
+
+    private bool Find(CommentItem item, out PdfEditor.Document.DocumentSession s, out PageAnnotations snap, out Annotation target)
+    {
+        s = _tab.Session!;
+        snap = default!;
+        target = default!;
+        if (_tab.Session is null || item.Id is not { } id) return false;
+        snap = s.Annotations.Get(item.Page);
+        var found = snap.Items.FirstOrDefault(v => v.Data.Id == id)?.Data;
+        if (found is null) return false;
+        target = found;
+        return true;
+    }
+
+    private static Annotation ThreadRoot(PageAnnotations snap, Annotation a)
+    {
+        var byId = snap.Items.ToDictionary(v => v.Data.Id, v => v.Data);
+        var seen = new HashSet<AnnotId>();
+        var cur = a;
+        while (cur.IsThreadMember() && cur.InReplyTo is { } p && seen.Add(cur.Id) && byId.TryGetValue(p, out var up)) cur = up;
+        return cur;
+    }
+
+    /// <summary>지금 시각. 단, 스레드에서 가장 늦은 시각보다 반드시 뒤여야 한다 (시각순 표시에서 스레드 끝에 오도록).</summary>
+    private static DateTimeOffset NextStamp(PageAnnotations snap, Annotation target)
+    {
+        var now = DateTimeOffset.Now;
+        var latest = ThreadRoot(snap, target) is { } top ? snap.ThreadOf(top.Id).Select(a => a.ModifiedAt ?? a.CreatedAt ?? DateTimeOffset.MinValue).DefaultIfEmpty().Max() : default;
+        return latest >= now ? latest.AddMilliseconds(1) : now;
+    }
+
     /// <summary>테스트용: 이 쪽의 줄 묶음을 다시 만든 횟수.</summary>
     public int RebuildCount(PageId page) => _rebuildCounts.GetValueOrDefault(page);
 
-    partial void OnKindFilterChanged(IReadOnlySet<string> value) => Refresh();
-    partial void OnAuthorFilterChanged(string? value) => Refresh();
-    partial void OnStateFilterChanged(ReviewState? value) => Refresh();
+    partial void OnKindFilterChanged(IReadOnlySet<string> value) { OnPropertyChanged(nameof(KindIndex)); Refresh(); }
+    partial void OnAuthorFilterChanged(string? value) { OnPropertyChanged(nameof(AuthorIndex)); Refresh(); }
+    partial void OnStateFilterChanged(ReviewState? value) { OnPropertyChanged(nameof(StateIndex)); Refresh(); }
     partial void OnSearchTextChanged(string value) => Refresh();
-    partial void OnSortByChanged(CommentSort value) => Refresh();
+    partial void OnSortByChanged(CommentSort value) { OnPropertyChanged(nameof(SortIndex)); Refresh(); }
     partial void OnSortDescendingChanged(bool value) => Refresh();
     partial void OnPageRangeChanged(string value)
     {
@@ -250,7 +422,7 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
         foreach (var ro in snap.ReadOnly)
         {
             var item = new CommentItem(id, number, null, ro.Index, ReadOnlyKindName(ro.Subtype), ro.Author, ro.Contents, ro.ModifiedAt,
-                ReviewState.None, 0, false, ro.Rect);
+                ReviewState.None, 0, false, ro.Rect, AnnotKindExtensions.FromPdfSubtype(ro.Subtype) is { } rk ? IconFor(new Annotation { Kind = rk }, false) : "generic");
             groups.Add(new Group(item, [], seq++));
         }
         _cache[id] = groups;
@@ -273,7 +445,7 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
             contents = members!.Select(m => m.Contents).FirstOrDefault(c => !string.IsNullOrEmpty(c)) ?? a.Contents;
         var state = withState.Contains(a.Id) ? snap.CurrentState(a.Id) : ReviewState.None;
         return new CommentItem(page, number, a.Id, null, KindName(a, replace), a.Author, contents, a.ModifiedAt ?? a.CreatedAt,
-            state, depth, true, a.Rect);
+            state, depth, true, a.Rect, IconFor(a, replace));
     }
 
     // ---- 종류 이름 (화면 문구는 Strings 리소스) ----
@@ -303,6 +475,30 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
             AnnotKind.Stamp => Strings.AnnotKind_Stamp,
             AnnotKind.FileAttachment => Strings.AnnotKind_FileAttachment,
             _ => Strings.AnnotKind_Other,
+        };
+    }
+
+    /// <summary>줄 앞에 그리는 종류 아이콘 (Icons.axaml 키).</summary>
+    private static string IconFor(Annotation a, bool replaceGroup)
+    {
+        if (replaceGroup) return "replace";
+        return a.Kind switch
+        {
+            AnnotKind.Ink => "pen",
+            AnnotKind.Highlight => "hl",
+            AnnotKind.Underline => "under",
+            AnnotKind.StrikeOut => "strike",
+            AnnotKind.Text => a.IsThreadMember() ? "comments" : "note",
+            AnnotKind.Circle => "oval",
+            AnnotKind.Square => a.CloudIntensity > 0f ? "cloud" : "rect",
+            AnnotKind.Polygon => a.CloudIntensity > 0f ? "cloud" : "poly",
+            AnnotKind.PolyLine => "pline",
+            AnnotKind.Line => IsArrow(a.StartEnding) || IsArrow(a.EndEnding) ? "arrow" : "line",
+            AnnotKind.FreeText => a.Intent == FreeTextIntent.Callout ? "callout" : "type",
+            AnnotKind.Caret => "caret",
+            AnnotKind.Stamp => "stamp",
+            AnnotKind.FileAttachment => "clip",
+            _ => "generic",
         };
     }
 

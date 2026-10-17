@@ -33,7 +33,7 @@ public sealed class RibbonMoreButton : RibbonButton
             {
                 Header = vm.Label,
                 Command = vm.Command.Command,
-                ToggleType = MenuItemToggleType.CheckBox,
+                ToggleType = vm.Tool is null ? MenuItemToggleType.None : MenuItemToggleType.CheckBox,   // 체크 표시는 도구 항목만
                 IsChecked = vm.IsChecked,
             };
             ToolTip.SetTip(item, vm.Tip);   // 꺼진 항목의 이유 (암호 문서의 패치 도구)

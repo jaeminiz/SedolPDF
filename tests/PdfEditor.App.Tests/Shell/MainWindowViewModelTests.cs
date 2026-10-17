@@ -55,8 +55,8 @@ public class MainWindowViewModelTests
             }
         foreach (var g in vm.Ribbon["Annotate"].SelectMany(x => x.Items))
             Assert.False(vm.Commands.Find(g.CommandId)!.Command.CanExecute(null), g.CommandId);
-        // M3b 주석 관리 명령은 등록만 유지: 빠른 실행에서는 비활성 + 안내
-        var m3 = vm.Commands.Find("annot.commentList")!;
+        // M3b 주석 관리 명령 중 아직 연결되지 않은 것(요약)은 빠른 실행에서 비활성 + 안내. 코멘트 목록은 연결됨(문서가 없으면 비활성).
+        var m3 = vm.Commands.Find("annot.summary")!;
         Assert.False(m3.Command.CanExecute(null));
         Assert.False(string.IsNullOrEmpty(m3.DisabledTip));
     }
@@ -82,9 +82,9 @@ public class MainWindowViewModelTests
         var vm = new MainWindowViewModel();
         var more = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Single(i => i.MoreItems is not null);
         Assert.Equal(["annot.hlArea", "annot.insertText", "annot.replaceText", "annot.arrow", "annot.ellipse", "annot.polygon",
-                      "annot.polyline", "annot.eraser", "annot.attach", "annot.stamp"], more.MoreItems!.Select(i => i.CommandId));
+                      "annot.polyline", "annot.eraser", "annot.attach", "annot.stamp", "annot.commentList"], more.MoreItems!.Select(i => i.CommandId));
         // 14개 + 더보기 10개 = 만들기 도구 24개가 한 번씩 (손·텍스트 선택·주석 선택 포함)
-        var all = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Where(i => i.Tool is not null).Concat(more.MoreItems!).Select(i => i.Tool!.Value).ToList();
+        var all = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Where(i => i.Tool is not null).Concat(more.MoreItems!.Where(i => i.Tool is not null)).Select(i => i.Tool!.Value).ToList();
         Assert.Equal(all.Count, all.Distinct().Count());
         Assert.Equal(Enum.GetValues<ToolKind>().Length, all.Count);
     }
