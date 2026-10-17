@@ -44,7 +44,7 @@ public sealed record AppearanceDrawing(ImmutableArray<PaintOp> Ops, float Opacit
             {
                 foreach (var r in g.Text.EnumerateRunes()) cps.Add(r.Value);
                 if (!seen.Add((g.Cid, g.Text))) continue;
-                glyphs.Add(new GlyphUse(g.Cid, (int)Math.Round(g.Advance * 1000f / run.SizePt), g.Text));
+                glyphs.Add(new GlyphUse(g.Cid, run.SizePt > 0 ? (int)Math.Round(g.Advance * 1000f / run.SizePt) : 0, g.Text));
             }
         return new FontUse([.. cps], [.. glyphs]);
     }

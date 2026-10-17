@@ -39,6 +39,6 @@ public static class AnnotationOverlay
 
     private static void Draw(DrawingContext ctx, Annotation a, int rotation)
     {
-        AppearanceGeometry.Get(a, rotation).Draw(ctx, a.Opacity);
+        AppearanceGeometry.Get(a, rotation).Draw(ctx);
     }
 }

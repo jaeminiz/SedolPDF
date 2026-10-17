@@ -125,6 +125,8 @@ public static class TextLayout
                 font.Advance1000(shaped[i].Gid) * size / 1000f);
 
         var clusters = shaped.Select(g => g.Cluster).Distinct().OrderBy(c => c).ToList();
+        var nextCluster = new Dictionary<int, int>(clusters.Count);
+        for (int k = 0; k < clusters.Count; k++) nextCluster[clusters[k]] = k + 1 < clusters.Count ? clusters[k + 1] : clean.Length;
         var units = new List<Unit>();
         int start = 0;
         while (start < shaped.Length)
@@ -132,8 +134,7 @@ public static class TextLayout
             int cl = shaped[start].Cluster, end = start + 1;
             float w = glyphs[start].Advance;
             while (end < shaped.Length && shaped[end].Cluster == cl) w += glyphs[end++].Advance;
-            int idx = clusters.IndexOf(cl);
-            int next = idx + 1 < clusters.Count ? clusters[idx + 1] : clean.Length;
+            int next = nextCluster[cl];
             string t = clean.Substring(cl, Math.Max(0, next - cl));
             units.Add(new Unit(start, end - start, w, char.ConvertToUtf32(clean, cl), t));
             start = end;
