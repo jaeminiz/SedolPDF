@@ -61,7 +61,13 @@ public sealed class AppFont : IDisposable
     }
 
     /// <summary>전체 글꼴의 CFF charset에서 본 CID. 이름 키 방식 CFF면 CID = 글리프 번호.</summary>
-    public int GetCid(int gid) => _cidByGid is null ? gid : _cidByGid[gid];
+    /// <exception cref="ArgumentOutOfRangeException">gid가 음수이거나 글꼴의 글리프 수 이상일 때.</exception>
+    public int GetCid(int gid)
+    {
+        if (gid < 0 || (_cidByGid is not null && gid >= _cidByGid.Length))
+            throw new ArgumentOutOfRangeException(nameof(gid), gid, "Glyph id is outside the font.");
+        return _cidByGid is null ? gid : _cidByGid[gid];
+    }
 
     /// <summary>전체 글꼴이 CID 키 방식 CFF인가(아니면 CID = 글리프 번호).</summary>
     internal bool HasCidCharset => _cidByGid is not null;

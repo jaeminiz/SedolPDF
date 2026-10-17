@@ -57,6 +57,34 @@ public sealed class RecoveryStore(
         return newDir;
     }
 
+    /// <summary>임시 파일을 지우기 전에 기다리는 시간: 방금 쓰는 중인 파일을 건드리지 않는다.</summary>
+    public static readonly TimeSpan StrayTempAge = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// 시작할 때 부른다. 강제 종료된 프로세스가 남긴 복구 폴더의 <c>*.tmp</c>(GUID 이름 임시 파일)와
+    /// 임시 폴더의 <c>~sedol-print-*.pdf</c> 중 1시간 넘은 것을 지운다. 예외를 올리지 않는다.
+    /// </summary>
+    public void SweepStrayTemps(string? tempDir = null)
+    {
+        SweepOlder(folder, "*.tmp");
+        SweepOlder(tempDir ?? Path.GetTempPath(), "~sedol-print-*.pdf");
+    }
+
+    private static void SweepOlder(string dir, string pattern)
+    {
+        try
+        {
+            if (!Directory.Exists(dir)) return;
+            var cutoff = DateTime.UtcNow - StrayTempAge;
+            foreach (string f in Directory.EnumerateFiles(dir, pattern))
+            {
+                try { if (File.GetLastWriteTimeUtc(f) < cutoff) File.Delete(f); }
+                catch (Exception) { /* 사용 중이거나 권한이 없으면 다음 실행에서 다시 */ }
+            }
+        }
+        catch (Exception) { /* 폴더 열거 실패: 건너뜀 */ }
+    }
+
     private string PdfPath(Guid id) => Path.Combine(folder, id.ToString("N") + ".pdf");
     private string JsonPath(Guid id) => Path.Combine(folder, id.ToString("N") + ".json");
 

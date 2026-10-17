@@ -25,7 +25,7 @@ public static class CffCharset
             if (otf[rec] == (byte)'C' && otf[rec + 1] == (byte)'F' && otf[rec + 2] == (byte)'F' && otf[rec + 3] == (byte)' ')
                 return ((int)BinaryPrimitives.ReadUInt32BigEndian(otf.AsSpan(rec + 8)), (int)BinaryPrimitives.ReadUInt32BigEndian(otf.AsSpan(rec + 12)));
         }
-        throw new InvalidOperationException("CFF 테이블 없음");
+        throw new InvalidOperationException("CFF table not found");
     }
 
     public static int[]? GetCidByGid(byte[] otf)

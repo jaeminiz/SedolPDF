@@ -13,4 +13,8 @@
     <ProjectReference Include="..\PdfEditor.Document\PdfEditor.Document.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="PdfEditor.Appearance.Tests" />
+  </ItemGroup>
+
 </Project>

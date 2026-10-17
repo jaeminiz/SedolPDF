@@ -40,7 +40,7 @@ public static unsafe partial class FontSubsetter
         using var face = new Face(blob, 0);
 
         IntPtr input = hb_subset_input_create_or_fail();
-        if (input == IntPtr.Zero) throw new InvalidOperationException("hb_subset_input_create_or_fail 실패");
+        if (input == IntPtr.Zero) throw new InvalidOperationException("hb_subset_input_create_or_fail failed");
         IntPtr resultFace = IntPtr.Zero, resultBlob = IntPtr.Zero;
         try
         {
@@ -48,7 +48,7 @@ public static unsafe partial class FontSubsetter
             foreach (var cp in codepoints) hb_set_add(set, (uint)cp);
 
             resultFace = hb_subset_or_fail(face.Handle, input);
-            if (resultFace == IntPtr.Zero) throw new InvalidOperationException("hb_subset_or_fail 실패");
+            if (resultFace == IntPtr.Zero) throw new InvalidOperationException("hb_subset_or_fail failed");
 
             resultBlob = hb_face_reference_blob(resultFace);
             uint len = 0;

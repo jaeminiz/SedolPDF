@@ -107,6 +107,7 @@ public sealed class RecoveryCoordinator(PdfiumThread t, RecoveryStore store, Set
     /// </summary>
     public async Task<IReadOnlyList<DocumentSession>> RecoverAtStartupAsync()
     {
+        store.SweepStrayTemps();   // 강제 종료가 남긴 오래된 임시 파일 정리 (예외 없음)
         var entries = store.List();
         if (entries.Count == 0) return [];
         var chosen = await ui.ChooseAsync(entries).ConfigureAwait(true);

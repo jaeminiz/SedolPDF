@@ -185,8 +185,31 @@ public class AssetHardeningTests(ITestOutputHelper output)
     [InlineData("....", "attachment")]
     [InlineData("a..b.txt", "a.b.txt")]
     [InlineData("", "attachment")]
+    [InlineData("CON", "_CON")]
+    [InlineData("nul.txt", "_nul.txt")]
+    [InlineData("Com1.tar.gz", "_Com1.tar.gz")]
+    [InlineData("LPT9.pdf", "_LPT9.pdf")]
+    [InlineData("aux ", "_aux")]
+    [InlineData("console.txt", "console.txt")]
+    [InlineData("COM0.txt", "COM0.txt")]
+    [InlineData("report‮gnp.exe", "reportgnp.exe")]
+    [InlineData("a‎b‏c⁦d⁩.txt", "abcd.txt")]
     public void AttachmentNames_Sanitized(string input, string expected)
         => Assert.Equal(expected, AttachmentNames.Sanitize(input));
+
+    [Fact]
+    public void AttachmentNames_LongName_CappedKeepingExtension()
+    {
+        string r = AttachmentNames.Sanitize(new string('a', 500) + ".pdf");
+        Assert.Equal(AttachmentNames.MaxLength, r.Length);
+        Assert.EndsWith(".pdf", r);
+        Assert.Equal(AttachmentNames.MaxLength, AttachmentNames.Sanitize(new string('b', 500)).Length);
+        // 서로게이트 쌍이 잘리지 않는다
+        string emoji = AttachmentNames.Sanitize(string.Concat(Enumerable.Repeat("😀", 150)) + ".txt");
+        Assert.True(emoji.Length <= AttachmentNames.MaxLength);
+        Assert.DoesNotContain('�', emoji);
+        Assert.False(char.IsHighSurrogate(emoji[^5]));
+    }
 
     [Fact]
     public void ReadAttachment_NameSanitized()

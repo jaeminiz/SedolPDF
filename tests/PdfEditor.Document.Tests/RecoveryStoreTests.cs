@@ -286,4 +286,46 @@ public class RecoveryStoreTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(pdf));
         Assert.Empty(Directory.GetFiles(P("recovery"), "*.tmp"));
     }
+
+    [Fact]
+    public void SweepStrayTemps_DeletesOldTmpAndPrintFiles_KeepsRecentAndOthers()
+    {
+        string rec = P("recovery"), tmpDir = P("tmp");
+        Directory.CreateDirectory(rec);
+        Directory.CreateDirectory(tmpDir);
+        string id = Guid.NewGuid().ToString("N");
+        string oldTmp = Path.Combine(rec, id + ".pdf." + Guid.NewGuid().ToString("N") + ".tmp");
+        string newTmp = Path.Combine(rec, id + ".json." + Guid.NewGuid().ToString("N") + ".tmp");
+        string keepPdf = Path.Combine(rec, id + ".pdf");
+        string oldPrint = Path.Combine(tmpDir, "~sedol-print-" + Guid.NewGuid().ToString("N") + ".pdf");
+        string newPrint = Path.Combine(tmpDir, "~sedol-print-" + Guid.NewGuid().ToString("N") + ".pdf");
+        string otherOld = Path.Combine(tmpDir, "other.pdf");
+        foreach (var f in new[] { oldTmp, newTmp, keepPdf, oldPrint, newPrint, otherOld }) File.WriteAllBytes(f, [1]);
+        var old = DateTime.UtcNow.AddHours(-2);
+        foreach (var f in new[] { oldTmp, keepPdf, oldPrint, otherOld }) File.SetLastWriteTimeUtc(f, old);
+
+        new RecoveryStore(rec).SweepStrayTemps(tmpDir);
+
+        Assert.False(File.Exists(oldTmp));
+        Assert.False(File.Exists(oldPrint));
+        Assert.True(File.Exists(newTmp));
+        Assert.True(File.Exists(newPrint));
+        Assert.True(File.Exists(keepPdf));      // 복구본 자체는 건드리지 않는다
+        Assert.True(File.Exists(otherOld));     // 우리 이름이 아닌 파일은 건드리지 않는다
+    }
+
+    [Fact]
+    public void SweepStrayTemps_MissingFoldersOrLockedFile_DoesNotThrow()
+    {
+        new RecoveryStore(P("nope")).SweepStrayTemps(P("nope2"));
+
+        string rec = P("recovery");
+        Directory.CreateDirectory(rec);
+        string locked = Path.Combine(rec, "x.pdf." + Guid.NewGuid().ToString("N") + ".tmp");
+        File.WriteAllBytes(locked, [1]);
+        File.SetLastWriteTimeUtc(locked, DateTime.UtcNow.AddHours(-3));
+        using (var fs = new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+            new RecoveryStore(rec).SweepStrayTemps(P("nope2"));
+        Assert.True(File.Exists(locked));
+    }
 }

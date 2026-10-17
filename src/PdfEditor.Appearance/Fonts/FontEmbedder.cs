@@ -88,9 +88,8 @@ public static class FontEmbedder
     /// <summary>서브셋의 CID가 전체 글꼴의 CID와 같은지 확인한다(V11). 다르면 InvalidOperationException.</summary>
     private static void VerifyCids(AppFont font, FontUse use, int[] cps, byte[] sub, int[]? subCidByGid)
     {
-        if (font.HasCidCharset != (subCidByGid is not null))
-            throw new InvalidOperationException("Subset CFF charset kind differs from the full font (CID-keyed vs name-keyed).");
-        if (subCidByGid is null) return;   // 이름 키 방식은 CID = 글리프 번호이고 서브셋이 번호를 다시 매기므로 지원하지 않는다.
+        RequireCidKeyed(font.HasCidCharset, subCidByGid);
+        if (subCidByGid is null) return;   // 도달하지 않음 (RequireCidKeyed가 던진다)
 
         var present = new HashSet<int>(subCidByGid);
         foreach (int cp in cps)
@@ -103,6 +102,18 @@ public static class FontEmbedder
         foreach (var g in use.Glyphs)
             if (g.Cid != 0 && !present.Contains(g.Cid))
                 throw new InvalidOperationException($"Glyph CID {g.Cid} is not in the subset; subset CIDs differ from the full font.");
+    }
+
+    /// <summary>
+    /// 전체 글꼴과 서브셋이 모두 CID 키 방식 CFF여야 한다. 이름 키 방식은 CID = 글리프 번호인데 서브셋이 번호를 다시 매기므로
+    /// 화면과 같은 CID를 보장할 수 없어 지원하지 않는다(조용히 넘어가지 않고 던진다).
+    /// </summary>
+    internal static void RequireCidKeyed(bool fullFontCidKeyed, int[]? subsetCidByGid)
+    {
+        if (fullFontCidKeyed != (subsetCidByGid is not null))
+            throw new InvalidOperationException("Subset CFF charset kind differs from the full font (CID-keyed vs name-keyed).");
+        if (subsetCidByGid is null)
+            throw new InvalidOperationException("Name-keyed CFF fonts are not supported: CIDs cannot be guaranteed after subsetting.");
     }
 
     private static PdfArray Arr(PdfSharp.Pdf.PdfDocument doc, params double[] v) =>

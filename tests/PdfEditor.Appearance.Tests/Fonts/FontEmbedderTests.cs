@@ -46,6 +46,42 @@ public class FontEmbedderTests : IDisposable
     }
 
     [Fact]
+    public void RequireCidKeyed_NameKeyedFont_Throws()
+    {
+        // 이름 키 방식(전체·서브셋 모두 charset 없음): 조용히 넘어가지 않고 던진다
+        var ex = Assert.Throws<InvalidOperationException>(() => FontEmbedder.RequireCidKeyed(false, null));
+        Assert.Contains("Name-keyed", ex.Message);
+        // 종류가 다를 때도 던진다
+        Assert.Throws<InvalidOperationException>(() => FontEmbedder.RequireCidKeyed(true, null));
+        Assert.Throws<InvalidOperationException>(() => FontEmbedder.RequireCidKeyed(false, [0, 1]));
+        FontEmbedder.RequireCidKeyed(true, [0, 1]);   // CID 키 방식은 통과
+    }
+
+    [Fact]
+    public void GetCid_InvalidGid_ThrowsArgumentOutOfRange()
+    {
+        using var font = AppFont.Load(FontTestSupport.FontPath());
+        Assert.Throws<ArgumentOutOfRangeException>(() => font.GetCid(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => font.GetCid(int.MaxValue));
+        Assert.True(font.GetCid(font.GetGlyph('가')!.Value) > 0);
+    }
+
+    [Fact]
+    public void ThrowMessages_AreEnglish()
+    {
+        Assert.Throws<InvalidOperationException>(() => CffCharset.ExtractCff([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        foreach (var f in new[] { "FontSubsetter.cs", "CffCharset.cs" })
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "PdfEditor.Appearance", "Fonts"))) dir = dir.Parent;
+            if (dir is null) return;
+            string src = File.ReadAllText(Path.Combine(dir.FullName, "src", "PdfEditor.Appearance", "Fonts", f));
+            foreach (var line in src.Split('\n').Where(l => l.Contains("throw new")))
+                Assert.DoesNotMatch("[가-힣]", line);
+        }
+    }
+
+    [Fact]
     public void Embed_Type0IdentityH_CidFontType0C_ToUnicode_W()
     {
         using var font = AppFont.Load(FontTestSupport.FontPath());
