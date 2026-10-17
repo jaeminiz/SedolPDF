@@ -1,3 +1,4 @@
+using PdfEditor.Appearance.Fonts;
 using System.Globalization;
 using Pdf.Native;
 using PdfEditor.Appearance;
@@ -44,5 +45,70 @@ public class PdfContentWriterTests
             Assert.DoesNotContain(",", s);
         }
         finally { CultureInfo.CurrentCulture = old; }
+    }
+
+    private static AppearanceDrawing Empty() => new([], 1f, new PdfRectF(0, 0, 100, 50));
+
+    [Fact]
+    public void Writer_TextRun_ExactString()
+    {
+        var d = Empty() with
+        {
+            Texts =
+            [
+                new TextRunOp("F1", 12f, PdfColor.FromHex("#FF0000"),
+                [
+                    new PositionedGlyph(5, 0x1234, new PdfPointF(10f, 20.5f), 6f, "A"),
+                    new PositionedGlyph(6, 0x00AB, new PdfPointF(16.25f, 20.5f), 6f, "B"),
+                ]),
+            ],
+        };
+        Assert.Equal(
+            "q\nBT\n/F1 12 Tf\n1 0 0 rg\n1 0 0 1 10 20.5 Tm\n<1234> Tj\n1 0 0 1 16.25 20.5 Tm\n<00AB> Tj\nET\nQ\n",
+            PdfContentWriter.Write(d));
+    }
+
+    [Fact]
+    public void Writer_Image_ExactString()
+    {
+        var d = Empty() with { Images = [new ImageOp("Im1", "img-1", new PdfRectF(10, 20, 110, 70))] };
+        Assert.Equal("q\nq\n100 0 0 50 10 20 cm\n/Im1 Do\nQ\nQ\n", PdfContentWriter.Write(d));
+    }
+
+    [Fact]
+    public void Writer_Order_PathsThenImagesThenText()
+    {
+        var sq = AnnotationPainter.Paint(Sq(), 0);
+        var d = sq with
+        {
+            Images = [new ImageOp("Im1", "i", new PdfRectF(0, 0, 10, 10))],
+            Texts = [new TextRunOp("F1", 10f, PdfColor.FromHex("#000000"), [new PositionedGlyph(1, 1, new PdfPointF(0, 0), 5f, "A")])],
+        };
+        var s = PdfContentWriter.Write(d);
+        int iPath = s.IndexOf("\nS\n", StringComparison.Ordinal), iImg = s.IndexOf("/Im1 Do", StringComparison.Ordinal), iTxt = s.IndexOf("BT\n", StringComparison.Ordinal);
+        Assert.True(iPath >= 0 && iPath < iImg && iImg < iTxt);
+    }
+
+    [Fact]
+    public void CollectFontUse_GathersCodepointsCidsAndWidths()
+    {
+        var d = Empty() with
+        {
+            Texts =
+            [
+                new TextRunOp("F1", 10f, PdfColor.FromHex("#000000"),
+                [
+                    new PositionedGlyph(5, 77, new PdfPointF(0, 0), 5f, "A"),
+                    new PositionedGlyph(9, 88, new PdfPointF(5, 0), 10f, "¬"),
+                    new PositionedGlyph(5, 77, new PdfPointF(15, 0), 5f, "A"),
+                    new PositionedGlyph(10, 99, new PdfPointF(20, 0), 3f, ""),
+                ]),
+            ],
+        };
+        var use = d.CollectFontUse();
+        Assert.Equal([0x41, 0xAC], use.Codepoints.ToArray());
+        Assert.Equal([(77, 500, "A"), (88, 1000, "¬"), (99, 300, "")],
+            use.Glyphs.Select(g => (g.Cid, g.Advance1000, g.Text)).ToArray());
+        Assert.Empty(Empty().CollectFontUse().Glyphs);
     }
 }

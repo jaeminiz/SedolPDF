@@ -39,7 +39,6 @@ public static class AnnotationOverlay
 
     private static void Draw(DrawingContext ctx, Annotation a, int rotation)
     {
-        foreach (var (geo, fill, stroke) in AppearanceGeometry.Get(a, rotation).Items)
-            ctx.DrawGeometry(fill, stroke, geo);
+        AppearanceGeometry.Get(a, rotation).Draw(ctx, a.Opacity);
     }
 }

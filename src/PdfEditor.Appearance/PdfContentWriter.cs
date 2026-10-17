@@ -36,6 +36,21 @@ public static class PdfContentWriter
             }
             sb.Append(op.Fill is not null && op.Stroke is not null ? "B" : op.Fill is not null ? "f" : "S").Append('\n');
         }
+        foreach (var im in d.Images)
+        {
+            sb.Append("q\n").Append(Num(im.Rect.Width)).Append(" 0 0 ").Append(Num(im.Rect.Height)).Append(' ')
+              .Append(Num(im.Rect.Left)).Append(' ').Append(Num(im.Rect.Bottom)).Append(" cm\n")
+              .Append('/').Append(im.ImageResource).Append(" Do\nQ\n");
+        }
+        foreach (var t in d.Texts)
+        {
+            if (t.Glyphs.IsEmpty) continue;
+            sb.Append("BT\n/").Append(t.FontResource).Append(' ').Append(Num(t.SizePt)).Append(" Tf\n")
+              .Append(Color(t.Color)).Append(" rg\n");
+            foreach (var g in t.Glyphs)
+                sb.Append("1 0 0 1 ").Append(Pt(g.Origin)).Append(" Tm\n<").Append(g.Cid.ToString("X4")).Append("> Tj\n");
+            sb.Append("ET\n");
+        }
         sb.Append("Q\n");
         return sb.ToString();
     }
