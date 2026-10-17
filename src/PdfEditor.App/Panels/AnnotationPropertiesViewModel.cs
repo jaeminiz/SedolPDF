@@ -97,20 +97,20 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     /// <summary>끌기 중인 슬라이더 미리보기(선택 모드). 없으면 null.</summary>
     public IReadOnlyDictionary<AnnotId, Annotation?>? Previews { get; private set; }
 
-    private static bool IsCreateTool(ToolKind t) => t is ToolKind.Pencil or ToolKind.HighlightText or ToolKind.HighlightArea
+    internal static bool IsCreateTool(ToolKind t) => t is ToolKind.Pencil or ToolKind.HighlightText or ToolKind.HighlightArea
         or ToolKind.Underline or ToolKind.StrikeOut or ToolKind.StickyNote or ToolKind.Rectangle or ToolKind.Ellipse
         or ToolKind.Line or ToolKind.Arrow or ToolKind.PolyLine or ToolKind.Polygon or ToolKind.Cloud
         or ToolKind.TextBox or ToolKind.Typewriter or ToolKind.Callout or ToolKind.InsertText or ToolKind.ReplaceText
         or ToolKind.Stamp;
 
     // 선 두께·채우기가 의미 있는 유형 (타자기는 테두리·채우기 없음)
-    private static bool HasWidth(Annotation a) => a.Kind is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle
+    internal static bool HasWidth(Annotation a) => a.Kind is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle
         or AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon || IsBoxedFreeText(a);
-    private static bool HasFill(Annotation a) => a.Kind is AnnotKind.Square or AnnotKind.Circle or AnnotKind.Polygon || IsBoxedFreeText(a);
+    internal static bool HasFill(Annotation a) => a.Kind is AnnotKind.Square or AnnotKind.Circle or AnnotKind.Polygon || IsBoxedFreeText(a);
     private static bool IsBoxedFreeText(Annotation a) => a.Kind == AnnotKind.FreeText && a.Intent != FreeTextIntent.Typewriter;
-    private static bool ToolHasFill(ToolKind t) => t is ToolKind.Rectangle or ToolKind.Ellipse or ToolKind.Polygon or ToolKind.Cloud
+    internal static bool ToolHasFill(ToolKind t) => t is ToolKind.Rectangle or ToolKind.Ellipse or ToolKind.Polygon or ToolKind.Cloud
         or ToolKind.TextBox or ToolKind.Callout;
-    private static bool ToolHasWidth(ToolKind t) => t is ToolKind.Pencil or ToolKind.Rectangle or ToolKind.Ellipse or ToolKind.Line
+    internal static bool ToolHasWidth(ToolKind t) => t is ToolKind.Pencil or ToolKind.Rectangle or ToolKind.Ellipse or ToolKind.Line
         or ToolKind.Arrow or ToolKind.PolyLine or ToolKind.Polygon or ToolKind.Cloud or ToolKind.TextBox or ToolKind.Callout;
 
     private List<Annotation> SelectedNow()
@@ -208,7 +208,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         CanSaveAttachment = attach && sel[0].AttachmentId is { } id && AssetsNow().HasFile(id);
     }
 
-    private static string KindText(AnnotKind k) => k switch
+    internal static string KindText(AnnotKind k) => k switch
     {
         AnnotKind.Ink => Strings.AnnotKind_Ink,
         AnnotKind.Highlight => Strings.AnnotKind_Highlight,

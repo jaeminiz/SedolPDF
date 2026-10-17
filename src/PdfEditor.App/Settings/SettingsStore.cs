@@ -57,7 +57,8 @@ public sealed class SettingsStore(string filePath)
             if (s is null) return AppSettings.Default;
             int minutes = s.RecoveryIntervalMinutes >= 1 ? Math.Min(s.RecoveryIntervalMinutes, 60) : AppSettings.Default.RecoveryIntervalMinutes;
             return new AppSettings(s.RecentFiles ?? [], minutes,
-                string.IsNullOrWhiteSpace(s.AuthorName) ? null : s.AuthorName.Trim(), s.ToolStyles);
+                string.IsNullOrWhiteSpace(s.AuthorName) ? null : s.AuthorName.Trim(), s.ToolStyles,
+                s.Styles?.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Name) && x.ColorHex is not null).ToList());
         }
         catch (Exception)
         {

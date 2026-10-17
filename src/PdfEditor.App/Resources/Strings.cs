@@ -373,4 +373,21 @@ public static class Strings
     public static string State_Cancelled => Get(nameof(State_Cancelled));
     public static string State_Completed => Get(nameof(State_Completed));
     public static string Msg_RepliesUnavailableEncrypted => Get(nameof(Msg_RepliesUnavailableEncrypted));
+    public static string Tab_Format => Get(nameof(Tab_Format));
+    public static string Style_ReviewRed => Get(nameof(Style_ReviewRed));
+    public static string Style_HighlightYellow => Get(nameof(Style_HighlightYellow));
+    public static string Style_ApprovedGreen => Get(nameof(Style_ApprovedGreen));
+    public static string Format_TargetTool => Get(nameof(Format_TargetTool));
+    public static string Format_TargetSelection => Get(nameof(Format_TargetSelection));
+    public static string Format_TargetMixed => Get(nameof(Format_TargetMixed));
+    public static string Format_GroupStyle => Get(nameof(Format_GroupStyle));
+    public static string Format_GroupColor => Get(nameof(Format_GroupColor));
+    public static string Format_GroupLine => Get(nameof(Format_GroupLine));
+    public static string Format_GroupText => Get(nameof(Format_GroupText));
+    public static string Format_SaveCurrent => Get(nameof(Format_SaveCurrent));
+    public static string Format_StyleName => Get(nameof(Format_StyleName));
+    public static string Format_DeleteStyle => Get(nameof(Format_DeleteStyle));
+    public static string Format_NoStyles => Get(nameof(Format_NoStyles));
+    public static string Msg_StyleNameInvalid => Get(nameof(Msg_StyleNameInvalid));
+    public static string Msg_StyleBroken => Get(nameof(Msg_StyleBroken));
 }

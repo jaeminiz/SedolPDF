@@ -364,4 +364,21 @@
   <data name="State_Cancelled" xml:space="preserve"><value>취소</value></data>
   <data name="State_Completed" xml:space="preserve"><value>완료</value></data>
   <data name="Msg_RepliesUnavailableEncrypted" xml:space="preserve"><value>암호가 걸린 문서라 답글과 상태는 달 수 없습니다. 코멘트 목록은 볼 수 있습니다.</value></data>
+  <data name="Tab_Format" xml:space="preserve"><value>형식</value></data>
+  <data name="Style_ReviewRed" xml:space="preserve"><value>검토 빨강</value></data>
+  <data name="Style_HighlightYellow" xml:space="preserve"><value>형광 노랑</value></data>
+  <data name="Style_ApprovedGreen" xml:space="preserve"><value>승인 초록</value></data>
+  <data name="Format_TargetTool" xml:space="preserve"><value>{0} 도구</value></data>
+  <data name="Format_TargetSelection" xml:space="preserve"><value>{0} {1}개 선택</value></data>
+  <data name="Format_TargetMixed" xml:space="preserve"><value>주석 {0}개 선택</value></data>
+  <data name="Format_GroupStyle" xml:space="preserve"><value>스타일</value></data>
+  <data name="Format_GroupColor" xml:space="preserve"><value>색</value></data>
+  <data name="Format_GroupLine" xml:space="preserve"><value>선</value></data>
+  <data name="Format_GroupText" xml:space="preserve"><value>글자</value></data>
+  <data name="Format_SaveCurrent" xml:space="preserve"><value>지금 모양 저장</value></data>
+  <data name="Format_StyleName" xml:space="preserve"><value>스타일 이름</value></data>
+  <data name="Format_DeleteStyle" xml:space="preserve"><value>스타일 삭제</value></data>
+  <data name="Format_NoStyles" xml:space="preserve"><value>이 대상에 맞는 스타일이 없습니다.</value></data>
+  <data name="Msg_StyleNameInvalid" xml:space="preserve"><value>스타일 이름이 비어 있거나 이미 있는 이름입니다.</value></data>
+  <data name="Msg_StyleBroken" xml:space="preserve"><value>이 스타일의 값이 올바르지 않아 적용하지 못했습니다.</value></data>
 </root>

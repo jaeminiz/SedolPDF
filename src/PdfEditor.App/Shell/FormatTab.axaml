@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PdfEditor.App.Resources"
+             xmlns:settings="using:PdfEditor.App.Settings"
+             x:Class="PdfEditor.App.Shell.FormatTab">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.gh">
+      <Setter Property="Foreground" Value="#5C5C5C" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="Border.gsep">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Background" Value="#17000000" />
+      <Setter Property="Margin" Value="8,2" />
+    </Style>
+    <Style Selector="Button.stylebtn">
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.styledel">
+      <Setter Property="Padding" Value="4,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#5C5C5C" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Orientation="Horizontal" x:Name="Root">
+    <!-- 스타일 -->
+    <StackPanel x:Name="StyleGroup" Margin="4,0">
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <ScrollViewer MaxWidth="360" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <ItemsControl x:Name="StyleList">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="settings:AnnotationStyle">
+                <StackPanel Orientation="Horizontal" Spacing="0">
+                  <Button Classes="stylebtn" Content="{Binding Name}" Click="OnStyleClick" />
+                  <Button Classes="styledel" Content="×" Click="OnStyleDeleteClick"
+                          ToolTip.Tip="{x:Static res:Strings.Format_DeleteStyle}" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Spacing="4" VerticalAlignment="Center">
+          <TextBox x:Name="StyleNameBox" Width="140" PlaceholderText="{x:Static res:Strings.Format_StyleName}" />
+          <Button x:Name="SaveStyleBtn" Classes="stylebtn" Content="{x:Static res:Strings.Format_SaveCurrent}" />
+        </StackPanel>
+      </StackPanel>
+      <TextBlock x:Name="NoStylesHint" Classes="gh" Text="{x:Static res:Strings.Format_NoStyles}" />
+      <TextBlock Classes="gh" Text="{x:Static res:Strings.Format_GroupStyle}" />
+    </StackPanel>
+
+    <!-- 색 -->
+    <StackPanel x:Name="ColorGroup" Orientation="Horizontal">
+      <Border Classes="gsep" />
+      <StackPanel>
+        <WrapPanel x:Name="ColorSwatches" MaxWidth="190" />
+        <TextBlock Classes="gh" Text="{x:Static res:Strings.Format_GroupColor}" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- 선 -->
+    <StackPanel x:Name="LineGroup" Orientation="Horizontal">
+      <Border Classes="gsep" />
+      <StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <StackPanel x:Name="WidthPart">
+            <TextBlock x:Name="WidthLabel" Classes="gh" Margin="0,0,0,2" />
+            <NumericUpDown x:Name="WidthBox" Minimum="0.5" Maximum="12" Increment="0.5" FormatString="0.0" Width="110" />
+          </StackPanel>
+          <StackPanel x:Name="EndingPart" Orientation="Horizontal" Spacing="6">
+            <StackPanel>
+              <TextBlock Classes="gh" Margin="0,0,0,2" Text="{x:Static res:Strings.Prop_Annot_LineStart}" />
+              <ComboBox x:Name="StartEndBox" Width="130" />
+            </StackPanel>
+            <StackPanel>
+              <TextBlock Classes="gh" Margin="0,0,0,2" Text="{x:Static res:Strings.Prop_Annot_LineEnd}" />
+              <ComboBox x:Name="EndEndBox" Width="130" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+        <TextBlock Classes="gh" Text="{x:Static res:Strings.Format_GroupLine}" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- 글자 -->
+    <StackPanel x:Name="TextGroup" Orientation="Horizontal">
+      <Border Classes="gsep" />
+      <StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <StackPanel>
+            <TextBlock x:Name="FontLabel" Classes="gh" Margin="0,0,0,2" />
+            <NumericUpDown x:Name="FontBox" Minimum="6" Maximum="72" Increment="1" FormatString="0" Width="110" />
+          </StackPanel>
+          <WrapPanel x:Name="TextColorSwatches" MaxWidth="190" VerticalAlignment="Bottom" />
+        </StackPanel>
+        <TextBlock Classes="gh" Text="{x:Static res:Strings.Format_GroupText}" />
+      </StackPanel>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

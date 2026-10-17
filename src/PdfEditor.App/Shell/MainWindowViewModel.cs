@@ -109,7 +109,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel()
     {
         SetPanelCommand = new RelayCommand<PanelKind>(k => { ActiveLeftPanel = k; IsLeftPanelVisible = true; });
-        SelectRibbonTabCommand = new RelayCommand<string>(t => { if (t is not null) SelectedRibbonTab = t; });
+        SelectRibbonTabCommand = new RelayCommand<string>(t => { if (t is not null && (t != FormatTabId || IsFormatTabVisible)) SelectedRibbonTab = t; });
         CloseDocumentCommand = new RelayCommand<DocumentTabViewModel>(d => { if (d is not null) _ = CloseDocumentAsync(d); });
 
         FirstPageCommand = NavCmd(d => d.FirstPage());
@@ -154,6 +154,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public double LeftPanelWidth => ActiveLeftPanel == PanelKind.Comments ? 320 : 200;
     public LayersViewModel? ActiveLayers => ActiveDocument?.Layers;
     public PropertiesViewModel? ActiveProperties => ActiveDocument?.Properties;
+
+    // ---- "형식" 탭 (M3b B5): 만들기 도구가 켜졌거나 주석이 선택되면 메뉴 탭 오른쪽 끝에 나타난다 ----
+    public const string FormatTabId = "Format";
+    public AnnotationStylesViewModel? ActiveStyles => ActiveDocument?.Styles;
+    /// <summary>속성 패널과 같은 모델 (둘이 같은 인스턴스라 값이 항상 같다).</summary>
+    public AnnotationPropertiesViewModel? ActiveAnnotationProperties => ActiveDocument?.Properties?.Annotation;
+    public bool IsFormatTabVisible => ActiveDocument?.Styles is { HasTarget: true };
+    public bool IsFormatTabSelected => SelectedRibbonTab == FormatTabId && IsFormatTabVisible;
+    public string FormatTabSubtitle => ActiveDocument?.Styles?.TargetText ?? "";
+
+    private void NotifyFormatTab()
+    {
+        // 보이지 않게 된 "형식" 탭이 선택돼 있으면 주석 탭으로 돌아간다.
+        if (SelectedRibbonTab == FormatTabId && !IsFormatTabVisible) SelectedRibbonTab = "Annotate";
+        OnPropertyChanged(nameof(IsFormatTabVisible));
+        OnPropertyChanged(nameof(IsFormatTabSelected));
+        OnPropertyChanged(nameof(FormatTabSubtitle));
+    }
     public bool HasQuickResults => QuickCommandResults.Count > 0;
     public string ZoomText => $"{ZoomPercent:0}%";
     public int PageCount => ActiveDocument?.PageCount ?? 0;
@@ -197,7 +215,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveComments));
         OnPropertyChanged(nameof(ActiveLayers));
         OnPropertyChanged(nameof(ActiveProperties));
+        OnPropertyChanged(nameof(ActiveStyles));
+        OnPropertyChanged(nameof(ActiveAnnotationProperties));
         OnPropertyChanged(nameof(ActiveSearch));
+        NotifyFormatTab();
         if (newValue is not null) SetZoomFromDocument(newValue.Scale);
         LoadVisiblePanels();
     }
@@ -298,6 +319,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         tab.Attachments = new AttachmentsViewModel(tab, _prompts!);
         tab.Layers = new LayersViewModel(tab);
         tab.Properties = new PropertiesViewModel(tab);
+        var styles = tab.Styles = new AnnotationStylesViewModel(tab, tab.Properties.Annotation);
+        styles.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AnnotationStylesViewModel.TargetText) && ReferenceEquals(ActiveDocument, tab)) NotifyFormatTab();
+        };
         var search = tab.Search = new SearchViewModel(tab);
         tab.NoticeRequested += msg => { _ = _prompts!.ShowInfoAsync(msg); };
         tab.Detached += () => { search.Clear(); thumbs.Dispose(); cmds.Dispose(); tab.Comments?.Dispose(); tab.Comments = null; };
@@ -403,6 +429,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         foreach (var t in RibbonTabs) t.IsSelected = t.Id == value;
         OnPropertyChanged(nameof(CurrentRibbonGroups));
+        OnPropertyChanged(nameof(IsFormatTabSelected));
     }
 
     partial void OnActiveLeftPanelChanged(PanelKind value)
@@ -473,6 +500,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private IReadOnlyList<RibbonGroupVm> GroupsFor(string tab)
     {
+        if (tab == FormatTabId) return [];   // "형식" 탭은 단추 묶음이 아니라 FormatTab 컨트롤이 그린다
         if (_groupCache.TryGetValue(tab, out var cached)) return cached;
         var groups = Ribbon[tab].Select(g => new RibbonGroupVm(g.Name,
             g.Items.Select(i => MakeButton(i, !g.Compact)).ToList(),

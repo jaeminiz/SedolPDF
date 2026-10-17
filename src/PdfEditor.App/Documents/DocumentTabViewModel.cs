@@ -274,6 +274,9 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     /// <summary>코멘트 목록 모델(M3b). 패널을 열 때 만든다.</summary>
     public PdfEditor.App.Panels.CommentsViewModel? Comments { get; set; }
 
+    /// <summary>주석 스타일과 "형식" 탭의 대상 (M3b). 속성 패널의 주석 속성 모델과 같은 상태를 쓴다.</summary>
+    public PdfEditor.App.Panels.AnnotationStylesViewModel? Styles { get; set; }
+
     /// <summary>쪽의 이 사각형(PDF 사용자 좌표)이 화면 안에 보이도록 스크롤해 달라는 요청. 문서 화면이 받는다.</summary>
     public event Action<PageId, Pdf.Native.PdfRectF>? RevealRequested;
     public void RequestReveal(PageId page, Pdf.Native.PdfRectF rect) => RevealRequested?.Invoke(page, rect);

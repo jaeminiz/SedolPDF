@@ -191,6 +191,8 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnFormatTabClick(object? sender, RoutedEventArgs e) => _vm.SelectRibbonTabCommand.Execute(MainWindowViewModel.FormatTabId);
+
     private void OnRibbonTabClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is RibbonTabVm tab) _vm.SelectRibbonTabCommand.Execute(tab.Id);

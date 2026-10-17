@@ -73,6 +73,9 @@
       <Setter Property="Foreground" Value="#1A1A1A" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+    <Style Selector="Button.menutab.ctx">
+      <Setter Property="Foreground" Value="#005FB8" />
+    </Style>
     <Style Selector="Border.tabline">
       <Setter Property="Height" Value="3" />
       <Setter Property="CornerRadius" Value="2" />
@@ -178,11 +181,23 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      <!-- "형식" 탭: 만들기 도구가 켜졌거나 주석이 선택되면 오른쪽 끝에 나타난다 (대상 이름은 작은 글씨) -->
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" Margin="8,0,0,0" IsVisible="{Binding IsFormatTabVisible}">
+        <TextBlock Text="{Binding FormatTabSubtitle}" FontSize="10.5" Foreground="#005FB8" VerticalAlignment="Bottom"
+                   Margin="0,0,2,9" />
+        <StackPanel VerticalAlignment="Bottom">
+          <Button Name="FormatTabButton" Classes="menutab ctx" Classes.on="{Binding IsFormatTabSelected}"
+                  Content="{x:Static res:Strings.Tab_Format}" Click="OnFormatTabClick" />
+          <Border Classes="tabline" Classes.on="{Binding IsFormatTabSelected}" />
+        </StackPanel>
+      </StackPanel>
     </StackPanel>
 
     <!-- 3. 리본 -->
     <Border Grid.Row="2" Classes="card" Margin="8,0" Padding="4,4" MinHeight="74">
-      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+      <Panel>
+      <shell:FormatTab IsVisible="{Binding IsFormatTabSelected}" />
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" IsVisible="{Binding !IsFormatTabSelected}">
         <ItemsControl ItemsSource="{Binding CurrentRibbonGroups}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
@@ -206,6 +221,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
+      </Panel>
     </Border>
 
     <!-- 4. 본문 -->

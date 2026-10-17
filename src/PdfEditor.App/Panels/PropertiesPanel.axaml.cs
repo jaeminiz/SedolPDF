@@ -44,7 +44,7 @@ public sealed partial class PropertiesPanel : UserControl
         DataContextChanged += (_, _) => Attach();
     }
 
-    private static readonly (PdfEditor.Document.Annotations.LineEnding E, string Glyph)[] EndingGlyphs =
+    internal static readonly (PdfEditor.Document.Annotations.LineEnding E, string Glyph)[] EndingGlyphs =
     [
         (PdfEditor.Document.Annotations.LineEnding.None, "\u2014"), (PdfEditor.Document.Annotations.LineEnding.Square, "\u25A0"),
         (PdfEditor.Document.Annotations.LineEnding.Circle, "\u25CF"), (PdfEditor.Document.Annotations.LineEnding.Diamond, "\u25C6"),
@@ -196,7 +196,7 @@ public sealed partial class PropertiesPanel : UserControl
         foreach (var c in _vm!.Swatches) host.Children.Add(MakeSwatch(c, current == c, onPick));
     }
 
-    private static Button MakeSwatch(PdfColor? c, bool selected, Action<PdfColor?> onPick)
+    internal static Button MakeSwatch(PdfColor? c, bool selected, Action<PdfColor?> onPick)
     {
         var b = new Button
         {

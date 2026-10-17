@@ -40,3 +40,24 @@ M3b(주석 관리) 작업 중에 확인한 것을 Task별로 쌓는다. 마일�
 - 자동 테스트: `CommitReply_UsesCurrentText_WhenDraftLagsBehind`, `ReplyDraft_SurvivesRebuildOfItsPage_AndIsClearedAfterCommit`, `ImeProcessedEnter_DoesNotCommit_PlainEnterDoes`(헤드리스에서 `ImeProcessed` 키를 보냄), Document 쪽 `EncryptedDoc_DeleteOriginalParent_RemovesItsUnmodeledReplies`(암호 문서에서 원본 부모를 지우면 모델에 없는 원본 답글·상태·Popup도 저장 때 파일에서 지워짐).
 - **검증 필요:** 실제 한글 IME(Windows 한글 입력기)로 조합 중 Enter·Esc를 눌렀을 때의 동작. 헤드리스는 IME 조합(`PreeditText`)을 흉내 내지 못해 `ImeProcessed` 경로만 검사했고, `PreeditText` 검사는 코드로만 있고 실제 입력으로 확인하지 않았다.
 - 같은 위험이 있는 다른 편집기(FreeText·스티커 메모)는 Ctrl+Enter를 쓰므로 범위 밖이지만, 그 편집기들이 Enter/Esc를 조합 중에 먹는지는 확인하지 않았다(검증 필요).
+
+## Task 4 — 주석 스타일과 "형식" 탭
+
+### 구현
+- `AnnotationStyle` 레코드(이름·적용 종류·색·채우기·불투명도·두께·글자 크기·선 끝·클라우드)는 설정 파일의 `Styles`에 저장된다. `Styles`가 없으면(옛 settings.json 포함) 기본 3개("검토 빨강"·"형광 노랑"(강조에만)·"승인 초록")를 보인다. 이 이름은 `Strings.resx`의 화면 문구이고, 한 번 저장·삭제·이름 바꾸기를 하면 기본 스타일을 포함한 전체 목록이 설정에 저장돼 그때부터 이름은 데이터다(빈 목록 = 모두 지움, 기본값으로 되돌아가지 않음). 저장은 `SettingsStore.Update`(잠금 하나 안에서 읽기-고치기-쓰기).
+- `AnnotationStylesViewModel`: `Available`(선택·도구의 종류에 맞는 것; 적용 종류가 없으면 모두에게 맞음; 섞인 선택은 하나라도 맞으면), `ApplyAsync`(선택 → 명령 하나, 그 종류에 맞는 속성만; 도구만 켜짐 → 도구 기본값 설정), `SaveCurrentAs`(빈 이름·대소문자 무시 중복 거절 + 안내), `Delete`, `Rename`(중복 거절). 속성 패널과 같은 규칙: 지금의 현재 주석을 다시 찾아 바꾼다.
+- 종류별 적용: 색·불투명도는 전부, 두께는 두께가 있는 종류만, 채우기는 채우기 있는 종류만(스타일에 채우기가 있을 때만; 없으면 기존 채우기를 건드리지 않음), 글자 크기는 텍스트 상자 계열만, 선 끝은 선·폴리라인만, 클라우드는 사각형·다각형만. 선 끝·클라우드는 패치가 필요해 패치를 못 하는(암호) 문서에서는 적용하지 않고 나머지만 적용한다.
+- "형식" 탭: `MainWindowViewModel.IsFormatTabVisible`(만들기 도구 켜짐 또는 선택 있음), 메뉴 탭 오른쪽 끝에 "도구/선택 이름 | 형식"(시안의 ctxlabel 모양, 작은 파랑 글씨 + 강조 탭). 보이지 않는 탭은 고를 수 없고, 탭이 선택된 채로 사라지면 주석 탭으로 돌아간다. 내용(`FormatTab`)은 스타일(목록·× 삭제·이름 입력 + "지금 모양 저장")·색(견본)·선(두께, 선 끝 시작/끝)·글자(크기, 글자 색) 그룹이며 속성 패널과 같은 `AnnotationPropertiesViewModel`·`AnnotationStylesViewModel` 인스턴스를 바인딩해 같은 메서드를 부른다(로직 중복 없음). 권한이 없으면 전체, 패치가 필요한 선 끝은 패치 불가 문서에서 비활성이다.
+
+### 자동 테스트 (전체 `dotnet test PdfEditor.sln` 통과: App 388 / Document 220 / Appearance 161 …)
+`AnnotationStylesViewModelTests`(14): `DefaultStylesWhenNone`, `Available_FilteredBySelectionAndTool`, `Apply_ToSelection_OneCommand_KindAware_UndoRestores`(사각형·강조·선·텍스트 상자 한 번에 적용 → 종류별로 맞는 속성만, 실행 취소 한 번에 복원), `Apply_StyleWithAppliesTo_SkipsOtherKinds`, `Apply_WithoutFillStyle_KeepsExistingFill`, `Apply_ToTool_UpdatesToolDefaults`, `Apply_BrokenStyle_NoticeAndNoChange`, `SaveCurrentAs_DuplicateNameRejected`, `SaveCurrentAs_FromTool_UsesToolStyle`, `SaveCurrentAs_FromLine_KeepsEndings_AndAppliesToLines`, `DeleteAndRename_Persist_DuplicateRenameRejected`, `TargetText_ToolSelectionAndMixed`, `EncryptedDoc_PatchPropertiesNotApplied_OthersAre` 등. `SettingsStoreTests.Styles_RoundTripInSettings_OldFileLoads`. `MainWindowViewModelTests.FormatTab_VisibleForToolOrSelection`(+`FormatTab_HiddenWithoutDocument`).
+
+### 화면 확인 (앱 창만 PrintWindow로 캡처)
+Release 앱을 설정 파일 경로를 따로 지정해 실행하고, UI 자동화로 열기 대화상자에 `m2-annotations.pdf` 사본 경로를 넣어 문서를 연 뒤 주석 탭 → 연필 도구 → "형식" 탭을 누른 모양을 캡처했다. 확인한 것: 메뉴 탭 오른쪽 끝에 "연필 도구 | 형식"이 나타남, "형식"을 누르면 리본이 스타일(연필에 맞는 "검토 빨강"·"승인 초록"만, "형광 노랑"은 강조 전용이라 숨음, 이름 입력칸, "지금 모양 저장")·색 견본·선 두께 그룹으로 바뀜. 도구를 바꾸면 "형식" 탭이 사라지는 동작은 자동 테스트로만 확인했다.
+- **검증 필요(실제 입력으로 확인하지 못함):** 스타일 단추·× 삭제·견본·두께 스피너·선 끝 목록을 실제 마우스로 누르는 동작, 이름 입력칸에 한글 입력(IME)·Enter 저장, 실제 주석을 선택했을 때의 "사각형 2개 선택" 표시, 화면 배율·좁은 창에서 리본이 잘리지 않는지. (이 환경에서는 SendInput이 막혀 키·마우스 입력을 보낼 수 없었고, 클릭은 UI 자동화 Invoke로 대신했다.)
+- 알려진 모양: "형식" 탭을 열면 리본 카드가 약 8 px 커져 아래 화면이 조금 내려간다(스타일 그룹의 이름 입력칸+저장 단추 때문). 기능 문제는 아니다.
+
+### 한계·결정
+- 도구 기본값(`ToolStyleSetting`)에는 색·채우기·불투명도·두께만 있어, 도구에 스타일을 적용할 때 글자 크기·선 끝·클라우드는 반영하지 않는다(선택한 주석에는 반영). 화살표 도구의 기본 끝 모양 등은 도구 기본값이 아니라 도구 코드에 있다.
+- "형식" 탭에는 클라우드 켜기·세기 컨트롤을 두지 않았다(브리프의 그룹 목록에 없음). 클라우드는 속성 패널에서 켜고, 스타일은 적용 때 클라우드 값을 쓴다. 이름 바꾸기는 모델(`Rename`)만 있고 화면 단추는 없다.
+- 선택·도구가 없는 상태에서 `Available`은 전체 목록을 돌려준다(탭이 보이지 않으므로 화면에는 나오지 않음).

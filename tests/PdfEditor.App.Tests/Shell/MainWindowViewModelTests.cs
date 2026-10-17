@@ -180,4 +180,66 @@ public class MainWindowViewModelTests
         Assert.Empty(vm.Documents);
         Assert.Null(vm.ActiveDocument);
     }
+
+    [Fact]
+    public void FormatTab_HiddenWithoutDocument()
+    {
+        var vm = new MainWindowViewModel();
+        Assert.False(vm.IsFormatTabVisible);
+        Assert.Equal("", vm.FormatTabSubtitle);
+        vm.SelectRibbonTabCommand.Execute(MainWindowViewModel.FormatTabId);   // 보이지 않는 탭은 고를 수 없다
+        Assert.Equal("Home", vm.SelectedRibbonTab);
+        Assert.False(vm.IsFormatTabSelected);
+    }
+}
+
+[Collection("TabSettings")]
+public class MainWindowFormatTabTests : PdfEditor.App.Tests.Panels.PanelTestBase
+{
+    [Fact]
+    public async Task FormatTab_VisibleForToolOrSelection()
+    {
+        string p = Path.Combine(Dir, "f.pdf");
+        PdfEditor.TestFixtures.TestPdfFactory.CreateLabeled(p, [(400, 600)]);
+        var vm = new MainWindowViewModel();
+        var tab = await OpenTab(p);
+        vm.ShowSession(tab.Session!);
+        var active = vm.ActiveDocument!;
+        Assert.NotNull(active.Styles);
+        Assert.Same(active.Properties!.Annotation, vm.ActiveAnnotationProperties);   // 속성 패널과 같은 모델
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        Assert.False(vm.IsFormatTabVisible);   // 손 도구, 선택 없음
+        active.Tool = ToolKind.Cloud;
+        Assert.True(vm.IsFormatTabVisible);
+        Assert.Equal(string.Format(PdfEditor.App.Resources.Strings.Format_TargetTool, PdfEditor.App.Resources.Strings.AnnotKind_Cloud), vm.FormatTabSubtitle);
+        Assert.Contains(nameof(MainWindowViewModel.IsFormatTabVisible), changed);
+
+        vm.SelectedRibbonTab = MainWindowViewModel.FormatTabId;
+        Assert.True(vm.IsFormatTabSelected);
+        Assert.Empty(vm.CurrentRibbonGroups);
+
+        active.Tool = ToolKind.Eraser;   // 만들기 도구가 아님 → 사라지고 주석 탭으로 돌아간다
+        Assert.False(vm.IsFormatTabVisible);
+        Assert.Equal("Annotate", vm.SelectedRibbonTab);
+
+        // 선택이 있어도 나타난다
+        var page = active.Session!.Pages[0].Id;
+        var a = new PdfEditor.Document.Annotations.Annotation
+        {
+            Id = active.Session.Annotations.NewId(), Kind = PdfEditor.Document.Annotations.AnnotKind.Square,
+            Rect = new Pdf.Native.PdfRectF(10, 10, 80, 60), Color = PdfEditor.Document.Annotations.PdfColor.FromHex("#E5372D"),
+            BorderWidth = 1f, Opacity = 1f, Flags = Pdf.Native.PdfAnnotFlags.Print,
+        };
+        await active.RunAnnotationCommandAsync(PdfEditor.Document.Annotations.ChangeAnnotationsCommand.Add(page, a));
+        active.Tool = ToolKind.AnnotSelect;
+        Assert.False(vm.IsFormatTabVisible);
+        active.Selection.Set(page, [a.Id]);
+        Assert.True(vm.IsFormatTabVisible);
+        Assert.Equal(string.Format(PdfEditor.App.Resources.Strings.Format_TargetSelection, PdfEditor.App.Resources.Strings.AnnotKind_Square, 1), vm.FormatTabSubtitle);
+        active.Selection.Clear();
+        Assert.False(vm.IsFormatTabVisible);
+        active.Detach();
+    }
 }

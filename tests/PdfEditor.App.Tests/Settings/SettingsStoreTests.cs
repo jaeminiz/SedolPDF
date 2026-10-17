@@ -109,4 +109,34 @@ public class SettingsStoreTests : IDisposable
         Assert.Equal("f11.pdf", r[1]);
         Assert.Single(r, x => string.Equals(x, "f5.pdf", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Styles_RoundTripInSettings_OldFileLoads()
+    {
+        string f = Path.Combine(_dir, "s.json");
+        var store = new SettingsStore(f);
+        // 옛 파일 (Styles 없음) → null = 기본 스타일을 보인다
+        File.WriteAllText(f, "{\"RecentFiles\":[\"a.pdf\"],\"RecoveryIntervalMinutes\":3,\"ToolStyles\":{}}");
+        Assert.Null(store.Load().Styles);
+
+        var styles = new List<AnnotationStyle>
+        {
+            new("a", null, "#E5372D", null, 1f, 1.5f),
+            new("b", "Line", "#005FB8", "#FFD60A", 0.5f, 3f, 14f, "OpenArrow", "None", 1.5f),
+        };
+        store.Update(c => c with { Styles = styles });
+        var back = store.Load();
+        Assert.Equal(styles, back.Styles);
+        Assert.Equal(["a.pdf"], back.RecentFiles);   // 다른 값은 그대로
+
+        // 빈 목록은 그대로 빈 목록 (모두 지움), 깨진 항목은 걸러낸다
+        File.WriteAllText(f, "{\"Styles\":[]}");
+        Assert.Empty(store.Load().Styles!);
+        File.WriteAllText(f, "{\"Styles\":[null,{\"Name\":\"\",\"ColorHex\":\"#000000\"},{\"Name\":\"ok\",\"ColorHex\":\"#000000\",\"Opacity\":1,\"Width\":1}]}");
+        Assert.Equal(["ok"], store.Load().Styles!.Select(s => s.Name));
+
+        // 다른 쓰기(최근 파일)가 스타일을 지우지 않는다
+        store.AddRecent("z.pdf");
+        Assert.Single(store.Load().Styles!);
+    }
 }
