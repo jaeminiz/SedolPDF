@@ -19,15 +19,24 @@ public sealed class SettingsStore(string filePath)
     /// </summary>
     public static string DefaultPathIn(string appData)
     {
-        string newFile = Path.Combine(appData, "SedolPDF", "settings.json");
+        string newDir = Path.Combine(appData, "SedolPDF");
+        string newFile = Path.Combine(newDir, "settings.json");
         try
         {
             string oldDir = Path.Combine(appData, "PdfEditor");
-            if (!Directory.Exists(Path.Combine(appData, "SedolPDF")) && Directory.Exists(oldDir))
+            string marker = Path.Combine(newDir, ".migrated");
+            // 옛 폴더가 있고 "이전 완료" 표식이 없으면 (처음이거나 지난번에 일부 실패) 다시 시도. 덮어쓰기·삭제는 하지 않는다.
+            if (Directory.Exists(oldDir) && !File.Exists(marker))
             {
-                Directory.CreateDirectory(Path.Combine(appData, "SedolPDF"));
+                Directory.CreateDirectory(newDir);
+                bool ok = true;
                 string oldFile = Path.Combine(oldDir, "settings.json");
-                if (File.Exists(oldFile)) File.Copy(oldFile, newFile, overwrite: false);
+                if (File.Exists(oldFile) && !File.Exists(newFile))
+                {
+                    try { File.Copy(oldFile, newFile, overwrite: false); }
+                    catch (Exception) { ok = false; }
+                }
+                if (ok) File.WriteAllText(marker, "");
             }
         }
         catch (Exception) { /* 옮기지 못해도 새 설정으로 시작 */ }

@@ -28,11 +28,23 @@ public sealed class RecoveryStore(string folder, IAppearanceSource? appearance =
         try
         {
             string oldDir = Path.Combine(localAppData, "PdfEditor", "Recovery");
-            if (!Directory.Exists(Path.Combine(localAppData, "SedolPDF")) && Directory.Exists(oldDir))
+            string marker = Path.Combine(newDir, ".migrated");
+            // 옛 폴더가 있고 "이전 완료" 표식이 없으면 (처음이거나 지난번에 일부 실패) 파일마다 따로 복사한다.
+            // 이미 있는 파일은 덮어쓰지 않고, 옛 파일은 지우지 않는다. 하나라도 실패하면 표식을 쓰지 않아 다음 실행에서 다시 시도한다.
+            if (Directory.Exists(oldDir) && !File.Exists(marker))
             {
                 Directory.CreateDirectory(newDir);
+                bool ok = true;
                 foreach (var f in Directory.EnumerateFiles(oldDir))
-                    File.Copy(f, Path.Combine(newDir, Path.GetFileName(f)), overwrite: false);
+                {
+                    try
+                    {
+                        string dest = Path.Combine(newDir, Path.GetFileName(f));
+                        if (!File.Exists(dest)) File.Copy(f, dest, overwrite: false);
+                    }
+                    catch (Exception) { ok = false; }
+                }
+                if (ok) File.WriteAllText(marker, "");
             }
         }
         catch (Exception) { /* 옮기지 못해도 빈 복구 폴더로 시작 */ }

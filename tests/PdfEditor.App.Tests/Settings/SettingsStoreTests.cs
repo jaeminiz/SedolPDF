@@ -13,23 +13,34 @@ public class SettingsStoreTests : IDisposable
     {
         string oldDir = Path.Combine(_dir, "PdfEditor");
         Directory.CreateDirectory(oldDir);
-        File.WriteAllText(Path.Combine(oldDir, "settings.json"), "{\"RecoveryIntervalMinutes\": 9}");
+        string oldFile = Path.Combine(oldDir, "settings.json");
+        File.WriteAllText(oldFile, "{\"RecoveryIntervalMinutes\": 9}");
         string p = SettingsStore.DefaultPathIn(_dir);
         Assert.Equal(Path.Combine(_dir, "SedolPDF", "settings.json"), p);
         Assert.Equal(9, new SettingsStore(p).Load().RecoveryIntervalMinutes);
-        // 한 번만: 새 폴더가 생긴 뒤에는 옛 파일이 바뀌어도 다시 덮어쓰지 않는다
-        File.WriteAllText(Path.Combine(oldDir, "settings.json"), "{\"RecoveryIntervalMinutes\": 3}");
+        Assert.True(File.Exists(oldFile)); // 옛 파일은 남는다
+        // 한 번만: 새 파일을 바꾼 뒤 다시 불러도 덮어쓰지 않는다
+        File.WriteAllText(p, "{\"RecoveryIntervalMinutes\": 4}");
+        File.WriteAllText(oldFile, "{\"RecoveryIntervalMinutes\": 3}");
         SettingsStore.DefaultPathIn(_dir);
-        Assert.Equal(9, new SettingsStore(p).Load().RecoveryIntervalMinutes);
-
-        string localOld = Path.Combine(_dir, "L", "PdfEditor", "Recovery");
-        Directory.CreateDirectory(localOld);
-        File.WriteAllText(Path.Combine(localOld, "a.json"), "x");
-        string r = PdfEditor.Document.Recovery.RecoveryStore.DefaultFolderIn(Path.Combine(_dir, "L"));
-        Assert.Equal(Path.Combine(_dir, "L", "SedolPDF", "Recovery"), r);
-        Assert.True(File.Exists(Path.Combine(r, "a.json")));
+        Assert.Equal(4, new SettingsStore(p).Load().RecoveryIntervalMinutes);
+        Assert.Equal("{\"RecoveryIntervalMinutes\": 3}", File.ReadAllText(oldFile));
     }
 
+    [Fact]
+    public void OldDataFolder_CopyFailure_RetriedLater()
+    {
+        string oldDir = Path.Combine(_dir, "PdfEditor");
+        Directory.CreateDirectory(oldDir);
+        string oldFile = Path.Combine(oldDir, "settings.json");
+        File.WriteAllText(oldFile, "{\"RecoveryIntervalMinutes\": 9}");
+        string p;
+        using (new FileStream(oldFile, FileMode.Open, FileAccess.Read, FileShare.None))
+            p = SettingsStore.DefaultPathIn(_dir); // 복사 실패, 예외 없음
+        Assert.False(File.Exists(p));
+        SettingsStore.DefaultPathIn(_dir);
+        Assert.Equal(9, new SettingsStore(p).Load().RecoveryIntervalMinutes);
+    }
     [Fact]
     public void Settings_CorruptJson_ReturnsDefaults()
     {

@@ -21,6 +21,47 @@ public class RecoveryStoreTests : IDisposable
         try { Directory.Delete(_dir, true); } catch { }
     }
 
+    [Fact]
+    public void OldRecoveryFolder_MigratedOnce_KeepsOldFiles()
+    {
+        string root = P("local");
+        string oldDir = Path.Combine(root, "PdfEditor", "Recovery");
+        Directory.CreateDirectory(oldDir);
+        string id = Guid.NewGuid().ToString("N");
+        File.WriteAllBytes(Path.Combine(oldDir, id + ".pdf"), [1, 2, 3]);
+        File.WriteAllText(Path.Combine(oldDir, id + ".json"), "{}");
+        string dir = RecoveryStore.DefaultFolderIn(root);
+        Assert.Equal(Path.Combine(root, "SedolPDF", "Recovery"), dir);
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(Path.Combine(dir, id + ".pdf")));
+        Assert.Equal("{}", File.ReadAllText(Path.Combine(dir, id + ".json")));
+        Assert.True(File.Exists(Path.Combine(oldDir, id + ".pdf")));
+        Assert.True(File.Exists(Path.Combine(oldDir, id + ".json")));
+        // 두 번째 호출은 바뀐 새 파일을 덮어쓰지 않는다
+        File.WriteAllText(Path.Combine(dir, id + ".json"), "changed");
+        RecoveryStore.DefaultFolderIn(root);
+        Assert.Equal("changed", File.ReadAllText(Path.Combine(dir, id + ".json")));
+    }
+
+    [Fact]
+    public void OldRecoveryFolder_PartialFailure_RetriedLater()
+    {
+        string root = P("local2");
+        string oldDir = Path.Combine(root, "PdfEditor", "Recovery");
+        Directory.CreateDirectory(oldDir);
+        string a = Path.Combine(oldDir, "a.pdf"), b = Path.Combine(oldDir, "b.pdf"), c = Path.Combine(oldDir, "c.pdf");
+        foreach (var f in new[] { a, b, c }) File.WriteAllText(f, Path.GetFileName(f));
+        string dir = Path.Combine(root, "SedolPDF", "Recovery");
+        using (new FileStream(b, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Equal(dir, RecoveryStore.DefaultFolderIn(root)); // 예외 없음
+            Assert.True(File.Exists(Path.Combine(dir, "a.pdf")));
+            Assert.True(File.Exists(Path.Combine(dir, "c.pdf")));
+            Assert.False(File.Exists(Path.Combine(dir, "b.pdf")));
+        }
+        RecoveryStore.DefaultFolderIn(root); // 표식이 없으므로 다시 시도
+        Assert.Equal("b.pdf", File.ReadAllText(Path.Combine(dir, "b.pdf")));
+        Assert.True(File.Exists(b));
+    }
     private string P(string name) => Path.Combine(_dir, name);
     private RecoveryStore Store() => new(P("recovery"));
 
