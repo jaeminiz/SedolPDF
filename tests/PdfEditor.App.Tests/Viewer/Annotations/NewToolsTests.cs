@@ -17,6 +17,8 @@ public class NewToolsTests
 
     private AnnotationToolController Make() => new(() => new AnnotId(++_id), () => Now, () => "me", t => "subj-" + t)
     {
+        CanUsePatchFeatures = () => true,
+        FitTypewriter = a => a,
         NewName = () => "nm-" + (++_name),
         StampLabel = s => "label-" + s.BuiltinName,
     };
@@ -356,6 +358,66 @@ public class NewToolsTests
         c.Begin(ToolKind.Rectangle, Style, Page, new(10, 10), 1f);
         Assert.NotNull(c.End(new(100, 100)));
         Assert.NotNull(c.CreateMarkup(ToolKind.StrikeOut, Style, Page, [new PdfRectF(0, 0, 10, 10)]));
+    }
+
+    [Fact]
+    public void UnwiredController_RefusesPatchTools_AndFailsLoudly()
+    {
+        var c = new AnnotationToolController(() => new AnnotId(++_id), () => Now, () => "me", t => "subj-" + t);
+        foreach (var tool in Enum.GetValues<ToolKind>().Where(AnnotationToolController.IsPatchTool))
+        {
+            c.Begin(tool, Style, Page, new(10, 10), 1f);
+            Assert.Null(c.Preview);
+            Assert.Null(c.End(new(100, 100)));
+        }
+        // M2 tools do not depend on wiring
+        c.Begin(ToolKind.Rectangle, Style, Page, new(10, 10), 1f);
+        Assert.NotNull(c.End(new(100, 100)));
+
+        // patch allowed but Fit/Assets forgotten -> exception, not silent misbehaviour
+        c.CanUsePatchFeatures = () => true;
+        Assert.Throws<InvalidOperationException>(() => c.Begin(ToolKind.Typewriter, Style, Page, new(10, 10), 1f));
+        c.Cancel();
+        c.Begin(ToolKind.FileAttach, Style, Page, new(10, 10), 1f);
+        c.End(new(10, 10));
+        Assert.Throws<InvalidOperationException>(() => c.AttachFile("a.txt", [1]));
+        Assert.False(c.LastAttachRejected);
+    }
+
+    [Fact]
+    public void PendingAttach_ClearedByOtherTool_AndByCancelAttach()
+    {
+        var c = Make();
+        c.Begin(ToolKind.FileAttach, Style, Page, new(10, 10), 1f);
+        c.End(new(10, 10));
+        Assert.NotNull(c.PendingAttach);
+        c.Begin(ToolKind.Rectangle, Style, Page, new(10, 10), 1f);
+        Assert.Null(c.PendingAttach);
+        c.Cancel();
+        c.Begin(ToolKind.FileAttach, Style, Page, new(10, 10), 1f);
+        c.End(new(10, 10));
+        c.CancelAttach();
+        Assert.Null(c.PendingAttach);
+    }
+
+    [Fact]
+    public void TextBox_ThinWideDrag_StaysRealBox()
+    {
+        var c = Make();
+        c.Begin(ToolKind.TextBox, Style, Page, new(100, 300), 1f);
+        var a = Added(c.End(new(400, 299)));   // 300 x 1: not a click
+        Assert.Equal(new PdfRectF(100, 299, 400, 300), a.Rect);
+    }
+
+    [Fact]
+    public void Stamp_NearPageEdge_IsClampedInsidePage()
+    {
+        var c = Make();
+        c.PageBoundsOf = _ => new PdfRectF(0, 0, 600, 800);
+        c.Begin(ToolKind.Stamp, Style, Page, new(10, 790), 1f);
+        Assert.Equal(new PdfRectF(0, 750, 150, 800), Added(c.End(new(10, 790))).Rect);
+        c.Begin(ToolKind.Stamp, Style, Page, new(595, 5), 1f);
+        Assert.Equal(new PdfRectF(450, 0, 600, 50), Added(c.End(new(595, 5))).Rect);
     }
 
     [Fact]

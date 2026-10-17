@@ -41,10 +41,10 @@ public sealed class AnnotationToolController(
     // --- M3a ---
 
     /// <summary>패치가 필요한 도구를 시작해도 되는가 (암호 PDF 등은 false). 호스트가 연결한다.</summary>
-    public Func<bool> CanUsePatchFeatures { get; set; } = () => true;
+    public Func<bool> CanUsePatchFeatures { get; set; } = () => false;
 
     /// <summary>타자기 상자를 글에 맞추는 함수 (호스트가 AnnotationPainter.FitTypewriter에 연결). 만들 때와 확정할 때 쓴다.</summary>
-    public Func<Annotation, Annotation> FitTypewriter { get; set; } = a => a;
+    public Func<Annotation, Annotation>? FitTypewriter { get; set; }
 
     /// <summary>스탬프 표시 문구 (리소스에서 가져온다 — 이 파일에는 한글 리터럴을 두지 않는다).</summary>
     public Func<StampSpec, string> StampLabel { get; set; } = s => s.Text ?? s.BuiltinName;
@@ -53,7 +53,7 @@ public sealed class AnnotationToolController(
     public StampSpec LastStamp { get; set; } = new(StampKind.Builtin, "Approved", null, null);
 
     /// <summary>그림·첨부 바이트 보관소. AppearanceServices.Assets(세션 공유 인스턴스)를 연결한다. 새로 만들지 않는다.</summary>
-    public Func<AnnotationAssets> Assets { get; set; } = () => AnnotationAssets.Empty;
+    public Func<AnnotationAssets>? Assets { get; set; }
 
     /// <summary>주석 이름(/NM). 만들 때 한 번만 붙인다 — 저장할 때마다 새로 만들지 않는다.</summary>
     public Func<string> NewName { get; set; } = () => Guid.NewGuid().ToString("N");
@@ -102,6 +102,7 @@ public sealed class AnnotationToolController(
             AddPolyPoint(p);
             return;
         }
+        if (tool != ToolKind.FileAttach) PendingAttach = null;
         Cancel();
         _tool = tool; _style = style; _page = page; _start = p; _ptPerDip = ptPerDip;
         _points.Clear();
@@ -231,7 +232,7 @@ public sealed class AnnotationToolController(
     public ChangeAnnotationsCommand? CreateInsertCaret(ToolStyle style, PageId page, CharBoundary at)
     {
         if (!CanUsePatchFeatures() || at.Height <= 0) return null;
-        var caret = Finish(ToolKind.InsertText, style, new Annotation { Kind = AnnotKind.Caret, Rect = CaretRect(at), Contents = "" });
+        var caret = BuildCaret(ToolKind.InsertText, style, at);
         LastCreatedEdit = caret;
         return ChangeAnnotationsCommand.Add(page, caret);
     }
@@ -272,8 +273,9 @@ public sealed class AnnotationToolController(
     {
         LastAttachRejected = false;
         if (PendingAttach is not { } pending || !CanUsePatchFeatures()) return null;
+        var assets = RequireAssets();
         string id;
-        try { id = Assets().AddFile(name, data); }
+        try { id = assets.AddFile(name, data); }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
         {
             LastAttachRejected = true;
@@ -296,7 +298,7 @@ public sealed class AnnotationToolController(
 
     /// <summary>타자기를 확정하기 전에 부른다: 상자가 글에 맞는다. 다른 유형은 그대로.</summary>
     public Annotation FitForCommit(Annotation a)
-        => a is { Kind: AnnotKind.FreeText, Intent: FreeTextIntent.Typewriter } ? FitTypewriter(a) : a;
+        => a is { Kind: AnnotKind.FreeText, Intent: FreeTextIntent.Typewriter } ? RequireFit()(a) : a;
 
     /// <summary>설명선 지시선은 점이 2~3개여야 한다: 2개 미만이면 null, 3개 넘으면 처음·가운데·끝만 남긴다.</summary>
     public static ImmutableArray<PdfPointF>? NormalizeCalloutLeader(IReadOnlyList<PdfPointF> pts)
@@ -423,7 +425,7 @@ public sealed class AnnotationToolController(
                     var r = DragRect(end);
                     float tiny = TinyDragDip * _ptPerDip;
                     // 작은 끌기(클릭)는 클릭한 자리를 왼쪽 위로 하는 기본 크기
-                    if (r.Width < tiny || r.Height < tiny)
+                    if (r.Width < tiny && r.Height < tiny)
                         r = new PdfRectF(_start.X, _start.Y - DefaultTextBoxHeightPt, _start.X + DefaultTextBoxWidthPt, _start.Y);
                     return Finish(_tool, style, new Annotation
                     {
@@ -441,7 +443,7 @@ public sealed class AnnotationToolController(
                         Rect = new PdfRectF(_start.X, _start.Y - h, _start.X + w, _start.Y),
                         BorderWidth = 0f, TextColor = style.Color,
                     });
-                    return FitTypewriter(a);
+                    return RequireFit()(a);
                 }
             case ToolKind.Callout:
                 {
@@ -462,7 +464,7 @@ public sealed class AnnotationToolController(
             case ToolKind.InsertText:
                 {
                     if (CharBoundaryAt is null || CharBoundaryAt(_page, end, TinyDragDip * _ptPerDip) is not { Height: > 0 } at) return null;
-                    return Finish(_tool, style, new Annotation { Kind = AnnotKind.Caret, Rect = CaretRect(at), Contents = "" });
+                    return BuildCaret(_tool, style, at);
                 }
             case ToolKind.Stamp:
                 {
@@ -470,15 +472,15 @@ public sealed class AnnotationToolController(
                     float w = StampWidthPt, h = StampHeightPt;
                     if (spec.Kind == StampKind.Image)
                     {
-                        if (spec.ImageId is null || !Assets().HasImage(spec.ImageId)) return null;
-                        var (_, iw, ih, _) = Assets().GetImage(spec.ImageId);
+                        if (spec.ImageId is null || !RequireAssets().HasImage(spec.ImageId)) return null;
+                        var (_, iw, ih, _) = RequireAssets().GetImage(spec.ImageId);
                         float k = StampWidthPt / Math.Max(iw, ih);   // 긴 변을 150pt에 맞춘다
                         w = iw * k; h = ih * k;
                     }
                     return Finish(_tool, style, new Annotation
                     {
                         Kind = AnnotKind.Stamp, Stamp = spec, Contents = StampLabel(spec),
-                        Rect = new PdfRectF(end.X - w / 2f, end.Y - h / 2f, end.X + w / 2f, end.Y + h / 2f),
+                        Rect = ClampToPage(new PdfRectF(end.X - w / 2f, end.Y - h / 2f, end.X + w / 2f, end.Y + h / 2f)),
                     });
                 }
             default:
@@ -487,6 +489,26 @@ public sealed class AnnotationToolController(
     }
 
     private const float MinPointSpacingDip = 1f;
+
+    private Annotation BuildCaret(ToolKind tool, ToolStyle style, CharBoundary at)
+        => Finish(tool, style, new Annotation { Kind = AnnotKind.Caret, Rect = CaretRect(at), Contents = "" });
+
+    /// <summary>쪽 경계(호스트가 연결, 없으면 그대로). 스탬프가 쪽 밖으로 나가지 않게 안으로 민다.</summary>
+    public Func<PageId, PdfRectF?>? PageBoundsOf { get; set; }
+
+    private PdfRectF ClampToPage(PdfRectF r)
+    {
+        if (PageBoundsOf?.Invoke(_page) is not { } b) return r;
+        float dx = r.Width >= b.Width ? 0f : Math.Max(b.Left - r.Left, Math.Min(0f, b.Right - r.Right));
+        float dy = r.Height >= b.Height ? 0f : Math.Max(b.Bottom - r.Bottom, Math.Min(0f, b.Top - r.Top));
+        return r.Offset(dx, dy);
+    }
+
+    private AnnotationAssets RequireAssets()
+        => Assets?.Invoke() ?? throw new InvalidOperationException("AnnotationToolController.Assets is not wired (set it to the shared AppearanceServices.Assets).");
+
+    private Func<Annotation, Annotation> RequireFit()
+        => FitTypewriter ?? throw new InvalidOperationException("AnnotationToolController.FitTypewriter is not wired (set it to AnnotationPainter.FitTypewriter).");
 
     // 클릭으로 끝나는 도구는 미리보기가 없다 (글자 조회·파일 창을 움직임마다 부르지 않게)
     private Annotation? BuildPreview(PdfPointF p)
@@ -510,7 +532,7 @@ public sealed class AnnotationToolController(
     }
 
     /// <summary>지시선이 상자에 닿는 점: 끝점이 있는 쪽 변의 가운데.</summary>
-    private static PdfPointF LeaderAttachPoint(PdfRectF box, PdfPointF tip)
+    public static PdfPointF LeaderAttachPoint(PdfRectF box, PdfPointF tip)
     {
         float cx = (box.Left + box.Right) / 2f, cy = (box.Bottom + box.Top) / 2f;
         if (tip.X < box.Left) return new(box.Left, cy);

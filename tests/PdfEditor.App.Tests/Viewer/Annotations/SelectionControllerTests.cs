@@ -340,7 +340,7 @@ public class SelectionControllerTests
         c.Begin(Snap(co), Sel(1), hitN, new(280, 300), Bounds, 1f);
         var a1 = Changes(c.End(new(280, 340))!)[0].After!;
         Assert.Equal(new PdfRectF(200, 260, 360, 340), a1.TextBox);
-        Assert.Equal(co.Vertices, a1.Vertices);   // leader unchanged
+        Assert.Equal(co.Vertices[0], a1.Vertices[0]);   // tip unchanged (the box end re-anchors, see Callout_LeaderReanchors...)
 
         // W handle grows the box leftwards while the right edge stays put
         var hitW = c.HitTest(Snap(co), Sel(1), new(200, 280), 1f);
@@ -364,6 +364,48 @@ public class SelectionControllerTests
         c.Begin(Snap(tb), Sel(2), new HitResult(tb.Id, HandleKind.SE), new(300, 100), Bounds, 1f);
         var a4 = Changes(c.End(new(340, 80))!)[0].After!;
         Assert.Equal(new PdfRectF(100, 80, 340, 140), a4.Rect);
+    }
+
+    [Fact]
+    public void Callout_LeaderReanchorsAfterBoxResizeAndTipDrag()
+    {
+        var box = new PdfRectF(200, 260, 360, 300);
+        // tip left of the box -> leader ends on the left edge middle
+        var co = FreeText(1, box, (100, 280), (200, 280));
+        var c = Make();
+
+        // resize: drag E... use W handle to widen leftwards; leader end follows the new left edge
+        c.Begin(Snap(co), Sel(1), new HitResult(co.Id, HandleKind.W), new(200, 280), Bounds, 1f);
+        var a1 = Changes(c.End(new(150, 280))!)[0].After!;
+        Assert.Equal(new PdfRectF(150, 260, 360, 300), a1.TextBox);
+        Assert.Equal(new PdfPointF(150, 280), a1.Vertices[^1]);
+        Assert.Equal(new PdfPointF(100, 280), a1.Vertices[0]);
+
+        // grow the box upward: the left-edge middle moves too
+        c.Begin(Snap(co), Sel(1), new HitResult(co.Id, HandleKind.N), new(280, 300), Bounds, 1f);
+        var a2 = Changes(c.End(new(280, 340))!)[0].After!;
+        Assert.Equal(new PdfPointF(200, 300), a2.Vertices[^1]);   // (260+340)/2
+
+        // drag the tip to the right of the box -> attaches to the right edge, leader does not cross the box
+        c.Begin(Snap(co), Sel(1), new HitResult(co.Id, HandleKind.LeaderTip), new(100, 280), Bounds, 1f);
+        var a3 = Changes(c.End(new(500, 280))!)[0].After!;
+        Assert.Equal(new PdfPointF(500, 280), a3.Vertices[0]);
+        Assert.Equal(new PdfPointF(360, 280), a3.Vertices[^1]);
+        Assert.Equal(2, a3.Vertices.Length);
+
+        // tip above the box -> top edge middle
+        c.Begin(Snap(co), Sel(1), new HitResult(co.Id, HandleKind.LeaderTip), new(100, 280), Bounds, 1f);
+        var a4 = Changes(c.End(new(280, 500))!)[0].After!;
+        Assert.Equal(new PdfPointF(280, 300), a4.Vertices[^1]);
+        Assert.Equal(AnnotationGeometry.ComputeRect(a4), a4.Rect);
+
+        // 3-vertex leader keeps its elbow and count
+        var co3 = FreeText(2, box, (100, 280), (150, 330), (200, 280));
+        c.Begin(Snap(co3), Sel(2), new HitResult(co3.Id, HandleKind.LeaderTip), new(100, 280), Bounds, 1f);
+        var a5 = Changes(c.End(new(500, 280))!)[0].After!;
+        Assert.Equal(3, a5.Vertices.Length);
+        Assert.Equal(new PdfPointF(150, 330), a5.Vertices[1]);
+        Assert.Equal(new PdfPointF(360, 280), a5.Vertices[2]);
     }
 
     private static (Annotation Strike, Annotation Caret) Group()

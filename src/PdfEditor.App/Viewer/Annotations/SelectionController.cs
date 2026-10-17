@@ -192,6 +192,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
                 Math.Clamp(p.X - _grabX, _bounds.Left, _bounds.Right), Math.Clamp(p.Y - _grabY, _bounds.Bottom, _bounds.Top));
             _dx = np.X - old.X; _dy = np.Y - old.Y;
             var moved = t with { Vertices = t.Vertices.SetItem(idx, np) };
+            moved = ReAnchorLeader(moved);
             map[t.Id] = moved with { Rect = AnnotationGeometry.ComputeRect(moved) };
         }
         else
@@ -208,6 +209,16 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     private static Annotation WithBox(Annotation a, PdfRectF box)
     {
         var b = a.TextBox is null ? a with { Rect = box } : a with { TextBox = box };
+        b = ReAnchorLeader(b);
+        return b with { Rect = AnnotationGeometry.ComputeRect(b) };
+    }
+
+    // 설명선: 지시선의 상자 쪽 끝(마지막 점)을 끝점에서 가장 가까운 변의 가운데로 다시 붙인다. 점 개수(2~3)는 그대로.
+    private static Annotation ReAnchorLeader(Annotation a)
+    {
+        if (a.Intent != FreeTextIntent.Callout || a.TextBox is not { } box || a.Vertices.IsDefaultOrEmpty || a.Vertices.Length < 2) return a;
+        var verts = a.Vertices.SetItem(a.Vertices.Length - 1, AnnotationToolController.LeaderAttachPoint(box, a.Vertices[0]));
+        var b = a with { Vertices = verts };
         return b with { Rect = AnnotationGeometry.ComputeRect(b) };
     }
 
