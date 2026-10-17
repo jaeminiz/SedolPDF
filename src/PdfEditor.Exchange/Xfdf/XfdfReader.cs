@@ -23,6 +23,18 @@ public enum XfdfFailure { NotValidXfdf, TooLarge }
 /// </summary>
 public sealed record XfdfReadResult(IReadOnlyList<(int PageIndex, Annotation A)> Annotations, IReadOnlyList<string> Skipped)
 {
+    internal AnnotationAssets? Assets { get; set; }
+    internal Dictionary<AnnotId, (string Name, byte[] Data)> Pending { get; set; } = new();
+
+    /// <summary>가져오기로 확정된 첨부 주석의 파일을 저장소에 넣고 AttachmentId를 채운다. 실패하면 null과 이유.</summary>
+    public Annotation? StoreAttachment(Annotation a, out string? error)
+    {
+        error = null;
+        if (a.Kind != AnnotKind.FileAttachment) return a;
+        if (!Pending.TryGetValue(a.Id, out var f) || Assets is null) { error = "attachment data is missing"; return null; }
+        try { return a with { AttachmentId = Assets.AddFile(f.Name, f.Data), AttachmentName = f.Name }; }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException) { error = "attachment cannot be stored: " + e.Message; return null; }
+    }
     public IReadOnlyList<string> Notes { get; init; } = [];
     public IReadOnlyDictionary<AnnotId, string> ParentNames { get; init; } = new Dictionary<AnnotId, string>();
 }
@@ -37,9 +49,40 @@ public static partial class XfdfReader
     public const long MaxFileBytes = 100L * 1024 * 1024;
     public const int MaxAnnotations = 100_000;
     private const int MaxPoints = 1_000_000;
-    private const int MaxNameLength = 256;
+    private const int MaxNameLength = 128;
+    private const int MaxElementDepth = 32;
+    private const int MaxNumberChars = 16 * 1024 * 1024;
+    private const long MaxTotalNumbers = 8_000_000;
+    private const long MaxTotalAttachmentBytes = 200L * 1024 * 1024;
+    private const int MaxTextLength = 100_000;
+    private const int MaxShortTextLength = 256;
+
+    /// <summary>한 번의 Read 동안 쓰는 예산(읽기는 한 스레드에서 동기로 끝난다).</summary>
+    private sealed class Budget
+    {
+        public long Numbers;
+        public long AttachmentBytes;
+        public readonly Dictionary<AnnotId, (string Name, byte[] Data)> Pending = new();
+    }
+    [ThreadStatic] private static Budget? _budget;
+    private static Budget B => _budget ?? throw new InvalidOperationException();
+
+    private sealed class LimitException(string message) : Exception(message);
 
     public static XfdfReadResult Read(Stream xfdf, Func<AnnotId> newId, AnnotationAssets assets)
+    {
+        var budget = _budget = new Budget();
+        try
+        {
+            var r = ReadCore(xfdf, newId, assets);
+            r.Assets = assets;
+            r.Pending = budget.Pending;
+            return r;
+        }
+        finally { _budget = null; }
+    }
+
+    private static XfdfReadResult ReadCore(Stream xfdf, Func<AnnotId> newId, AnnotationAssets assets)
     {
         ArgumentNullException.ThrowIfNull(xfdf);
         ArgumentNullException.ThrowIfNull(newId);
@@ -113,11 +156,63 @@ public static partial class XfdfReader
                 return true;
             }
             count++;
-            var el = (XElement)XNode.ReadFrom(xr);
+            var el = BuildElement(xr);
+            if (el is null) { skipped.Add("annots: an element is nested too deeply"); continue; }
             ReadOne(el, items, skipped, notes, newId, assets);
         }
         if (!xr.EOF && xr.NodeType == XmlNodeType.EndElement) xr.Read();
         return false;
+    }
+
+    /// <summary>
+    /// 현재 요소를 트리로 만든다. 중첩이 <see cref="MaxElementDepth"/>를 넘으면 그 요소를 읽고 버린 뒤 null.
+    /// XElement.Value·XNode.ReadFrom은 깊은 트리에서 재귀로 스택을 넘치게 하므로 직접 만들고 깊이를 막는다.
+    /// </summary>
+    private static XElement? BuildElement(XmlReader xr)
+    {
+        int baseDepth = xr.Depth;
+        var stack = new Stack<XElement>();
+        XElement? top = null, result = null;
+        bool tooDeep = false;
+        while (true)
+        {
+            switch (xr.NodeType)
+            {
+                case XmlNodeType.Element:
+                    if (xr.Depth - baseDepth >= MaxElementDepth) { tooDeep = true; xr.Skip(); break; }
+                    {
+                        var el = new XElement(XName.Get(xr.LocalName));
+                        bool empty = xr.IsEmptyElement;
+                        if (xr.HasAttributes)
+                        {
+                            while (xr.MoveToNextAttribute())
+                            {
+                                if (xr.Prefix == "xmlns" || xr.LocalName == "xmlns" || xr.LocalName.Length == 0) continue;
+                                try { el.SetAttributeValue(XName.Get(xr.LocalName), xr.Value); } catch (ArgumentException) { }
+                            }
+                            xr.MoveToElement();
+                        }
+                        if (top is not null) top.Add(el); else result = el;
+                        if (!empty) { stack.Push(el); top = el; }
+                        xr.Read();
+                    }
+                    break;
+                case XmlNodeType.Text or XmlNodeType.CDATA or XmlNodeType.Whitespace or XmlNodeType.SignificantWhitespace:
+                    top?.Add(new XText(xr.Value));
+                    xr.Read();
+                    break;
+                case XmlNodeType.EndElement:
+                    stack.Pop();
+                    top = stack.Count > 0 ? stack.Peek() : null;
+                    xr.Read();
+                    break;
+                default:
+                    xr.Read();
+                    break;
+            }
+            if (top is null || xr.EOF) break;
+        }
+        return tooDeep ? null : result;
     }
 
     private static void ReadOne(XElement el, List<Item> items, List<string> skipped, List<string> notes, Func<AnnotId> newId, AnnotationAssets assets)
@@ -218,7 +313,7 @@ public static partial class XfdfReader
                     int total = 0;
                     foreach (var g in gestures)
                     {
-                        var pts = Points(g.Value, out var perr);
+                        var pts = Points(TextOf(g), out var perr);
                         if (pts is null) { error = "inklist " + perr; return null; }
                         if (pts.Value.Length == 0) continue;
                         total += pts.Value.Length;
@@ -241,7 +336,7 @@ public static partial class XfdfReader
                 {
                     var ve = Child(el, "vertices");
                     if (ve is null) { error = "missing vertices"; return null; }
-                    var pts = Points(ve.Value, out var perr);
+                    var pts = Points(TextOf(ve), out var perr);
                     if (pts is null) { error = "vertices " + perr; return null; }
                     int min = kind == AnnotKind.Polygon ? 3 : 2;
                     if (pts.Value.Length < min || pts.Value.Length > MaxPoints) { error = $"vertices need at least {min} points"; return null; }
@@ -279,12 +374,13 @@ public static partial class XfdfReader
         // 공통 문자열·날짜·표시 옵션
         string? nm = at.GetValueOrDefault("name");
         if (string.IsNullOrWhiteSpace(nm)) nm = "xfdf-" + Guid.NewGuid().ToString("N");   // 이름이 없으면 안정적인 새 NM
-        else if (nm.Length > MaxNameLength) nm = nm[..MaxNameLength];
+        else nm = Clean(nm, MaxNameLength, false);
+        if (nm.Length == 0) nm = "xfdf-" + Guid.NewGuid().ToString("N");
         a = a with
         {
             Name = nm,
-            Author = Nz(at.GetValueOrDefault("title")),
-            Subject = Nz(at.GetValueOrDefault("subject")),
+            Author = Nz(at.GetValueOrDefault("title")) is { } au ? Clean(au, MaxShortTextLength, false) : null,
+            Subject = Nz(at.GetValueOrDefault("subject")) is { } su ? Clean(su, MaxShortTextLength, false) : null,
         };
         DateTimeOffset? mod = PdfDate.TryParse(at.GetValueOrDefault("date"), out var md) ? md : null;
         DateTimeOffset? cre = PdfDate.TryParse(at.GetValueOrDefault("creationdate"), out var cd) ? cd : null;
@@ -294,7 +390,7 @@ public static partial class XfdfReader
         a = a with { Contents = contents };
 
         // 답글·상태
-        string? irt = Nz(at.GetValueOrDefault("inreplyto"));
+        string? irt = Nz(at.GetValueOrDefault("inreplyto")) is { } irtRaw ? Clean(irtRaw, MaxNameLength, false) : null;
         string? stateStr = Nz(at.GetValueOrDefault("state"));
         string? model = Nz(at.GetValueOrDefault("statemodel"));
         ReviewState? state = null;
@@ -356,7 +452,7 @@ public static partial class XfdfReader
                 }
             case AnnotKind.FileAttachment:
                 {
-                    var r = Attachment(a, el, at, assets, out error);
+                    var r = Attachment(a, el, at, out error);
                     if (r is null) return null;
                     a = r;
                     break;
@@ -382,7 +478,7 @@ public static partial class XfdfReader
         error = null;
         float size = 12f;
         PdfColor? tc = null;
-        string? da = Child(el, "defaultappearance")?.Value ?? at.GetValueOrDefault("defaultappearance");
+        string? da = (Child(el, "defaultappearance") is { } dae ? TextOf(dae) : null) ?? at.GetValueOrDefault("defaultappearance");
         if (da is not null)
         {
             var m = FontSizeRegex().Match(da);
@@ -443,14 +539,14 @@ public static partial class XfdfReader
         return null;
     }
 
-    private static Annotation? Attachment(Annotation a, XElement el, Dictionary<string, string> at, AnnotationAssets assets, out string? error)
+    private static Annotation? Attachment(Annotation a, XElement el, Dictionary<string, string> at, out string? error)
     {
         error = null;
         var data = Child(el, "data");
         if (data is null) { error = "attachment has no embedded data"; return null; }
         var da = Attrs(data);
         string encoding = (da.GetValueOrDefault("encoding") ?? "base64").Trim().ToLowerInvariant();
-        string text = data.Value;
+        string text = TextOf(data);
         long encodedLen = text.Length;
         long approxBytes = encoding switch { "hex" => encodedLen / 2, "base64" => encodedLen / 4 * 3, _ => 0 };
         if (encoding is not ("hex" or "base64")) { error = $"attachment encoding '{Short(encoding)}' is not supported"; return null; }
@@ -471,16 +567,11 @@ public static partial class XfdfReader
         }
         if (bytes.Length > AnnotationAssets.MaxFileBytes) { error = "attachment is larger than the allowed file size"; return null; }
         string fname = AttachmentNames.Sanitize(at.GetValueOrDefault("file"));
-        try
-        {
-            string id = assets.AddFile(fname, bytes);
-            return a with { AttachmentId = id, AttachmentName = fname };
-        }
-        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
-        {
-            error = "attachment cannot be stored: " + e.Message;
-            return null;
-        }
+        if (B.AttachmentBytes + bytes.Length > MaxTotalAttachmentBytes) { error = "attachments exceed the total limit"; return null; }
+        B.AttachmentBytes += bytes.Length;
+        // 파일 저장소에는 가져오기로 확정된 주석만 넣는다(StoreAttachment). 그 전까지는 바이트만 들고 있다.
+        B.Pending[a.Id] = (fname, bytes);
+        return a with { AttachmentName = fname };
     }
 
     private static byte[] Inflate(byte[] compressed, int max)
@@ -508,6 +599,7 @@ public static partial class XfdfReader
             if (it.A.Name is { } n && !byName.TryAdd(n, it))
             {
                 skipped.Add($"{it.Element}: duplicate name '{Short(n)}' in the file");
+                B.Pending.Remove(it.A.Id);
                 continue;
             }
             kept.Add(it);
@@ -546,9 +638,25 @@ public static partial class XfdfReader
 
     private static string? ContentsOf(XElement el)
     {
-        string? text = Child(el, "contents")?.Value;
-        if (string.IsNullOrEmpty(text)) text = Child(el, "contents-richtext")?.Value;
-        return string.IsNullOrEmpty(text) ? null : text;
+        string? text = Child(el, "contents") is { } c ? TextOf(c) : null;
+        if (string.IsNullOrEmpty(text) && Child(el, "contents-richtext") is { } rt) text = rt.Value;   // 깊이는 MaxElementDepth로 제한됨
+        return string.IsNullOrEmpty(text) ? null : Clean(text, MaxTextLength, true);
+    }
+
+    /// <summary>직접 자식 글자 노드만 이어 붙인다(XElement.Value는 깊은 트리에서 재귀).</summary>
+    private static string TextOf(XElement e) => string.Concat(e.Nodes().OfType<XText>().Select(t => t.Value));
+
+    /// <summary>제어 문자(탭·줄바꿈 제외, 줄바꿈은 multiline일 때만)를 빼고 길이를 자른다.</summary>
+    private static string Clean(string s, int max, bool multiline)
+    {
+        var sb = new System.Text.StringBuilder(Math.Min(s.Length, max));
+        foreach (char c in s)
+        {
+            if (sb.Length >= max) break;
+            if (c == (char)9 || (multiline && (c == (char)10 || c == (char)13)) || !char.IsControl(c)) sb.Append(c);
+        }
+        if (sb.Length > 0 && char.IsHighSurrogate(sb[^1])) sb.Length--;
+        return sb.ToString();
     }
 
     private static string? Nz(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
@@ -579,13 +687,25 @@ public static partial class XfdfReader
     private static float[]? Floats(string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return [];
-        var parts = s.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length > MaxPoints * 2) return null;
-        var r = new float[parts.Length];
-        for (int i = 0; i < parts.Length; i++)
-            if (!TryFloat(parts[i], out r[i])) return null;
-        return r;
+        if (s.Length > MaxNumberChars) throw new LimitException("numeric list is too long");
+        var list = new List<float>();
+        var span = s.AsSpan();
+        int i = 0;
+        while (i < span.Length)
+        {
+            while (i < span.Length && IsSep(span[i])) i++;
+            int start = i;
+            while (i < span.Length && !IsSep(span[i])) i++;
+            if (i == start) break;
+            if (!float.TryParse(span[start..i], NumberStyles.Float, CultureInfo.InvariantCulture, out float v) || !float.IsFinite(v)) return null;
+            if (list.Count >= MaxPoints * 2) throw new LimitException("too many numbers in one list");
+            if (++B.Numbers > MaxTotalNumbers) throw new LimitException("the file has too many coordinates in total");
+            list.Add(v);
+        }
+        return list.ToArray();
     }
+
+    private static bool IsSep(char c) => c is (char)44 or (char)59 or (char)32 or (char)9 or (char)13 or (char)10;
 
     private static ImmutableArray<PdfPointF>? Points(string? s, out string error)
     {

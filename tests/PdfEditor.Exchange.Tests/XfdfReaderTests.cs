@@ -200,7 +200,8 @@ public class XfdfReaderTests
     {
         var assets = new AnnotationAssets();
         var r = Read(Wrap("<fileattachment page=\"0\" rect=\"0,0,10,10\" file=\"..\\..\\evil.txt\" name=\"att\"><data encoding=\"base64\">SGVsbG8=</data></fileattachment>"), assets);
-        var a = Assert.Single(r.Annotations).A;
+        var a = r.StoreAttachment(Assert.Single(r.Annotations).A, out var err)!;
+        Assert.Null(err);
         Assert.Equal("evil.txt", a.AttachmentName);
         Assert.Equal(Encoding.ASCII.GetBytes("Hello"), assets.GetFile(a.AttachmentId!).Data);
     }
@@ -209,8 +210,8 @@ public class XfdfReaderTests
     public void Read_AttachmentIntoReadOnlyAssets_SkippedNotThrown()
     {
         var r = Read(Wrap("<fileattachment page=\"0\" rect=\"0,0,10,10\" file=\"a.txt\" name=\"att\"><data encoding=\"base64\">SGVsbG8=</data></fileattachment>"), AnnotationAssets.Empty);
-        Assert.Empty(r.Annotations);
-        Assert.Single(r.Skipped);
+        Assert.Null(r.StoreAttachment(Assert.Single(r.Annotations).A, out var err));
+        Assert.NotNull(err);
     }
 
     [Fact]
@@ -377,7 +378,7 @@ public class XfdfReaderTests
         Assert.Equal(byName["pxc-note-1"].A.Id, reply.InReplyTo);
         Assert.Equal(ThreadAnnotations.ReplyFlags, reply.Flags);
 
-        var att = byName["pxc-att-1"].A;
+        var att = r.StoreAttachment(byName["pxc-att-1"].A, out _)!;
         Assert.Equal("notes.txt", att.AttachmentName);
         Assert.Equal(Encoding.ASCII.GetBytes("Hello"), assets.GetFile(att.AttachmentId!).Data);
     }

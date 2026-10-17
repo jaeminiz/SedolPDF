@@ -14,6 +14,9 @@ public sealed record XfdfImportPlan(IUndoableCommand? Command, int Imported, IRe
 /// </summary>
 public static class XfdfImport
 {
+    /// <summary>답글 사슬 깊이 상한. 넘으면 그 답글부터 새 뿌리가 된다.</summary>
+    public const int MaxThreadDepth = 256;
+
     public static IUndoableCommand? BuildCommand(DocumentSession s, XfdfReadResult r, out IReadOnlyList<string> skipped)
     {
         var plan = Plan(s, r);
@@ -82,18 +85,35 @@ public static class XfdfImport
         var bySourceId = entries.ToDictionary(e => e.Source.A.Id);
         AnnotId FinalId(Entry e) => e.Existing?.Id ?? e.Source.A.Id;
 
-        // 사슬이 맴돌면(서로가 부모) 끊는다.
-        bool Cycles(Entry e)
+        // 사슬이 맴돌거나 너무 깊으면 끊는다. 항목마다 한 번씩만 지나므로 전체가 선형이다.
+        var cut = new HashSet<Entry>();
+        var finished = new Dictionary<Entry, int>();   // 항목 → 깊이
+        foreach (var start in entries)
         {
-            var seen = new HashSet<AnnotId>();
-            var cur = e;
-            while (cur.Source.A.InReplyTo is { } p)
+            if (finished.ContainsKey(start)) continue;
+            var path = new List<Entry>();
+            var onPath = new HashSet<Entry>();
+            Entry? cur = start;
+            bool cyc = false;
+            while (cur is not null && !finished.ContainsKey(cur))
             {
-                if (!seen.Add(cur.Source.A.Id)) return true;
-                if (!bySourceId.TryGetValue(p, out var next)) return false;
-                cur = next;
+                if (!onPath.Add(cur)) { cyc = true; break; }
+                path.Add(cur);
+                cur = cur.Source.A.InReplyTo is { } pid && bySourceId.TryGetValue(pid, out var nx) ? nx : null;
             }
-            return false;
+            if (cyc)
+            {
+                foreach (var n in path) { cut.Add(n); finished[n] = 0; }
+                continue;
+            }
+            int parentDepth = cur is null ? -1 : finished[cur];
+            for (int i = path.Count - 1; i >= 0; i--)
+            {
+                int d = parentDepth + 1;
+                if (d > MaxThreadDepth) { cut.Add(path[i]); d = 0; }
+                finished[path[i]] = d;
+                parentDepth = d;
+            }
         }
 
         foreach (var e in entries)
@@ -107,13 +127,13 @@ public static class XfdfImport
 
             if (a.InReplyTo is { } pid)
             {
-                if (bySourceId.TryGetValue(pid, out var pe) && !Cycles(e))
+                if (bySourceId.TryGetValue(pid, out var pe) && !cut.Contains(e))
                 {
                     parentFinal = FinalId(pe);
                     parentPage = pe.Page;
                     parentData = pe.Source.A;
                 }
-                else why = pe is null ? "its parent was not imported" : "its parent chain is circular";
+                else why = pe is null ? "its parent was not imported" : "its parent chain is circular or too deep";
             }
             else if (r.ParentNames.TryGetValue(a.Id, out var pn))
             {
@@ -153,6 +173,7 @@ public static class XfdfImport
                 e.Final = a with { InReplyTo = null, ReplyKind = null };
             }
             if (e.Existing is { } old) e.Final = e.Final with { Id = old.Id };
+            if (e.Existing is { } old2 && old2.Kind != a.Kind) notes.Add($"{e.Element}: replaced annotation of a different kind ({old2.Kind.ToString().ToLowerInvariant()}) with the same name");
         }
 
         // 부모를 못 넣은 상태 때문에 버려진 것의 답글이 남았다면 부모가 없는 것으로 다시 다룬다: 드문 경우라 여기서는 연결만 확인한다.
@@ -160,6 +181,14 @@ public static class XfdfImport
         if (droppedIds.Count > 0)
             foreach (var e in entries.Where(e => !e.Dropped && e.Final.InReplyTo is { } p && droppedIds.Contains(p)))
                 e.Final = e.Final with { InReplyTo = null, ReplyKind = null };
+
+        // 첨부 파일은 가져오기로 확정된 주석만 저장소에 넣는다.
+        foreach (var e in entries.Where(e => !e.Dropped && e.Final.Kind == AnnotKind.FileAttachment))
+        {
+            var stored = r.StoreAttachment(e.Final, out var serr);
+            if (stored is null) { e.Dropped = true; skipped.Add($"{e.Element}: {serr}"); }
+            else e.Final = stored;
+        }
 
         // 3단계: 쪽별로 명령 묶기. 부모가 먼저 오도록 답글은 뒤로.
         var parts = new List<IUndoableCommand>();
