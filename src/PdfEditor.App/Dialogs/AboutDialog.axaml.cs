@@ -15,6 +15,9 @@ public sealed partial class AboutDialog : Window
         Title = Strings.Dlg_AboutTitle;
         NameText.Text = Strings.App_Name;
         VersionText.Text = string.Format(Strings.Dlg_AboutVersion, VersionString());
+        AuthorsText.Text = Strings.About_Authors;
+        Contact1Text.Text = Strings.About_Contact1;
+        Contact2Text.Text = Strings.About_Contact2;
         NoticesButton.Content = Strings.Dlg_AboutNotices;
         CloseButton.Content = Strings.Dlg_AboutClose;
         NoticesButton.Click += (_, _) => OpenNotices();

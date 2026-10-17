@@ -52,7 +52,7 @@ PDFium 157 (bblanchon/pdfium-binaries, chromium/8100) 기준. 측정은 `tests/P
 
 ## 성능 재측정 (Task 17, 2026-10-17)
 
-`PdfEditor.App.exe --bench <pdf> --out <json>` (Release, M1과 같은 PC·창 782×581·화면 배율 100%), A1 3회·300쪽 3회, **목표 숫자는 조정하지 않았다.** 이번에 `--annots N`(첫 쪽에 Ink 주석 N개, 획 3개씩, 획마다 점 24개)과 보고서 항목 `OverlayDrawMsP95`를 추가했다. `OverlayDrawMsP95` = 주석 층 그리기(`AnnotationOverlay.DrawPage`)를 UI 스레드에서 기록하는 시간의 p95(150프레임, 도형 캐시가 데워진 뒤). 원본 JSON: `spikes/out/m2-bench-*.json`(저장소에 커밋되지 않음).
+`SedolPDF.exe --bench <pdf> --out <json>` (Release, M1과 같은 PC·창 782×581·화면 배율 100%), A1 3회·300쪽 3회, **목표 숫자는 조정하지 않았다.** 이번에 `--annots N`(첫 쪽에 Ink 주석 N개, 획 3개씩, 획마다 점 24개)과 보고서 항목 `OverlayDrawMsP95`를 추가했다. `OverlayDrawMsP95` = 주석 층 그리기(`AnnotationOverlay.DrawPage`)를 UI 스레드에서 기록하는 시간의 p95(150프레임, 도형 캐시가 데워진 뒤). 원본 JSON: `spikes/out/m2-bench-*.json`(저장소에 커밋되지 않음).
 
 | 항목 | 목표 | M1 마무리 때 | M2 끝(이번 측정) | 판정 |
 |---|---|---|---|---|
@@ -167,7 +167,7 @@ PDFium 157 (bblanchon/pdfium-binaries, chromium/8100) 기준. 측정은 `tests/P
 ## 사용자 검수 요청 (M2) — 쉬운 설명
 
 **1. 앱 실행 방법**
-- 탐색기에서 `D:\INBOX_WP\95. Claude\PDF EDITOR\src\PdfEditor.App\bin\Release\net10.0-windows\win-x64\PdfEditor.App.exe`를 더블클릭하세요. (코드를 바꾼 뒤에는 먼저 터미널에서 `dotnet build src/PdfEditor.App -c Release`가 필요합니다. 어려우면 저에게 "빌드해 줘"라고 말씀하세요.)
+- 탐색기에서 `D:\INBOX_WP\95. Claude\PDF EDITOR\src\PdfEditor.App\bin\Release\net10.0-windows\win-x64\SedolPDF.exe`를 더블클릭하세요. (코드를 바꾼 뒤에는 먼저 터미널에서 `dotnet build src/PdfEditor.App -c Release`가 필요합니다. 어려우면 저에게 "빌드해 줘"라고 말씀하세요.)
 - 연습용 파일: `spikes/out/m2-annotations.pdf` (3쪽: 1쪽 새 주석 모음, 2쪽 옆으로 누운 쪽, 3쪽 다른 프로그램이 만든 것 같은 주석). **원본은 건드리지 말고 "다른 이름으로 저장"으로 사본에 하세요.** 회사 도면은 꼭 사본으로만 하세요.
 
 **2. 이렇게 해 보세요 (되면 ○, 이상하면 한 줄 메모)**

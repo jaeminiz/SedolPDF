@@ -4,7 +4,10 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
-  <data name="App_Name" xml:space="preserve"><value>PDF 에디터</value></data>
+  <data name="App_Name" xml:space="preserve"><value>SedolPDF</value></data>
+  <data name="About_Authors" xml:space="preserve"><value>박재민 · 박세현</value></data>
+  <data name="About_Contact1" xml:space="preserve"><value>박재민  jaemini@gmail.com</value></data>
+  <data name="About_Contact2" xml:space="preserve"><value>박세현  sedolisehyun@gmail.com</value></data>
   <data name="Tab_File" xml:space="preserve"><value>파일</value></data>
   <data name="Tab_Home" xml:space="preserve"><value>홈</value></data>
   <data name="Tab_Annotate" xml:space="preserve"><value>주석</value></data>

@@ -9,10 +9,30 @@ public sealed class SettingsStore(string filePath)
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     private readonly object _gate = new();
 
-    /// <summary>환경 변수 PDFEDITOR_SETTINGS_PATH가 있으면 그 파일(수동 확인·테스트용), 없으면 %APPDATA%\PdfEditor\settings.json.</summary>
+    /// <summary>환경 변수 PDFEDITOR_SETTINGS_PATH가 있으면 그 파일(수동 확인·테스트용), 없으면 %APPDATA%\SedolPDF\settings.json.</summary>
     public static string DefaultPath =>
         Environment.GetEnvironmentVariable("PDFEDITOR_SETTINGS_PATH") is { Length: > 0 } over ? over :
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfEditor", "settings.json");
+        DefaultPathIn(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+
+    /// <summary>
+    /// <paramref name="appData"/>\SedolPDF\settings.json. 새 폴더가 없고 옛 폴더(PdfEditor)가 있으면 옛 설정 파일을 한 번 복사한다(실패해도 무시).
+    /// </summary>
+    public static string DefaultPathIn(string appData)
+    {
+        string newFile = Path.Combine(appData, "SedolPDF", "settings.json");
+        try
+        {
+            string oldDir = Path.Combine(appData, "PdfEditor");
+            if (!Directory.Exists(Path.Combine(appData, "SedolPDF")) && Directory.Exists(oldDir))
+            {
+                Directory.CreateDirectory(Path.Combine(appData, "SedolPDF"));
+                string oldFile = Path.Combine(oldDir, "settings.json");
+                if (File.Exists(oldFile)) File.Copy(oldFile, newFile, overwrite: false);
+            }
+        }
+        catch (Exception) { /* 옮기지 못해도 새 설정으로 시작 */ }
+        return newFile;
+    }
 
     public AppSettings Load()
     {

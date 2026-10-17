@@ -31,7 +31,7 @@ public class ResourceGuardTests
             if (string.IsNullOrWhiteSpace(v) || v == p.Name) bad.Add(p.Name);
         }
         Assert.True(bad.Count == 0, "Empty or missing: " + string.Join(", ", bad));
-        Assert.Equal("PDF 에디터", Strings.App_Name);
+        Assert.Equal("SedolPDF", Strings.App_Name);
     }
 
     [Fact]

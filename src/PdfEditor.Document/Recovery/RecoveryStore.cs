@@ -17,7 +17,27 @@ public sealed class RecoveryStore(string folder, IAppearanceSource? appearance =
     public static string DefaultFolder =>
         Environment.GetEnvironmentVariable("PDFEDITOR_RECOVERY_DIR") is { Length: > 0 } over
             ? over
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PdfEditor", "Recovery");
+            : DefaultFolderIn(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+
+    /// <summary>
+    /// <paramref name="localAppData"/>\SedolPDF\Recovery. 새 SedolPDF 폴더가 없고 옛 PdfEditor\Recovery가 있으면 그 파일을 한 번 복사한다(실패해도 무시).
+    /// </summary>
+    public static string DefaultFolderIn(string localAppData)
+    {
+        string newDir = Path.Combine(localAppData, "SedolPDF", "Recovery");
+        try
+        {
+            string oldDir = Path.Combine(localAppData, "PdfEditor", "Recovery");
+            if (!Directory.Exists(Path.Combine(localAppData, "SedolPDF")) && Directory.Exists(oldDir))
+            {
+                Directory.CreateDirectory(newDir);
+                foreach (var f in Directory.EnumerateFiles(oldDir))
+                    File.Copy(f, Path.Combine(newDir, Path.GetFileName(f)), overwrite: false);
+            }
+        }
+        catch (Exception) { /* 옮기지 못해도 빈 복구 폴더로 시작 */ }
+        return newDir;
+    }
 
     private string PdfPath(Guid id) => Path.Combine(folder, id.ToString("N") + ".pdf");
     private string JsonPath(Guid id) => Path.Combine(folder, id.ToString("N") + ".json");

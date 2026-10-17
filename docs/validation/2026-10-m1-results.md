@@ -97,7 +97,7 @@ Task 3 때 웹으로만 본 헤더 4개 외에, **NuGet 패키지에 들어 있�
 
 ## 성능 측정 (Task 18, 2026-10-16)
 > 아래는 Task 18 당시 값이다. 마무리 검토에서 원인을 고치고 다시 잰 값은 "M1 마무리 검토" 절에 있다(두 미달 항목 모두 통과).
-`PdfEditor.App.exe --bench <pdf> --out <json>` (Release, 이 PC: Windows 11, 12 논리 코어, 기본 창 크기 → 뷰포트 782×581 px). 입력 장치는 쓰지 않고, 문서 화면이 프레임을 그릴 때마다(`DocumentView.RenderCount` 증가) 스크롤 위치를 직접 바꾸며 `LastCoverage`(아무 그림으로 덮인 비율)와 `LastExactCoverage`(현재 배율 타일로만 덮인 비율)를 읽는다. 원본 JSON은 `spikes/out/m1-bench-a1*.json`, `m1-bench-300*.json`(저장소에 커밋되지 않음). 목표는 조정하지 않았다.
+`SedolPDF.exe --bench <pdf> --out <json>` (Release, 이 PC: Windows 11, 12 논리 코어, 기본 창 크기 → 뷰포트 782×581 px). 입력 장치는 쓰지 않고, 문서 화면이 프레임을 그릴 때마다(`DocumentView.RenderCount` 증가) 스크롤 위치를 직접 바꾸며 `LastCoverage`(아무 그림으로 덮인 비율)와 `LastExactCoverage`(현재 배율 타일로만 덮인 비율)를 읽는다. 원본 JSON은 `spikes/out/m1-bench-a1*.json`, `m1-bench-300*.json`(저장소에 커밋되지 않음). 목표는 조정하지 않았다.
 
 | 항목 | 목표 | A1 도면 (3회) | 300쪽 (2회) | 판정 |
 |---|---|---|---|---|
@@ -175,7 +175,7 @@ Task 3 때 웹으로만 본 헤더 4개 외에, **NuGet 패키지에 들어 있�
 | 300쪽 회색 비율(세 스크롤 방식) | ≤ 2 % | 0 % | 0 % (연속 최대 0 ms) | 통과 |
 | 300쪽 100% 끝까지(1/180씩) | ≤ 3 s | 3.02~3.03 s | 3.02~3.03 s | 변화 없음(경계) |
 | 512 타일 p95 | ≤ 100 ms | A1 67~73 ms | A1 50~55 ms | 통과 |
-- 측정: `PdfEditor.App.exe --bench` (Release), A1 3회·300쪽 3회, 같은 PC·같은 창 크기(782×581). 숫자는 조정하지 않았다. 원본 JSON은 세션 임시 폴더(저장소 밖).
+- 측정: `SedolPDF.exe --bench` (Release), A1 3회·300쪽 3회, 같은 PC·같은 창 크기(782×581). 숫자는 조정하지 않았다. 원본 JSON은 세션 임시 폴더(저장소 밖).
 - **96dpi 기준 변경 후 (2026-10-16, 사용자 결정으로 100% = 실제 종이 크기):** 같은 PC·창(782×581)·Release, 화면 배율 100%(RenderScaling 1.0), A1 3회·300쪽 3회, 숫자는 조정하지 않음. 같은 화면에 그릴 픽셀이 1.78배(1.333²)로 늘었다.
   - A1 첫 화면: **0.44 / 0.58 / 0.40 s** → 목표 0.5 s 이하를 **1회 넘김(0.58 s)**, 나머지 2회는 통과. 타일 p95 41~57 ms(통과).
   - 300쪽 작업 집합: **372 / 379 / 371 MB** (목표 400 MB 미만, 통과). 회색 비율 0 %·연속 최대 0 ms(세 스크롤 방식 모두), 1/180씩 끝까지 3.02~3.03 s(변화 없음).
@@ -208,7 +208,7 @@ Task 3 때 웹으로만 본 헤더 4개 외에, **NuGet 패키지에 들어 있�
 
 ## 사용자 검수 요청 (M1) — 쉬운 설명
 **1. 앱 실행 방법**
-- 탐색기에서 `D:\INBOX_WP\95. Claude\PDF EDITOR\src\PdfEditor.App\bin\Release\net10.0-windows\win-x64\PdfEditor.App.exe`를 더블클릭하세요. (먼저 터미널에서 `dotnet build src/PdfEditor.App -c Release`를 한 번 실행해야 이 파일이 최신이 됩니다. 터미널이 어려우면 저에게 "빌드해 줘"라고만 말씀하세요.)
+- 탐색기에서 `D:\INBOX_WP\95. Claude\PDF EDITOR\src\PdfEditor.App\bin\Release\net10.0-windows\win-x64\SedolPDF.exe`를 더블클릭하세요. (먼저 터미널에서 `dotnet build src/PdfEditor.App -c Release`를 한 번 실행해야 이 파일이 최신이 됩니다. 터미널이 어려우면 저에게 "빌드해 줘"라고만 말씀하세요.)
 - 또는 폴더에서 `dotnet run -c Release --project src/PdfEditor.App -- 열고싶은파일.pdf` 를 실행해도 됩니다.
 - 시험용 큰 파일: `spikes/out/bench-a1-drawing.pdf`(A1 도면 1장), `spikes/out/bench-a4-300pages.pdf`(300쪽). 회사 도면 같은 실제 파일로도 꼭 열어 보세요(원본은 건드리지 말고 사본으로).
 

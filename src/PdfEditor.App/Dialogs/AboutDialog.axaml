@@ -7,6 +7,11 @@
   <StackPanel Margin="24,20,24,16" Spacing="12">
     <TextBlock x:Name="NameText" FontSize="20" FontWeight="SemiBold" Foreground="#1A1A1A" />
     <TextBlock x:Name="VersionText" Foreground="#5C5C5C" />
+    <StackPanel Spacing="2">
+      <TextBlock x:Name="AuthorsText" Foreground="#1A1A1A" />
+      <TextBlock x:Name="Contact1Text" Foreground="#5C5C5C" />
+      <TextBlock x:Name="Contact2Text" Foreground="#5C5C5C" />
+    </StackPanel>
     <TextBlock x:Name="NoticeStatus" Foreground="#C42B1C" IsVisible="False" TextWrapping="Wrap" />
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
       <Button x:Name="NoticesButton" MinWidth="120" />

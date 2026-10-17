@@ -5,6 +5,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>PdfEditor.App</RootNamespace>
+    <AssemblyName>SedolPDF</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

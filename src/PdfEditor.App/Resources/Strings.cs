@@ -14,6 +14,9 @@ public static class Strings
     private static string Get(string key) => Rm.GetString(key) ?? key;
 
     public static string App_Name => Get(nameof(App_Name));
+    public static string About_Authors => Get(nameof(About_Authors));
+    public static string About_Contact1 => Get(nameof(About_Contact1));
+    public static string About_Contact2 => Get(nameof(About_Contact2));
     public static string Tab_File => Get(nameof(Tab_File));
     public static string Tab_Home => Get(nameof(Tab_Home));
     public static string Tab_Annotate => Get(nameof(Tab_Annotate));

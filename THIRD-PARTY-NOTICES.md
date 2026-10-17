@@ -1,5 +1,7 @@
 # Third-Party Notices
 
+SedolPDF — 박재민, 박세현 (Copyright (c) 2026 박재민, 박세현)
+
 이 프로젝트가 사용하거나 함께 배포하는 외부 구성 요소의 고지입니다.
 
 ## PDFium (pdfium-binaries 빌드) — 검증 V5 완료 (2026-10-16)

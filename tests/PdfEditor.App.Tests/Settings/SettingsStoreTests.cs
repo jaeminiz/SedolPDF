@@ -9,6 +9,28 @@ public class SettingsStoreTests : IDisposable
     public void Dispose() { try { Directory.Delete(_dir, true); } catch { } }
 
     [Fact]
+    public void OldDataFolder_MigratedOnce()
+    {
+        string oldDir = Path.Combine(_dir, "PdfEditor");
+        Directory.CreateDirectory(oldDir);
+        File.WriteAllText(Path.Combine(oldDir, "settings.json"), "{\"RecoveryIntervalMinutes\": 9}");
+        string p = SettingsStore.DefaultPathIn(_dir);
+        Assert.Equal(Path.Combine(_dir, "SedolPDF", "settings.json"), p);
+        Assert.Equal(9, new SettingsStore(p).Load().RecoveryIntervalMinutes);
+        // 한 번만: 새 폴더가 생긴 뒤에는 옛 파일이 바뀌어도 다시 덮어쓰지 않는다
+        File.WriteAllText(Path.Combine(oldDir, "settings.json"), "{\"RecoveryIntervalMinutes\": 3}");
+        SettingsStore.DefaultPathIn(_dir);
+        Assert.Equal(9, new SettingsStore(p).Load().RecoveryIntervalMinutes);
+
+        string localOld = Path.Combine(_dir, "L", "PdfEditor", "Recovery");
+        Directory.CreateDirectory(localOld);
+        File.WriteAllText(Path.Combine(localOld, "a.json"), "x");
+        string r = PdfEditor.Document.Recovery.RecoveryStore.DefaultFolderIn(Path.Combine(_dir, "L"));
+        Assert.Equal(Path.Combine(_dir, "L", "SedolPDF", "Recovery"), r);
+        Assert.True(File.Exists(Path.Combine(r, "a.json")));
+    }
+
+    [Fact]
     public void Settings_CorruptJson_ReturnsDefaults()
     {
         string f = Path.Combine(_dir, "s.json");
