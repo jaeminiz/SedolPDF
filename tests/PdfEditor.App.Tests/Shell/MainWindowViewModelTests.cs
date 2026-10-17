@@ -82,7 +82,7 @@ public class MainWindowViewModelTests
         var vm = new MainWindowViewModel();
         var more = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Single(i => i.MoreItems is not null);
         Assert.Equal(["annot.hlArea", "annot.insertText", "annot.replaceText", "annot.arrow", "annot.ellipse", "annot.polygon",
-                      "annot.polyline", "annot.eraser", "annot.attach", "annot.stamp", "annot.commentList"], more.MoreItems!.Select(i => i.CommandId));
+                      "annot.polyline", "annot.eraser", "annot.attach", "annot.stamp", "annot.commentList", "annot.exportXfdf"], more.MoreItems!.Select(i => i.CommandId));
         // 14개 + 더보기 10개 = 만들기 도구 24개가 한 번씩 (손·텍스트 선택·주석 선택 포함)
         var all = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Where(i => i.Tool is not null).Concat(more.MoreItems!.Where(i => i.Tool is not null)).Select(i => i.Tool!.Value).ToList();
         Assert.Equal(all.Count, all.Distinct().Count());

@@ -27,6 +27,8 @@ public interface IUserPrompts
     Task<string?> PickOpenFileAsync();
     Task<IReadOnlyList<string>> PickOpenFilesAsync();
     Task<string?> PickSaveFileAsync(string suggestedName);
+    /// <summary>XFDF 내보내기 저장 위치. 취소하면 null.</summary>
+    Task<string?> PickSaveXfdfAsync(string suggestedName);
     Task ShowErrorAsync(string message);
     Task ShowInfoAsync(string message);
     /// <summary>파일에서 삽입 대화상자. 취소하면 null. 쪽 범위가 틀리면 대화상자 안에서 알리고 닫지 않는다.</summary>

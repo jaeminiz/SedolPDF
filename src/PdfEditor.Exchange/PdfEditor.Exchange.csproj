@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PdfEditor.Exchange.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PdfEditor.Document\PdfEditor.Document.csproj" />
+  </ItemGroup>
+
+</Project>

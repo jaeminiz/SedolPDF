@@ -396,6 +396,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return true;
     }
 
+    /// <summary>XFDF 내보내기(M3b Task 5): 저장 위치를 묻고 문서의 모든 주석을 쓴다. 실패는 알림으로.</summary>
+    private async Task ExportXfdfAsync(DocumentTabViewModel d)
+    {
+        if (_prompts is null || d.Session is not { } s) return;
+        try
+        {
+            string suggested = Path.ChangeExtension(s.DisplayName, ".xfdf");
+            if (await _prompts.PickSaveXfdfAsync(suggested) is not { } path) return;
+            int n = await XfdfExporter.ExportAsync(s, DocumentTabViewModel.Appearance?.Assets ?? PdfEditor.Document.Annotations.AnnotationAssets.Empty, path);
+            await _prompts.ShowInfoAsync(string.Format(Strings.Msg_XfdfExported, n));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await ShowErrorAsync(ex);
+        }
+    }
+
     private async Task ShowErrorAsync(Exception ex)
     {
         if (_prompts is not null) await _prompts.ShowErrorAsync(ErrorMessages.For(ex));
@@ -586,6 +603,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             DocCmd(_ => { ActiveLeftPanel = PanelKind.Comments; IsLeftPanelVisible = true; }));
         Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers");
         Reg("annot.importExport", Strings.Cmd_ImportExport, "share");
+        Reg("annot.exportXfdf", Strings.Cmd_ExportXfdf, "share", null, DocCmd(d => _ = ExportXfdfAsync(d)));
         Reg("annot.style", Strings.Cmd_AnnotStyle, "pen");
 
         Reg("edit.text", Strings.Cmd_EditText, "textedit");
@@ -657,6 +675,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                         T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach),
                         T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp),
                         I("annot.commentList", Strings.Cmd_CommentList),
+                        I("annot.exportXfdf", Strings.Cmd_ExportXfdf),
                     ])),
             ],
             ["Edit"] =

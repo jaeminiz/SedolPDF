@@ -61,6 +61,19 @@ public sealed class AvaloniaPrompts(Window owner) : IUserPrompts
         return file?.TryGetLocalPath();
     }
 
+    public async Task<string?> PickSaveXfdfAsync(string suggestedName)
+    {
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = Strings.Dlg_ExportXfdfTitle,
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "xfdf",
+            FileTypeChoices = [new FilePickerFileType(Strings.Dlg_XfdfFiles) { Patterns = ["*.xfdf"], MimeTypes = ["application/vnd.adobe.xfdf"] }],
+            ShowOverwritePrompt = true,
+        });
+        return file?.TryGetLocalPath();
+    }
+
     public Task ShowErrorAsync(string message)
         => new MessageDialog(Strings.Dlg_ErrorTitle, message, [Strings.Dlg_Ok]).ShowDialog(owner);
 

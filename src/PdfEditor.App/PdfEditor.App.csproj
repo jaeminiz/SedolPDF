@@ -20,6 +20,7 @@
     <ProjectReference Include="..\PdfEditor.Document\PdfEditor.Document.csproj" />
     <ProjectReference Include="..\PdfEditor.Appearance\PdfEditor.Appearance.csproj" />
     <ProjectReference Include="..\PdfEditor.Pages\PdfEditor.Pages.csproj" />
+    <ProjectReference Include="..\PdfEditor.Exchange\PdfEditor.Exchange.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -78,6 +78,10 @@ public static class Strings
     public static string Cmd_CommentList => Get(nameof(Cmd_CommentList));
     public static string Cmd_AnnotSummary => Get(nameof(Cmd_AnnotSummary));
     public static string Cmd_ImportExport => Get(nameof(Cmd_ImportExport));
+    public static string Cmd_ExportXfdf => Get(nameof(Cmd_ExportXfdf));
+    public static string Dlg_XfdfFiles => Get(nameof(Dlg_XfdfFiles));
+    public static string Dlg_ExportXfdfTitle => Get(nameof(Dlg_ExportXfdfTitle));
+    public static string Msg_XfdfExported => Get(nameof(Msg_XfdfExported));
     public static string Cmd_AnnotStyle => Get(nameof(Cmd_AnnotStyle));
     public static string Cmd_EditText => Get(nameof(Cmd_EditText));
     public static string Cmd_EditObject => Get(nameof(Cmd_EditObject));

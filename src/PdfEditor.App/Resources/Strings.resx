@@ -69,6 +69,10 @@
   <data name="Cmd_CommentList" xml:space="preserve"><value>코멘트 목록</value></data>
   <data name="Cmd_AnnotSummary" xml:space="preserve"><value>주석 요약</value></data>
   <data name="Cmd_ImportExport" xml:space="preserve"><value>가져오기·내보내기</value></data>
+  <data name="Cmd_ExportXfdf" xml:space="preserve"><value>XFDF 내보내기</value></data>
+  <data name="Dlg_XfdfFiles" xml:space="preserve"><value>XFDF 파일</value></data>
+  <data name="Dlg_ExportXfdfTitle" xml:space="preserve"><value>주석을 XFDF로 내보내기</value></data>
+  <data name="Msg_XfdfExported" xml:space="preserve"><value>주석 {0}개를 내보냈습니다.</value></data>
   <data name="Cmd_AnnotStyle" xml:space="preserve"><value>주석 스타일</value></data>
   <data name="Cmd_EditText" xml:space="preserve"><value>텍스트 편집</value></data>
   <data name="Cmd_EditObject" xml:space="preserve"><value>개체 편집</value></data>
