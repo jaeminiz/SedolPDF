@@ -29,7 +29,7 @@ public static class AnnotationPainter
             case AnnotKind.Highlight: PaintHighlight(a, ops); break;
             case AnnotKind.Underline: PaintLine(a, ops, 0.07f, underline: true); break;
             case AnnotKind.StrikeOut: PaintLine(a, ops, 0.07f, underline: false); break;
-            case AnnotKind.Text: PaintTextIcon(a, pageRotation, ops); break;
+            case AnnotKind.Text: if (!a.IsThreadMember()) PaintTextIcon(a, pageRotation, ops); break;   // 답글·상태는 그리지 않는다(빈 AP, 계획 B1)
             case AnnotKind.Line:
             case AnnotKind.PolyLine: PaintPolyline(a, ops); break;
             case AnnotKind.Polygon: PaintPolygon(a, ops); break;

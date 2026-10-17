@@ -12,7 +12,7 @@ public static class AnnotationComparer
             || a.Name != b.Name || a.Flags != b.Flags
             || a.StartEnding != b.StartEnding || a.EndEnding != b.EndEnding || a.Intent != b.Intent
             || a.Align != b.Align || a.TextColor != b.TextColor || a.InReplyTo != b.InReplyTo
-            || a.ReplyKind != b.ReplyKind || a.Stamp != b.Stamp
+            || a.ReplyKind != b.ReplyKind || a.State != b.State || a.Stamp != b.Stamp
             || a.AttachmentId != b.AttachmentId || a.AttachmentName != b.AttachmentName)
             return false;
         if (!Near(a.CloudIntensity, b.CloudIntensity, tol) || !Near(a.FontSizePt, b.FontSizePt, tol)) return false;

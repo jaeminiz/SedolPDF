@@ -29,8 +29,42 @@ public static class PatchPlanBuilder
             int n0 = page.AnnotationCount;
             int rotation = page.Rotation;
 
+            // 답글·상태의 부모 /NM. 부모가 PDFium 문서에 있는데 /NM이 없으면(다른 프로그램이 만든 원본) 안정적인 /NM을 저장 파일에만 붙인다.
+            var nmFix = new Dictionary<int, string>();
+            var replyParentNm = new Dictionary<AnnotEntry, (string Nm, PdfRectF Rect)>();
             foreach (var e in entries)
             {
+                if (e.Deleted || e.IsOriginal || !e.Current.IsThreadMember()) continue;
+                var parent = entries.FirstOrDefault(x => !x.Deleted && x.Current.Id == e.Current.InReplyTo);
+                if (parent is null) continue;   // 부모가 지워졌다: 고아 답글은 저장하지 않는다
+                string? nm = null;
+                if (parent.PdfIndex is int pi && pi >= 0 && pi < n0)
+                {
+                    using var pa = page.GetAnnotation(pi);
+                    nm = pa.GetString("NM");
+                    if (string.IsNullOrEmpty(nm)) { nm = StableName(parent.Current); nmFix[pi] = nm; }
+                }
+                else nm = StableName(parent.Current);
+                replyParentNm[e] = (nm, parent.Current.Rect);
+            }
+            // 부모가 지워졌는데 남은 원본 답글·상태(고아)는 저장 파일에서 함께 지운다(잘못된 /IRT를 남기지 않는다).
+            var orphans = OrphanThreadMembers(entries);
+
+            var pagePatches = new List<(int Idx, string Nm, ImmutableArray<PatchOp> Ops, string Subtype)>();
+            foreach (var e in entries)
+            {
+                if (orphans.Contains(e)) continue;
+                // 새 답글·검토 상태(Text + /IRT): PDFium이 만들면 /IRT가 없는 일반 메모가 되므로 패치로 만든다. 빈 AP(계획 B1).
+                if (!e.Deleted && !e.IsOriginal && e.Current.IsThreadMember())
+                {
+                    if (!replyParentNm.TryGetValue(e, out var parent)) continue;
+                    var m = e.Current;
+                    int flags = PdfAnnotFlags.Print | PdfAnnotFlags.NoZoom | PdfAnnotFlags.NoRotate | (m.State is null ? 0 : PdfAnnotFlags.Hidden);
+                    creates.Add(new AnnotationCreate(pageIndex, "Text", StableName(m), parent.Rect, flags,
+                        ThreadOps(m, parent.Rect, isNew: true, parent.Nm)));
+                    continue;
+                }
+
                 // 새 패치 길 주석: PDFium 문서에 없으므로(PdfIndex 없음) 매번 새로 만든다.
                 if (!e.Deleted && !e.IsOriginal && e.Current.Kind.IsPatchKind())
                 {
@@ -62,6 +96,11 @@ public static class PatchPlanBuilder
                         ops.Add(new RemoveKeys(["/IC"]));
                     ops.AddRange(SquareCloudOps(e.Current, original: true));
                 }
+                else if (e.IsOriginal && e.Owned && e.Current.IsThreadMember())
+                {
+                    // 손댄 원본 답글·상태: 내용·작성자·상태 값만 고친다. /IRT·/F·/AP와 모르는 키는 그대로 둔다.
+                    ops.AddRange(ThreadOps(e.Current, e.Current.Rect, isNew: false, null));
+                }
                 else if (e.IsOriginal && e.Owned && e.Current.Kind.IsPatchKind())
                 {
                     // ④ 손댄 원본(패치 길): 같은 Ops를 그 자리에서 적용한다(A13). 모르는 키는 그대로 남는다.
@@ -76,19 +115,75 @@ public static class PatchPlanBuilder
                 using var a = page.GetAnnotation(idx);
                 string nm = a.GetString("NM") ?? "";
                 // /NM이 없는 주석은 빈 문자열과 비교되어 보호가 약하므로 하위 유형도 함께 확인한다.
-                patches.Add(new AnnotationPatch(pageIndex, idx, nm, ops.ToImmutable(), e.Current.Kind.ToString()));
+                pagePatches.Add((idx, nm, ops.ToImmutable(), e.Current.Kind.ToString()));
             }
 
+            // /NM이 없는 원본 부모에 안정적인 /NM을 붙인다(이미 다른 패치가 있으면 거기에 합친다).
+            foreach (var (fixIdx, fixNm) in nmFix)
+            {
+                int at = pagePatches.FindIndex(x => x.Idx == fixIdx);
+                if (at >= 0) pagePatches[at] = pagePatches[at] with { Ops = pagePatches[at].Ops.Add(new SetString("/NM", fixNm)) };
+                else
+                {
+                    var parentEntry = entries.First(x => !x.Deleted && x.PdfIndex == fixIdx);
+                    pagePatches.Add((fixIdx, "", [new SetString("/NM", fixNm)], parentEntry.Current.Kind.ToString()));
+                }
+            }
+            foreach (var (pIdx, pNm, pOps, pSub) in pagePatches.OrderBy(x => x.Idx))
+                patches.Add(new AnnotationPatch(pageIndex, pIdx, pNm, pOps, pSub));
+
             // ③ 삭제된 원본(A4): PDFium에는 그대로 있고 저장 파일에서만 지운다. 번호는 Flush와 같은 규칙으로 계산.
-            var kept = entries.Where(e => e.Deleted && e.IsOriginal && e.PdfIndex is not null).ToList();
+            var kept = entries.Where(e => (e.Deleted || orphans.Contains(e)) && e.IsOriginal && e.PdfIndex is not null).ToList();
             if (kept.Count == 0) continue;
-            var survivorIdx = new HashSet<int>(entries.Where(e => !e.Deleted && e.PdfIndex is not null).Select(e => e.PdfIndex!.Value));
+            var survivorIdx = new HashSet<int>(entries.Where(e => !e.Deleted && !orphans.Contains(e) && e.PdfIndex is not null).Select(e => e.PdfIndex!.Value));
             var remove = AnnotationFlusher.ComputeRemoval(page, n0, kept, survivorIdx);
             removals.Add(new AnnotationRemoval(pageIndex, [.. remove.Reverse()]));
         }
 
         if (patches.Count == 0 && creates.Count == 0 && removals.Count == 0) return PatchPlan.Empty;
         return new PatchPlan(patches.ToImmutable(), creates.ToImmutable(), removals.ToImmutable());
+    }
+
+    /// <summary>
+    /// 부모가 지워졌는데 남은 답글·상태(부모의 부모까지 거슬러 올라가며 판정). 새 것은 저장하지 않고 원본은 저장 파일에서 지운다.
+    /// 묶음(Caret) 구성원은 건드리지 않는다.
+    /// </summary>
+    private static HashSet<AnnotEntry> OrphanThreadMembers(IReadOnlyList<AnnotEntry> entries)
+    {
+        var dead = new HashSet<AnnotId>(entries.Where(e => e.Deleted).Select(e => e.Current.Id));
+        var orphans = new HashSet<AnnotEntry>();
+        bool grew;
+        do
+        {
+            grew = false;
+            foreach (var e in entries)
+            {
+                if (e.Deleted || orphans.Contains(e) || !e.Current.IsThreadMember()) continue;
+                if (e.Current.InReplyTo is { } pid && dead.Contains(pid)) { orphans.Add(e); dead.Add(e.Current.Id); grew = true; }
+            }
+        } while (grew);
+        return orphans;
+    }
+
+    /// <summary>
+    /// 답글·검토 상태(Text + /IRT)의 키 목록(계획 B1). 새 것: 빈 AP(BBox = Rect), /IRT(+ /RT), 상태면 /State·/StateModel.
+    /// 손댄 원본: 문자열·상태 값만(/IRT·/F·/AP는 그대로). /Contents의 문구는 모델이 이미 갖고 있다(앱이 화면 문구 리소스로 만든다).
+    /// </summary>
+    internal static ImmutableArray<PatchOp> ThreadOps(Annotation m, PdfRectF rect, bool isNew, string? parentNm)
+    {
+        var ops = ImmutableArray.CreateBuilder<PatchOp>();
+        if (isNew)
+        {
+            ops.Add(new SetAppearanceStream("", rect));
+            if (parentNm is not null) ops.Add(new SetInReplyTo(parentNm, m.ReplyKind == ReplyType.Group ? "/Group" : "/R"));
+        }
+        if (m.State is { } st)
+        {
+            ops.Add(new SetString("/State", st.ToPdfName()));
+            if (isNew) ops.Add(new SetString("/StateModel", "Review"));
+        }
+        AddCommonKeys(ops, m, isNew);
+        return ops.ToImmutable();
     }
 
     internal static ImmutableArray<PatchOp> PatchKindOps(Annotation m, PatchAppearance ap, bool isNew, string? replyParentNm = null)

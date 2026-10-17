@@ -68,17 +68,36 @@ public sealed class AnnotationStore
         if (st.Attached) throw new InvalidOperationException("Originals are already attached to this page.");
         st.Attached = true;
         // 묶음 Caret의 부모는 같은 쪽 원본이어야 한다(PDFium 번호로 찾는다). 부모를 붙이지 못했으면 그 Caret도 붙이지 않는다(읽기 전용).
+        // 답글·상태도 같다: 부모가 이 쪽에서 편집 가능하게 붙은 경우에만 붙인다(부모 쪽 사슬이 하나라도 끊기면 붙이지 않는다).
+        var byIndex = new Dictionary<int, OriginalAnnotation>();
+        foreach (var o in originals) byIndex[o.Index] = o;
+        var memo = new Dictionary<int, bool>();
+        bool Attachable(int index, HashSet<int> visiting)
+        {
+            if (memo.TryGetValue(index, out var known)) return known;
+            if (!byIndex.TryGetValue(index, out var o) || o.Data is null || !visiting.Add(index)) return false;
+            bool ok = (o.GroupParentIndex is int g ? byIndex.TryGetValue(g, out var gp) && gp.Data is { Kind: AnnotKind.StrikeOut } : true)
+                && (o.ReplyParentIndex is int r ? Attachable(r, visiting) : true);
+            visiting.Remove(index);
+            return memo[index] = ok;
+        }
+        var parentIndices = new HashSet<int>(originals.Where(o => o.ReplyParentIndex is not null).Select(o => o.ReplyParentIndex!.Value));
         var idByPdfIndex = new Dictionary<int, AnnotId>();
         foreach (var o in originals)
-            if (o.Data is { Kind: AnnotKind.StrikeOut }) idByPdfIndex[o.Index] = NewId();
+            if (o.Data is not null && (o.Data.Kind == AnnotKind.StrikeOut || parentIndices.Contains(o.Index))) idByPdfIndex[o.Index] = NewId();
         foreach (var o in originals)
         {
-            if (o.Data is null) continue;
+            if (o.Data is null || !Attachable(o.Index, [])) continue;
             var data = o.Data;
             if (o.GroupParentIndex is int pi)
             {
                 if (!idByPdfIndex.TryGetValue(pi, out var parentId)) continue;
                 data = data with { InReplyTo = parentId, ReplyKind = ReplyType.Group };
+            }
+            else if (o.ReplyParentIndex is int ri)
+            {
+                if (!idByPdfIndex.TryGetValue(ri, out var parentId)) continue;
+                data = data with { InReplyTo = parentId, ReplyKind = ReplyType.Reply };
             }
             st.Entries.Add(new AnnotEntry
             {
@@ -95,6 +114,15 @@ public sealed class AnnotationStore
     /// 묶이지 않은 주석은 자기 하나만, 없는 주석은 빈 목록. 스냅숏(Publish된 것)을 읽으므로 어느 스레드에서나 부를 수 있다.
     /// </summary>
     public IReadOnlyList<Annotation> GroupOf(PageId page, AnnotId id) => Get(page).GroupOf(id);
+
+    /// <summary>뿌리 + 답글(시각순) + 상태(시각순). 스냅숏을 읽으므로 어느 스레드에서나 부를 수 있다.</summary>
+    public IReadOnlyList<Annotation> ThreadOf(PageId page, AnnotId root) => Get(page).ThreadOf(root);
+
+    /// <summary>그 주석에 직접 단 가장 최근 상태(없으면 None).</summary>
+    public ReviewState CurrentState(PageId page, AnnotId root) => Get(page).CurrentState(root);
+
+    /// <summary>묶음 구성원과 각각의 답글·상태 전부(부모를 지울 때 함께 지울 목록).</summary>
+    public IReadOnlyList<Annotation> DeleteSetOf(PageId page, AnnotId id) => Get(page).DeleteSetOf(id);
 
     public void Apply(PageId page, Annotation? before, Annotation? after)
     {
@@ -214,7 +242,7 @@ public sealed class AnnotationStore
     internal bool HasLivePatchDependentEntries()
     {
         _thread.AssertOnThread();
-        return _pages.Values.Any(st => st.Entries.Any(e => !e.Deleted && (e.Current.Kind.IsPatchKind() || e.Current.CloudIntensity > 0f)));
+        return _pages.Values.Any(st => st.Entries.Any(e => !e.Deleted && (e.Current.NeedsPatch() || e.Current.CloudIntensity > 0f)));
     }
 
     /// <summary>Flush가 끝난 뒤: 새 PDFium 번호를 받고, 지워진 항목은 버리고, 반영한 Revision을 기록한다.</summary>

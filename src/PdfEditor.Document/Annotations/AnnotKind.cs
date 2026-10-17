@@ -52,6 +52,15 @@ public static class AnnotKindExtensions
         => k is AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon or AnnotKind.FreeText
             or AnnotKind.Caret or AnnotKind.Stamp or AnnotKind.FileAttachment;
 
+    /// <summary>
+    /// 저장 때 PDFium이 아니라 PDFsharp 패치로 쓰는 주석인가: 패치 길 유형이거나, 답글·상태·묶음처럼 /IRT를 가진 주석
+    /// (답글·상태 Text를 PDFium이 만들면 /IRT가 없는 일반 메모가 되어 버린다).
+    /// </summary>
+    public static bool NeedsPatch(this Annotation a) => a.Kind.IsPatchKind() || a.InReplyTo is not null;
+
+    /// <summary>답글 또는 검토 상태 주석(Text + /IRT, 묶음 Caret 제외)인가.</summary>
+    public static bool IsThreadMember(this Annotation a) => a.Kind == AnnotKind.Text && a.InReplyTo is not null;
+
     public static bool IsTextMarkup(this AnnotKind k)
         => k is AnnotKind.Highlight or AnnotKind.Underline or AnnotKind.StrikeOut;
 }

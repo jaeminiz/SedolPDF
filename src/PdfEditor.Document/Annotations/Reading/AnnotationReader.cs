@@ -136,6 +136,23 @@ public static class AnnotationReader
             if (p < 0 || p >= list.Count || list[p].Data is not { Kind: AnnotKind.StrikeOut })
                 list[k] = new OriginalAnnotation(list[k].Index, list[k].Subtype, null, ReadOnlyReason.Reply);
         }
+        // 답글·검토 상태: 부모 사슬이 끝까지 편집 가능한 항목이어야 한다(부모가 읽기 전용이거나 사슬이 순환하면 읽기 전용 답글).
+        var broken = new List<int>();
+        for (int k = 0; k < list.Count; k++)
+        {
+            if (list[k].ReplyParentIndex is null) continue;
+            var seen = new HashSet<int> { k };
+            int cur = k;
+            bool ok = true;
+            while (list[cur].ReplyParentIndex is int p)
+            {
+                if (p < 0 || p >= list.Count || !seen.Add(p) || list[p].Data is null) { ok = false; break; }
+                cur = p;
+            }
+            if (!ok) broken.Add(k);
+        }
+        foreach (int k in broken)
+            list[k] = new OriginalAnnotation(list[k].Index, list[k].Subtype, null, ReadOnlyReason.Reply);
         return list;
     }
 
@@ -155,14 +172,26 @@ public static class AnnotationReader
 
             if (subtype is PdfAnnotSubtype.Stamp or PdfAnnotSubtype.FileAttachment) return Fail(ReadOnlyReason.OriginalAppearanceOnly);
             if (kind is null) return Fail(ReadOnlyReason.UnsupportedType);
+            int? replyParent = null;
+            ReviewState? reviewState = null;
             if (e.ContainsKey("/IRT"))
             {
-                // /RT /Group인 Caret만 묶음 후보다(부모 판정은 ReadPage). 나머지 답글은 읽기 전용.
-                if (kind != AnnotKind.Caret || e.GetName("/RT") != "/Group" || FindIndex(annots, e["/IRT"]) is not int pi || pi == index)
-                    return Fail(ReadOnlyReason.Reply);
-                groupParent = pi;
+                // /RT /Group인 Caret만 묶음 후보, /RT가 없거나 /R인 Text는 답글·검토 상태 후보다(부모 판정은 ReadPage). 나머지 답글은 읽기 전용.
+                string? rt = e.GetName("/RT");
+                int? parentIndex = FindIndex(annots, e["/IRT"]);
+                if (parentIndex is not int pi || pi == index) return Fail(ReadOnlyReason.Reply);
+                if (kind == AnnotKind.Caret && rt == "/Group") groupParent = pi;
+                else if (kind == AnnotKind.Text && rt is null or "" or "/R") replyParent = pi;
+                else return Fail(ReadOnlyReason.Reply);
             }
-            if (e.ContainsKey("/State")) return Fail(ReadOnlyReason.ReviewState);
+            if (e.ContainsKey("/State"))
+            {
+                // 검토 상태는 Text 답글의 /StateModel (Review) /State (Accepted 등)만 편집할 수 있다. Marked 모델 등은 읽기 전용.
+                string? model = TextOrName(e, "/StateModel");
+                if (replyParent is null || (model is not null && model != "Review")) return Fail(ReadOnlyReason.ReviewState);
+                reviewState = ReviewStateExtensions.FromPdfName(TextOrName(e, "/State"));
+                if (reviewState is null) return Fail(ReadOnlyReason.ReviewState);
+            }
             // 클라우드 테두리(/BE /S /C, /I > 0)는 Square·Polygon에서 편집할 수 있다(A8). /I가 없거나 0 이하면 클라우드가 아니다(ISO 기본값 0).
             // Circle 클라우드는 Painter가 그리지 못하므로 읽기 전용이다.
             float cloud = 0f;
@@ -189,7 +218,7 @@ public static class AnnotationReader
                 return Fail(ReadOnlyReason.RectDifferences);
 
             int flags = Int(e, "/F") ?? 0;
-            if ((flags & PdfAnnotFlags.Hidden) != 0) return Fail(ReadOnlyReason.HiddenFlag);
+            if ((flags & PdfAnnotFlags.Hidden) != 0 && reviewState is null) return Fail(ReadOnlyReason.HiddenFlag);   // 검토 상태 주석은 원래 숨김
 
             var rect = ReadRect(e.GetArray("/Rect"));
             if (rect is null) return Fail(ReadOnlyReason.Malformed);
@@ -247,8 +276,9 @@ public static class AnnotationReader
                 FontSizePt = ft?.FontSizePt ?? 12f,
                 TextColor = ft?.TextColor,
                 Align = ft?.Align ?? TextAlign.Left,
+                State = reviewState,
             };
-            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent);
+            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent, replyParent);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -405,6 +435,10 @@ public static class AnnotationReader
 
     private static string? Str(PdfDictionary.DictionaryElements e, string key)
         => Resolve(e[key]) is PdfString s ? s.Value : null;
+
+    /// <summary>문자열이나 이름으로 쓰인 값(/State·/StateModel은 규격상 문자열이지만 이름으로 쓰는 프로그램도 있다).</summary>
+    private static string? TextOrName(PdfDictionary.DictionaryElements e, string key)
+        => Resolve(e[key]) switch { PdfString s => s.Value, PdfName n => n.Value.TrimStart('/'), _ => null };
 
     private static DateTimeOffset? Date(string? s)
         => PdfDate.TryParse(s, out var t) ? t : null;

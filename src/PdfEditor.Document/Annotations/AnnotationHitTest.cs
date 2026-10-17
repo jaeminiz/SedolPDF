@@ -6,6 +6,8 @@ public static class AnnotationHitTest
 {
     public static bool Hit(Annotation a, PdfPointF p, float tolPt)
     {
+        // 답글·상태는 보이지 않는 항목(부모 위치)이라 화면에서 눌러 고르지 않는다. 코멘트 목록으로 고른다.
+        if (a.IsThreadMember()) return false;
         float half = a.BorderWidth / 2f;
         switch (a.Kind)
         {

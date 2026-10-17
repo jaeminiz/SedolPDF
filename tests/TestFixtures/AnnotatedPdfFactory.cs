@@ -17,7 +17,7 @@ public static class AnnotatedPdfFactory
     public const string ModifiedDate = "D:20260115093000+09'00'";
 
     /// <summary>
-    /// A4 1쪽. /Annots 순서: [0] Link, [1] Square, [2] Highlight, [3] Text, [4] Popup(→3), [5] Text 답글(→3),
+    /// A4 1쪽. /Annots 순서: [0] Link, [1] Square, [2] Highlight, [3] Text, [4] Popup(→3), [5] Text 답글(→3, /RT /Group이라 편집 불가),
     /// [6] Square 클라우드, [7] Ink, [8] Underline, [9] StrikeOut, [10] Circle, [11] Square 회색, [12] Square CMYK.
     /// </summary>
     public static void CreateMixed(string path)
@@ -35,7 +35,8 @@ public static class AnnotatedPdfFactory
 
         var reply = Annot(doc, "Text", 120, 560, 144, 584, "0 0 1 RG 120 560 24 24 re S");
         reply.Elements["/IRT"] = text.Reference!;
-        reply.Elements["/RT"] = new PdfName("/R");
+        // M3b부터 /RT /R 답글은 편집할 수 있다(CreateThreads). 이 픽스처의 [5]는 "편집할 수 없는 원본 답글" 용도라 지원하지 않는 묶음 /RT /Group으로 둔다.
+        reply.Elements["/RT"] = new PdfName("/Group");
         reply.Elements["/Contents"] = new PdfString(ReplyText, PdfStringEncoding.Unicode);
         list.Add(reply);
 
@@ -147,6 +148,56 @@ public static class AnnotatedPdfFactory
             doc.SecuritySettings.OwnerPassword = userPassword + "-owner";
         }
         Save(doc, path);
+    }
+
+    /// <summary>
+    /// 답글·검토 상태가 든 원본. /Annots 순서: [0] Text 메모(NM note-1), [1] Popup(→0), [2] 답글(NM reply-1, /IRT→0, /RT /R, /XKeep),
+    /// [3] 상태 Accepted(NM state-1, /F 30), [4] 상태 Rejected(NM state-2, [3]보다 나중), [5] Link, [6] 답글(/IRT→5: 부모가 읽기 전용이라 읽기 전용),
+    /// [7] 상태 Marked 모델(NM state-3: 지원하지 않는 모델이라 읽기 전용), [8] 답글에 단 답글(NM reply-2, /IRT→2).
+    /// </summary>
+    public static void CreateThreads(string path)
+    {
+        using var doc = NewDoc(out var page);
+        var note = TextNote(doc);
+        note.Elements["/NM"] = new PdfString("note-1");
+        var popup = PopupFor(doc, note);
+        var reply = Annot(doc, "Text", 100, 560, 124, 584, "0 0 1 RG 100 560 24 24 re S");
+        reply.Elements["/NM"] = new PdfString("reply-1");
+        reply.Elements["/IRT"] = note.Reference!;
+        reply.Elements["/RT"] = new PdfName("/R");
+        reply.Elements["/Contents"] = new PdfString(ReplyText, PdfStringEncoding.Unicode);
+        reply.Elements["/T"] = new PdfString("답변자", PdfStringEncoding.Unicode);
+        reply.Elements["/M"] = new PdfString("D:20260115100000+09'00'");
+        reply.Elements["/XKeep"] = new PdfString("keep-me");
+        var s1 = StateAnnot(doc, note, "state-1", "Accepted", "Review", "D:20260116090000+09'00'");
+        var s2 = StateAnnot(doc, note, "state-2", "Rejected", "Review", "D:20260117090000+09'00'");
+        var link = Link(doc);
+        var onLink = Annot(doc, "Text", 50, 760, 74, 784, "0 0 1 RG 50 760 24 24 re S");
+        onLink.Elements["/IRT"] = link.Reference!;
+        onLink.Elements["/RT"] = new PdfName("/R");
+        var marked = StateAnnot(doc, note, "state-3", "Marked", "Marked", "D:20260118090000+09'00'");
+        var nested = Annot(doc, "Text", 100, 560, 124, 584, "0 0 1 RG 100 560 24 24 re S");
+        nested.Elements["/NM"] = new PdfString("reply-2");
+        nested.Elements["/IRT"] = reply.Reference!;
+        nested.Elements["/RT"] = new PdfName("/R");
+        nested.Elements["/Contents"] = new PdfString("답답글", PdfStringEncoding.Unicode);
+        nested.Elements["/M"] = new PdfString("D:20260115110000+09'00'");
+        SetAnnots(doc, page, [note, popup, reply, s1, s2, link, onLink, marked, nested]);
+        Save(doc, path);
+    }
+
+    private static PdfDictionary StateAnnot(PdfSharp.Pdf.PdfDocument doc, PdfDictionary parent, string nm, string state, string model, string modified)
+    {
+        var a = Annot(doc, "Text", 100, 560, 124, 584, "");
+        a.Elements["/F"] = new PdfInteger(30);
+        a.Elements["/NM"] = new PdfString(nm);
+        a.Elements["/IRT"] = parent.Reference!;
+        a.Elements["/State"] = new PdfString(state);
+        a.Elements["/StateModel"] = new PdfString(model);
+        a.Elements["/T"] = new PdfString("검토자", PdfStringEncoding.Unicode);
+        a.Elements["/M"] = new PdfString(modified);
+        a.Elements["/Contents"] = new PdfString("상태 " + state, PdfStringEncoding.Unicode);
+        return a;
     }
 
     /// <summary>사용자 암호 없음, 소유자 암호 있음. 주석 권한만 allowAnnotations로 정한다. 주석은 Square 1개.</summary>

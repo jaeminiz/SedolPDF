@@ -51,9 +51,9 @@ internal static class AnnotationFlusher
         int created = 0;
         foreach (var e in survivors)
         {
-            if (e.Current.Kind.IsPatchKind())
+            if (e.Current.NeedsPatch())
             {
-                // 패치 길 주석(A3)은 PDFium이 만들거나 고칠 수 없다. 새 주석은 PDFium 문서에 없고(번호 -1 = 없음) 저장 때
+                // 패치 길 주석(A3)과 답글·상태(/IRT)는 PDFium이 만들거나 고칠 수 없다. 새 주석은 PDFium 문서에 없고(번호 -1 = 없음) 저장 때
                 // PatchPlanBuilder가 임시 파일에만 만든다. 손댄 원본은 PDFium 문서에 그대로 두고 패치가 그 자리에서 고친다.
                 newIndices[e] = e.PdfIndex is int po ? Shift(po) : -1;
                 continue;

@@ -41,6 +41,8 @@ public sealed record Annotation
     public PdfColor? TextColor { get; init; }
     public TextAlign Align { get; init; }
     public AnnotId? InReplyTo { get; init; }
+    /// <summary>검토 상태 주석(Text + /IRT + /State)일 때만 값이 있다. 일반 답글·다른 주석은 null.</summary>
+    public ReviewState? State { get; init; }
     public ReplyType? ReplyKind { get; init; }
     public StampSpec? Stamp { get; init; }
     public string? AttachmentId { get; init; }

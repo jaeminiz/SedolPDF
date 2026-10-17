@@ -268,7 +268,7 @@ public sealed class DocumentSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// 패치를 못 하는(암호) 문서: 저장 때 PDFsharp 패치가 있어야 쓸 수 있는 원본(선·폴리라인·다각형·FreeText·Caret 묶음과 그 부모,
+    /// 패치를 못 하는(암호) 문서: 저장 때 PDFsharp 패치가 있어야 쓸 수 있는 원본(선·폴리라인·다각형·FreeText·Caret 묶음과 그 부모, 답글·검토 상태,
     /// 클라우드 Square)은 모델에 넣지 않는다 — 고쳐도 저장 때 조용히 버려지기 때문이다. PDFium이 원본 모양 그대로 그린다.
     /// </summary>
     private static void MakePatchDependentReadOnly(List<OriginalAnnotation> list)
@@ -278,7 +278,7 @@ public sealed class DocumentSession : IAsyncDisposable
         {
             var o = list[i];
             if (o.Data is not { } d) continue;
-            if (d.Kind.IsPatchKind() || d.CloudIntensity > 0f || parents.Contains(o.Index))
+            if (d.Kind.IsPatchKind() || d.CloudIntensity > 0f || parents.Contains(o.Index) || o.ReplyParentIndex is not null)
                 list[i] = o with { Data = null, Reason = ReadOnlyReason.OriginalAppearanceOnly };
         }
     }
@@ -289,7 +289,7 @@ public sealed class DocumentSession : IAsyncDisposable
         if (SavePolicy.CanPatch(this)) return;
         if (Annotations.HasLivePatchDependentEntries())
             throw new InvalidOperationException(
-                "The document cannot be patched (encrypted), but it contains annotations that need the patch stage (line, polygon, free text, caret, stamp, attachment or cloud). Refusing to write them silently dropped.");
+                "The document cannot be patched (encrypted), but it contains annotations that need the patch stage (line, polygon, free text, caret, stamp, attachment, cloud, reply or review state). Refusing to write them silently dropped.");
     }
 
     private static bool Matches(PdfPage page, int count, OriginalAnnotation o)

@@ -16,6 +16,11 @@ public sealed class ChangeAnnotationsCommand(PageId page, IReadOnlyList<Annotati
     public static ChangeAnnotationsCommand Delete(PageId page, IReadOnlyList<Annotation> items)
         => new(page, [.. items.Select(a => new AnnotationChange(a, null))]);
 
+    /// <summary>
+    /// 부모와 그 답글·상태를 한 명령으로 지운다(실행 취소 한 번에 모두 돌아온다). items는 AnnotationStore.ThreadOf(...)의 결과를 그대로 넘긴다.
+    /// </summary>
+    public static ChangeAnnotationsCommand DeleteThread(PageId page, IReadOnlyList<Annotation> thread) => Delete(page, thread);
+
     public static ChangeAnnotationsCommand Replace(PageId page, IReadOnlyList<(Annotation Before, Annotation After)> items)
         => new(page, [.. items.Select(x => new AnnotationChange(x.Before, x.After))]);
 
