@@ -34,6 +34,54 @@ public class AnnotationToolsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Tab_WiresToolControllerProperties_ForPatchTools()
+    {
+        var tab = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var t = tab.Tools;
+        Assert.True(t.CanUsePatchFeatures());   // 암호 없는 문서
+        Assert.NotNull(t.FitTypewriter);
+        Assert.NotNull(t.Assets);
+        Assert.NotNull(t.CharBoundaryAt);
+        Assert.NotNull(t.NewName);
+        Assert.NotEqual(t.NewName(), t.NewName());
+        // 스탬프 표시 문구는 리소스(한국어), 기본 스탬프는 문구를 Text에 담는다
+        Assert.Equal(Strings.Stamp_Approved, t.StampLabel(DocumentTabViewModel.BuiltinStamp("Approved")));
+        Assert.Equal(Strings.Stamp_Approved, t.LastStamp.Text);
+        // 앱이 연결한 공유 보관소가 그대로 쓰인다
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "assets", "fonts", "NotoSansKR-Regular.otf"))) dir = dir.Parent;
+        var services = AppearanceServices.Create(dir!.FullName);
+        DocumentTabViewModel.Appearance = services;
+        try
+        {
+            Assert.Same(services.Assets, t.Assets!());
+            var fitted = t.FitTypewriter!(new Annotation { Kind = AnnotKind.FreeText, Intent = FreeTextIntent.Typewriter,
+                Rect = new PdfRectF(10, 90, 30, 100), Contents = "wide wide wide text", FontSizePt = 12f });
+            Assert.True(fitted.Rect.Width > 30f);
+        }
+        finally
+        {
+            DocumentTabViewModel.Appearance = null;
+            PdfEditor.App.Viewer.Annotations.AppearanceGeometry.TextFont = null;
+            PdfEditor.App.Viewer.Annotations.AppearanceGeometry.ImageResolver = null;
+            PdfEditor.App.Viewer.Annotations.AppearanceGeometry.Assets = AnnotationAssets.Empty;
+        }
+    }
+
+    [Fact]
+    public async Task ToolChange_AwayFromFileAttach_ClearsPendingAttach()
+    {
+        var tab = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        tab.Tool = ToolKind.FileAttach;
+        var page = tab.Session!.Pages[0].Id;
+        tab.Tools.Begin(ToolKind.FileAttach, ToolDefaults.For(ToolKind.FileAttach), page, new PdfPointF(50, 50), 1f);
+        Assert.Null(tab.Tools.End(new PdfPointF(50, 50)));
+        Assert.NotNull(tab.Tools.PendingAttach);
+        tab.Tool = ToolKind.Hand;
+        Assert.Null(tab.Tools.PendingAttach);
+    }
+
+    [Fact]
     public async Task RestrictedDoc_AnnotationToolsDisabled()
     {
         var tab = await OpenAsync(p => AnnotatedPdfFactory.CreateOwnerRestrictedWithAnnotations(p, allowAnnotations: false));

@@ -279,4 +279,55 @@
   <data name="Dlg_SettingsAuthor" xml:space="preserve"><value>작성자 이름</value></data>
   <data name="Dlg_SettingsAuthorHint" xml:space="preserve"><value>주석에 기록되는 이름입니다. 비워 두면 Windows 사용자 이름을 씁니다.</value></data>
   <data name="Msg_PropertyEditFailed" xml:space="preserve"><value>주석 속성을 바꾸지 못했습니다.</value></data>
+  <data name="Cmd_More" xml:space="preserve"><value>더보기 ▾</value></data>
+  <data name="Stamp_Approved" xml:space="preserve"><value>승인</value></data>
+  <data name="Stamp_Reviewed" xml:space="preserve"><value>검토 완료</value></data>
+  <data name="Stamp_Rejected" xml:space="preserve"><value>반려</value></data>
+  <data name="Stamp_Confidential" xml:space="preserve"><value>기밀</value></data>
+  <data name="Stamp_Draft" xml:space="preserve"><value>초안</value></data>
+  <data name="Stamp_Done" xml:space="preserve"><value>완료</value></data>
+  <data name="Msg_GlyphMissing" xml:space="preserve"><value>이 글꼴에 없는 글자가 있어 표시되지 않습니다: {0}</value></data>
+  <data name="Msg_ImageAddFailed" xml:space="preserve"><value>이 그림을 스탬프로 쓸 수 없습니다. PNG 또는 JPEG 파일인지, 크기가 너무 크지 않은지 확인하세요.</value></data>
+  <data name="Msg_AttachFailed" xml:space="preserve"><value>이 파일을 첨부할 수 없습니다. 파일을 읽을 수 없거나 크기가 너무 큽니다.</value></data>
+  <data name="Msg_AttachmentSaveFailed" xml:space="preserve"><value>첨부 파일을 저장하지 못했습니다.</value></data>
+  <data name="AnnotKind_Line" xml:space="preserve"><value>선</value></data>
+  <data name="AnnotKind_Arrow" xml:space="preserve"><value>화살표</value></data>
+  <data name="AnnotKind_PolyLine" xml:space="preserve"><value>폴리라인</value></data>
+  <data name="AnnotKind_Polygon" xml:space="preserve"><value>다각형</value></data>
+  <data name="AnnotKind_Cloud" xml:space="preserve"><value>클라우드</value></data>
+  <data name="AnnotKind_FreeText" xml:space="preserve"><value>텍스트 상자</value></data>
+  <data name="AnnotKind_Typewriter" xml:space="preserve"><value>타자기</value></data>
+  <data name="AnnotKind_Callout" xml:space="preserve"><value>설명선</value></data>
+  <data name="AnnotKind_Caret" xml:space="preserve"><value>텍스트 삽입</value></data>
+  <data name="AnnotKind_Stamp" xml:space="preserve"><value>스탬프</value></data>
+  <data name="AnnotKind_FileAttachment" xml:space="preserve"><value>파일 첨부</value></data>
+  <data name="FreeText_Hint" xml:space="preserve"><value>Ctrl+Enter: 확인, Esc: 취소, 바깥을 누르면 확인</value></data>
+  <data name="Prop_Annot_LineStart" xml:space="preserve"><value>시작 모양</value></data>
+  <data name="Prop_Annot_LineEnd" xml:space="preserve"><value>끝 모양</value></data>
+  <data name="LineEnding_None" xml:space="preserve"><value>없음</value></data>
+  <data name="LineEnding_Square" xml:space="preserve"><value>사각형</value></data>
+  <data name="LineEnding_Circle" xml:space="preserve"><value>원</value></data>
+  <data name="LineEnding_Diamond" xml:space="preserve"><value>마름모</value></data>
+  <data name="LineEnding_OpenArrow" xml:space="preserve"><value>열린 화살표</value></data>
+  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>닫힌 화살표</value></data>
+  <data name="LineEnding_Butt" xml:space="preserve"><value>막대</value></data>
+  <data name="LineEnding_Slash" xml:space="preserve"><value>빗금</value></data>
+  <data name="Prop_Annot_Cloud" xml:space="preserve"><value>클라우드 테두리</value></data>
+  <data name="Prop_Annot_CloudIntensity" xml:space="preserve"><value>클라우드 세기 · {0:0.#}</value></data>
+  <data name="Prop_Annot_FontSize" xml:space="preserve"><value>글자 크기 · {0:0.#} pt</value></data>
+  <data name="Prop_Annot_TextColor" xml:space="preserve"><value>글자 색</value></data>
+  <data name="Prop_Annot_Align" xml:space="preserve"><value>정렬</value></data>
+  <data name="Align_Left" xml:space="preserve"><value>왼쪽</value></data>
+  <data name="Align_Center" xml:space="preserve"><value>가운데</value></data>
+  <data name="Align_Right" xml:space="preserve"><value>오른쪽</value></data>
+  <data name="Prop_Annot_Stamp" xml:space="preserve"><value>스탬프 고르기</value></data>
+  <data name="Prop_Annot_StampTextPlaceholder" xml:space="preserve"><value>글자 스탬프 문구</value></data>
+  <data name="Prop_Annot_StampTextApply" xml:space="preserve"><value>글자 스탬프</value></data>
+  <data name="Prop_Annot_StampImage" xml:space="preserve"><value>그림 스탬프…</value></data>
+  <data name="Prop_Annot_AttachName" xml:space="preserve"><value>첨부 파일</value></data>
+  <data name="Prop_Annot_AttachSave" xml:space="preserve"><value>저장…</value></data>
+  <data name="Dlg_PickImageTitle" xml:space="preserve"><value>스탬프 그림 고르기</value></data>
+  <data name="Dlg_PickAttachTitle" xml:space="preserve"><value>첨부할 파일 고르기</value></data>
+  <data name="Dlg_FilterImages" xml:space="preserve"><value>그림 파일 (PNG, JPEG)</value></data>
+  <data name="Dlg_FilterAll" xml:space="preserve"><value>모든 파일</value></data>
 </root>

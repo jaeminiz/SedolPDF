@@ -47,6 +47,7 @@ public sealed partial class MainWindow : Window
         var prompts = new AvaloniaPrompts(this);
         // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
         var services = AppearanceServices.Create(AppContext.BaseDirectory);
+        PdfEditor.App.Documents.DocumentTabViewModel.Appearance = services;
         var appearance = services.Appearance;
         var patcher = services.Patcher;
         var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);

@@ -2,6 +2,8 @@ using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Settings;
+using PdfEditor.App.Shell;
+using PdfEditor.Appearance;
 using PdfEditor.App.Viewer;
 using PdfEditor.App.Viewer.Annotations;
 using PdfEditor.Document;
@@ -60,6 +62,37 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     /// null이면 설정 없이 동작한다 (작성자 = Environment.UserName, 스타일 = ToolDefaults).
     /// </summary>
     public static SettingsStore? Settings { get; set; }
+
+    /// <summary>
+    /// 주석 모양 부품(글꼴·그림 보관소). 앱이 시작할 때 한 번 지정한다. 그림 스탬프·첨부 바이트(Assets)는 이 하나의 인스턴스를
+    /// 화면·저장·복구·인쇄가 함께 쓴다. null이면(테스트) 빈 보관소를 쓰고 글자가 필요한 도구는 실패한다.
+    /// </summary>
+    public static AppearanceServices? Appearance { get; set; }
+
+    /// <summary>기본 스탬프 6종의 PDF 이름 (고르는 순서).</summary>
+    public static IReadOnlyList<string> BuiltinStampNames { get; } = ["Approved", "Reviewed", "Rejected", "Confidential", "Draft", "Done"];
+
+    private static string BuiltinStampLabel(string name) => name switch
+    {
+        "Approved" => Strings.Stamp_Approved,
+        "Reviewed" => Strings.Stamp_Reviewed,
+        "Rejected" => Strings.Stamp_Rejected,
+        "Confidential" => Strings.Stamp_Confidential,
+        "Draft" => Strings.Stamp_Draft,
+        "Done" => Strings.Stamp_Done,
+        _ => name,
+    };
+
+    /// <summary>기본 스탬프: 표시 문구(한국어)를 Text에 넣어 Painter가 그 글자를 그리게 한다.</summary>
+    public static StampSpec BuiltinStamp(string name) => new(StampKind.Builtin, name, BuiltinStampLabel(name), null);
+
+    /// <summary>스탬프의 목록·/Contents용 이름.</summary>
+    public static string StampLabelFor(StampSpec s) => s.Kind switch
+    {
+        StampKind.Builtin => BuiltinStampLabel(s.BuiltinName),
+        StampKind.Text => s.Text ?? "",
+        _ => Strings.AnnotKind_Stamp,
+    };
 
     private static AppSettings LoadSettings()
     {
@@ -145,6 +178,15 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         Tools = new AnnotationToolController(
             Session is { } s ? s.Annotations.NewId : () => new AnnotId(Interlocked.Increment(ref _fallbackAnnotId)),
             () => DateTimeOffset.Now, () => CurrentAuthor, SubjectFor);
+        // 도구 컨트롤러 연결 (연결하지 않은 항목은 실패하거나 도구가 꺼진다 — 반드시 여기서 모두 지정한다).
+        Tools.CanUsePatchFeatures = () => CanUsePatchFeatures;
+        Tools.Assets = () => Appearance?.Assets ?? AnnotationAssets.Empty;
+        Tools.NewName = () => Guid.NewGuid().ToString("N");
+        Tools.FitTypewriter = a => AnnotationPainter.FitTypewriter(a, new PaintContext(Appearance?.Font, Appearance?.Assets ?? AnnotationAssets.Empty));
+        Tools.StampLabel = StampLabelFor;
+        Tools.LastStamp = BuiltinStamp("Approved");
+        // 글자 경계 찾기는 PDFium 스레드 작업이라 동기 함수로 줄 수 없다: 텍스트 삽입은 DocumentView가 비동기로 찾아 CreateInsertCaret을 직접 부른다.
+        Tools.CharBoundaryAt = static (_, _, _) => null;
         if (Session is null) return;
         Tools.PageAnnotationSource = id => [.. Session.Annotations.Get(id).Items.Select(v => v.Data)];
         Session.Annotations.Changed += OnAnnotationsChanged;
@@ -160,6 +202,17 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         ToolKind.StickyNote => Strings.AnnotKind_Text,
         ToolKind.Rectangle => Strings.AnnotKind_Square,
         ToolKind.Ellipse => Strings.AnnotKind_Circle,
+        ToolKind.Line => Strings.AnnotKind_Line,
+        ToolKind.Arrow => Strings.AnnotKind_Arrow,
+        ToolKind.PolyLine => Strings.AnnotKind_PolyLine,
+        ToolKind.Polygon => Strings.AnnotKind_Polygon,
+        ToolKind.Cloud => Strings.AnnotKind_Cloud,
+        ToolKind.TextBox => Strings.AnnotKind_FreeText,
+        ToolKind.Typewriter => Strings.AnnotKind_Typewriter,
+        ToolKind.Callout => Strings.AnnotKind_Callout,
+        ToolKind.InsertText or ToolKind.ReplaceText => Strings.AnnotKind_Caret,
+        ToolKind.Stamp => Strings.AnnotKind_Stamp,
+        ToolKind.FileAttach => Strings.AnnotKind_FileAttachment,
         _ => "",
     };
 
@@ -188,6 +241,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     public void EscapePressed()
     {
         Tools.Cancel();
+        Tools.CancelAttach();
         Editing.Cancel();
         if (Tool is ToolKind.Hand or ToolKind.TextSelect) return;
         if (Tool == ToolKind.AnnotSelect) Selection.Clear();
@@ -197,6 +251,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     partial void OnToolChanged(ToolKind value)
     {
         Tools.Cancel();
+        Tools.CancelAttach();
         Editing.Cancel();
         if (value != ToolKind.AnnotSelect) Selection.Clear();
     }

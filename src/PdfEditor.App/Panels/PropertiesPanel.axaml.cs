@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using PdfEditor.App.Resources;
 using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.App.Panels;
@@ -24,9 +26,79 @@ public sealed partial class PropertiesPanel : UserControl
         }
         WidthSlider.ValueChanged += (_, e) => { if (!_syncing && _vm is not null) _vm.Width = (float)e.NewValue; };
         OpacitySlider.ValueChanged += (_, e) => { if (!_syncing && _vm is not null) _vm.OpacityPercent = (int)Math.Round(e.NewValue); };
+        BuildChoices();
+        StartEndBox.SelectionChanged += (_, _) => OnEndingPicked(StartEndBox, start: true);
+        EndEndBox.SelectionChanged += (_, _) => OnEndingPicked(EndEndBox, start: false);
+        CloudCheck.IsCheckedChanged += (_, _) => { if (!_syncing && _vm is not null) _ = Run(() => _vm.SetCloudAsync(CloudCheck.IsChecked == true)); };
+        CloudBox.ValueChanged += (_, e) => { if (!_syncing && _vm is not null && e.NewValue is { } v) _ = Run(() => _vm.SetCloudIntensityAsync((float)v)); };
+        FontBox.ValueChanged += (_, e) => { if (!_syncing && _vm is not null && e.NewValue is { } v) _ = Run(() => _vm.SetFontSizeAsync((float)v)); };
+        AlignBox.SelectionChanged += (_, _) =>
+        {
+            if (!_syncing && _vm is not null && AlignBox.SelectedIndex >= 0) _ = Run(() => _vm.SetAlignAsync((PdfEditor.Document.Annotations.TextAlign)AlignBox.SelectedIndex));
+        };
+        StampTextBtn.Click += (_, _) => { if (_vm is not null) _ = Run(() => _vm.SetStampTextAsync(StampTextBox.Text ?? "")); };
+        StampImageBtn.Click += (_, _) => _ = PickStampImageAsync();
+        AttachSaveBtn.Click += (_, _) => _ = SaveAttachmentAsync();
         AuthorBox.LostFocus += (_, _) => _ = CommitAuthorAsync();
         AuthorBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) { _ = CommitAuthorAsync(); e.Handled = true; } };
         DataContextChanged += (_, _) => Attach();
+    }
+
+    private static readonly (PdfEditor.Document.Annotations.LineEnding E, string Glyph)[] EndingGlyphs =
+    [
+        (PdfEditor.Document.Annotations.LineEnding.None, "\u2014"), (PdfEditor.Document.Annotations.LineEnding.Square, "\u25A0"),
+        (PdfEditor.Document.Annotations.LineEnding.Circle, "\u25CF"), (PdfEditor.Document.Annotations.LineEnding.Diamond, "\u25C6"),
+        (PdfEditor.Document.Annotations.LineEnding.OpenArrow, "\u2192"), (PdfEditor.Document.Annotations.LineEnding.ClosedArrow, "\u25B6"),
+        (PdfEditor.Document.Annotations.LineEnding.Butt, "|"), (PdfEditor.Document.Annotations.LineEnding.Slash, "/"),
+    ];
+
+    // 고정 목록(선 끝 8가지, 정렬 3가지, 기본 스탬프 6종)은 한 번만 채운다.
+    private void BuildChoices()
+    {
+        foreach (var (e, glyph) in EndingGlyphs)
+        {
+            string text = glyph + "  " + AnnotationPropertiesViewModel.LineEndingName(e);
+            StartEndBox.Items.Add(new ComboBoxItem { Content = text, Tag = e });
+            EndEndBox.Items.Add(new ComboBoxItem { Content = text, Tag = e });
+        }
+        AlignBox.Items.Add(new ComboBoxItem { Content = Strings.Align_Left });
+        AlignBox.Items.Add(new ComboBoxItem { Content = Strings.Align_Center });
+        AlignBox.Items.Add(new ComboBoxItem { Content = Strings.Align_Right });
+    }
+
+    private void OnEndingPicked(ComboBox box, bool start)
+    {
+        if (_syncing || _vm is null || box.SelectedItem is not ComboBoxItem { Tag: PdfEditor.Document.Annotations.LineEnding e }) return;
+        _ = Run(() => _vm.SetLineEndingAsync(start, e));
+    }
+
+    private async Task PickStampImageAsync()
+    {
+        if (_vm is null || TopLevel.GetTopLevel(this) is not { } top) return;
+        try
+        {
+            var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = Strings.Dlg_PickImageTitle,
+                AllowMultiple = false,
+                FileTypeFilter = [new FilePickerFileType(Strings.Dlg_FilterImages) { Patterns = ["*.png", "*.jpg", "*.jpeg"] }],
+            });
+            if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
+            // 너무 큰 파일은 읽지 않고 빈 배열로 넘겨 보관소의 검증 실패(안내)를 탄다.
+            byte[] data = new FileInfo(path).Length > PdfEditor.Document.Annotations.AnnotationAssets.MaxImageBytes ? [] : await File.ReadAllBytesAsync(path);
+            await _vm.SetStampImageAsync(data);
+        }
+        catch (Exception) { _vm.NotifyImageFailed(); }
+    }
+
+    private async Task SaveAttachmentAsync()
+    {
+        if (_vm is null || TopLevel.GetTopLevel(this) is not { } top) return;
+        await _vm.SaveSelectedAttachmentAsync(async suggested =>
+        {
+            var f = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { SuggestedFileName = suggested });
+            return f?.TryGetLocalPath();
+        });
     }
 
     private async Task CommitAuthorAsync()
@@ -64,6 +136,21 @@ public sealed partial class PropertiesPanel : UserControl
             MixedHint.IsVisible = _vm.IsColorMixed;
             FillSection.IsVisible = _vm.ShowFill;
             WidthSection.IsVisible = _vm.ShowWidth;
+            LineEndSection.IsVisible = _vm.ShowLineEndings;
+            CloudSection.IsVisible = _vm.ShowCloud;
+            TextSection.IsVisible = _vm.ShowText;
+            StampSection.IsVisible = _vm.ShowStamp;
+            AttachSection.IsVisible = _vm.ShowAttachment;
+            if (_vm.ShowLineEndings) { SelectEnding(StartEndBox, _vm.StartEnding); SelectEnding(EndEndBox, _vm.EndEnding); }
+            if (_vm.ShowCloud) { CloudCheck.IsChecked = _vm.CloudOn; CloudBox.Value = (decimal)_vm.CloudIntensity; CloudBox.IsEnabled = _vm.CloudOn; }
+            if (_vm.ShowText)
+            {
+                FontBox.Value = (decimal)_vm.FontSizePt;
+                AlignBox.SelectedIndex = (int)_vm.Align;
+                Rebuild(TextColorSwatches, _vm.TextColor, includeNone: false, noneSelected: false, c => _ = Run(() => _vm.SetTextColorAsync(c!.Value)));
+            }
+            if (_vm.ShowStamp) RebuildStampButtons();
+            AttachSaveBtn.IsEnabled = _vm.CanSaveAttachment;
             AuthorSection.IsVisible = _vm.Mode == AnnotationPropertiesMode.Selection && _vm.CanEditAuthor;
             WidthSlider.Value = _vm.Width;
             OpacitySlider.Value = _vm.OpacityPercent;
@@ -71,6 +158,30 @@ public sealed partial class PropertiesPanel : UserControl
             if (_vm.ShowFill) Rebuild(FillSwatches, _vm.Fill, includeNone: true, noneSelected: _vm.Fill is null && !_vm.IsFillMixed, c => _ = Run(() => _vm.SetFillAsync(c)));
         }
         finally { _syncing = false; }
+    }
+
+    private static void SelectEnding(ComboBox box, PdfEditor.Document.Annotations.LineEnding e)
+    {
+        foreach (var o in box.Items)
+            if (o is ComboBoxItem { Tag: PdfEditor.Document.Annotations.LineEnding x } ci && x == e) { box.SelectedItem = ci; return; }
+    }
+
+    private void RebuildStampButtons()
+    {
+        StampButtons.Children.Clear();
+        foreach (var name in _vm!.StampNames)
+        {
+            var b = new Button
+            {
+                Content = AnnotationPropertiesViewModel.StampDisplayName(name),
+                Margin = new Thickness(0, 4, 4, 0),
+                BorderBrush = name == _vm.CurrentStampName ? Brushes.DodgerBlue : null,
+                BorderThickness = new Thickness(name == _vm.CurrentStampName ? 2 : 1),
+            };
+            string n = name;
+            b.Click += (_, _) => _ = Run(() => _vm.SetStampBuiltinAsync(n));
+            StampButtons.Children.Add(b);
+        }
     }
 
     private static async Task Run(Func<Task> f)

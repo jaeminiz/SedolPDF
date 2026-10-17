@@ -1,0 +1,7 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PdfEditor.App.Viewer.Annotations.FreeTextEditor">
+  <!-- 상자 위에 겹치는 편집 칸. 안쪽 여백은 0으로 두어 글자 모양이 화면의 상자(여백 2pt)와 비슷하게 겹친다. -->
+  <TextBox Name="Box" AcceptsReturn="True" Background="White" BorderBrush="#005FB8" BorderThickness="1"
+           Padding="2" CornerRadius="0" VerticalContentAlignment="Top" />
+</UserControl>

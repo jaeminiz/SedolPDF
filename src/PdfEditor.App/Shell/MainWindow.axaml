@@ -192,9 +192,13 @@
               <rb:RibbonGroup Header="{Binding Name}" IsCompact="{Binding Compact}" ItemsSource="{Binding Items}">
                 <rb:RibbonGroup.ItemTemplate>
                   <DataTemplate x:DataType="rb:RibbonButtonVm">
-                    <rb:RibbonButton Label="{Binding Label}" IconKey="{Binding Command.IconKey}"
-                                     Command="{Binding Command.Command}" IsLarge="{Binding IsLarge}" IsChecked="{Binding IsChecked}"
-                                     ToolTip.Tip="{Binding Tip}" />
+                    <Panel>
+                      <rb:RibbonButton Label="{Binding Label}" IconKey="{Binding Command.IconKey}" IsVisible="{Binding !IsMore}"
+                                       Command="{Binding Command.Command}" IsLarge="{Binding IsLarge}" IsChecked="{Binding IsChecked}"
+                                       ToolTip.Tip="{Binding Tip}" />
+                      <rb:RibbonMoreButton Label="{Binding Label}" IconKey="more" IsVisible="{Binding IsMore}"
+                                           Items="{Binding MoreItems}" IsLarge="{Binding IsLarge}" />
+                    </Panel>
                   </DataTemplate>
                 </rb:RibbonGroup.ItemTemplate>
               </rb:RibbonGroup>

@@ -58,6 +58,37 @@
         <TextBlock Classes="k" Text="{Binding Annotation.WidthLabel}" />
         <Slider x:Name="WidthSlider" Minimum="0.5" Maximum="12" TickFrequency="0.5" IsSnapToTickEnabled="True" />
       </StackPanel>
+      <StackPanel x:Name="LineEndSection">
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_LineStart}" />
+        <ComboBox x:Name="StartEndBox" HorizontalAlignment="Stretch" />
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_LineEnd}" />
+        <ComboBox x:Name="EndEndBox" HorizontalAlignment="Stretch" />
+      </StackPanel>
+      <StackPanel x:Name="CloudSection">
+        <CheckBox x:Name="CloudCheck" Margin="0,8,0,0" Content="{x:Static res:Strings.Prop_Annot_Cloud}" />
+        <TextBlock Classes="k" Text="{Binding Annotation.CloudIntensityLabel}" />
+        <NumericUpDown x:Name="CloudBox" Minimum="0.5" Maximum="2" Increment="0.5" FormatString="0.0" />
+      </StackPanel>
+      <StackPanel x:Name="TextSection">
+        <TextBlock Classes="k" Text="{Binding Annotation.FontSizeLabel}" />
+        <NumericUpDown x:Name="FontBox" Minimum="6" Maximum="72" Increment="1" FormatString="0" />
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_TextColor}" />
+        <WrapPanel x:Name="TextColorSwatches" />
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_Align}" />
+        <ComboBox x:Name="AlignBox" HorizontalAlignment="Stretch" />
+      </StackPanel>
+      <StackPanel x:Name="StampSection">
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_Stamp}" />
+        <WrapPanel x:Name="StampButtons" />
+        <TextBox x:Name="StampTextBox" Margin="0,6,0,0" PlaceholderText="{x:Static res:Strings.Prop_Annot_StampTextPlaceholder}" />
+        <Button x:Name="StampTextBtn" Margin="0,4,0,0" Content="{x:Static res:Strings.Prop_Annot_StampTextApply}" />
+        <Button x:Name="StampImageBtn" Margin="0,4,0,0" Content="{x:Static res:Strings.Prop_Annot_StampImage}" />
+      </StackPanel>
+      <StackPanel x:Name="AttachSection">
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_AttachName}" />
+        <TextBlock Classes="v" Text="{Binding Annotation.AttachmentName}" />
+        <Button x:Name="AttachSaveBtn" Margin="0,4,0,0" Content="{x:Static res:Strings.Prop_Annot_AttachSave}" />
+      </StackPanel>
       <TextBlock Classes="k" Text="{Binding Annotation.OpacityLabel}" />
       <Slider x:Name="OpacitySlider" Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" />
       <StackPanel x:Name="AuthorSection">

@@ -32,3 +32,24 @@ Task 4(한글 글꼴 서브셋 임베드·글리프 윤곽선) 기준. 측정은
 - 배포 문구: `THIRD-PARTY-NOTICES.md`의 Noto Sans KR 항목에 저작권 문구·확인 결과를 적었다. `assets/fonts/OFL.txt`(라이선스 원문)는 앱 출력 폴더와 게시(publish) 폴더에 `assets/fonts/OFL.txt`로 복사된다. **OFL.txt 파일 자체에는 저작권 줄이 없으므로**(원문만 있음) 저작권 문구는 `THIRD-PARTY-NOTICES.md`로 함께 동봉한다 — 두 파일 모두 `build/package.ps1`의 필수 파일 검사에 들어 있다.
 - 글꼴 파일 자체도 `PdfEditor.App.csproj`가 출력의 `assets/fonts/`로 복사하고(`NotoSansKR-Regular.otf`), `build/package.ps1` 필수 파일 검사에 추가했다. 설치 파일(Inno Setup)은 publish 폴더를 통째로 담으므로 따로 고칠 것이 없다.
 - **검증 필요:** 실제 `build/package.ps1` 실행(Release 게시 + 압축)은 이번에 하지 않았다. 필수 파일 검사 줄만 바꿨고 Debug 출력에서 파일 복사를 확인했다.
+
+## Task 13 — 화면 연결 (글 편집 창, 리본 "더보기", 속성 패널, 도구 연결)
+
+자동 테스트로 확인한 것 (헤드리스 Avalonia + 합성 입력, 실제 마우스·펜·터치 아님):
+- **리본:** 주석 탭 보이는 단추 14개 + 맨 끝 "더보기 ▾"(`AnnotateTab_FourteenVisiblePlusMore`), 더보기 항목 10개와 도구 24개가 한 번씩(`MoreMenu_ContainsRemainingTools`), 켜진 도구 체크 표시(`MoreMenu_Items_FollowActiveTool_WithCheckMark`, `MoreButton_BuildsMenuWithCheckMarkOnActiveTool`).
+- **도구 연결:** 탭이 컨트롤러의 `CanUsePatchFeatures`·`Assets`(= `AppearanceServices.Assets` 공유 인스턴스)·`FitTypewriter`·`NewName`·`CharBoundaryAt`·`StampLabel`·`LastStamp`를 모두 명시적으로 지정한다(`Tab_WiresToolControllerProperties_ForPatchTools`). 파일 첨부 도구에서 벗어나거나 Esc를 누르면 `CancelAttach`.
+- **입력:** 선 끌기 + 끝점 손잡이(끝점만 이동, 실행 취소), 다각형 클릭·Backspace·Enter, 폴리라인 더블클릭 끝·Esc 취소, 텍스트 상자 만들기→한글 입력→확정(빈 내용이면 만들지 않음)→두 번 눌러 고치기(명령 하나), 타자기 확정 시 상자가 글에 맞게 늘어남 + 저장→다시 열기에서 한글 글 유지, 스탬프 클릭(기본 승인, 150×50pt, 클릭 지점 중심, 표시 문구는 리소스), 텍스트 바꾸기 묶음(StrikeOut + Caret) 생성·내용 편집 창·하나를 누르면 둘 다 선택, 텍스트 삽입 클릭(빈 내용이면 만들지 않음).
+- **속성 패널(VM):** 선 끝은 Line·PolyLine에서만(`Props_LineEndingsShownForLineOnly`), 글자 크기 6~72 한 번에 한 명령(`Props_FontSizeChange_OneCommand`), 스탬프 고르기·글자·그림(`Props_StampPicker_ChangesStampSpec`, 잘못된 그림은 안내만), 클라우드 켜기·세기, 첨부 저장(안전한 이름, 실패는 안내).
+- 앱 창 캡처(PrintWindow, 입력 없이 UI 자동화 `InvokePattern`으로 "주석" 탭만 전환): 주석 탭에 도구 3 / 텍스트(타자기·텍스트 상자·설명선) / 참고 / 텍스트 마크업 3 / 그리기(사각형·선·클라우드·연필·더보기 ▾)가 보인다. 열기·주석 그리기는 하지 않았다.
+
+**검증 필요 (실제 입력으로 확인하지 못함):**
+- 실제 마우스·펜·터치로 새 도구를 만들고 선택·이동하는 것, 글 편집 창(Popup)의 위치·초점·바깥 클릭 확정, `Ctrl+Enter`, 더보기 메뉴를 실제로 눌러 여는 것(메뉴 항목 구성은 헤드리스 테스트로만 확인), 속성 패널의 콤보·숫자 칸·색 견본을 눌러 바꾸는 것, 125·150% 화면 배율.
+- 파일 첨부·그림 스탬프의 파일 열기 창(OS 대화상자)은 열어 보지 않았다(파일 읽기 이후의 `AttachFile`·`SetStampImageAsync`는 테스트).
+- 글 편집 창의 글꼴은 시스템 기본 글꼴이다(앱 글꼴 파일 Noto Sans KR을 Avalonia 글꼴로 등록하지 않았다). 화면의 편집 칸과 확정 뒤 그려지는 글자 모양·줄바꿈이 조금 다를 수 있다.
+
+**알려진 한계:**
+- 손대지 않은 원본 FreeText는 PDFium 타일이 그리므로 편집하는 동안 주석 층에서 숨길 수 없다(편집 칸이 불투명 흰색으로 덮는다).
+- 선 끝 모양 선택 목록은 그림이 아니라 기호 + 이름 글자다(8가지).
+- 원본(다른 프로그램이 만든) 파일 첨부 주석은 `AttachmentId`가 없어 속성 패널의 "저장…"이 꺼진다(문서 단위 첨부는 왼쪽 첨부 패널에서 저장).
+- 새 글 주석의 기본 글자 크기(12pt)는 도구 기본값 화면에서 바꿀 수 없다(만든 뒤 속성 패널에서 바꾼다).
+- 텍스트 삽입·텍스트 상자의 "빈 내용이면 만들지 않음"은 새 주석에만 적용된다. 텍스트 바꾸기의 Caret은 내용이 비어도 남는다(삭제만 표시하는 용도).

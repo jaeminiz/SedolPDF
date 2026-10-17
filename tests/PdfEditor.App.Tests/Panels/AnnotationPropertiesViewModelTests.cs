@@ -264,6 +264,163 @@ public class AnnotationPropertiesViewModelTests : PanelTestBase, IDisposable
         Assert.True(vm.IsFillMixed);
         Assert.Null(vm.Fill);
     }
+
+    // ---- M3a: 새 유형 속성 ----
+
+    private async Task<(DocumentTabViewModel Tab, AnnotationPropertiesViewModel Vm, PageId Page)> SetupWithAsync(params Annotation[] annots)
+    {
+        string p = Path.Combine(Dir, Guid.NewGuid().ToString("N") + ".pdf");
+        TestPdfFactory.CreateLabeled(p, [(400, 600)]);
+        var tab = await OpenTab(p);
+        var page = tab.Session!.Pages[0].Id;
+        foreach (var a in annots)
+            await tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Add(page, a with { Id = tab.Session.Annotations.NewId() }));
+        tab.Tool = ToolKind.AnnotSelect;
+        return (tab, new AnnotationPropertiesViewModel(tab, () => Fixed), page);
+    }
+
+    private static Annotation Base(AnnotKind kind) => new()
+    {
+        Kind = kind, Color = Red, BorderWidth = 1.5f, Opacity = 1f, Author = "A", Flags = PdfAnnotFlags.Print,
+        CreatedAt = Fixed.AddDays(-1), ModifiedAt = Fixed.AddDays(-1),
+    };
+
+    private static Annotation LineAnnot() => Base(AnnotKind.Line) with
+    {
+        Vertices = [new PdfPointF(20, 100), new PdfPointF(120, 100)], Rect = new PdfRectF(20, 95, 120, 105),
+    };
+
+    private static Annotation FreeTextAnnot() => Base(AnnotKind.FreeText) with
+    {
+        Intent = FreeTextIntent.TextBox, Rect = new PdfRectF(20, 200, 220, 240), Contents = "hello", FontSizePt = 12f,
+        TextColor = PdfColor.FromHex("#000000"),
+    };
+
+    private static Annotation StampAnnot() => Base(AnnotKind.Stamp) with
+    {
+        Rect = new PdfRectF(20, 300, 170, 350), Stamp = DocumentTabViewModel.BuiltinStamp("Approved"), Contents = "x",
+    };
+
+    [Fact]
+    public async Task Props_LineEndingsShownForLineOnly()
+    {
+        var (tab, vm, page) = await SetupWithAsync(LineAnnot(), Base(AnnotKind.Square) with { Rect = new PdfRectF(200, 100, 260, 160) });
+        var items = tab.Session!.Annotations.Get(page).Items.Select(v => v.Data).ToList();
+        var line = items.Single(a => a.Kind == AnnotKind.Line);
+        var square = items.Single(a => a.Kind == AnnotKind.Square);
+        tab.Selection.Set(page, [line.Id]);
+        Assert.True(vm.ShowLineEndings);
+        Assert.Equal(8, AnnotationPropertiesViewModel.LineEndingChoices.Count);
+        tab.Selection.Set(page, [square.Id]);
+        Assert.False(vm.ShowLineEndings);
+        Assert.True(vm.ShowCloud);   // 사각형은 클라우드 켜기가 있다
+        tab.Selection.Set(page, [line.Id, square.Id]);
+        Assert.False(vm.ShowLineEndings);   // 섞이면 숨긴다
+
+        tab.Selection.Set(page, [line.Id]);
+        await vm.SetLineEndingAsync(start: false, LineEnding.ClosedArrow);
+        var after = tab.Session.Annotations.Get(page).Items.Select(v => v.Data).Single(a => a.Id == line.Id);
+        Assert.Equal(LineEnding.ClosedArrow, after.EndEnding);
+        Assert.Equal(LineEnding.None, after.StartEnding);
+        Assert.Equal(line with { EndEnding = LineEnding.ClosedArrow, ModifiedAt = after.ModifiedAt }, after);   // 바뀐 속성 하나만
+    }
+
+    [Fact]
+    public async Task Props_FontSizeChange_OneCommand()
+    {
+        var (tab, vm, page) = await SetupWithAsync(FreeTextAnnot());
+        var orig = tab.Session!.Annotations.Get(page).Items.Single().Data;
+        tab.Selection.Set(page, [orig.Id]);
+        Assert.True(vm.ShowText);
+        Assert.Equal(12f, vm.FontSizePt);
+        await vm.SetFontSizeAsync(80f);   // 상한 72로 맞춘다
+        var after = tab.Session.Annotations.Get(page).Items.Single().Data;
+        Assert.Equal(72f, after.FontSizePt);
+        Assert.Equal(orig with { FontSizePt = 72f, ModifiedAt = after.ModifiedAt }, after);
+        await tab.Session.Commands.UndoAsync();   // 명령 하나 = 한 번에 되돌아간다
+        Assert.Equal(12f, tab.Session.Annotations.Get(page).Items.Single().Data.FontSizePt);
+        await vm.SetFontSizeAsync(2f);
+        Assert.Equal(6f, tab.Session.Annotations.Get(page).Items.Single().Data.FontSizePt);
+    }
+
+    [Fact]
+    public async Task Props_StampPicker_ChangesStampSpec()
+    {
+        var (tab, vm, page) = await SetupWithAsync(StampAnnot());
+        var orig = tab.Session!.Annotations.Get(page).Items.Single().Data;
+        tab.Selection.Set(page, [orig.Id]);
+        Assert.True(vm.ShowStamp);
+        Assert.Equal("Approved", vm.CurrentStampName);
+        Assert.Equal(6, vm.StampNames.Count);
+
+        await vm.SetStampBuiltinAsync("Rejected");
+        var a1 = tab.Session.Annotations.Get(page).Items.Single().Data;
+        Assert.Equal(StampKind.Builtin, a1.Stamp!.Kind);
+        Assert.Equal("Rejected", a1.Stamp.BuiltinName);
+        Assert.Equal(PdfEditor.App.Resources.Strings.Stamp_Rejected, a1.Stamp.Text);
+        Assert.Equal(orig.Rect, a1.Rect);
+
+        await vm.SetStampTextAsync("  검토본  ");
+        var a2 = tab.Session.Annotations.Get(page).Items.Single().Data;
+        Assert.Equal(StampKind.Text, a2.Stamp!.Kind);
+        Assert.Equal("검토본", a2.Stamp.Text);
+    }
+
+    [Fact]
+    public async Task Props_StampImage_RejectedFileGivesNotice_NotCrash()
+    {
+        var (tab, vm, page) = await SetupWithAsync(StampAnnot());
+        var orig = tab.Session!.Annotations.Get(page).Items.Single().Data;
+        tab.Selection.Set(page, [orig.Id]);
+        string? notice = null;
+        tab.NoticeRequested += m => notice = m;
+        await vm.SetStampImageAsync([1, 2, 3]);   // PNG·JPEG가 아니다
+        Assert.Equal(PdfEditor.App.Resources.Strings.Msg_ImageAddFailed, notice);
+        Assert.Equal(orig, tab.Session.Annotations.Get(page).Items.Single().Data);
+    }
+
+    [Fact]
+    public async Task Props_Cloud_OnOffAndIntensity_EachOneCommand()
+    {
+        var (tab, vm, page) = await SetupWithAsync(Base(AnnotKind.Square) with { Rect = new PdfRectF(20, 100, 120, 160) });
+        var orig = tab.Session!.Annotations.Get(page).Items.Single().Data;
+        tab.Selection.Set(page, [orig.Id]);
+        await vm.SetCloudAsync(true);
+        Assert.Equal(1f, tab.Session.Annotations.Get(page).Items.Single().Data.CloudIntensity);
+        await vm.SetCloudIntensityAsync(2f);
+        Assert.Equal(2f, tab.Session.Annotations.Get(page).Items.Single().Data.CloudIntensity);
+        await vm.SetCloudAsync(false);
+        Assert.Equal(0f, tab.Session.Annotations.Get(page).Items.Single().Data.CloudIntensity);
+    }
+
+    [Fact]
+    public async Task Props_AttachmentSave_UsesSanitizedName_AndReportsFailureAsNotice()
+    {
+        var (tab, vm, page) = await SetupWithAsync();
+        // 첨부 주석은 보관소의 파일을 가리킨다 (주석 도구가 쓰는 공유 보관소)
+        var assets = new AnnotationAssets();
+        tab.Tools.Assets = () => assets;
+        string id = assets.AddFile("..\\evil/name.txt", [1, 2, 3]);
+        await tab.RunAnnotationCommandAsync(ChangeAnnotationsCommand.Add(page, Base(AnnotKind.FileAttachment) with
+        {
+            Id = tab.Session!.Annotations.NewId(), Rect = new PdfRectF(20, 20, 40, 40), AttachmentId = id, AttachmentName = "..\\evil/name.txt",
+        }));
+        var att = tab.Session!.Annotations.Get(page).Items.Select(v => v.Data).Single(a => a.Kind == AnnotKind.FileAttachment);
+        tab.Selection.Set(page, [att.Id]);
+        Assert.True(vm.ShowAttachment);
+        Assert.True(vm.CanSaveAttachment);
+
+        string? suggested = null;
+        string target = Path.Combine(Dir, "saved.bin");
+        await vm.SaveSelectedAttachmentAsync(n => { suggested = n; return Task.FromResult<string?>(target); });
+        Assert.Equal("name.txt", suggested);
+        Assert.Equal(new byte[] { 1, 2, 3 }, await File.ReadAllBytesAsync(target));
+
+        string? notice = null;
+        tab.NoticeRequested += m => notice = m;
+        await vm.SaveSelectedAttachmentAsync(n => Task.FromResult<string?>(Path.Combine(Dir, "no-such-dir", "x.bin")));
+        Assert.Equal(PdfEditor.App.Resources.Strings.Msg_AttachmentSaveFailed, notice);
+    }
 }
 
 [CollectionDefinition("TabSettings", DisableParallelization = true)]

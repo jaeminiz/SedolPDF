@@ -448,15 +448,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (_groupCache.TryGetValue(tab, out var cached)) return cached;
         var groups = Ribbon[tab].Select(g => new RibbonGroupVm(g.Name,
-            g.Items.Select(i =>
-            {
-                var b = new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, !g.Compact, i.DisabledTip, i.Tool);
-                b.IsChecked = i.Tool is { } t && ActiveDocument?.Tool == t;
-                if (i.Tool is not null) _toolButtons.Add(b);
-                return b;
-            }).ToList(),
+            g.Items.Select(i => MakeButton(i, !g.Compact)).ToList(),
             g.Compact)).ToList();
         return _groupCache[tab] = groups;
+    }
+
+    private RibbonButtonVm MakeButton(RibbonItemModel i, bool large)
+    {
+        var more = i.MoreItems?.Select(m => MakeButton(m, large: false)).ToList();
+        var b = new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, large, i.DisabledTip, i.Tool, more);
+        b.IsChecked = i.Tool is { } t && ActiveDocument?.Tool == t;
+        if (i.Tool is not null) _toolButtons.Add(b);
+        return b;
     }
 
     // ---- 명령 등록 ----
@@ -502,27 +505,28 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("page.rotateRight", Strings.Cmd_PageRotateRight, "rotate", null, PageCmd(p => p.RotateRightCommand));
 
         Reg("annot.select", Strings.Cmd_AnnotSelect, "select", null, ToolCmd(ToolKind.AnnotSelect));
-        Reg("annot.typewriter", Strings.Cmd_Typewriter, "type");
-        Reg("annot.textbox", Strings.Cmd_TextBox, "text");
-        Reg("annot.callout", Strings.Cmd_Callout, "callout");
+        Reg("annot.typewriter", Strings.Cmd_Typewriter, "type", null, ToolCmd(ToolKind.Typewriter));
+        Reg("annot.textbox", Strings.Cmd_TextBox, "text", null, ToolCmd(ToolKind.TextBox));
+        Reg("annot.callout", Strings.Cmd_Callout, "callout", null, ToolCmd(ToolKind.Callout));
         Reg("annot.sticky", Strings.Cmd_StickyNote, "note", null, ToolCmd(ToolKind.StickyNote));
-        Reg("annot.attach", Strings.Cmd_FileAttach, "clip");
+        Reg("annot.attach", Strings.Cmd_FileAttach, "clip", null, ToolCmd(ToolKind.FileAttach));
         Reg("annot.hlText", Strings.Cmd_HighlightText, "hl", null, ToolCmd(ToolKind.HighlightText));
         Reg("annot.hlArea", Strings.Cmd_HighlightArea, "area", null, ToolCmd(ToolKind.HighlightArea));
         Reg("annot.underline", Strings.Cmd_Underline, "under", null, ToolCmd(ToolKind.Underline));
         Reg("annot.strike", Strings.Cmd_Strikeout, "strike", null, ToolCmd(ToolKind.StrikeOut));
-        Reg("annot.insertText", Strings.Cmd_InsertText, "caret");
-        Reg("annot.replaceText", Strings.Cmd_ReplaceText, "replace");
-        Reg("annot.line", Strings.Cmd_Line, "line");
-        Reg("annot.arrow", Strings.Cmd_Arrow, "arrow");
+        Reg("annot.insertText", Strings.Cmd_InsertText, "caret", null, ToolCmd(ToolKind.InsertText));
+        Reg("annot.replaceText", Strings.Cmd_ReplaceText, "replace", null, ToolCmd(ToolKind.ReplaceText));
+        Reg("annot.line", Strings.Cmd_Line, "line", null, ToolCmd(ToolKind.Line));
+        Reg("annot.arrow", Strings.Cmd_Arrow, "arrow", null, ToolCmd(ToolKind.Arrow));
         Reg("annot.rect", Strings.Cmd_Rectangle, "rect", null, ToolCmd(ToolKind.Rectangle));
         Reg("annot.ellipse", Strings.Cmd_Ellipse, "oval", null, ToolCmd(ToolKind.Ellipse));
-        Reg("annot.polygon", Strings.Cmd_Polygon, "poly");
-        Reg("annot.polyline", Strings.Cmd_Polyline, "pline");
-        Reg("annot.cloud", Strings.Cmd_Cloud, "cloud");
+        Reg("annot.polygon", Strings.Cmd_Polygon, "poly", null, ToolCmd(ToolKind.Polygon));
+        Reg("annot.polyline", Strings.Cmd_Polyline, "pline", null, ToolCmd(ToolKind.PolyLine));
+        Reg("annot.cloud", Strings.Cmd_Cloud, "cloud", null, ToolCmd(ToolKind.Cloud));
         Reg("annot.pencil", Strings.Cmd_Pencil, "pen", null, ToolCmd(ToolKind.Pencil));
         Reg("annot.eraser", Strings.Cmd_Eraser, "eraser", null, ToolCmd(ToolKind.Eraser));
-        Reg("annot.stamp", Strings.Cmd_Stamp, "stamp");
+        Reg("annot.stamp", Strings.Cmd_Stamp, "stamp", null, ToolCmd(ToolKind.Stamp));
+        Reg("annot.more", Strings.Cmd_More, "more", null, DocCmd(_ => { }));
         Reg("annot.commentList", Strings.Cmd_CommentList, "comments");
         Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers");
         Reg("annot.importExport", Strings.Cmd_ImportExport, "share");
@@ -574,14 +578,29 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ],
             ["Annotate"] =
             [
+                // U1(A14): 보이는 단추 14개 + 맨 끝 "더보기 ▾"
                 Gr(Strings.Group_Tools, false, T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand), T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect),
                     T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
+                Gr(Strings.Group_Text, false, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),
+                    T("annot.textbox", Strings.Cmd_TextBox, ToolKind.TextBox), T("annot.callout", Strings.Cmd_Callout, ToolKind.Callout)),
                 Gr(Strings.Group_Note, false, T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote)),
                 Gr(Strings.Group_TextMarkup, true, T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText),
-                    T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea), T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline),
-                    T("annot.strike", Strings.Cmd_Strikeout, ToolKind.StrikeOut)),
-                Gr(Strings.Group_Draw, true, T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), T("annot.ellipse", Strings.Cmd_Ellipse, ToolKind.Ellipse),
-                    T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil), T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser)),
+                    T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline), T("annot.strike", Strings.Cmd_Strikeout, ToolKind.StrikeOut)),
+                Gr(Strings.Group_Draw, true, T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), T("annot.line", Strings.Cmd_Line, ToolKind.Line),
+                    T("annot.cloud", Strings.Cmd_Cloud, ToolKind.Cloud), T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil),
+                    new("annot.more", Strings.Cmd_More, null, null,
+                    [
+                        T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea),
+                        T("annot.insertText", Strings.Cmd_InsertText, ToolKind.InsertText),
+                        T("annot.replaceText", Strings.Cmd_ReplaceText, ToolKind.ReplaceText),
+                        T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
+                        T("annot.ellipse", Strings.Cmd_Ellipse, ToolKind.Ellipse),
+                        T("annot.polygon", Strings.Cmd_Polygon, ToolKind.Polygon),
+                        T("annot.polyline", Strings.Cmd_Polyline, ToolKind.PolyLine),
+                        T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser),
+                        T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach),
+                        T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp),
+                    ])),
             ],
             ["Edit"] =
             [

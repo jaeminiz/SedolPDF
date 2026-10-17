@@ -139,6 +139,7 @@ public sealed partial class DocumentView : Control
     {
         CancelGesture();
         CloseStickyEditor(commit: true);
+        CloseFreeTextEditor(commit: true);
         if (_state is not null)
         {
             if (_sv is not null) _state.Offset = _sv.Offset;

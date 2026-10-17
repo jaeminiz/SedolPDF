@@ -55,23 +55,53 @@ public class MainWindowViewModelTests
             }
         foreach (var g in vm.Ribbon["Annotate"].SelectMany(x => x.Items))
             Assert.False(vm.Commands.Find(g.CommandId)!.Command.CanExecute(null), g.CommandId);
-        // M3 주석 명령은 등록만 유지: 빠른 실행에서는 비활성 + 안내
-        var m3 = vm.Commands.Find("annot.line")!;
+        // M3b 주석 관리 명령은 등록만 유지: 빠른 실행에서는 비활성 + 안내
+        var m3 = vm.Commands.Find("annot.commentList")!;
         Assert.False(m3.Command.CanExecute(null));
         Assert.False(string.IsNullOrEmpty(m3.DisabledTip));
     }
 
     [Fact]
-    public void AnnotateTab_TwelveWorkingTools_InGroups()
+    public void AnnotateTab_FourteenVisiblePlusMore()
     {
         var vm = new MainWindowViewModel();
         var groups = vm.Ribbon["Annotate"];
-        Assert.Equal(4, groups.Count);
-        var ids = groups.SelectMany(g => g.Items).Select(i => i.CommandId).ToList();
-        Assert.Equal(["tool.hand", "tool.textSelect", "annot.select", "annot.sticky", "annot.hlText", "annot.hlArea",
-                      "annot.underline", "annot.strike", "annot.rect", "annot.ellipse", "annot.pencil", "annot.eraser"], ids);
-        Assert.True(ids.Count <= 15);
-        Assert.Equal([false, false, true, true], groups.Select(g => g.Compact));
+        var items = groups.SelectMany(g => g.Items).ToList();
+        var visible = items.Where(i => i.MoreItems is null).Select(i => i.CommandId).ToList();
+        Assert.Equal(["tool.hand", "tool.textSelect", "annot.select", "annot.typewriter", "annot.textbox", "annot.callout", "annot.sticky",
+                      "annot.hlText", "annot.underline", "annot.strike", "annot.rect", "annot.line", "annot.cloud", "annot.pencil"], visible);
+        var more = items.Single(i => i.MoreItems is not null);
+        Assert.Equal("annot.more", more.CommandId);
+        Assert.Same(items[^1], more);   // 맨 끝
+        Assert.Equal([false, false, false, true, true], groups.Select(g => g.Compact));
+    }
+
+    [Fact]
+    public void MoreMenu_ContainsRemainingTools()
+    {
+        var vm = new MainWindowViewModel();
+        var more = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Single(i => i.MoreItems is not null);
+        Assert.Equal(["annot.hlArea", "annot.insertText", "annot.replaceText", "annot.arrow", "annot.ellipse", "annot.polygon",
+                      "annot.polyline", "annot.eraser", "annot.attach", "annot.stamp"], more.MoreItems!.Select(i => i.CommandId));
+        // 14개 + 더보기 10개 = 만들기 도구 24개가 한 번씩 (손·텍스트 선택·주석 선택 포함)
+        var all = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Where(i => i.Tool is not null).Concat(more.MoreItems!).Select(i => i.Tool!.Value).ToList();
+        Assert.Equal(all.Count, all.Distinct().Count());
+        Assert.Equal(Enum.GetValues<ToolKind>().Length, all.Count);
+    }
+
+    [Fact]
+    public void MoreMenu_Items_FollowActiveTool_WithCheckMark()
+    {
+        var vm = new MainWindowViewModel();
+        var d = new DocumentTabViewModel("a.pdf");
+        vm.Documents.Add(d);
+        vm.ActiveDocument = d;
+        vm.SelectedRibbonTab = "Annotate";
+        var more = vm.CurrentRibbonGroups.SelectMany(g => g.Items).Single(b => b.IsMore);
+        d.Tool = ToolKind.Stamp;
+        Assert.Equal([ToolKind.Stamp], more.MoreItems!.Where(b => b.IsChecked).Select(b => b.Tool!.Value));
+        d.Tool = ToolKind.Pencil;
+        Assert.DoesNotContain(more.MoreItems!, b => b.IsChecked);
     }
 
     [Fact]
@@ -92,12 +122,12 @@ public class MainWindowViewModelTests
         vm.ActiveDocument = d;
         vm.SelectedRibbonTab = "Annotate";
         var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).ToList();
-        Assert.Equal(12, buttons.Count);
+        Assert.Equal(15, buttons.Count);   // 도구 14 + 더보기 1
         Assert.Equal([ToolKind.Hand], buttons.Where(b => b.IsChecked).Select(b => b.Tool!.Value));
         d.Tool = ToolKind.Pencil;
         Assert.Equal([ToolKind.Pencil], buttons.Where(b => b.IsChecked).Select(b => b.Tool!.Value));
-        d.Tool = ToolKind.Eraser;
-        Assert.Equal([ToolKind.Eraser], buttons.Where(b => b.IsChecked).Select(b => b.Tool!.Value));
+        d.Tool = ToolKind.Line;
+        Assert.Equal([ToolKind.Line], buttons.Where(b => b.IsChecked).Select(b => b.Tool!.Value));
         vm.ActiveDocument = null;
         Assert.DoesNotContain(buttons, b => b.IsChecked);
     }
