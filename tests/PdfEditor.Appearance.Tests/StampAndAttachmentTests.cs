@@ -334,6 +334,65 @@ public class StampAndAttachmentTests : IDisposable
     }
 
     [Fact]
+    public void ImageStamp_WithoutFont_StillKeepsAspect_TextStampThrowsLoudly()
+    {
+        string id = _assets.AddImage(TestImages.HalfTransparentRed());   // 40 x 20
+        var noFont = new PaintContext(null, _assets);
+        var img = new Annotation { Kind = AnnotKind.Stamp, Rect = new PdfRectF(0, 0, 100, 100), Stamp = new StampSpec(StampKind.Image, "", null, id) };
+        var im = Assert.Single(AnnotationPainter.Paint(img, 0, noFont).Images);
+        Assert.Equal(100f, im.Rect.Width, 3);
+        Assert.Equal(50f, im.Rect.Height, 3);   // 늘어나지 않는다
+
+        var txt = new Annotation { Kind = AnnotKind.Stamp, Rect = new PdfRectF(0, 0, 100, 40), Stamp = new StampSpec(StampKind.Text, "", "x", null) };
+        Assert.Throws<InvalidOperationException>(() => AnnotationPainter.Paint(txt, 0, noFont));
+        // PdfAppearanceSource도 글꼴이 없을 때 그림 스탬프는 만들고 글자 스탬프는 예외
+        var src = new PdfAppearanceSource(null, _assets);
+        Assert.Contains("Im1 Do", src.BuildContent(img, 0));
+        Assert.Throws<InvalidOperationException>(() => src.BuildContent(txt, 0));
+    }
+
+    [Theory]
+    [InlineData(4, 4)] [InlineData(5, 5)] [InlineData(0, 0)] [InlineData(200, 4.9f)]
+    public void Stamp_DegenerateSmallRect_NoException_NothingDrawn(float w, float h)
+    {
+        var a = new Annotation { Kind = AnnotKind.Stamp, Rect = new PdfRectF(10, 10, 10 + w, 10 + h), Stamp = new StampSpec(StampKind.Builtin, "Draft", "Draft", null) };
+        var d = AnnotationPainter.Paint(a, 0, Ctx);
+        Assert.Empty(d.Ops);
+        Assert.Empty(d.Texts);
+    }
+
+    [Fact]
+    public void Stamp_LongTextNeverExceedsInnerWidth_AcrossRectWidths()
+    {
+        foreach (float w in new[] { 30f, 47.3f, 61f, 99.9f, 150f })
+        {
+            var a = new Annotation { Kind = AnnotKind.Stamp, Rect = new PdfRectF(0, 0, w, 40), Color = new PdfColor(0, 0, 0),
+                Stamp = new StampSpec(StampKind.Text, "", "Wide WWWW 한글 문구 ABC", null) };
+            var run = AnnotationPainter.Paint(a, 0, Ctx).Texts[0];
+            float right = run.Glyphs.Max(g => g.Origin.X + g.Advance), left = run.Glyphs.Min(g => g.Origin.X);
+            Assert.True(left >= 2.5f && right <= w - 2.5f, $"w={w}: {left}..{right}");
+        }
+    }
+
+    [Fact]
+    public async Task EmbeddedFileName_SanitizedOnWrite()
+    {
+        string id = _assets.AddFile("x.txt", [1, 2, 3]);
+        await using var s = await OpenBlankAsync();
+        var a = new Annotation
+        {
+            Id = s.Annotations.NewId(), Kind = AnnotKind.FileAttachment, Rect = new PdfRectF(90, 90, 110, 110),
+            AttachmentId = id, AttachmentName = "..\\..\\evil" + (char)7 + ".exe", Name = Guid.NewGuid().ToString("D"), Flags = PdfAnnotFlags.Print,
+        };
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, a));
+        await Svc().SaveAsync(s, P("evil.pdf"));
+        using var doc = PdfReader.Open(P("evil.pdf"), PdfDocumentOpenMode.Import);
+        var fs = Deref<PdfDictionary>(AnnotDict(doc, 0).Elements["/FS"]);
+        Assert.Equal("evil.exe", fs.Elements.GetString("/UF"));
+        Assert.Equal("evil.exe", fs.Elements.GetString("/F"));
+    }
+
+    [Fact]
     public void AttachmentOverLimit_Rejected()
     {
         var assets = new AnnotationAssets();

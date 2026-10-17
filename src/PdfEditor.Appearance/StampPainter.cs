@@ -42,6 +42,7 @@ internal static class StampPainter
             ? BuiltinColor(spec.BuiltinName) ?? a.Color ?? Blue
             : a.Color ?? Blue;
         var r = a.Rect;
+        if (r.Width <= 2 * BorderWidth || r.Height <= 2 * BorderWidth) return (ImmutableArray<TextRunOp>.Empty, ImmutableArray<ImageOp>.Empty, null);   // 너무 작아 그릴 수 없다
 
         // 둥근 사각형: 선 중심이 Rect 안쪽 BorderWidth/2에 오도록 줄인다.
         float h = BorderWidth / 2f;
@@ -57,7 +58,7 @@ internal static class StampPainter
         // 한 줄: 먼저 실제 폭을 재고, 넘치면 같은 비율로 글자 크기를 줄인다.
         var probe = TextLayout.Layout(font, text, size, float.PositiveInfinity, TextAlign.Left, new PdfPointF(0, 0));
         float width = probe.Bounds.Width;
-        if (width > availW && width > 0f) size *= availW / width;
+        if (width > availW && width > 0f) size *= availW / width * 0.999f;   // 반올림으로 1~2% 넘치지 않게 약간 더 줄인다
         float lineH = size * 1.2f;
         var topLeft = new PdfPointF(r.Left + BorderWidth + TextPadding, (r.Bottom + r.Top) / 2f + lineH / 2f);
         var laid = TextLayout.Layout(font, text, size, availW, TextAlign.Center, topLeft);

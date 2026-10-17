@@ -9,10 +9,24 @@ namespace PdfEditor.Appearance.Patching;
 /// PNG는 PDFsharp <see cref="XImage"/>로 읽어 /FlateDecode로 넣고, 알파 채널은 /SMask로 분리된다.
 /// JPEG는 다시 인코딩하지 않고 원본 바이트를 /DCTDecode 스트림으로 그대로 둔다.
 /// </summary>
-internal static class ImageEmbedder
+public static class ImageEmbedder
 {
     public static PdfReference Embed(PdfSharp.Pdf.PdfDocument doc, byte[] data, string format)
         => format == "jpeg" ? EmbedJpeg(doc, data) : EmbedPng(doc, data);
+
+    /// <summary>
+    /// 이미지를 임시 빈 문서에 실제로 넣어 본다. PDFsharp이 못 읽는 PNG(16비트, 인터레이스, 회색+알파, 일부 팔레트 등)나
+    /// 망가진 JPEG이면 예외를 던진다 → AnnotationAssets.AddImage가 추가할 때 거절한다.
+    /// </summary>
+    public static void Validate(byte[] data, string format)
+    {
+        using var scratch = new PdfSharp.Pdf.PdfDocument();
+        var r = Embed(scratch, data, format);
+        // PDFsharp은 일부 변환(알파 분리 등)을 저장할 때 한다: 실제로 저장해 보아야 나중에 저장이 깨지지 않는다.
+        if (scratch.PageCount == 0) scratch.AddPage();
+        using var sink = new MemoryStream();
+        scratch.Save(sink, false);
+    }
 
     private static PdfReference EmbedPng(PdfSharp.Pdf.PdfDocument doc, byte[] data)
     {

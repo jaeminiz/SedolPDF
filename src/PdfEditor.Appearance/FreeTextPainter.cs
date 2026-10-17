@@ -23,7 +23,7 @@ internal static class FreeTextPainter
     public static Annotation FitTypewriter(Annotation a, PaintContext ctx)
     {
         if (IntentOf(a) != FreeTextIntent.Typewriter) return a;
-        var laid = TextLayout.Layout(ctx.Font, a.Contents ?? "", a.FontSizePt, float.PositiveInfinity, a.Align,
+        var laid = TextLayout.Layout(ctx.Font ?? throw new InvalidOperationException("Fitting a typewriter annotation needs the app font."), a.Contents ?? "", a.FontSizePt, float.PositiveInfinity, a.Align,
             new PdfPointF(a.Rect.Left + Padding, a.Rect.Top - Padding));
         float lineH = a.FontSizePt * 1.2f;
         float w = Math.Max(laid.Bounds.Width, 0f) + 2 * Padding;

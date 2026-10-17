@@ -299,8 +299,9 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         ef.Elements["/F"] = stream.Reference!;
         var fs = new PdfDictionary(doc);
         fs.Elements["/Type"] = new PdfName("/Filespec");
-        fs.Elements["/F"] = MakeString(op.FileName);
-        fs.Elements["/UF"] = MakeString(op.FileName);
+        string fileName = AttachmentNames.Sanitize(op.FileName);
+        fs.Elements["/F"] = MakeString(fileName);
+        fs.Elements["/UF"] = MakeString(fileName);
         fs.Elements["/EF"] = ef;
         doc.Internals.AddObject(fs);
         annot.Elements["/FS"] = fs.Reference!;

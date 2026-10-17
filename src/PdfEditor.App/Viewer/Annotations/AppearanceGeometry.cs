@@ -68,7 +68,7 @@ public static class AppearanceGeometry
         lock (perRot)
         {
             if (perRot.TryGetValue(rot, out var c)) return c;
-            c = FromDrawing(AnnotationPainter.Paint(a, rot, TextFont is { } f ? new PaintContext(f, Assets) : null));
+            c = FromDrawing(AnnotationPainter.Paint(a, rot, new PaintContext(TextFont, Assets)));
             if (c.Complete) perRot[rot] = c;   // 그림이 아직 없으면 캐시하지 않아 다음에 다시 만든다
             return c;
         }

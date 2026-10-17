@@ -45,27 +45,39 @@ public sealed class AppearanceServices
         AppearanceGeometry.TextFont = font;
         // 그림 스탬프: AnnotationAssets의 PNG·JPEG를 Avalonia 비트맵으로 풀어 id별로 캐시한다(스레드 안전).
         // 보관소에 없거나 풀 수 없으면 null: AppearanceGeometry가 자리 표시 사각형을 그리고 캐시하지 않는다.
-        var assets = new AnnotationAssets();
+        var assets = new AnnotationAssets(PdfEditor.Appearance.Patching.ImageEmbedder.Validate);
         AppearanceGeometry.Assets = assets;
         AppearanceGeometry.ImageResolver = new ImageCache(assets).Resolve;
         return new AppearanceServices(font, assets);
     }
 
-    /// <summary>이미지 id → 비트맵. 같은 id는 한 번만 풀고, 실패는 캐시하지 않는다.</summary>
+    /// <summary>화면용 비트맵 폭 상한(px). 아주 큰 이미지도 이 폭으로 줄여 풀어 UI 스레드 메모리를 지킨다.</summary>
+    public const int MaxDecodeWidth = 2048;
+
+    /// <summary>이미지 id → 비트맵. 같은 id는 한 번만 풀고(동시에 불러도 한 번), 실패는 캐시하지 않는다.</summary>
     internal sealed class ImageCache(AnnotationAssets assets)
     {
-        private readonly ConcurrentDictionary<string, Bitmap> _bitmaps = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, Lazy<Bitmap>> _bitmaps = new(StringComparer.Ordinal);
 
         public IImage? Resolve(string id)
         {
-            if (_bitmaps.TryGetValue(id, out var cached)) return cached;
             if (!assets.HasImage(id)) return null;
-            try
+            var lazy = _bitmaps.GetOrAdd(id, key => new Lazy<Bitmap>(() => Decode(key), LazyThreadSafetyMode.ExecutionAndPublication));
+            try { return lazy.Value; }
+            catch (Exception)
             {
-                using var ms = new MemoryStream(assets.GetImage(id).Data, writable: false);
-                return _bitmaps.GetOrAdd(id, new Bitmap(ms));
+                _bitmaps.TryRemove(new KeyValuePair<string, Lazy<Bitmap>>(id, lazy));   // 실패는 캐시하지 않는다
+                return null;
             }
-            catch (Exception) { return null; }
+        }
+
+        private Bitmap Decode(string id)
+        {
+            var (data, w, _, _) = assets.GetImage(id);
+            using var ms = new MemoryStream(data, writable: false);
+            return w > MaxDecodeWidth
+                ? Bitmap.DecodeToWidth(ms, MaxDecodeWidth, BitmapInterpolationMode.HighQuality)
+                : new Bitmap(ms);
         }
     }
 }

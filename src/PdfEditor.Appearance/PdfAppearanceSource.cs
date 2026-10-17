@@ -9,7 +9,7 @@ namespace PdfEditor.Appearance;
 /// </summary>
 public sealed class PdfAppearanceSource(AppFont? font = null, AnnotationAssets? assets = null) : IAppearanceSource
 {
-    private readonly PaintContext? _ctx = font is null ? null : new PaintContext(font, assets ?? AnnotationAssets.Empty);
+    private readonly PaintContext _ctx = new PaintContext(font, assets ?? AnnotationAssets.Empty);
 
     public string BuildContent(Annotation a, int pageRotation)
         => PdfContentWriter.Write(AnnotationPainter.Paint(a, pageRotation, _ctx));

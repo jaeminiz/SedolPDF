@@ -1,9 +1,9 @@
 using System.IO.Compression;
 
-namespace PdfEditor.Appearance.Tests;
+namespace PdfEditor.TestFixtures;
 
 /// <summary>테스트용 이미지 바이트. PNG는 직접 인코딩하고(필터 0, RGBA 8비트), JPEG는 머리부만 있는 구조 확인용이다.</summary>
-internal static class TestImages
+public static class TestImages
 {
     /// <summary>w x h RGBA PNG. pixel(x, y)는 (r, g, b, a).</summary>
     public static byte[] Png(int w, int h, Func<int, int, (byte R, byte G, byte B, byte A)> pixel)
@@ -55,6 +55,35 @@ internal static class TestImages
             0xFF, 0xC0, 0x00, 0x11, 0x08, (byte)(h >> 8), (byte)h, (byte)(w >> 8), (byte)w, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
             0xFF, 0xD9,
         ];
+
+    /// <summary>임의 색 유형·비트 깊이·인터레이스의 PNG. raw는 필터 바이트가 붙은 스캔라인 전체(zlib 압축은 여기서 한다).</summary>
+    public static byte[] PngRaw(int w, int h, byte colorType, byte bitDepth, byte interlace, byte[] raw, byte[]? plte = null)
+    {
+        using var z = new MemoryStream();
+        using (var zs = new ZLibStream(z, CompressionLevel.Optimal, leaveOpen: true)) zs.Write(raw);
+        using var ms = new MemoryStream();
+        ms.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+        var ihdr = new byte[13];
+        WriteBe(ihdr, 0, w); WriteBe(ihdr, 4, h);
+        ihdr[8] = bitDepth; ihdr[9] = colorType; ihdr[12] = interlace;
+        Chunk(ms, "IHDR", ihdr);
+        if (plte is not null) Chunk(ms, "PLTE", plte);
+        Chunk(ms, "IDAT", z.ToArray());
+        Chunk(ms, "IEND", []);
+        return ms.ToArray();
+    }
+
+    /// <summary>IHDR만 있는 잘린 PNG(크기 검사용: 디코딩은 불가능).</summary>
+    public static byte[] PngHeaderOnly(int w, int h)
+    {
+        using var ms = new MemoryStream();
+        ms.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+        var ihdr = new byte[13];
+        WriteBe(ihdr, 0, w); WriteBe(ihdr, 4, h);
+        ihdr[8] = 8; ihdr[9] = 6;
+        Chunk(ms, "IHDR", ihdr);
+        return ms.ToArray();
+    }
 
     private static void WriteBe(byte[] b, int at, int v)
     {

@@ -75,13 +75,46 @@ public static class AnnotationReader
             if (Resolve(fs.Elements["/EF"]) is not PdfDictionary ef) return null;
             var file = Resolve(ef.Elements["/UF"]) as PdfDictionary ?? Resolve(ef.Elements["/F"]) as PdfDictionary;
             if (file?.Stream is not { } stream) return null;
-            string name = Str(fs.Elements, "/UF") ?? Str(fs.Elements, "/F") ?? "attachment";
-            return (name, stream.UnfilteredValue);
+            string name = AttachmentNames.Sanitize(Str(fs.Elements, "/UF") ?? Str(fs.Elements, "/F"));
+            var data = ReadBounded(file, stream);
+            return data is null ? null : (name, data);
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             throw new AnnotationReadException("Cannot read the attached file.", e);
         }
+    }
+
+    /// <summary>
+    /// 첨부 스트림 내용. 선언된 /Params /Size와 실제 길이를 상한(AnnotationAssets.MaxFileBytes)과 먼저 비교하고,
+    /// Flate는 상한까지만 풀어(압축 폭탄 방어) 넘으면 null. 압축 없음은 그대로, 그 밖의 필터는 안전하게 풀 수 없어 null.
+    /// </summary>
+    private static byte[]? ReadBounded(PdfDictionary file, PdfDictionary.PdfStream stream)
+    {
+        const int cap = AnnotationAssets.MaxFileBytes;
+        if (Resolve(file.Elements["/Params"]) is PdfDictionary pars && NumItem(pars.Elements["/Size"]) is { } declared && (declared < 0 || declared > cap))
+            return null;
+        byte[] raw = stream.Value;
+        string filter = Resolve(file.Elements["/Filter"]) switch
+        {
+            PdfName n => n.Value,
+            PdfArray { Elements.Count: 1 } a when Resolve(a.Elements[0]) is PdfName n1 => n1.Value,
+            null => "",
+            _ => "?",
+        };
+        if (filter == "")
+            return raw.Length > cap ? null : raw;
+        if (filter != "/FlateDecode" || file.Elements.ContainsKey("/DecodeParms") || raw.Length > cap) return null;
+        using var inflate = new System.IO.Compression.ZLibStream(new MemoryStream(raw, writable: false), System.IO.Compression.CompressionMode.Decompress);
+        using var output = new MemoryStream();
+        var buf = new byte[81920];
+        int n2;
+        while ((n2 = inflate.Read(buf, 0, buf.Length)) > 0)
+        {
+            if (output.Length + n2 > cap) return null;
+            output.Write(buf, 0, n2);
+        }
+        return output.ToArray();
     }
 
     private static List<OriginalAnnotation> ReadPage(PdfSharp.Pdf.PdfPage page)
