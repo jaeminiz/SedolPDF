@@ -35,3 +35,15 @@ pwsh build/package.ps1 -SkipInstaller
 - "오류: ..."로 시작하는 빨간 줄이 원인입니다. 그대로 복사해 전달하세요.
 - 파일이 잠겼다는 오류는 프로그램이나 탐색기가 `artifacts` 폴더를 쓰고 있을 때 납니다. 닫고 다시 실행하세요.
 - 처음 실행하면 Windows SmartScreen이 "알 수 없는 게시자" 경고를 띄울 수 있습니다. 코드 서명을 하지 않았기 때문입니다.
+
+## 설치 파일 (Inno Setup)
+- Inno Setup 6이 필요합니다. 설치: `winget install JRSoftware.InnoSetup` (공식 배포본, 약 33 MB). 설치 파일을 만드는 컴퓨터에만 필요하고, 사용자에게 주는 파일에는 들어가지 않습니다. 라이선스는 상업 사용 포함 무료입니다.
+- `pwsh build/package.ps1`(`-SkipInstaller` 없이)로 실행하면 `artifacts\SedolPDF-<버전>-setup-win-x64.exe`가 만들어집니다. 스크립트는 `build/installer/PdfEditor.iss`입니다. (`AppId`는 업그레이드 판단용이므로 바꾸지 마세요.)
+- 설치하는 사람: 파일을 더블클릭합니다. 기본은 관리자 권한이 필요 없는 "현재 사용자용"이고 `%LOCALAPPDATA%\Programs\SedolPDF`에 깔립니다. 처음 화면에서 "모든 사용자용"을 고를 수도 있습니다(관리자 권한).
+- 추가 작업 두 가지(바탕 화면 바로가기, PDF "연결 프로그램"에 추가)는 처음에는 꺼져 있습니다. PDF 기본 프로그램은 바꾸지 않습니다.
+- 새 버전을 같은 곳에 덮어 설치하면 업그레이드됩니다. 제거하면 프로그램 폴더만 지워지고 설정(`%APPDATA%\SedolPDF`)은 남습니다.
+- 서명하지 않아서 처음 실행할 때 SmartScreen 경고가 뜰 수 있습니다("추가 정보 → 실행").
+- 무엇을 확인했고 무엇을 아직 확인하지 못했는지는 `docs/validation/2026-10-packaging-results.md`를 보세요.
+
+## 포터블 사용법
+zip을 원하는 폴더에 풀고 `SedolPDF.exe`를 실행합니다. 설치도 관리자 권한도 필요 없습니다. 지우려면 폴더를 통째로 지우면 됩니다. `portable.txt`를 지우면 일반(설치판) 방식으로 `%APPDATA%`를 씁니다.

@@ -39,7 +39,7 @@ if ($LASTEXITCODE -ne 0) { Fail "dotnet publish 가 실패했습니다 (종료 �
 Get-ChildItem -LiteralPath $publish -Recurse -File -Filter *.pdb | Remove-Item -Force
 
 # 2. 필수 파일 검사 (하나라도 없으면 중단)
-$required = @('SedolPDF.exe', 'pdfium.dll', 'THIRD-PARTY-NOTICES.md', 'assets/fonts/OFL.txt')
+$required = @('SedolPDF.exe', 'pdfium.dll', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'assets/fonts/OFL.txt')
 $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $publish $_) -PathType Leaf) })
 if ($missing.Count -gt 0) { Fail ("패키지에 꼭 필요한 파일이 없습니다: " + ($missing -join ', ')) }
 $srcLic = @(Get-ChildItem -LiteralPath (Join-Path $root 'assets/licenses/pdfium') -File)
