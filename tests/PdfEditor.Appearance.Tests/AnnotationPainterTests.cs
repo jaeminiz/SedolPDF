@@ -206,4 +206,184 @@ public class AnnotationPainterTests
         var a = new Annotation { Kind = AnnotKind.Square, Rect = new PdfRectF(0, 0, 10, 10), Color = Red, Opacity = 0.4f };
         Assert.Equal(0.4f, AnnotationPainter.Paint(a, 0).Opacity);
     }
+
+    // ---- M3a Task 7: line endings, polylines, polygons, clouds, caret, attachment icon ----
+
+    private static Annotation LineAnn(PdfPointF a, PdfPointF b, LineEnding start = LineEnding.None, LineEnding end = LineEnding.None, float w = 2)
+        => new()
+        {
+            Kind = AnnotKind.Line, Color = Red, BorderWidth = w, Vertices = [a, b], StartEnding = start, EndEnding = end,
+            Rect = new PdfRectF(0, 0, 1, 1),
+        };
+
+    private static float Deg(float rad) => rad * 180f / MathF.PI;
+
+    private static void AssertWithin(PdfRectF b, PdfRectF r, string what)
+    {
+        r = r.Inflate(0.01f);
+        Assert.True(b.Left >= r.Left && b.Bottom >= r.Bottom && b.Right <= r.Right && b.Top <= r.Top, $"{what}: {b} not within {r}");
+    }
+
+    [Fact]
+    public void Line_OpenArrow_WingsAt30Degrees()
+    {
+        var a = LineAnn(P(0, 0), P(100, 0), end: LineEnding.OpenArrow);
+        var ops = AnnotationPainter.Paint(a, 0).Ops;
+        Assert.Equal(2, ops.Length);
+        Assert.Equal(2, ops[0].Path.Length);                       // shaft is not shortened
+        AssertPt(P(100, 0), ((LineTo)ops[0].Path[1]).P);
+        float len = AnnotationGeometry.EndingSize(a);               // 9
+        var wing = ops[1].Path;
+        var w1 = ((MoveTo)wing[0]).P; var tip = ((LineTo)wing[1]).P; var w2 = ((LineTo)wing[2]).P;
+        AssertPt(P(100, 0), tip);
+        foreach (var w in new[] { w1, w2 })
+        {
+            float dx = w.X - tip.X, dy = w.Y - tip.Y;
+            Assert.Equal(len, MathF.Sqrt(dx * dx + dy * dy), 1e-3f);
+            Assert.Equal(30f, Deg(MathF.Atan2(MathF.Abs(dy), -dx)), 1e-2f);   // angle against the backwards shaft direction
+        }
+        Assert.True(w1.Y * w2.Y < 0, "wings are on opposite sides");
+    }
+
+    [Fact]
+    public void Line_ClosedArrow_ShaftStopsAtBase()
+    {
+        var a = LineAnn(P(0, 0), P(100, 0), end: LineEnding.ClosedArrow);
+        var ops = AnnotationPainter.Paint(a, 0).Ops;
+        float len = AnnotationGeometry.EndingSize(a);
+        float baseX = 100 - len * MathF.Cos(MathF.PI / 6);
+        Assert.Equal(baseX, ((LineTo)ops[0].Path[1]).P.X, 1e-3f);
+        var tri = ops[1];
+        Assert.Equal(Red, tri.Fill);                                // FillColor null -> Color
+        Assert.Equal(Red, tri.Stroke);
+        Assert.IsType<ClosePath>(tri.Path[^1]);
+        Assert.Equal(baseX, ((LineTo)tri.Path[1]).P.X, 1e-3f);
+        AssertPt(P(100, 0), ((MoveTo)tri.Path[0]).P);
+        var green = PdfColor.FromHex("#00FF00");
+        var ops2 = AnnotationPainter.Paint(a with { FillColor = green }, 0).Ops;
+        Assert.Equal(green, ops2[1].Fill);
+    }
+
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    public void AllEightEndings_BoundsWithinComputeRect(int shape)
+    {
+        foreach (var e in Enum.GetValues<LineEnding>())
+            foreach (float w in new[] { 1f, 2f, 6f })
+            {
+                PdfPointF[] v = shape switch
+                {
+                    0 => [P(10, 10), P(90, 10)],
+                    1 => [P(10, 10), P(90, 65)],
+                    _ => [P(90, 70), P(15, 12)],
+                };
+                var line = LineAnn(v[0], v[1], e, e, w) with { FillColor = PdfColor.FromHex("#00FF00") };
+                var poly = line with { Kind = AnnotKind.PolyLine, Vertices = [v[0], P(60, 40), P(110, 5), v[1]] };
+                foreach (var a in new[] { line, poly })
+                    AssertWithin(AnnotationPainter.Paint(a, 0).Bounds, AnnotationGeometry.ComputeRect(a), $"{a.Kind}/{e}/w{w}");
+            }
+    }
+
+    [Fact]
+    public void Polygon_ClosedFillAndStroke()
+    {
+        var green = PdfColor.FromHex("#00FF00");
+        var a = new Annotation
+        {
+            Kind = AnnotKind.Polygon, Color = Red, FillColor = green, BorderWidth = 3,
+            Vertices = [P(0, 0), P(50, 0), P(25, 40)], Rect = new PdfRectF(0, 0, 1, 1),
+        };
+        var d = AnnotationPainter.Paint(a, 0);
+        var op = Assert.Single(d.Ops);
+        Assert.Equal(green, op.Fill);
+        Assert.Equal(Red, op.Stroke);
+        Assert.Equal(3f, op.StrokeWidth);
+        Assert.IsType<ClosePath>(op.Path[^1]);
+        Assert.Equal(2, op.Path.OfType<LineTo>().Count());
+        AssertWithin(d.Bounds, AnnotationGeometry.ComputeRect(a), "polygon");
+    }
+
+    [Fact]
+    public void Cloud_Square_ArcCountPerEdge()
+    {
+        var a = new Annotation
+        {
+            Kind = AnnotKind.Square, Rect = new PdfRectF(0, 0, 100, 60), Color = Red, BorderWidth = 2, CloudIntensity = 1,
+        };
+        var d = AnnotationPainter.Paint(a, 0);
+        var op = Assert.Single(d.Ops);
+        // d = 10, RD = 5 + 1 = 6 -> inner rectangle 88 x 48 -> ceil(8.8) = 9 and ceil(4.8) = 5 arcs per edge, 2 Beziers each
+        Assert.Equal((9 + 5) * 2 * 2, op.Path.OfType<CubicTo>().Count());
+        Assert.Single(op.Path.OfType<MoveTo>());
+        Assert.IsType<ClosePath>(op.Path[^1]);
+        AssertWithin(d.Bounds, AnnotationGeometry.ComputeRect(a), "cloud square");
+        var op2 = Assert.Single(AnnotationPainter.Paint(a with { CloudIntensity = 2 }, 0).Ops);
+        Assert.True(op2.Path.OfType<CubicTo>().Count() < op.Path.OfType<CubicTo>().Count());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Cloud_BulgesOutward_ForBothWindings(bool clockwise)
+    {
+        PdfPointF[] sq = [P(0, 0), P(100, 0), P(100, 100), P(0, 100)];
+        if (clockwise) Array.Reverse(sq);
+        var a = new Annotation
+        {
+            Kind = AnnotKind.Polygon, Color = Red, BorderWidth = 1, CloudIntensity = 1, Vertices = [.. sq],
+            Rect = new PdfRectF(0, 0, 1, 1),
+        };
+        var d = AnnotationPainter.Paint(a, 0);
+        var cubics = Assert.Single(d.Ops).Path.OfType<CubicTo>().ToArray();
+        static bool Inside(PdfPointF p) => p.X > 0.01f && p.X < 99.99f && p.Y > 0.01f && p.Y < 99.99f;
+        int apexes = 0;
+        for (int i = 0; i < cubics.Length; i += 2)
+        {
+            Assert.False(Inside(cubics[i].P), $"apex {cubics[i].P} lies inside the polygon");   // first Bezier ends at the apex
+            apexes++;
+        }
+        Assert.Equal(40, apexes);                                    // 10 semicircles per 100 pt edge
+        foreach (var c in cubics) Assert.False(Inside(c.C1) || Inside(c.C2));
+        AssertWithin(d.Bounds, AnnotationGeometry.ComputeRect(a), "cloud polygon");
+    }
+
+    [Fact]
+    public void Caret_Triangle()
+    {
+        var a = new Annotation { Kind = AnnotKind.Caret, Color = Red, Rect = new PdfRectF(10, 20, 30, 40) };
+        var d = AnnotationPainter.Paint(a, 0);
+        var op = Assert.Single(d.Ops);
+        Assert.Equal(Red, op.Fill);
+        Assert.Null(op.Stroke);
+        var pts = op.Path.Where(s => s is MoveTo or LineTo).Select(s => s is MoveTo m ? m.P : ((LineTo)s).P).ToArray();
+        Assert.Equal(3, pts.Length);
+        Assert.Contains(pts, p => Math.Abs(p.X - 20) < Eps && Math.Abs(p.Y - 40) < Eps);   // apex: top centre (^)
+        Assert.Contains(pts, p => Math.Abs(p.X - 10) < Eps && Math.Abs(p.Y - 20) < Eps);
+        Assert.Contains(pts, p => Math.Abs(p.X - 30) < Eps && Math.Abs(p.Y - 20) < Eps);
+        AssertWithin(d.Bounds, a.Rect, "caret");
+    }
+
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    public void AttachmentIcon_UprightForAllRotations(int rotation)
+    {
+        var rect = new PdfRectF(100, 200, 120, 220);
+        var a = new Annotation { Kind = AnnotKind.FileAttachment, Rect = rect, Color = Red };
+        var op = Assert.Single(AnnotationPainter.Paint(a, rotation).Ops);
+        Assert.Equal(1.2f, op.StrokeWidth, 1e-4f);
+        Assert.Equal(LineCap.Round, op.Cap);
+        Assert.Equal(LineJoin.Round, op.Join);
+        Assert.Null(op.Fill);
+        Assert.Equal(Red, op.Stroke);
+
+        var tf = new PageTransform(System.Drawing.RectangleF.FromLTRB(0, 0, 612, 792), rotation, 1);
+        var view = op.Path.SelectMany(PointsOf).Select(p => tf.ToView(p.X, p.Y)).ToArray();
+        var corners = new[] { tf.ToView(rect.Left, rect.Top), tf.ToView(rect.Right, rect.Bottom) };
+        double left = corners.Min(c => c.X), top = corners.Min(c => c.Y);
+        // Same upright clip for every rotation: u 6..14, v 1.5..18 measured from the icon's top-left on screen.
+        Assert.Equal(left + 6, view.Min(v => v.X), 0.01);
+        Assert.Equal(left + 14, view.Max(v => v.X), 0.01);
+        Assert.Equal(top + 1.5, view.Min(v => v.Y), 0.01);
+        Assert.Equal(top + 18, view.Max(v => v.Y), 0.01);
+    }
 }

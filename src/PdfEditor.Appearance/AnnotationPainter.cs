@@ -9,7 +9,7 @@ namespace PdfEditor.Appearance;
 /// </summary>
 public static class AnnotationPainter
 {
-    private const float Kappa = 0.5522847498f;
+    internal const float Kappa = 0.5522847498f;
     private static readonly PdfColor DefaultInk = new(0, 0, 0);
     private static readonly PdfColor DefaultTextIcon = new(0xFF, 0xD4, 0x00);
     private static readonly PdfColor TextIconLine = PdfColor.FromHex("#5C4A00");
@@ -26,6 +26,11 @@ public static class AnnotationPainter
             case AnnotKind.Underline: PaintLine(a, ops, 0.07f, underline: true); break;
             case AnnotKind.StrikeOut: PaintLine(a, ops, 0.07f, underline: false); break;
             case AnnotKind.Text: PaintTextIcon(a, pageRotation, ops); break;
+            case AnnotKind.Line:
+            case AnnotKind.PolyLine: PaintPolyline(a, ops); break;
+            case AnnotKind.Polygon: PaintPolygon(a, ops); break;
+            case AnnotKind.Caret: PaintCaret(a, ops); break;
+            case AnnotKind.FileAttachment: Icons.PaintAttachment(a, pageRotation, ops); break;
         }
         var arr = ops.ToImmutableArray();
         return new AppearanceDrawing(arr, a.Opacity, ComputeBounds(arr));
@@ -109,6 +114,12 @@ public static class AnnotationPainter
     {
         var stroke = a.BorderWidth > 0 ? a.Color : null;
         if (a.FillColor is null && stroke is null) return;
+        if (a.CloudIntensity > 0)
+        {
+            var cloud = CloudBorder.Build(CloudBorder.RectPolygon(a.Rect, a.CloudIntensity, a.BorderWidth), a.CloudIntensity);
+            ops.Add(new PaintOp(cloud, a.FillColor, stroke, a.BorderWidth, LineCap.Butt, LineJoin.Round));
+            return;
+        }
         var r = Inset(a);
         ImmutableArray<PathSeg> path =
         [
@@ -119,6 +130,75 @@ public static class AnnotationPainter
             new ClosePath(),
         ];
         ops.Add(new PaintOp(path, a.FillColor, stroke, a.BorderWidth, LineCap.Butt, LineJoin.Miter));
+    }
+
+    private static void PaintPolyline(Annotation a, List<PaintOp> ops)
+    {
+        var v = a.Vertices;
+        if (v.IsDefaultOrEmpty || v.Length < 2 || a.BorderWidth <= 0f) return;
+        var color = a.Color ?? DefaultInk;
+        float size = AnnotationGeometry.EndingSize(a);
+        int n = v.Length;
+        var pts = v.ToArray();
+
+        // Outward unit directions at both ends (zero when the end segment is degenerate).
+        PdfPointF dirS = Unit(v[0], v[1]), dirE = Unit(v[n - 1], v[n - 2]);
+        float insetS = LineEndings.ShaftInset(a.StartEnding, size), insetE = LineEndings.ShaftInset(a.EndEnding, size);
+        if (n == 2)
+        {
+            float dx = v[1].X - v[0].X, dy = v[1].Y - v[0].Y;
+            float len = MathF.Sqrt(dx * dx + dy * dy);
+            if (insetS + insetE >= len) { insetS = 0f; insetE = 0f; pts = []; }   // ending shapes cover the whole line
+        }
+        if (pts.Length > 0)
+        {
+            pts[0] = new(pts[0].X - dirS.X * insetS, pts[0].Y - dirS.Y * insetS);
+            pts[^1] = new(pts[^1].X - dirE.X * insetE, pts[^1].Y - dirE.Y * insetE);
+            var path = ImmutableArray.CreateBuilder<PathSeg>();
+            path.Add(new MoveTo(pts[0]));
+            for (int i = 1; i < pts.Length; i++) path.Add(new LineTo(pts[i]));
+            ops.Add(new PaintOp(path.ToImmutable(), null, color, a.BorderWidth, LineCap.Butt, LineJoin.Round));
+        }
+        LineEndings.Add(ops, a.StartEnding, v[0], dirS, size, color, a.FillColor, a.BorderWidth);
+        LineEndings.Add(ops, a.EndEnding, v[n - 1], dirE, size, color, a.FillColor, a.BorderWidth);
+    }
+
+    /// <summary>from에서 to쪽으로 향하는 단위 벡터가 아니라, to에서 from쪽(바깥)으로 향하는 단위 벡터.</summary>
+    private static PdfPointF Unit(PdfPointF from, PdfPointF to)
+    {
+        float dx = from.X - to.X, dy = from.Y - to.Y;
+        float len = MathF.Sqrt(dx * dx + dy * dy);
+        return len > 0f ? new(dx / len, dy / len) : new(0, 0);
+    }
+
+    private static void PaintPolygon(Annotation a, List<PaintOp> ops)
+    {
+        var v = a.Vertices;
+        if (v.IsDefaultOrEmpty || v.Length < 3) return;
+        var stroke = a.BorderWidth > 0 ? a.Color ?? DefaultInk : (PdfColor?)null;
+        if (a.FillColor is null && stroke is null) return;
+        ImmutableArray<PathSeg> path;
+        if (a.CloudIntensity > 0) path = CloudBorder.Build(v, a.CloudIntensity);
+        else
+        {
+            var b = ImmutableArray.CreateBuilder<PathSeg>();
+            b.Add(new MoveTo(v[0]));
+            for (int i = 1; i < v.Length; i++) b.Add(new LineTo(v[i]));
+            b.Add(new ClosePath());
+            path = b.ToImmutable();
+        }
+        ops.Add(new PaintOp(path, a.FillColor, stroke, a.BorderWidth, LineCap.Butt, LineJoin.Round));
+    }
+
+    private static void PaintCaret(Annotation a, List<PaintOp> ops)
+    {
+        var r = a.Rect;
+        ImmutableArray<PathSeg> path =
+        [
+            new MoveTo(new(r.Left, r.Bottom)), new LineTo(new(r.Right, r.Bottom)),
+            new LineTo(new((r.Left + r.Right) / 2f, r.Top)), new ClosePath(),
+        ];
+        ops.Add(new PaintOp(path, a.Color ?? DefaultInk, null, 0f, LineCap.Butt, LineJoin.Miter));
     }
 
     private static void PaintCircle(Annotation a, List<PaintOp> ops)
@@ -186,23 +266,9 @@ public static class AnnotationPainter
     {
         var fill = a.Color ?? DefaultTextIcon;
         var edge = new PdfColor(Scale(fill.R), Scale(fill.G), Scale(fill.B));
-        int rot = ((pageRotation % 4) + 4) % 4;
-        float cx = (a.Rect.Left + a.Rect.Right) / 2f, cy = (a.Rect.Bottom + a.Rect.Top) / 2f;
-
-        // Icon coordinates (u, v) have the origin at the top-left of the 20x20 box with v pointing down.
-        // Page point = (Left + u, Top - v), rotated counter-clockwise by 90 degrees x pageRotation around the rect center.
-        PdfPointF M(float u, float v)
-        {
-            float x = a.Rect.Left + u - cx, y = a.Rect.Top - v - cy;
-            (float rx, float ry) = rot switch
-            {
-                0 => (x, y),
-                1 => (-y, x),
-                2 => (-x, -y),
-                _ => (y, -x),
-            };
-            return new PdfPointF(cx + rx, cy + ry);
-        }
+        // Icon coordinates (u, v) have the origin at the top-left of the 20x20 box with v pointing down (see Icons.Mapper).
+        var mapper = Icons.Mapper(a.Rect, pageRotation);
+        PdfPointF M(float u, float v) => mapper(u, v);
 
         const float lo = 1f, hi = 19f, r = 2.5f, k = Kappa * r;
         ImmutableArray<PathSeg> body =

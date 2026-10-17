@@ -76,6 +76,38 @@ public class RenderBaselineTests : IDisposable
         {
             Color = Yellow, Opacity = 0.4f, Quads = [PdfQuadF.FromRect(new PdfRectF(40, 50, 160, 150))],
         }),
+        "line_arrows" => Make(s, AnnotKind.Line, new PdfRectF(20, 60, 180, 140), a => a with
+        {
+            Color = Red, FillColor = Yellow, BorderWidth = 3, Opacity = 0.8f,
+            Vertices = [new PdfPointF(40, 80), new PdfPointF(160, 120)],
+            StartEnding = LineEnding.Circle, EndEnding = LineEnding.ClosedArrow,
+        }),
+        "polyline" => Make(s, AnnotKind.PolyLine, new PdfRectF(20, 40, 180, 160), a => a with
+        {
+            Color = Blue, BorderWidth = 2.5f,
+            Vertices = [new PdfPointF(35, 60), new PdfPointF(80, 140), new PdfPointF(120, 70), new PdfPointF(165, 135)],
+            StartEnding = LineEnding.Diamond, EndEnding = LineEnding.OpenArrow,
+        }),
+        "polygon" => Make(s, AnnotKind.Polygon, new PdfRectF(20, 40, 180, 160), a => a with
+        {
+            Color = Blue, FillColor = Yellow, BorderWidth = 3,
+            Vertices = [new PdfPointF(40, 60), new PdfPointF(160, 70), new PdfPointF(120, 150), new PdfPointF(60, 120)],
+        }),
+        "cloud_square" => Make(s, AnnotKind.Square, new PdfRectF(30, 50, 170, 150), a => a with
+        {
+            Color = Red, BorderWidth = 2, CloudIntensity = 1,
+        }),
+        "cloud_polygon_cw" => Make(s, AnnotKind.Polygon, new PdfRectF(20, 40, 180, 160), a => a with
+        {
+            Color = Blue, FillColor = Yellow, Opacity = 0.7f, BorderWidth = 2, CloudIntensity = 1,
+            // clockwise on purpose: bulges must still point outward
+            Vertices = [new PdfPointF(50, 60), new PdfPointF(40, 140), new PdfPointF(150, 150), new PdfPointF(160, 80)],
+        }),
+        "caret" => Make(s, AnnotKind.Caret, new PdfRectF(85, 85, 115, 115), a => a with { Color = Red }),
+        "attachment" => Make(s, AnnotKind.FileAttachment, new PdfRectF(90, 90, 110, 110), a => a with
+        {
+            Color = Blue, AttachmentId = "a1", AttachmentName = "a.txt",
+        }),
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 
@@ -146,11 +178,63 @@ public class RenderBaselineTests : IDisposable
         else if (File.Exists(actual)) File.Delete(actual);
     }
 
+    /// <summary>
+    /// Kinds that only the patch stage (Task 9/10) can write into a file: their Painter output is rendered as plain page content
+    /// (200x200 pt page, no opacity) so the shape is verified through PDFium without the save pipeline.
+    /// </summary>
+    private static readonly HashSet<string> DirectKinds = ["line_arrows", "polyline", "polygon", "cloud_polygon_cw", "caret", "attachment"];
+
+    private async Task<(byte[] Bgra, int W, int H)> RenderDirectAsync(string name)
+    {
+        string content;
+        await using (var s = await DocumentSession.OpenAsync(_t, Blank200(name + ".src.pdf"), null))
+        {
+            var a = Representative(s, name) with { Opacity = 1f };
+            content = PdfContentWriter.Write(AnnotationPainter.Paint(a, 0));
+        }
+        var objs = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Resources << >> >>",
+            $"<< /Length {content.Length} >>\nstream\n{content}endstream",
+        };
+        var sb = new System.Text.StringBuilder("%PDF-1.7\n");
+        var offs = new List<int>();
+        for (int i = 0; i < objs.Length; i++)
+        {
+            offs.Add(sb.Length);
+            sb.Append($"{i + 1} 0 obj\n{objs[i]}\nendobj\n");
+        }
+        int xref = sb.Length;
+        sb.Append($"xref\n0 {objs.Length + 1}\n0000000000 65535 f \n");
+        foreach (var o in offs) sb.Append($"{o:D10} 00000 n \n");
+        sb.Append($"trailer\n<< /Size {objs.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+        var path = Path.Combine(_dir, name + ".direct.pdf");
+        File.WriteAllBytes(path, System.Text.Encoding.Latin1.GetBytes(sb.ToString()));
+        return await _t.InvokeAsync(() =>
+        {
+            using var doc = PdfDocument.Open(_t, path);
+            using var page = doc.LoadPage(0);
+            var size = new PageTransform(page.BoundsPt, page.Rotation, Scale).ViewSize;
+            int w = (int)Math.Ceiling(size.W), h = (int)Math.Ceiling(size.H);
+            return (page.RenderTile(Scale, 0, 0, w, h, withAnnotations: true), w, h);
+        });
+    }
+
     [Theory]
-    [InlineData("ink")] [InlineData("highlight")] [InlineData("underline")] [InlineData("strikeout")]
+    [InlineData("ink")][InlineData("highlight")] [InlineData("underline")] [InlineData("strikeout")]
     [InlineData("text")] [InlineData("square_fill")] [InlineData("circle")] [InlineData("highlight_area")]
+    [InlineData("line_arrows")] [InlineData("polyline")] [InlineData("polygon")] [InlineData("cloud_square")]
+    [InlineData("cloud_polygon_cw")] [InlineData("caret")] [InlineData("attachment")]
     public async Task Baseline_PerKind(string name)
     {
+        if (DirectKinds.Contains(name))
+        {
+            var d = await RenderDirectAsync(name);
+            CompareToBaseline(name, d.Bgra, d.W, d.H);
+            return;
+        }
         var r = await RenderAsync(Blank200(name + ".src.pdf"), (s, _) => [Representative(s, name)], 0, name + ".pdf", Scale);
         CompareToBaseline(name, r.Bgra, r.W, r.H);
     }
