@@ -376,6 +376,13 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
         {
             h.Window.MouseDown(At(h, 60, 60), MouseButton.Left);
             h.Window.MouseMove(At(h, 300, 70));
+            // 실제 글자 조회가 다 끝난 뒤에 "안 끝난 것처럼" 만든다. 먼저 하면 진행 중이던 실제 조회가 놓는 순간 끝나며
+            // _charBusy를 false로 되돌려 대기가 바로 풀린다(약 40번에 1번 실패하던 원인, M2 마무리 검토).
+            for (int i = 0; i < 500 && ((bool)Field(h.View, "_charBusy")! || ((System.Collections.ICollection)Field(h.View, "_charQueue")!).Count > 0); i++)
+            {
+                Thread.Sleep(5);
+                Dispatcher.UIThread.RunJobs();
+            }
             SetField(h.View, "_charBusy", true);   // 글자 조회가 안 끝난 것처럼 만들어 놓은 뒤의 대기를 붙잡는다
             h.Window.MouseUp(At(h, 300, 70), MouseButton.Left);
             Assert.True((bool)Field(h.View, "_markupPending")!);
