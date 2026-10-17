@@ -44,6 +44,16 @@ public sealed class FakePrompts : IUserPrompts
     public string? XfdfPick { get; set; }
     public List<string> XfdfSuggested { get; } = [];
     public Task<string?> PickSaveXfdfAsync(string suggestedName) { XfdfSuggested.Add(suggestedName); return Task.FromResult(XfdfPick); }
+    public string? SummaryPick { get; set; }
+    public List<string> SummarySuggested { get; } = [];
+    public Task<string?> PickSaveSummaryPdfAsync(string suggestedName) { SummarySuggested.Add(suggestedName); return Task.FromResult(SummaryPick); }
+    public int ProgressRuns { get; private set; }
+    public async Task<bool> RunWithProgressAsync(string title, string progressFormat, int total, Func<IProgress<int>, CancellationToken, Task> work)
+    {
+        ProgressRuns++;
+        try { await work(new Progress<int>(), CancellationToken.None); return true; }
+        catch (OperationCanceledException) { return false; }
+    }
     public string? XfdfOpenPick { get; set; }
     public int XfdfOpenCalls { get; private set; }
     public List<(string Message, IReadOnlyList<string> Details)> XfdfResults { get; } = [];

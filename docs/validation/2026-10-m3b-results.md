@@ -67,3 +67,28 @@ Release 앱을 설정 파일 경로를 따로 지정해 실행하고, UI 자동�
 - 읽기 전용 원본(다른 앱 스탬프·링크 등)은 NM을 보관하지 않아 같은 이름이라도 바꿀 수 없고 새 주석이 추가된다.
 - 이름이 같지만 종류가 다른 주석은 바꾸되 상세 목록에 "replaced annotation of a different kind"로 알린다.
 - 안전 한계: DTD·외부 개체 금지, 파일 100 MB, 요소 중첩 32단계(넘으면 그 주석만 건너뜀), 첨부 합계 200 MB(풀린 크기)·파일 25 MB, 좌표 목록 16 MB·가져오기 전체 800만 개, 답글 사슬 깊이 256(넘으면 새 뿌리).
+
+## Task 7 — 주석 요약 PDF
+
+### 구현
+- `PdfEditor.Exchange.Summary.SummaryPdfBuilder.Build(SummaryInput, AppFont, outputPath, ct, progress?)`: A4 세로, 첫 쪽 머리말(문서 이름·만든 시각·주석 수), 주석이 있는 원본 쪽마다 왼쪽에 쪽 그림(폭 40%, BGRA → RGB Flate 이미지 XObject, 쪽 비율 유지)과 그 위 번호 배지·붉은 테두리(`MarkRect`, 그림 픽셀 좌표), 오른쪽에 번호·종류·작성자·시각·내용(답글은 14 pt씩 들여쓰기). 글자는 Noto Sans KR(`TextLayout` 줄바꿈 + `FontEmbedder` 서브셋 한 번)이고 내용 스트림을 직접 쓴다(한 줄 = `Tm` 한 번 + `TJ` 배열; 글자마다 `Tm`을 쓰면 PDFium 글자 추출이 글자마다 줄을 바꿔서 이렇게 했다).
+- 긴 내용은 줄 단위로 흘러 쪽 아래에 닿으면 다음 요약 쪽에서 같은 쪽 머리(`SummaryText.PageHeadingContinuedFormat`, 앱은 `Strings.resx`의 "{0}쪽 (이어서)")로 계속한다. 주석이 없는 쪽은 건너뛴다. 모듈 안에는 한국어 문구가 없다(틀은 `SummaryInput.Text`로 받음, 기본값은 영어).
+- 글꼴에 없는 글자(예: 이모지)는 조용히 빼지 않고 `SummaryBuildResult.MissingCodepoints`로 돌려주고 요약 맨 끝에 붉은 알림 줄(`U+1F600` 형식)을 적는다. 앱은 완료 알림에도 개수를 적는다.
+- 임시 파일에 쓴 뒤 옮긴다. 취소·실패하면 임시 파일을 지우고, 이미 있던 같은 이름 파일은 그대로 둔다.
+- 앱: "더보기" 메뉴의 "주석 요약" (`annot.summary`). 주석이 없으면 알림만, 있으면 저장 위치(기본 `<PDF 이름>-summary.pdf`)를 묻고 진행 창(취소 단추, 기존 `PrintProgressDialog`를 제목·문구 틀을 받게 일반화)에서 만든다. 주석 구성(번호·종류 이름·답글)은 코멘트 목록과 같은 `CommentsViewModel`의 줄 묶음을 그대로 써서 목록과 같다(링크·양식 칸은 뺌). 번호는 문서 전체에서 이어지고 답글은 번호가 없다.
+- 쪽 그림은 인쇄(PrintJob)와 같은 방식 — Flush → SaveCopy 임시 → 패치 → 별도 `PdfDocument`로 열어 PDFium 전용 스레드에서 쪽마다 보통 우선순위로 그리고(긴 변 900 px) 끝나면 닫은 뒤 임시 파일 삭제. 편집 중인 PDFium 문서에는 선 같은 패치 단계 주석이 없기 때문(M3a V10/V11). 패치할 것이 없거나 암호 문서면 세션 문서에서 그린다. 번호 표시 위치는 `PageTransform`(회전 반영)으로 계산. PDF 쓰기는 스레드 풀.
+
+### 자동 테스트
+- Exchange(`SummaryPdfBuilderTests` 7개): `Summary_FirstPageHeaderAndCount`, `Summary_PagesWithoutCommentsSkipped`, `Summary_LongCommentFlowsToNextPage`(400문장 → 3쪽 이상, 이어서 머리 반복, 모든 글 빠짐없이 추출), `Summary_KoreanTextExtractable`(PDFium 글자 추출), `Summary_RepliesIndented`(PDFium 글자 위치), `Summary_Cancel_NoFileLeft`(처음부터·쓰는 도중 취소, 기존 파일 유지), `Summary_MissingGlyph_ReportedNotSilent`.
+- App(`AnnotationSummaryRunnerTests` 5개): 주석 있는 쪽만(1·2쪽), 선이 있는 쪽 그림에 붉은 선 픽셀이 있음(= 패치된 사본에서 그림), 취소하면 출력·임시 파일이 남지 않음, 명령이 저장 위치를 기본 이름으로 묻고 파일을 만듦, 주석이 없으면 알림만.
+
+### 눈으로 확인 (결과 PDF를 PDFium으로 렌더한 PNG)
+- 1쪽: 맨 위 큰 제목(문서 이름), 회색 "만든 시각"·"주석 5개", 구분선. "1쪽" 아래 왼쪽에 쪽 그림(회색 줄무늬 가짜 쪽)과 그 위 붉은 테두리 3개와 왼쪽 위 붉은 번호 배지 1·2·3. 오른쪽에 `1 형광펜 / 김재민 · 시각 / 검토 필요`, 2번 아래 들여쓴 답글, 3번의 긴 한글 내용이 줄바꿈되어 쪽 아래까지 이어짐. 한글이 깨지지 않음.
+- 2쪽: "3쪽" 머리, 그림에 번호 4 표시, 목록 4번, 맨 아래 붉은 알림 "글꼴에 없는 글자 1개: U+1F600".
+- 이 렌더는 임시 시험(저장소에 안 넣음)으로 만든 것이고, 실제 앱에서 문서를 열어 명령을 눌러 본 것은 아니다.
+
+### 검증 필요·한계
+- 실제 앱 화면(저장 대화상자, 진행 창, 취소 단추)은 눈으로 확인하지 못했다. 진행 창은 `PrintProgressDialog` 재사용이고 가짜 프롬프트로 흐름만 시험했다.
+- 다른 뷰어(Acrobat 등)에서 요약 PDF가 같게 보이는지는 확인하지 않았다(글꼴은 S1 방식 그대로).
+- 큰 문서 메모리: 쪽 그림을 BGRA로 모아 한 번에 쓰므로 주석이 있는 쪽 N개면 약 N × 2 MB(900×636×4)를 잠시 쓴다(300쪽이면 약 0.7 GB). 쪽 그림 렌더·PDF 쓰기는 UI 스레드 밖이라 화면은 멈추지 않지만 이 최고치는 측정하지 않았다 — 필요하면 그림을 쪽마다 압축해 두는 방식으로 줄일 수 있다.
+- 이어지는 쪽에는 쪽 그림을 다시 그리지 않고(왼쪽 비움) 목록만 오른쪽 열에 계속한다.

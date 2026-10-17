@@ -413,6 +413,35 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 주석 요약 PDF(M3b Task 7): 주석이 있는지 보고, 저장 위치(기본 "&lt;PDF 이름&gt;-summary.pdf")를 묻고, 진행 창(취소 가능)에서 만든다.
+    /// 쪽 그림 그리기·PDF 쓰기는 UI 스레드 밖에서 하므로 큰 문서에서도 화면이 멈추지 않는다. 실패는 알림으로.
+    /// </summary>
+    public async Task SummaryAsync(DocumentTabViewModel d)
+    {
+        if (_prompts is null || d.Session is not { } s) return;
+        try
+        {
+            await s.AnnotationsReady;
+            var plans = AnnotationSummaryRunner.Collect(d);
+            if (plans.Count == 0) { await _prompts.ShowInfoAsync(Strings.Msg_SummaryNoAnnotations); return; }
+            string suggested = Path.GetFileNameWithoutExtension(s.DisplayName) + "-summary.pdf";
+            if (await _prompts.PickSaveSummaryPdfAsync(suggested) is not { } path) return;
+            var svc = DocumentTabViewModel.Appearance ?? throw new FileNotFoundException(Strings.Err_SummaryNoFont);
+            SummaryOutcome? outcome = null;
+            bool finished = await _prompts.RunWithProgressAsync(Strings.Dlg_SummaryProgressTitle, Strings.Dlg_SummaryProgress, plans.Count,
+                async (progress, ct) => outcome = await AnnotationSummaryRunner.RunAsync(d, svc, plans, path, progress, ct));
+            if (!finished || outcome is null) return;
+            string msg = string.Format(Strings.Msg_SummaryDone, outcome.AnnotationCount, outcome.SummaryPages);
+            if (outcome.MissingGlyphs > 0) msg += Environment.NewLine + string.Format(Strings.Msg_SummaryMissingGlyphs, outcome.MissingGlyphs);
+            await _prompts.ShowInfoAsync(msg);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await ShowErrorAsync(ex);
+        }
+    }
+
     /// <summary>XFDF 가져오기(M3b Task 6): 파일을 고르고 주석을 가져와 결과(건너뜀 포함)를 알린다. 실패는 알림으로, 앱은 죽지 않는다.</summary>
     private async Task ImportXfdfAsync(DocumentTabViewModel d)
     {
@@ -617,7 +646,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("annot.more", Strings.Cmd_More, "more", null, DocCmd(_ => { }));
         Reg("annot.commentList", Strings.Cmd_CommentList, "comments", null,
             DocCmd(_ => { ActiveLeftPanel = PanelKind.Comments; IsLeftPanelVisible = true; }));
-        Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers");
+        Reg("annot.summary", Strings.Cmd_AnnotSummary, "layers", null, DocCmd(d => _ = SummaryAsync(d)));
         Reg("annot.importExport", Strings.Cmd_ImportExport, "share");
         Reg("annot.importXfdf", Strings.Cmd_ImportXfdf, "share", null, DocCmd(d => _ = ImportXfdfAsync(d)));
         Reg("annot.exportXfdf", Strings.Cmd_ExportXfdf, "share", null, DocCmd(d => _ = ExportXfdfAsync(d)));
@@ -692,6 +721,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                         T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach),
                         T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp),
                         I("annot.commentList", Strings.Cmd_CommentList),
+                        I("annot.summary", Strings.Cmd_AnnotSummary),
                         I("annot.importXfdf", Strings.Cmd_ImportXfdf),
                         I("annot.exportXfdf", Strings.Cmd_ExportXfdf),
                     ])),

@@ -8,13 +8,20 @@ public sealed partial class PrintProgressDialog : Window
 {
     private readonly int _total;
     private readonly CancellationTokenSource _cts;
+    private readonly string _format;
     private bool _finished;
 
     public PrintProgressDialog() : this(1, new CancellationTokenSource()) { }
 
     public PrintProgressDialog(int total, CancellationTokenSource cts)
+        : this(total, cts, Strings.Dlg_PrintProgressTitle, Strings.Dlg_PrintProgress) { }
+
+    /// <summary>제목과 진행 문구 틀({0}/{1})을 바꿔 다른 오래 걸리는 작업(주석 요약 등)에도 쓴다.</summary>
+    public PrintProgressDialog(int total, CancellationTokenSource cts, string title, string progressFormat)
     {
         InitializeComponent();
+        Title = title;
+        _format = progressFormat;
         _total = Math.Max(1, total);
         _cts = cts;
         Bar.Maximum = _total;
@@ -32,7 +39,7 @@ public sealed partial class PrintProgressDialog : Window
     public void SetProgress(int done)
     {
         Bar.Value = done;
-        StatusText.Text = string.Format(Strings.Dlg_PrintProgress, done, _total);
+        StatusText.Text = string.Format(_format, done, _total);
     }
 
     public void Finish()

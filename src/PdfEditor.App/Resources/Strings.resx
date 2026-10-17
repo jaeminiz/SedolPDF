@@ -80,6 +80,18 @@
   <data name="Msg_XfdfImported" xml:space="preserve"><value>주석 {0}개를 가져왔습니다. 건너뜀 {1}개</value></data>
   <data name="Err_XfdfInvalid" xml:space="preserve"><value>올바른 XFDF 파일이 아니어서 가져올 수 없습니다.</value></data>
   <data name="Err_XfdfTooLarge" xml:space="preserve"><value>XFDF 파일이 너무 커서 가져올 수 없습니다.</value></data>
+  <data name="Dlg_SummaryTitle" xml:space="preserve"><value>주석 요약 PDF 만들기</value></data>
+  <data name="Dlg_SummaryProgressTitle" xml:space="preserve"><value>주석 요약 만드는 중</value></data>
+  <data name="Dlg_SummaryProgress" xml:space="preserve"><value>{0}/{1}쪽 처리 중</value></data>
+  <data name="Msg_SummaryDone" xml:space="preserve"><value>주석 요약을 만들었습니다. 주석 {0}개, 요약 {1}쪽</value></data>
+  <data name="Msg_SummaryMissingGlyphs" xml:space="preserve"><value>글꼴에 없는 글자 {0}개는 요약에 넣지 못했습니다. (요약 끝에 목록이 있습니다)</value></data>
+  <data name="Msg_SummaryNoAnnotations" xml:space="preserve"><value>요약할 주석이 없습니다.</value></data>
+  <data name="Err_SummaryNoFont" xml:space="preserve"><value>글꼴 파일을 찾을 수 없어 요약을 만들 수 없습니다.</value></data>
+  <data name="Summary_CreatedFormat" xml:space="preserve"><value>만든 시각: {0}</value></data>
+  <data name="Summary_CountFormat" xml:space="preserve"><value>주석 {0}개</value></data>
+  <data name="Summary_PageHeadingFormat" xml:space="preserve"><value>{0}쪽</value></data>
+  <data name="Summary_PageHeadingContinuedFormat" xml:space="preserve"><value>{0}쪽 (이어서)</value></data>
+  <data name="Summary_MissingGlyphsNotice" xml:space="preserve"><value>글꼴에 없는 글자 {0}개: {1}</value></data>
   <data name="Cmd_AnnotStyle" xml:space="preserve"><value>주석 스타일</value></data>
   <data name="Cmd_EditText" xml:space="preserve"><value>텍스트 편집</value></data>
   <data name="Cmd_EditObject" xml:space="preserve"><value>개체 편집</value></data>

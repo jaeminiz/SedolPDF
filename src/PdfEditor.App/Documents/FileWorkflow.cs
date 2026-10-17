@@ -29,6 +29,10 @@ public interface IUserPrompts
     Task<string?> PickSaveFileAsync(string suggestedName);
     /// <summary>XFDF 내보내기 저장 위치. 취소하면 null.</summary>
     Task<string?> PickSaveXfdfAsync(string suggestedName);
+    /// <summary>주석 요약 PDF 저장 위치. 취소하면 null.</summary>
+    Task<string?> PickSaveSummaryPdfAsync(string suggestedName);
+    /// <summary>진행 창(취소 단추 포함)을 띄우고 work를 돌린다. 끝까지 마치면 true, 사용자가 취소하면 false. 그 밖의 예외는 그대로 던진다.</summary>
+    Task<bool> RunWithProgressAsync(string title, string progressFormat, int total, Func<IProgress<int>, CancellationToken, Task> work);
     /// <summary>XFDF 가져오기 파일 선택. 취소하면 null.</summary>
     Task<string?> PickOpenXfdfAsync();
     /// <summary>가져오기 결과 알림. details가 있으면 "자세히" 단추로 건너뜀 이유 목록을 보여 준다.</summary>

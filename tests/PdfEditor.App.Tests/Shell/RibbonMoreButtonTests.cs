@@ -24,7 +24,7 @@ public class RibbonMoreButtonTests
             btn.Rebuild();
             return btn.MenuItems.Select(m => (Header: m.Header?.ToString(), m.IsChecked)).ToList();
         });
-        Assert.Equal(13, menu.Count);   // 도구 10개 + 코멘트 목록 + XFDF 가져오기·내보내기
+        Assert.Equal(14, menu.Count);   // 도구 10개 + 코멘트 목록 + 주석 요약 + XFDF 가져오기·내보내기
         Assert.Equal(more.MoreItems!.Select(i => i.Label), menu.Select(m => m.Header));
         Assert.Equal([PdfEditor.App.Resources.Strings.Cmd_Polygon], menu.Where(m => m.IsChecked).Select(m => m.Header));
     }

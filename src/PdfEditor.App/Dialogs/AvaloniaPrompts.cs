@@ -74,6 +74,34 @@ public sealed class AvaloniaPrompts(Window owner) : IUserPrompts
         return file?.TryGetLocalPath();
     }
 
+    public async Task<string?> PickSaveSummaryPdfAsync(string suggestedName)
+    {
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = Strings.Dlg_SummaryTitle,
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "pdf",
+            FileTypeChoices = [PdfType],
+            ShowOverwritePrompt = true,
+        });
+        return file?.TryGetLocalPath();
+    }
+
+    public async Task<bool> RunWithProgressAsync(string title, string progressFormat, int total, Func<IProgress<int>, CancellationToken, Task> work)
+    {
+        using var cts = new CancellationTokenSource();
+        var dlg = new PdfEditor.App.Printing.PrintProgressDialog(total, cts, title, progressFormat);
+        var progress = new Progress<int>(n => dlg.SetProgress(n));
+        _ = dlg.ShowDialog(owner);
+        try
+        {
+            await work(progress, cts.Token);
+            return true;
+        }
+        catch (OperationCanceledException) { return false; }
+        finally { dlg.Finish(); }
+    }
+
     public async Task<string?> PickOpenXfdfAsync()
     {
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

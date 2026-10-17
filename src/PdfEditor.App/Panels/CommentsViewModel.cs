@@ -71,6 +71,10 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
         Refresh();
     }
 
+    /// <summary>한 쪽의 줄 묶음(거르기·정렬 없이, 쪽 안 순서). 주석 요약 PDF가 같은 줄 구성을 쓴다. UI 스레드 전용.</summary>
+    internal IReadOnlyList<(CommentItem Root, IReadOnlyList<CommentItem> Replies)> GroupsOfPage(PageId id)
+        => _cache.TryGetValue(id, out var gs) ? gs.Select(g => (g.Root, (IReadOnlyList<CommentItem>)g.Replies)).ToList() : [];
+
     /// <summary>거르기·정렬이 반영된 줄들. 목록 화면이 이것을 보여 준다.</summary>
     public ObservableCollection<CommentItem> Items => _items;
 
