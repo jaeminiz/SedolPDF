@@ -1,4 +1,5 @@
-﻿# SedolPDF 배포 패키지 만들기 (PowerShell 7)
+﻿#requires -Version 7
+# SedolPDF 배포 패키지 만들기 (PowerShell 7)
 #   pwsh build/package.ps1 [-Version 0.1.0] [-SkipInstaller]
 # 결과: artifacts\SedolPDF-<버전>-portable-win-x64.zip (+ Inno Setup이 있으면 설치 파일)
 [CmdletBinding()]
@@ -34,16 +35,20 @@ New-Item -ItemType Directory -Force $artifacts | Out-Null
 dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false "-p:Version=$Version" -o $publish
 if ($LASTEXITCODE -ne 0) { Fail "dotnet publish 가 실패했습니다 (종료 코드 $LASTEXITCODE)." }
 
+# .pdb(빌드 경로가 들어 있고 용량만 큼)는 패키지에서 뺀다
+Get-ChildItem -LiteralPath $publish -Recurse -File -Filter *.pdb | Remove-Item -Force
+
 # 2. 필수 파일 검사 (하나라도 없으면 중단)
 $required = @('SedolPDF.exe', 'pdfium.dll', 'THIRD-PARTY-NOTICES.md', 'assets/fonts/OFL.txt')
 $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $publish $_) -PathType Leaf) })
 if ($missing.Count -gt 0) { Fail ("패키지에 꼭 필요한 파일이 없습니다: " + ($missing -join ', ')) }
 $srcLic = @(Get-ChildItem -LiteralPath (Join-Path $root 'assets/licenses/pdfium') -File)
-$expectedLic = 18
 $pubLicDir = Join-Path $publish 'licenses/pdfium'
 $pubLic = if (Test-Path $pubLicDir) { @(Get-ChildItem -LiteralPath $pubLicDir -File) } else { @() }
-if ($srcLic.Count -ne $expectedLic) { Fail "저장소의 PDFium 라이선스 파일이 $($srcLic.Count)개입니다 ($expectedLic 개여야 함)." }
-if ($pubLic.Count -ne $expectedLic) { Fail "패키지의 licenses/pdfium 파일이 $($pubLic.Count)개입니다 ($expectedLic 개여야 함)." }
+if ($srcLic.Count -le 0) { Fail 'assets/licenses/pdfium 에 라이선스 파일이 하나도 없습니다.' }
+if ($pubLic.Count -ne $srcLic.Count) { Fail "PDFium 라이선스 파일 개수가 맞지 않습니다: 저장소 $($srcLic.Count)개, 패키지 $($pubLic.Count)개." }
+$diff = Compare-Object ($srcLic.Name | Sort-Object) ($pubLic.Name | Sort-Object)
+if ($diff) { Fail ('PDFium 라이선스 파일 이름이 저장소와 패키지에서 다릅니다: ' + (($diff.InputObject) -join ', ')) }
 Write-Host "필수 파일 검사 통과 (라이선스 $($pubLic.Count)개)"
 
 # 3. 스모크 테스트: 한글·공백 경로에서 --bench 실행
