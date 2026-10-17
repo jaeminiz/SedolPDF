@@ -46,12 +46,13 @@ public sealed partial class MainWindow : Window
 
         var prompts = new AvaloniaPrompts(this);
         var appearance = new PdfEditor.Appearance.PdfAppearanceSource();
-        _settings = new SettingsStore(SettingsStore.DefaultPath);
+        var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
+        _settings = new SettingsStore(paths.SettingsPath);
         PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
         var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance), _settings, prompts);
         _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance));
-        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(RecoveryStore.DefaultFolder, appearance), _settings,
+        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance), _settings,
             new AvaloniaRecoveryUi(this), prompts);
         _recovery.Attach(workflow);
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
@@ -64,6 +65,11 @@ public sealed partial class MainWindow : Window
         // 먼저 이전에 남은 복구 항목을 묻고, 그다음 명령줄 파일을 연다(같은 파일이면 복구한 탭으로 전환됨).
         Opened += async (_, _) =>
         {
+            if (paths.FellBackFromPortable)
+            {
+                try { await prompts.ShowInfoAsync(Strings.Msg_PortableFolderReadOnly); }
+                catch (Exception) { /* 안내 실패가 시작을 막지 않는다 */ }
+            }
             try
             {
                 foreach (var s in await _recovery.RecoverAtStartupAsync()) _vm.ShowSession(s);

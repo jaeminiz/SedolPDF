@@ -248,6 +248,7 @@ public static class Strings
     public static string Dlg_RecoveryRestore => Get(nameof(Dlg_RecoveryRestore));
     public static string Dlg_RecoveryDiscard => Get(nameof(Dlg_RecoveryDiscard));
     public static string Dlg_RecoveryLater => Get(nameof(Dlg_RecoveryLater));
+    public static string Msg_PortableFolderReadOnly => Get(nameof(Msg_PortableFolderReadOnly));
     public static string Msg_RecoveryOriginalChanged => Get(nameof(Msg_RecoveryOriginalChanged));
     public static string Dlg_SettingsTitle => Get(nameof(Dlg_SettingsTitle));
     public static string Dlg_SettingsRecoveryInterval => Get(nameof(Dlg_SettingsRecoveryInterval));

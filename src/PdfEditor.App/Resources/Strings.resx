@@ -238,6 +238,7 @@
   <data name="Dlg_RecoveryRestore" xml:space="preserve"><value>복구</value></data>
   <data name="Dlg_RecoveryDiscard" xml:space="preserve"><value>버리기</value></data>
   <data name="Dlg_RecoveryLater" xml:space="preserve"><value>나중에</value></data>
+  <data name="Msg_PortableFolderReadOnly" xml:space="preserve"><value>포터블 데이터 폴더(data)에 쓸 수 없어 기본 위치(%APPDATA%\SedolPDF)에 설정과 복구 파일을 저장합니다.</value></data>
   <data name="Msg_RecoveryOriginalChanged" xml:space="preserve"><value>원본 파일이 바뀌었거나 없어서 복구본을 제목 없는 문서로 열었습니다. 다른 이름으로 저장하세요.</value></data>
   <data name="Dlg_SettingsTitle" xml:space="preserve"><value>환경 설정</value></data>
   <data name="Dlg_SettingsRecoveryInterval" xml:space="preserve"><value>자동 복구 저장 간격(분)</value></data>
