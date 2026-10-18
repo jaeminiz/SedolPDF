@@ -82,6 +82,19 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
     }
 
     /// <summary>
+    /// 첫 쪽을 PDFium 우선 줄에서 미리 불러 둔다(쪽 핸들 캐시에 남음). 큰 도면은 쪽 불러오기만 약 180 ms라서,
+    /// 화면(탭·패널·문서 화면)을 만드는 동안 함께 진행하면 첫 타일이 그만큼 빨리 나온다(M3 마무리 검토에서 측정).
+    /// 실패해도 무시한다: 첫 타일 렌더가 같은 쪽을 다시 불러오며 오류는 그쪽 길로 드러난다.
+    /// </summary>
+    private void PrewarmFirstPage(DocumentSession s)
+    {
+        if (s.Pages.Length == 0) return;
+        var first = s.Pages[0].Id;
+        _ = t.InvokeHighAsync(() => { if (s.IndexOf(first) >= 0) s.GetLoadedPage(first); return 0; })
+            .ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    /// <summary>
     /// 파일을 연다. 이미 열린 경로면 그 세션을 돌려준다(호출자가 탭을 전환한다).
     /// 실패하면 오류를 보여 주고 null, 암호 입력을 취소해도 null.
     /// </summary>
@@ -100,6 +113,7 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
             try
             {
                 session = await DocumentSession.OpenAsync(t, full, password, deferOriginals: true).ConfigureAwait(true);
+                PrewarmFirstPage(session);
             }
             catch (PdfPasswordRequiredException)
             {
