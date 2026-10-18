@@ -67,7 +67,7 @@ M3a(저장 패치 단계 + 새 주석 유형 12종, Task 1~15) 결과 문서. V1
 - **손댄 원본:** 바뀐 키와 AP만 쓰고 모르는 키는 보존한다(원본 `Foo` 키 보존 시험). 지운 원본은 **세션 동안 PDFium 문서에 남겨 두고**(타일에서만 숨김) 저장 때 파일에서 지운다 → 실행 취소하면 원래 키·Popup·답글이 그대로 돌아온다(M2 "고치지 않고 기록만 한 것"의 한 항목을 설계상 개선; 저장 직후 실행 취소하는 실제 조작은 *검증 필요*).
 - **글꼴:** Noto Sans KR 서브셋 + `CIDFontType0C` + CFF charset의 CID(V10·V11, 위 절). FreeText 한 개의 AP에 글꼴은 `F1` 하나. 글꼴은 이제 **처음 필요할 때** 읽는다(아래 성능 절의 수정).
 - **이미지·첨부:** PNG는 PDFsharp `XImage`로 `/FlateDecode`(+알파는 `/SMask`), JPEG는 `/DCTDecode` 그대로(CMYK는 `/Decode`). 이미지 XObject는 문서마다 id당 한 번. 첨부는 `/EF` Flate 스트림. 한계는 아래 "알려진 한계".
-- **암호 문서(A2):** 소유자 암호가 있으면 패치할 수 있다(V6). 패치할 수 없는 문서는 새 유형 도구를 끄고(툴팁으로 이유 표시), 패치가 필요한 원본(Line·PolyLine·Polygon·FreeText·Caret·바꾸기 StrikeOut·클라우드 Square)은 읽기 전용(PDFium이 원래 AP로 그림)이고, 저장 경로는 살아 있는 패치 유형 주석이 있으면 조용히 버리지 않고 예외로 막는다(`EncryptedDoc_SaveWithPatchKindEntry_ThrowsInsteadOfDropping`).
+- **암호 문서(A2):** 암호가 걸린 PDF는 사용자 암호·권한 암호 모두 패치 단계를 건너뛴다(`SavePolicy.CanPatch` = 암호 없음; 소유자 암호로 패치하기는 2차 — M3 마무리 검토에서 이 문장을 코드에 맞게 바로잡음). 이런 문서는 새 유형 도구를 끄고(툴팁으로 이유 표시), 패치가 필요한 원본(Line·PolyLine·Polygon·FreeText·Caret·바꾸기 StrikeOut·클라우드 Square)은 읽기 전용(PDFium이 원래 AP로 그림)이고, 저장 경로는 살아 있는 패치 유형 주석이 있으면 조용히 버리지 않고 예외로 막는다(`EncryptedDoc_SaveWithPatchKindEntry_ThrowsInsteadOfDropping`).
 
 ### 살아 있는 PDFium 문서를 직접 읽는 곳 점검 (grep, 2026-10-17)
 지운 원본이 세션 중 PDFium 문서에 남고 새 패치 유형은 PDFium 문서에 없으므로, 그 문서에서 파일을 만들어 내는 모든 곳이 패치 단계를 거쳐야 한다. `SaveCopy`·`FPDF_SaveAsCopy`·`ImportPages`·`PdfDocument.Open*` 호출을 전수 확인했다.
