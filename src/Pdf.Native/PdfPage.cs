@@ -8,11 +8,17 @@ public sealed class PdfPage : IDisposable
     private readonly PdfiumThread _t;
     private IntPtr _handle;
 
-    internal PdfPage(PdfiumThread t, IntPtr handle)
+    private readonly PdfDocument? _doc;
+
+    internal PdfPage(PdfiumThread t, IntPtr handle, PdfDocument? doc = null)
     {
         _t = t;
         _handle = handle;
+        _doc = doc;
     }
+
+    /// <summary>쪽 핸들이 아직 열려 있는가 (쪽 객체가 확인한다).</summary>
+    internal bool IsAlive => _handle != IntPtr.Zero;
 
     internal IntPtr Handle { get { Check(); return _handle; } }
 
@@ -182,6 +188,93 @@ public sealed class PdfPage : IDisposable
             finally { NativeMethods.FPDFBitmap_Destroy(bmp); }
         }
         return buffer;
+    }
+
+    // ---- 쪽 객체 (M4) ----
+
+    public int ObjectCount { get { Check(); return NativeMethods.FPDFPage_CountObjects(_handle); } }
+
+    /// <summary>쪽 객체(내용 스트림 순서). 쪽 핸들보다 오래 쥐지 않는다.</summary>
+    public PdfPageObject GetObject(int index)
+    {
+        Check();
+        var o = NativeMethods.FPDFPage_GetObject(_handle, index);
+        if (o == IntPtr.Zero) throw new ArgumentOutOfRangeException(nameof(index));
+        return new PdfPageObject(_t, this, o, attached: true);
+    }
+
+    private IntPtr DocHandle => (_doc ?? throw new InvalidOperationException("This page was not loaded from a PdfDocument.")).Handle;
+
+    /// <summary>
+    /// original과 같은 글꼴·크기·행렬·채우기 색·렌더 모드로 새 텍스트 객체를 만든다(쪽에는 아직 넣지 않음).
+    /// 글꼴에 없는 글자는 빠지므로 결과 글을 확인해야 한다(V14). 실패하면 null.
+    /// </summary>
+    public PdfPageObject? CreateTextLike(PdfPageObject original, string text)
+    {
+        Check();
+        var font = NativeMethods.FPDFTextObj_GetFont(original.Handle);
+        if (font == IntPtr.Zero) return null;
+        var h = NativeMethods.FPDFPageObj_CreateTextObj(DocHandle, font, original.FontSize);
+        if (h == IntPtr.Zero) return null;
+        var o = new PdfPageObject(_t, this, h, attached: false);
+        if (!o.SetText(text)) { o.DestroyIfDetached(); return null; }
+        o.Matrix = original.Matrix;
+        if (original.FillColor is { } fc) o.FillColor = fc;
+        if (original.StrokeColor is { } sc) o.StrokeColor = sc;
+        NativeMethods.FPDFTextObj_SetTextRenderMode(h, original.TextRenderMode);
+        return o;
+    }
+
+    /// <summary>BGRA(불투명 또는 알파) 그림으로 새 이미지 객체를 만든다. placement는 단위 사각형 → 쪽 좌표 행렬.</summary>
+    public unsafe PdfPageObject CreateImage(byte[] bgra, int width, int height, PdfMatrix placement)
+    {
+        Check();
+        if (width <= 0 || height <= 0 || bgra.Length < width * height * 4) throw new ArgumentException("Bad bitmap size.", nameof(bgra));
+        var h = NativeMethods.FPDFPageObj_NewImageObj(DocHandle);
+        if (h == IntPtr.Zero) throw new PdfiumException(0, "NewImageObj failed");
+        var o = new PdfPageObject(_t, this, h, attached: false);
+        fixed (byte* p = bgra)
+        {
+            var bmp = NativeMethods.FPDFBitmap_CreateEx(width, height, NativeMethods.FPDFBitmap_BGRA, (IntPtr)p, width * 4);
+            if (bmp == IntPtr.Zero) { o.DestroyIfDetached(); throw new PdfiumException(0, "Bitmap create failed"); }
+            try
+            {
+                if (NativeMethods.FPDFImageObj_SetBitmap(null, 0, h, bmp) == 0) { o.DestroyIfDetached(); throw new PdfiumException(0, "SetBitmap failed"); }
+            }
+            finally { NativeMethods.FPDFBitmap_Destroy(bmp); }
+        }
+        o.Matrix = placement;
+        return o;
+    }
+
+    /// <summary>(x, y)에서 시작하는 빈 경로 객체. MoveTo·LineTo·BezierTo·ClosePath로 채운 뒤 SetDrawMode.</summary>
+    public PdfPageObject CreatePath(float x, float y)
+    {
+        Check();
+        var h = NativeMethods.FPDFPageObj_CreateNewPath(x, y);
+        if (h == IntPtr.Zero) throw new PdfiumException(0, "CreateNewPath failed");
+        return new PdfPageObject(_t, this, h, attached: false);
+    }
+
+    /// <summary>새 객체를 index 자리(없으면 맨 뒤 = 맨 위)에 넣는다. 그 뒤로는 쪽이 소유한다.</summary>
+    public void InsertObject(PdfPageObject o, int? index = null)
+    {
+        Check();
+        if (o.IsAttached) throw new InvalidOperationException("The object is already on a page.");
+        int at = index ?? ObjectCount;
+        if (NativeMethods.FPDFPage_InsertObjectAtIndex(_handle, o.Handle, (nuint)at) == 0)
+            throw new PdfiumException(0, "InsertObjectAtIndex failed");
+        o.MarkAttached();
+    }
+
+    /// <summary>
+    /// 쪽 내용 스트림을 지금 객체들로 다시 쓴다. **출력 사본에서만 부른다**(편집 중인 문서에서 부르면 객체 번호가 바뀌어
+    /// 편집 기록 replay가 깨진다, M4 계획 C1).
+    /// </summary>
+    public void GenerateContent()
+    {
+        Check();
+        if (NativeMethods.FPDFPage_GenerateContent(_handle) == 0) throw new PdfiumException(0, "GenerateContent failed");
     }
 
     private void Check()

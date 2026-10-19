@@ -100,7 +100,7 @@ public sealed unsafe class PdfDocument : IDisposable
         Check();
         var page = NativeMethods.FPDF_LoadPage(_handle, index);
         if (page == IntPtr.Zero) throw PdfiumException.FromLastError("페이지 불러오기");
-        return new PdfPage(_t, page);
+        return new PdfPage(_t, page, this);
     }
 
     /// <summary>문서 맨 끝에 빈 페이지를 추가한다 (크기는 포인트).</summary>
