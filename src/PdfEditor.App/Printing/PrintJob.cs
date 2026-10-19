@@ -3,6 +3,7 @@ using PdfEditor.Document;
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Annotations.Patching;
+using PdfEditor.Document.Output;
 using PdfEditor.Document.Saving;
 
 namespace PdfEditor.App.Printing;
@@ -28,28 +29,16 @@ public sealed class PrintJob
         var t = s.Thread;
         // 저장 안 한 주석도 인쇄되도록 같은 전용 스레드에서 먼저 PDFium 문서에 반영한다. 실패하면 StartDoc 전에 중단.
         // 패치 계획이 비어 있지 않으면(선·텍스트 상자 등은 편집 중인 문서에 없음) 임시 사본을 만들어 패치하고, 그 사본으로 인쇄한다.
-        string? tmp = null;
+        // 객체 편집(M4)도 편집 중인 문서에는 확정되지 않으므로 같은 조건으로 사본을 쓴다(OutputCopyBuilder).
+        string tmp = Path.Combine(Path.GetTempPath(), "~sedol-print-" + Guid.NewGuid().ToString("N") + ".pdf");
         PdfDocument? patched = null;
         try
         {
-            var plan = await t.InvokeAsync(() =>
+            var copy = await new OutputCopyBuilder(appearance, patcher, assets).BuildIfNeededAsync(s, tmp, ct).ConfigureAwait(false);
+            if (copy is not null)
             {
-                var p = s.FlushIfNeeded(appearance);
-                if (!p.IsEmpty && SavePolicy.CanPatch(s))
-                {
-                    if (patcher is null)
-                        throw new InvalidOperationException("Annotation patch plan needs an IAnnotationPatcher.");
-                    tmp = Path.Combine(Path.GetTempPath(), "~sedol-print-" + Guid.NewGuid().ToString("N") + ".pdf");
-                    s.Document.SaveCopy(tmp);
-                }
-                return p;
-            }).ConfigureAwait(false);
-            if (tmp is not null)
-            {
-                string path = tmp;
                 string? pw = s.Password;
-                await Task.Run(() => patcher!.Apply(path, pw, plan, assets ?? AnnotationAssets.Empty), ct).ConfigureAwait(false);
-                patched = await t.InvokeAsync(() => PdfDocument.Open(t, path, pw)).ConfigureAwait(false);
+                patched = await t.InvokeAsync(() => PdfDocument.Open(t, tmp, pw)).ConfigureAwait(false);
             }
             ct.ThrowIfCancellationRequested();
             await PrintPagesAsync(s, patched, hdc, pageIndices, o, progress, ct, outputFile).ConfigureAwait(false);
@@ -57,7 +46,7 @@ public sealed class PrintJob
         finally
         {
             if (patched is not null) { var d = patched; try { await t.InvokeAsync(() => d.Dispose()).ConfigureAwait(false); } catch (Exception) { } }
-            if (tmp is not null) { try { File.Delete(tmp); } catch (Exception) { } }
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch (Exception) { }
         }
     }
 

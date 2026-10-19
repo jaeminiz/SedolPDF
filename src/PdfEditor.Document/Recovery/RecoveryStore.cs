@@ -97,20 +97,8 @@ public sealed class RecoveryStore(
         {
             // 복사본은 PDFium 전용 스레드에서 쓴다. 세션 상태는 바꾸지 않는다(더티 유지).
             // Flush가 실패하면 예외를 그대로 낸다(복구본을 쓰지 않음, 기존 복구본 유지). IsDirty는 바뀌지 않는다.
-            var plan = await s.Thread.InvokeAsync(() =>
-            {
-                var p = s.FlushIfNeeded(appearance);
-                s.Document.SaveCopy(pdfTmp);
-                return p;
-            }).ConfigureAwait(false);
-            // 패치(PDFsharp)는 임시 파일에만 적용한다 (편집 중인 문서는 바꾸지 않음). 암호 문서는 건너뜀 (A2).
-            if (!plan.IsEmpty && SavePolicy.CanPatch(s))
-            {
-                if (patcher is null)
-                    throw new InvalidOperationException("Annotation patch plan needs an IAnnotationPatcher.");
-                string? pw = s.Password;
-                await Task.Run(() => patcher.Apply(pdfTmp, pw, plan, assets ?? AnnotationAssets.Empty)).ConfigureAwait(false);
-            }
+            // 주석 Flush·객체 편집 확정·패치는 모두 임시 파일에만 (OutputCopyBuilder, M4). 암호 문서는 패치를 건너뜀 (A2).
+            await new Output.OutputCopyBuilder(appearance, patcher, assets).BuildAsync(s, pdfTmp).ConfigureAwait(false);
             File.Move(pdfTmp, pdf, overwrite: true);
             var entry = new RecoveryEntry(s.Id, pdf, s.FilePath,
                 s.OriginalSha256 is { } h ? Convert.ToHexString(h) : null, s.DisplayName, DateTimeOffset.Now);

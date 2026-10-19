@@ -58,25 +58,17 @@ public static class AnnotationSummaryRunner
         await s.AnnotationsReady.ConfigureAwait(false);
         var t = s.Thread;
 
-        string? tmp = null;
+        // 쪽 그림은 인쇄와 같이 사본(주석 패치 + 객체 편집 확정)에서 그린다 (OutputCopyBuilder, M4).
+        string? tmp = Path.Combine(Path.GetTempPath(), "~sedol-summary-" + Guid.NewGuid().ToString("N") + ".pdf");
         PdfDocument? patched = null;
         try
         {
-            var plan = await t.InvokeAsync(() =>
-            {
-                var p = s.FlushIfNeeded(svc.Appearance);
-                if (!p.IsEmpty && SavePolicy.CanPatch(s))
-                {
-                    tmp = Path.Combine(Path.GetTempPath(), "~sedol-summary-" + Guid.NewGuid().ToString("N") + ".pdf");
-                    s.Document.SaveCopy(tmp);
-                }
-                return p;
-            }, ct).ConfigureAwait(false);
-            if (tmp is not null)
+            var copy = await new PdfEditor.Document.Output.OutputCopyBuilder(svc.Appearance, svc.Patcher, svc.Assets)
+                .BuildIfNeededAsync(s, tmp, ct).ConfigureAwait(false);
+            if (copy is not null)
             {
                 string path = tmp;
                 string? pw = s.Password;
-                await Task.Run(() => svc.Patcher.Apply(path, pw, plan, svc.Assets), ct).ConfigureAwait(false);
                 patched = await t.InvokeAsync(() => PdfDocument.Open(t, path, pw), ct).ConfigureAwait(false);
             }
 
@@ -105,7 +97,7 @@ public static class AnnotationSummaryRunner
         finally
         {
             if (patched is not null) { var p = patched; try { await t.InvokeAsync(() => p.Dispose()).ConfigureAwait(false); } catch (Exception) { } }
-            if (tmp is not null) { try { File.Delete(tmp); } catch (Exception) { } }
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch (Exception) { }
         }
     }
 

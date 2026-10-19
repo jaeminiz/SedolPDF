@@ -18,26 +18,13 @@ public sealed class SaveService(
         var stage = SaveStage.Write;
         try
         {
-            // ① 쓰기 + 검증용 값 수집 (같은 전용 스레드 작업)
-            var (flushed, plan) = await s.Thread.InvokeAsync(() =>
-            {
-                // Flush는 트랜잭션이 아니다: 예외가 나면 문서가 일부만 바뀌었을 수 있으므로 SaveCopy 없이 중단한다(원본은 그대로).
-                var p = s.FlushIfNeeded(appearance);
-                s.Document.SaveCopy(tmp);
-                return (CollectAnnotCounts(s.Document), p);
-            }, ct).ConfigureAwait(false);
+            // ① 쓰기(주석 Flush + SaveCopy) ② 객체 편집 확정 + 패치(PDFsharp) — 모두 임시 파일에만 (OutputCopyBuilder, M4)
+            var output = new Output.OutputCopyBuilder(appearance, patcher, assets);
+            // 사본을 쓴 뒤(내용 확정·패치)의 실패는 PostProcess 단계로 알린다.
+            int[] expected = (await output.BuildAsync(s, tmp, ct, onCopied: () => stage = SaveStage.PostProcess)
+                .ConfigureAwait(false)).ExpectedAnnotCounts;
 
-            // ② 패치(PDFsharp, 임시 파일에만) + 후처리
             stage = SaveStage.PostProcess;
-            int[] expected = (int[])flushed.Clone();
-            if (!plan.IsEmpty && SavePolicy.CanPatch(s))
-            {
-                if (patcher is null)
-                    throw new InvalidOperationException("Annotation patch plan needs an IAnnotationPatcher.");
-                ct.ThrowIfCancellationRequested();
-                patcher.Apply(tmp, s.Password, plan, assets ?? AnnotationAssets.Empty);
-                for (int i = 0; i < expected.Length; i++) expected[i] += plan.CountDelta(i);
-            }
             foreach (var pp in postProcessors)
             {
                 ct.ThrowIfCancellationRequested();
