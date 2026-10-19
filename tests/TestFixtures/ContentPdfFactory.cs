@@ -23,17 +23,19 @@ public static class ContentPdfFactory
     /// A4 세로 1쪽: Arial 한 줄(TrueType 서브셋), 맑은 고딕 한글 한 줄(CID, Identity-H), 표준 Helvetica 한 줄(임베드 없음),
     /// PNG 이미지 하나, 빨간 사각형 하나, 파란 선 하나. stripToUnicode면 맑은 고딕 글꼴의 /ToUnicode를 지운다.
     /// </summary>
-    public static void CreateDocumentLike(string path, bool stripToUnicode = false)
+    public static void CreateDocumentLike(string path, bool stripToUnicode = false, int pages = 1)
     {
         using (var doc = new PdfDocument())
         {
+            for (int pn = 0; pn < pages; pn++)
+            {
             var page = doc.AddPage();
             page.Width = XUnit.FromPoint(595);
             page.Height = XUnit.FromPoint(842);
             using (var g = XGraphics.FromPdfPage(page))
             {
                 var opt = new XPdfFontOptions(PdfFontEncoding.Unicode);
-                g.DrawString(LineArial, new XFont("Arial", 14, XFontStyleEx.Regular, opt), XBrushes.Black, new XPoint(60, 100));
+                g.DrawString(pn == 0 ? LineArial : $"{LineArial} p{pn + 1}", new XFont("Arial", 14, XFontStyleEx.Regular, opt), XBrushes.Black, new XPoint(60, 100));
                 g.DrawString(LineKorean, new XFont("Malgun Gothic", 14, XFontStyleEx.Regular, opt), XBrushes.Black, new XPoint(60, 140));
                 using var img = XImage.FromStream(new MemoryStream(TestImages.Png(40, 30, (x, y) => ((byte)(x * 6), (byte)(y * 8), 200, 255))));
                 g.DrawImage(img, 60, 200, 120, 90);
@@ -42,6 +44,7 @@ public static class ContentPdfFactory
             }
             AppendRawContent(doc, page, "/HelvF", "/Helvetica",
                 $"BT /HelvF 12 Tf 1 0 0 1 60 420 Tm ({LineHelvetica}) Tj ET");
+            }
             doc.Save(path);
         }
         if (stripToUnicode) StripToUnicode(path, "Malgun");

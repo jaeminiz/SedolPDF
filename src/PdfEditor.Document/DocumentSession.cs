@@ -5,6 +5,7 @@ using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.Document.Annotations.Reading;
 using PdfEditor.Document.Commands;
+using PdfEditor.Document.Content;
 using PdfEditor.Document.Saving;
 
 namespace PdfEditor.Document;
@@ -41,6 +42,7 @@ public sealed class DocumentSession : IAsyncDisposable
         OriginalSha256 = sha;
         Commands = new CommandStack(this);
         Annotations = new AnnotationStore(t, BumpAnnotRevision);
+        Content = new ContentEditStore(t);
         Permissions = doc.Permissions;
         IsEncrypted = doc.IsEncrypted;
         WasRepaired = !doc.HasValidCrossReferenceTable;
@@ -67,6 +69,9 @@ public sealed class DocumentSession : IAsyncDisposable
     public bool WasRepaired { get; }
     public CommandStack Commands { get; }
     public AnnotationStore Annotations { get; }
+
+    /// <summary>쪽 객체 편집 기록(M4). 쪽을 불러올 때마다 다시 적용된다.</summary>
+    public ContentEditStore Content { get; }
 
     /// <summary>
     /// 원본 주석을 다 붙였거나(또는 실패를 기록했거나) 끝나면 완료된다. 예외로 끝나지 않는다.
@@ -419,11 +424,50 @@ public sealed class DocumentSession : IAsyncDisposable
         return _cache.GetText(id, () => LoadPageOf(id));
     }
 
+    // 쪽 핸들마다 replay 결과(객체 표). 핸들이 캐시에서 밀려 닫히면 다음 GetLoadedPage가 새로 만든다.
+    private readonly Dictionary<PageId, (PdfPage Page, ReplayResult Result)> _replay = new();
+
     private PdfPage LoadPageOf(PageId id)
     {
         int idx = _order.IndexOf(id);
         if (idx < 0) throw new ArgumentException("문서에 없는 페이지입니다.", nameof(id));
-        return _doc.LoadPage(idx);
+        var page = _doc.LoadPage(idx);
+        // 객체 편집 기록이 있는 쪽만 다시 적용한다(없는 쪽은 비용 0). GenerateContent는 부르지 않는다(M4 C1).
+        var edits = Content.For(id);
+        if (edits.Length > 0)
+        {
+            try { _replay[id] = (page, ContentReplayer.Apply(page, edits)); }
+            catch { page.Dispose(); throw; }
+        }
+        else _replay.Remove(id);
+        return page;
+    }
+
+    /// <summary>전용 스레드 전용. 지금 쪽 핸들의 객체 표(편집을 적용한 뒤). 핸들은 다음 GetLoaded* 호출 너머로 쥐지 않는다.</summary>
+    public ReplayResult GetReplay(PageId id)
+    {
+        Thread.AssertOnThread();
+        var page = GetLoadedPage(id);
+        if (_replay.TryGetValue(id, out var r) && ReferenceEquals(r.Page, page)) return r.Result;
+        var fresh = ContentReplayer.Apply(page, []);   // 편집 없는 쪽: 원본 객체 표만
+        _replay[id] = (page, fresh);
+        return fresh;
+    }
+
+    private readonly Dictionary<PageId, PageObjectIndex> _objectIndex = new();
+
+    /// <summary>전용 스레드 전용. 화면 hit test용 객체 목록. (PageId, Version)이 같으면 다시 만들지 않는다.</summary>
+    public PageObjectIndex GetObjectIndex(PageId id)
+    {
+        Thread.AssertOnThread();
+        int ver = _versions[id];
+        if (_objectIndex.TryGetValue(id, out var cached) && cached.Version == ver) return cached;
+        var r = GetReplay(id);
+        var page = GetLoadedPage(id);
+        var text = GetLoadedText(id);
+        var built = PageObjectIndex.Build(id, ver, page, r, text);
+        _objectIndex[id] = built;
+        return built;
     }
 
     /// <summary>

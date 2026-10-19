@@ -1,0 +1,75 @@
+using Pdf.Native;
+
+namespace PdfEditor.Document.Content;
+
+/// <summary>화면용(앱 글꼴 줄을 윤곽선 경로로) 또는 출력용(앱 글꼴 줄은 건너뜀 — 패치 단계가 진짜 글자로 씀).</summary>
+public enum ReplayMode { Screen, Output }
+
+/// <summary>replay 뒤 객체를 찾는 표. Originals[i] = 원본 i번 객체, Inserted[id] = 편집 id가 넣은 객체.</summary>
+public sealed class ReplayResult(IReadOnlyList<PdfPageObject> originals, IReadOnlyDictionary<long, PdfPageObject> inserted, int skipped)
+{
+    public IReadOnlyList<PdfPageObject> Originals { get; } = originals;
+    public IReadOnlyDictionary<long, PdfPageObject> Inserted { get; } = inserted;
+
+    /// <summary>대상을 찾지 못해 건너뛴 편집 수(정상이면 0).</summary>
+    public int Skipped { get; } = skipped;
+
+    public PdfPageObject? Resolve(ObjectRef r) =>
+        r.IsInserted ? Inserted.GetValueOrDefault(r.InsertedId)
+        : r.OriginalIndex >= 0 && r.OriginalIndex < Originals.Count ? Originals[r.OriginalIndex] : null;
+}
+
+/// <summary>
+/// 편집 기록을 갓 불러온 쪽에 적용한다(PDFium 전용 스레드). 원본 번호를 먼저 모두 핸들로 잡은 뒤 적용하므로
+/// 넣기로 번호가 밀려도 대상이 바뀌지 않는다(C2). GenerateContent는 부르지 않는다(호출자 몫, 출력 사본에서만).
+/// </summary>
+public static class ContentReplayer
+{
+    public static ReplayResult Apply(PdfPage page, IReadOnlyList<ContentEdit> edits, ReplayMode mode = ReplayMode.Screen)
+    {
+        int n = page.ObjectCount;
+        var originals = new PdfPageObject[n];
+        for (int i = 0; i < n; i++) originals[i] = page.GetObject(i);
+        var inserted = new Dictionary<long, PdfPageObject>();
+        if (edits.Count == 0) return new ReplayResult(originals, inserted, 0);
+
+        // 원본 i번 바로 뒤에 넣은 객체 수(위치 계산용)
+        var afterCounts = new SortedList<int, int>();
+        int InsertPosAfter(int orig)
+        {
+            int extra = 0;
+            foreach (var (k, c) in afterCounts) { if (k > orig) break; extra += c; }
+            return orig + 1 + extra;
+        }
+
+        int skipped = 0;
+        var result = new ReplayResult(originals, inserted, 0);
+        foreach (var e in edits)
+        {
+            switch (e)
+            {
+                case DeactivateEdit d:
+                    if (result.Resolve(d.Target) is { } od) od.IsActive = false; else skipped++;
+                    break;
+                case TransformEdit t:
+                    if (result.Resolve(t.Target) is { } ot) ot.TransformBy(t.Then); else skipped++;
+                    break;
+                case InsertTextLikeEdit it:
+                    if (it.Original.IsInserted || result.Resolve(it.Original) is not { } src || page.CreateTextLike(src, it.Text) is not { } nt)
+                    {
+                        skipped++;
+                        break;
+                    }
+                    int orig = it.Original.OriginalIndex;
+                    page.InsertObject(nt, InsertPosAfter(orig));
+                    afterCounts[orig] = afterCounts.GetValueOrDefault(orig) + 1;
+                    inserted[it.Id] = nt;
+                    break;
+                default:
+                    skipped++;
+                    break;
+            }
+        }
+        return new ReplayResult(originals, inserted, skipped);
+    }
+}
