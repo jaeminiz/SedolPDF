@@ -18,6 +18,8 @@ public sealed unsafe class PdfTextPage : IDisposable
 
     private IntPtr H { get { _t.AssertOnThread(); ObjectDisposedException.ThrowIf(_handle == IntPtr.Zero, this); return _handle; } }
 
+    internal IntPtr Handle => H;
+
     public int CharCount => NativeMethods.FPDFText_CountChars(H);
 
     public string GetText(int start, int count)
