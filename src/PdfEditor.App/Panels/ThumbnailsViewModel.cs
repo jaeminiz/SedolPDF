@@ -71,6 +71,10 @@ public sealed class ThumbnailsViewModel : IDisposable
     /// <summary>현재 쪽이 바뀌었다. 패널이 그 칸을 보이는 위치로 스크롤한다.</summary>
     public event Action<int>? CurrentPageChanged;
 
+
+    /// <summary>끌어다 놓은 쪽 추가 자리(쪽 번호 0부터): 칸 overIndex의 아래쪽 절반이면 그 뒤, 위쪽이면 그 앞. 범위 밖이면 맨 끝.</summary>
+    public static int DropIndex(int overIndex, bool lowerHalf, int count) =>
+        overIndex < 0 || overIndex >= count ? count : overIndex + (lowerHalf ? 1 : 0);
     // ---- 보이는 칸 ----
 
     public void MarkVisible(PageId id)

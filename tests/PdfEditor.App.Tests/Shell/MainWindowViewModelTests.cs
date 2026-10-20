@@ -82,7 +82,9 @@ public class MainWindowViewModelTests
         // 14개 + 더보기 10개 = 만들기 도구 24개가 한 번씩 (손·텍스트 선택·주석 선택 포함)
         var all = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Where(i => i.Tool is not null).Concat(more.MoreItems!.Where(i => i.Tool is not null)).Select(i => i.Tool!.Value).ToList();
         Assert.Equal(all.Count, all.Distinct().Count());
-        Assert.Equal(Enum.GetValues<ToolKind>().Length, all.Count);
+        // 쪽 객체 도구(M4: 편집 탭)는 주석 탭에 없다
+        var objectTools = new[] { ToolKind.EditObject, ToolKind.EditText, ToolKind.AddText, ToolKind.AddImage, ToolKind.AddShape };
+        Assert.Equal(Enum.GetValues<ToolKind>().Except(objectTools).Count(), all.Count);
     }
 
     [Fact]

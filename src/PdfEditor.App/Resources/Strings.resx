@@ -107,6 +107,10 @@
   <data name="Cmd_MoveTo" xml:space="preserve"><value>위치 지정…</value></data>
   <data name="Cmd_PageInsertBlank" xml:space="preserve"><value>빈 페이지 삽입</value></data>
   <data name="Cmd_PageInsertFromFile" xml:space="preserve"><value>파일에서 페이지 삽입</value></data>
+  <data name="Cmd_PageExtract" xml:space="preserve"><value>페이지 추출…</value></data>
+  <data name="Doc_ExtractSuggestedName" xml:space="preserve"><value>{0}_{1}쪽.pdf</value></data>
+  <data name="Msg_ExtractDone" xml:space="preserve"><value>{0}쪽을 새 PDF로 저장했습니다.
+{1}</value></data>
   <data name="Cmd_PageMoveForward" xml:space="preserve"><value>페이지 앞으로 이동</value></data>
   <data name="Cmd_PageMoveBack" xml:space="preserve"><value>페이지 뒤로 이동</value></data>
   <data name="Cmd_PageMoveTo" xml:space="preserve"><value>페이지 위치 지정</value></data>

@@ -115,6 +115,9 @@ public static class Strings
     public static string Cmd_MoveBack => Get(nameof(Cmd_MoveBack));
     public static string Cmd_MoveTo => Get(nameof(Cmd_MoveTo));
     public static string Cmd_PageInsertBlank => Get(nameof(Cmd_PageInsertBlank));
+    public static string Cmd_PageExtract => Get(nameof(Cmd_PageExtract));
+    public static string Doc_ExtractSuggestedName => Get(nameof(Doc_ExtractSuggestedName));
+    public static string Msg_ExtractDone => Get(nameof(Msg_ExtractDone));
     public static string Cmd_PageInsertFromFile => Get(nameof(Cmd_PageInsertFromFile));
     public static string Cmd_PageMoveForward => Get(nameof(Cmd_PageMoveForward));
     public static string Cmd_PageMoveBack => Get(nameof(Cmd_PageMoveBack));

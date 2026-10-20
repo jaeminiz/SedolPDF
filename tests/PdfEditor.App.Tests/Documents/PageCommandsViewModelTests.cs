@@ -295,4 +295,47 @@ public class PageCommandsViewModelTests : IAsyncLifetime
         Assert.Equal(expected, Widths(reopened));
         Assert.Equal(s.Pages.Select(p => p.HeightPt), reopened.Pages.Select(p => p.HeightPt));
     }
+    // ---- 2026-10-20 사용자 요청: 썸네일에서 페이지 추가(끌어다 놓기)·추출 ----
+
+    [Fact]
+    public async Task InsertFilesAt_DropBetweenPages_AllPagesInOrder_UndoPerFile()
+    {
+        var (s, _, vm) = await OpenAsync(Make("base.pdf", 3));   // 100,110,120
+        string a = P("a.pdf"), b = P("b.pdf");
+        TestPdfFactory.CreateLabeled(a, [(300, 200), (310, 200)]);
+        TestPdfFactory.CreateLabeled(b, [(400, 200)]);
+        await vm.InsertFilesAtAsync([a, b], 1);
+        Assert.Equal([100f, 300f, 310f, 400f, 110f, 120f], Widths(s));
+        await s.Commands.UndoAsync();
+        Assert.Equal([100f, 300f, 310f, 110f, 120f], Widths(s));
+        Assert.Empty(_p.Errors);
+    }
+
+    [Theory]
+    [InlineData(0, false, 3, 0)]
+    [InlineData(0, true, 3, 1)]
+    [InlineData(2, true, 3, 3)]
+    [InlineData(-1, false, 3, 3)]
+    public void DropIndex_UpperHalfBefore_LowerHalfAfter_OutsideEnd(int over, bool lower, int count, int expected)
+        => Assert.Equal(expected, PdfEditor.App.Panels.ThumbnailsViewModel.DropIndex(over, lower, count));
+
+    [Fact]
+    public async Task Extract_SelectedPages_SuggestsName_WritesNewPdf()
+    {
+        var (s, tab, vm) = await OpenAsync(Make("doc.pdf", 4));
+        tab.SelectedPages = new HashSet<PageId>([s.Pages[1].Id, s.Pages[3].Id]);
+        string target = P("out.pdf");
+        _p.SavePicks.Enqueue(target);
+        await vm.ExtractCommand.ExecuteAsync(null);
+        Assert.Empty(_p.Errors);
+        Assert.Equal("doc_2-4쪽.pdf", _p.SuggestedNames[^1]);
+        var widths = await _t.InvokeAsync(() =>
+        {
+            using var d = PdfDocument.Open(_t, target);
+            return Enumerable.Range(0, d.PageCount).Select(i => d.GetPageSizePt(i).Width).ToArray();
+        });
+        Assert.Equal([110f, 130f], widths);
+        Assert.Single(_p.Infos);
+        Assert.Equal(4, s.Pages.Length);
+    }
 }

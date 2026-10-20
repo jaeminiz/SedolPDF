@@ -19,7 +19,7 @@
       <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
   </UserControl.Styles>
-  <ListBox x:Name="List" Classes="thumbs" ItemsSource="{Binding Items}" SelectionMode="Multiple"
+  <ListBox x:Name="List" Classes="thumbs" ItemsSource="{Binding Items}" SelectionMode="Multiple" DragDrop.AllowDrop="True"
            Background="Transparent" Padding="0,4"
            ScrollViewer.HorizontalScrollBarVisibility="Disabled">
     <ListBox.ItemsPanel>
@@ -45,6 +45,9 @@
         <MenuItem Header="{x:Static res:Strings.Cmd_PageRotateLeft}" Command="{Binding Commands.RotateLeftCommand}" />
         <MenuItem Header="{x:Static res:Strings.Cmd_PageRotateRight}" Command="{Binding Commands.RotateRightCommand}" />
         <MenuItem Header="{x:Static res:Strings.Cmd_PageInsertBlank}" Command="{Binding Commands.InsertBlankCommand}" />
+        <MenuItem Header="{x:Static res:Strings.Cmd_PageInsertFromFile}" Command="{Binding Commands.InsertFromFileCommand}" />
+        <Separator />
+        <MenuItem Header="{x:Static res:Strings.Cmd_PageExtract}" Command="{Binding Commands.ExtractCommand}" />
       </ContextMenu>
     </ListBox.ContextMenu>
   </ListBox>

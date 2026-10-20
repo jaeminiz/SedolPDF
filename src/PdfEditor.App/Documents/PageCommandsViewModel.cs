@@ -39,6 +39,7 @@ public sealed class PageCommandsViewModel : IDisposable
         InsertBlankCommand = Cmd(InsertBlankAsync, CanEdit);
         InsertFromFileCommand = Cmd(InsertFromFileAsync, CanEdit);
         MergeCommand = Cmd(MergeAsync, CanEdit);
+        ExtractCommand = Cmd(ExtractAsync, () => !_s.Commands.IsBusy && _s.Pages.Length > 0);
         UndoCommand = Cmd(() => Run(_s.Commands.UndoAsync), () => !_s.Commands.IsBusy && _s.Commands.CanUndo);
         RedoCommand = Cmd(() => Run(_s.Commands.RedoAsync), () => !_s.Commands.IsBusy && _s.Commands.CanRedo);
 
@@ -56,6 +57,7 @@ public sealed class PageCommandsViewModel : IDisposable
     public IAsyncRelayCommand InsertBlankCommand { get; }
     public IAsyncRelayCommand InsertFromFileCommand { get; }
     public IAsyncRelayCommand MergeCommand { get; }
+    public IAsyncRelayCommand ExtractCommand { get; }
     public IAsyncRelayCommand UndoCommand { get; }
     public IAsyncRelayCommand RedoCommand { get; }
 
@@ -255,6 +257,56 @@ public sealed class PageCommandsViewModel : IDisposable
         }
     });
 
+
+    // ---- 페이지 추출 (2026-10-20 사용자 요청) ----
+
+    private Task ExtractAsync() => Run(async () =>
+    {
+        var idx = TargetIndices();
+        if (idx.Count == 0) return;
+        string baseName = Path.GetFileNameWithoutExtension(_s.DisplayName);
+        string range = idx.Count == 1 ? $"{idx[0] + 1}" : $"{idx[0] + 1}-{idx[^1] + 1}";
+        string? target = await _prompts.PickSaveFileAsync(string.Format(Strings.Doc_ExtractSuggestedName, baseName, range));
+        if (target is null) return;
+        var svc = DocumentTabViewModel.Appearance;
+        var output = new PdfEditor.Document.Output.OutputCopyBuilder(svc?.Appearance, svc?.Patcher, svc?.Assets);
+        await PdfEditor.Document.Output.PageExtractor.ExtractAsync(_s, output, idx, Path.GetFullPath(target));
+        await _prompts.ShowInfoAsync(string.Format(Strings.Msg_ExtractDone, idx.Count, target));
+    });
+
+    // ---- 끌어다 놓기로 쪽 추가 (2026-10-20 사용자 요청) ----
+
+    /// <summary>PDF 파일들의 모든 쪽을 at(쪽 번호 0부터) 자리에 차례로 넣는다. 암호가 있으면 묻는다. 실행 취소는 파일마다 한 번.</summary>
+    public Task InsertFilesAtAsync(IReadOnlyList<string> paths, int at) => Run(async () =>
+    {
+        if (!CanEdit() || paths.Count == 0) return;
+        int pos = Math.Clamp(at, 0, _s.Pages.Length);
+        int first = pos;
+        foreach (var path in paths)
+        {
+            var opened = await OpenSourceAsync(path);
+            if (opened is null) continue;
+            var (src, srcBytes, srcPassword) = opened.Value;
+            bool handedOver = false;
+            try
+            {
+                int n = await _s.Thread.InvokeAsync(() => src.PageCount);
+                if (n == 0) continue;
+                int[] indices = [.. Enumerable.Range(0, n)];
+                var originals = await OriginalAnnotationLoader.ReadAsync(_s.Thread, src, srcBytes, srcPassword, indices);
+                if (originals is null) _s.MarkOriginalAnnotationsReadOnly();
+                pos = Math.Clamp(pos, 0, _s.Pages.Length);
+                await _s.Commands.ExecuteAsync(new ImportPagesCommand(src, indices, pos, originals));
+                handedOver = true;
+                pos += n;
+            }
+            finally
+            {
+                if (!handedOver) await _s.Thread.InvokeAsync(src.Dispose);
+            }
+        }
+        if (pos > first) _post(() => _doc.CurrentPageIndex = first);
+    });
     /// <summary>파일을 읽어 열고, 암호가 필요하면 묻는다. 취소하거나 열지 못하면 null (오류는 이미 보여 줌).</summary>
     private async Task<(PdfDocument Doc, byte[] Bytes, string? Password)?> OpenSourceAsync(string path)
     {
