@@ -16,6 +16,8 @@ public class ErrorMessagesTests
         Assert.Equal(string.Format(Strings.Err_Pdfium_Unknown, 42), ErrorMessages.For(new PdfiumException(42, "dev")));
         Assert.Equal(Strings.Err_PasswordWrong, ErrorMessages.For(new PdfPasswordRequiredException("op")));
 
+        Assert.Equal(string.Format(Strings.Err_Save_ContentRegeneration, 3), ErrorMessages.For(new PdfEditor.Document.Output.ContentRegenerationException(3)));
+        Assert.Equal(string.Format(Strings.Err_Save_ContentRegeneration, 3), ErrorMessages.For(new SaveException(SaveStage.PostProcess, new PdfEditor.Document.Output.ContentRegenerationException(3))));
         Assert.Equal(Strings.Err_Save_ReplaceLocked,
             ErrorMessages.For(new SaveException(SaveStage.Replace, new IOException("locked"))));
         Assert.Equal(Strings.Err_Save_Replace,

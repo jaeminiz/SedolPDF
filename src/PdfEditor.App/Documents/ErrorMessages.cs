@@ -20,6 +20,8 @@ public static class ErrorMessages
             6 => Strings.Err_Pdfium_6,
             _ => string.Format(Strings.Err_Pdfium_Unknown, p.ErrorCode),
         },
+        PdfEditor.Document.Output.ContentRegenerationException c => string.Format(Strings.Err_Save_ContentRegeneration, c.PageNumber),
+        SaveException { InnerException: PdfEditor.Document.Output.ContentRegenerationException c } => string.Format(Strings.Err_Save_ContentRegeneration, c.PageNumber),
         SaveException s => s.Stage switch
         {
             SaveStage.Write => Strings.Err_Save_Write,

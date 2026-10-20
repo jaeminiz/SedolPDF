@@ -69,7 +69,7 @@ public sealed class IccColorOutputTests : IDisposable
         string outp = Path.Combine(_dir, "o.pdf");
         await new SaveService([], null, null, null).SaveAsync(s, outp);
         var after = Count(outp);
-        Assert.Equal(before.White, after.White);   // 흰 배경이 그대로(검정이 되지 않음)
+        Assert.InRange(after.White, before.White - 300, before.White + 300);   // 흰 배경이 그대로(검정이 되지 않음) — 글 색은 건드리지 않으므로 글자 가장자리 몇 픽셀은 다를 수 있다
         Assert.True(after.Dark <= before.Dark + 400, $"dark {before.Dark} -> {after.Dark}");
     }
 }

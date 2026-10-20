@@ -76,4 +76,18 @@ public class ObjectSelectionControllerTests
         c.Refresh(Index());
         Assert.Null(c.Selected);
     }
+
+    [Fact]
+    public void Refresh_ManySelectedOnHugePage_StaysFast_AndKeepsOnlySurvivors()
+    {
+        // 큰 도면(20만 객체)에서 사각형 끌기로 수천 개를 고른 뒤 편집 때마다 선택을 따라간다(UI 스레드) — 선택 수 x 객체 수로 훑으면 수 초.
+        var entries = Enumerable.Range(0, 200_000).Select(i => E(i, PdfPageObjectType.Path, new PdfRectF(i % 500, i / 500, i % 500 + 1, i / 500 + 1))).ToArray();
+        var c = new ObjectSelectionController();
+        c.SelectMany(Enumerable.Range(0, 5000).Select(i => new SelectedObject(Page, ObjectRef.Original(i * 3), PdfPageObjectType.Path, new PdfRectF(0, 0, 1, 1))));
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        c.Refresh(new PageObjectIndex(Page, 1, entries.Where(e => e.Ref.OriginalIndex != 3).ToArray()));   // 하나는 사라짐
+        sw.Stop();
+        Assert.Equal(4999, c.All.Count);
+        Assert.True(sw.ElapsedMilliseconds < 500, $"Refresh took {sw.ElapsedMilliseconds} ms");
+    }
 }

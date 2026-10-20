@@ -53,7 +53,9 @@ public static class ContentPdfFactory
     /// <summary>
     /// A3 가로 1쪽 도면형: 쪽 전체 테두리, 폼 XObject 안에 선·텍스트·폼(2단) 중첩, 클리핑, 점선, 반투명 채움, 그러데이션 채움.
     /// </summary>
-    public static void CreateDrawingLike(string path)
+    public static void CreateDrawingLike(string path) => CreateDrawingLike(path, true);
+
+    public static void CreateDrawingLike(string path, bool gradient)
     {
         using var doc = new PdfDocument();
         var page = doc.AddPage();
@@ -89,8 +91,9 @@ public static class ContentPdfFactory
             var dash = new XPen(XColors.DarkBlue, 1.5) { DashStyle = XDashStyle.Dash };
             g.DrawLine(dash, 60, 450, 1100, 450);                                       // 점선
             g.DrawRectangle(new XSolidBrush(XColor.FromArgb(128, 255, 0, 0)), 650, 250, 200, 120);   // 반투명
-            g.DrawRectangle(new XLinearGradientBrush(new XPoint(900, 250), new XPoint(1100, 370),
-                XColors.Yellow, XColors.Purple), 900, 250, 200, 120);                   // 그러데이션
+            if (gradient)   // 그러데이션 — 객체 편집 저장은 이런 쪽을 막는다(충실도 보호), 편집 시험 샘플은 끈다
+                g.DrawRectangle(new XLinearGradientBrush(new XPoint(900, 250), new XPoint(1100, 370),
+                    XColors.Yellow, XColors.Purple), 900, 250, 200, 120);
             g.DrawString("TITLE BLOCK 표제란", new XFont("Malgun Gothic", 12, XFontStyleEx.Regular, opt),
                 XBrushes.Black, new XPoint(900, 780));
         }

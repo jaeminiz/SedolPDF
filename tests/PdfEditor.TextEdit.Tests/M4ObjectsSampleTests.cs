@@ -131,7 +131,7 @@ public sealed class M4ObjectsSampleTests : IDisposable
     public async Task Sample_DrawingLike_SavedAndReopened()
     {
         string src = Path.Combine(_dir, "drawing.pdf");
-        ContentPdfFactory.CreateDrawingLike(src);
+        ContentPdfFactory.CreateDrawingLike(src, false);
         await using var s = await DocumentSession.OpenAsync(_t, src, null);
 
         // 표제란 글(쪽 수준 텍스트)을 바꾸고, 폼(묶음) 전체를 옮기고, 새 이미지·도형·텍스트를 넣는다

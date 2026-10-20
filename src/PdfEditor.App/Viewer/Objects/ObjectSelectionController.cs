@@ -75,9 +75,12 @@ public sealed class ObjectSelectionController
     public void Refresh(PageObjectIndex idx)
     {
         if (_all.Count == 0 || _all[0].Page != idx.Page || IsDragging) return;
+        // 사각형 끌기로 수천 개를 골랐을 수 있다 — 선택 수 x 객체 수(최대 20만)로 훑지 않고 표를 한 번 만든다(UI 스레드).
+        var byRef = new Dictionary<ObjectRef, PageObjectEntry>();
+        foreach (var x in idx.Entries) byRef.TryAdd(x.Ref, x);
         var next = new List<SelectedObject>();
         foreach (var s in _all)
-            if (idx.Entries.FirstOrDefault(x => x.Ref == s.Ref) is { } e) next.Add(s with { Bounds = e.Bounds, Type = e.Type });
+            if (byRef.TryGetValue(s.Ref, out var e)) next.Add(s with { Bounds = e.Bounds, Type = e.Type });
         SelectMany(next);
     }
 

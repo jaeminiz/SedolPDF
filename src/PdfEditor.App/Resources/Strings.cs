@@ -188,6 +188,7 @@ public static class Strings
     public static string Err_Pdfium_6 => Get(nameof(Err_Pdfium_6));
     public static string Err_Pdfium_Unknown => Get(nameof(Err_Pdfium_Unknown));
     public static string Err_Save_Write => Get(nameof(Err_Save_Write));
+    public static string Err_Save_ContentRegeneration => Get(nameof(Err_Save_ContentRegeneration));
     public static string Err_Save_PostProcess => Get(nameof(Err_Save_PostProcess));
     public static string Err_Save_Verify => Get(nameof(Err_Save_Verify));
     public static string Err_Save_Replace => Get(nameof(Err_Save_Replace));
