@@ -263,7 +263,7 @@ public sealed partial class DocumentView
 
     /// <summary>
     /// 끌어서 그린 사각형 안의 것을 고른다. 주석 선택 도구: 겹치는 주석(묶음은 함께), 주석이 없으면 편집 탭으로 넣은 객체(겹치는 것) → 개체 편집으로 전환.
-    /// 개체 편집 도구: 사각형 안에 완전히 든, 편집 탭으로 넣은 객체. Ctrl/Shift로 시작했으면 원래 선택에 더한다.
+    /// 개체 편집 도구: 사각형 안에 완전히 든 원래 쪽 내용 객체(주석·편집 탭으로 넣은 것은 제외). Ctrl/Shift로 시작했으면 원래 선택에 더한다.
     /// </summary>
     private void FinishMarquee(ViewState st, PageId page)
     {
@@ -305,8 +305,8 @@ public sealed partial class DocumentView
         }
         if (!tab.CanEditContent || _gPage < 0 || _gPage >= _layoutPages.Length || !TryGetObjectIndex(st, _layoutPages[_gPage], out var idx)) return;
         bool objectTool = tab.Tool == ToolKind.EditObject;
-        // 끌어서 고르는 것은 편집 탭으로 넣은 객체뿐이다(원래 쪽 내용 전체가 한꺼번에 잡히면 곤란 — 2026-10-20 사용자 보고). 원래 객체는 클릭(Ctrl/Shift+클릭으로 더하기)으로 고른다.
-        var hits = idx.Entries.Where(e => !e.IsFrame && e.Ref.IsInserted
+        // 개체 편집 도구의 끌기: 원래 쪽 내용 객체만(주석과 편집 탭으로 넣은 것은 주석 선택 도구의 몫 — 2026-10-20 사용자 요청, 서로 다른 종류).
+        var hits = idx.Entries.Where(e => !e.IsFrame && !e.Ref.IsInserted
             && (objectTool ? e.Bounds.Left >= l && e.Bounds.Right <= r && e.Bounds.Bottom >= b && e.Bounds.Top <= t
                            : e.Bounds.Left <= r && e.Bounds.Right >= l && e.Bounds.Bottom <= t && e.Bounds.Top >= b))
             .Select(e => new PdfEditor.App.Viewer.Objects.SelectedObject(page, e.Ref, e.Type, e.Bounds)).ToList();

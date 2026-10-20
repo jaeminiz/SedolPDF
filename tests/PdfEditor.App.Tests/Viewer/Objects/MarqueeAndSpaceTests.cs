@@ -130,21 +130,17 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
     }
 
     [Fact]
-    public async Task ObjectEditMarquee_SelectsOnlyFullyContainedObjects()
+    public async Task ObjectEditMarquee_SelectsOriginalPageObjectsOnly_NeverAnnotationsOrInsertedOnes()
     {
         var (h, a, b) = await TwoShapesAsync(ToolKind.EditObject);
-        // 왼쪽 도형만 완전히 감싸는 사각형(위 기준 y 490~560, x 280~380)
-        Drag(h, AtPt(h, 280, 490), AtPt(h, 380, 560));
-        PumpUi(() => h.Tab.Objects.All.Count >= 1);
-        Assert.Equal([PdfEditor.Document.Content.ObjectRef.Inserted(a.Id)], h.Tab.Objects.All.Select(x => x.Ref).ToArray());
-        // 둘 다 감싸면 둘 다
-        Drag(h, AtPt(h, 280, 490), AtPt(h, 480, 560));
-        PumpUi(() => h.Tab.Objects.All.Count == 2);
-        // 쪽 전체를 감싸도 원래 쪽 내용(글자·이미지·도형)은 잡히지 않는다: 넣은 두 도형만
+        var page = h.Session.Pages[0].Id;
+        var sq = Square(h.Session, 100, 842 - 540, 160, 842 - 500);
+        await h.Session.Commands.ExecuteAsync(new ChangeAnnotationsCommand(page, [new AnnotationChange(null, sq)]));
+        // 쪽 전체를 감싸는 끌기: 원래 쪽 내용(글자·이미지·도형)만 고르고, 주석과 넣은 도형은 고르지 않는다
         Drag(h, AtPt(h, 5, 5), AtPt(h, 590, 835));
-        PumpUi(() => true);
-        Assert.Equal(2, h.Tab.Objects.All.Count);
-        Assert.All(h.Tab.Objects.All, x => Assert.True(x.Ref.IsInserted));
+        PumpUi(() => h.Tab.Objects.All.Count > 0);
+        Assert.All(h.Tab.Objects.All, x => Assert.False(x.Ref.IsInserted));
+        Assert.Empty(h.Tab.Selection.Ids);   // 주석은 선택되지 않는다
     }
 
     [Fact]
