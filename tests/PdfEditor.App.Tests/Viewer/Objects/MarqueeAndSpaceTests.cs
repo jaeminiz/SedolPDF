@@ -138,5 +138,10 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
         // 둘 다 감싸면 둘 다
         Drag(h, AtPt(h, 280, 490), AtPt(h, 480, 560));
         PumpUi(() => h.Tab.Objects.All.Count == 2);
+        // 쪽 전체를 감싸도 원래 쪽 내용(글자·이미지·도형)은 잡히지 않는다: 넣은 두 도형만
+        Drag(h, AtPt(h, 5, 5), AtPt(h, 590, 835));
+        PumpUi(() => true);
+        Assert.Equal(2, h.Tab.Objects.All.Count);
+        Assert.All(h.Tab.Objects.All, x => Assert.True(x.Ref.IsInserted));
     }
 }
