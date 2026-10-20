@@ -1,4 +1,4 @@
-using RectangleF = System.Drawing.RectangleF;
+﻿using RectangleF = System.Drawing.RectangleF;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -27,7 +27,10 @@ namespace PdfEditor.App.Viewer;
 /// </summary>
 public sealed partial class DocumentView
 {
-    private enum Gesture { None, Create, Erase, Select }
+    private enum Gesture { None, Create, Erase, Select, Marquee }
+
+    private PdfPointF _mqStart, _mqEnd;
+    private bool _mqAdd;
 
     private Gesture _gesture;
     private int _gPage = -1;
@@ -130,7 +133,15 @@ public sealed partial class DocumentView
         {
             var annots = st.Session.Annotations.Get(info.Id);
             var h = tab.Editing.HitTest(annots, tab.Selection, pt, ptPerDip);
-            if (h is null) { if (!toggle) tab.Selection.Clear(); return true; }
+            if (h is null)
+            {
+                // 빈 곳에서 끌면 사각형으로 여러 주석을 한꺼번에 고른다(2026-10-20 사용자 요청)
+                if (!toggle) tab.Selection.Clear();
+                _mqStart = _mqEnd = pt;
+                _mqAdd = toggle;
+                StartGesture(e.Pointer, Gesture.Marquee, e.PageIndex, info.Id, g);
+                return true;
+            }
             if (toggle) { ToggleGroupSelection(tab, annots, info.Id, h.Id); return true; }
             var data = annots.Items.FirstOrDefault(v => v.Data.Id == h.Id)?.Data;
             if (e.ClickCount >= 2 && h.Handle == HandleKind.Body && data?.Kind is AnnotKind.Text or AnnotKind.Caret)
@@ -214,8 +225,37 @@ public sealed partial class DocumentView
         }
         if (_gesture == Gesture.None || _state is not { } st) return;
         if (GesturePoint(e) is not { } pt) { CancelGesture(); return; }
+        if (_gesture == Gesture.Marquee) { _mqEnd = pt; InvalidateVisual(); return; }
         if (_gesture == Gesture.Select) st.Tab.Editing.Move(pt); else st.Tab.Tools.Move(pt, shift);
         PushPreview();
+    }
+
+    /// <summary>끌어서 그린 사각형과 겹치는 주석을 모두 고른다(묶음은 함께). Ctrl/Shift로 시작했으면 원래 선택에 더한다.</summary>
+    private void FinishMarquee(ViewState st, PageId page)
+    {
+        _gGeom = null;
+        InvalidateVisual();
+        var tab = st.Tab;
+        float l = Math.Min(_mqStart.X, _mqEnd.X), r = Math.Max(_mqStart.X, _mqEnd.X), b = Math.Min(_mqStart.Y, _mqEnd.Y), t = Math.Max(_mqStart.Y, _mqEnd.Y);
+        float minPt = (float)(3 / (_layout?.Scale ?? 1));
+        if (r - l < minPt && t - b < minPt) return;   // 그냥 클릭
+        var annots = st.Session.Annotations.Get(page);
+        var ids = annots.Items.Where(v => v.Data is { } d && d.Rect.Left <= r && d.Rect.Right >= l && d.Rect.Bottom <= t && d.Rect.Top >= b)
+            .Select(v => v.Data.Id).ToList();
+        if (ids.Count == 0) return;
+        var all = SelectionController.ExpandGroups(annots, ids).ToList();
+        if (_mqAdd && tab.Selection.Page == page) foreach (var id in tab.Selection.Ids) if (!all.Contains(id)) all.Add(id);
+        tab.Selection.Set(page, all);
+    }
+
+    private void DrawMarquee(DrawingContext ctx, PageInfo info, Rect pr, double scale)
+    {
+        if (_gesture != Gesture.Marquee || _gGeom is null || _gPage < 0 || _gPage >= _layoutPages.Length || _layoutPages[_gPage].Id != info.Id) return;
+        var tr = new PageTransform(_gGeom.Bounds, _gGeom.Rotation, scale);
+        var a = tr.ToView(new RectangleF(_mqStart.X, _mqStart.Y, 0, 0));
+        var c = tr.ToView(new RectangleF(_mqEnd.X, _mqEnd.Y, 0, 0));
+        var box = new Rect(new Point(pr.X + a.X, pr.Y + a.Y), new Point(pr.X + c.X, pr.Y + c.Y)).Normalize();
+        ctx.DrawRectangle(new SolidColorBrush(Color.FromArgb(0x22, 0x00, 0x5F, 0xB8)), new Pen(SelAccent, 1, new DashStyle([4, 3], 0)), box);
     }
 
     private bool IsAnnotationHover(PointerEventArgs e) => _layout?.HitTest(e.GetPosition(this)) is not null;
@@ -254,6 +294,7 @@ public sealed partial class DocumentView
             return true;
         }
         var tab = st.Tab;
+        if (kind == Gesture.Marquee) { FinishMarquee(st, _gPageId); return true; }
         bool shift = (e.KeyModifiers & KeyModifiers.Shift) != 0;
         var cmd = kind == Gesture.Select ? tab.Editing.End(p) : tab.Tools.End(p, shift);
         if (cmd is null)

@@ -1,19 +1,29 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="PdfEditor.App.Dialogs.AboutDialog"
-        SizeToContent="WidthAndHeight" MinWidth="340"
+        Width="560" SizeToContent="Height"
         CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="#F3F3F3">
   <StackPanel Margin="24,20,24,16" Spacing="12">
-    <TextBlock x:Name="NameText" FontSize="20" FontWeight="SemiBold" Foreground="#1A1A1A" />
-    <TextBlock x:Name="VersionText" Foreground="#5C5C5C" />
-    <TextBlock x:Name="DescriptionText" Foreground="#1A1A1A" />
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+      <Image Source="avares://SedolPDF/Assets/sedolpdf-256.png" Width="96" Height="96" VerticalAlignment="Top" />
+      <StackPanel Grid.Column="1" Spacing="3">
+        <TextBlock x:Name="NameText" FontSize="26" FontWeight="SemiBold" Foreground="#1A1A1A" />
+        <TextBlock x:Name="VersionText" Foreground="#1A1A1A" FontWeight="SemiBold" />
+        <TextBlock x:Name="BuildText" Foreground="#5C5C5C" />
+        <TextBlock x:Name="DescriptionText" Foreground="#1A1A1A" TextWrapping="Wrap" Margin="0,8,0,0" />
+      </StackPanel>
+    </Grid>
+    <Border Height="1" Background="#1A000000" />
     <StackPanel Spacing="2">
+      <TextBlock x:Name="CopyrightText" Foreground="#1A1A1A" />
       <TextBlock x:Name="AuthorsText" Foreground="#1A1A1A" />
-      <TextBlock x:Name="Contact1Text" Foreground="#5C5C5C" />
-      <TextBlock x:Name="Contact2Text" Foreground="#5C5C5C" />
-      <TextBlock x:Name="CopyrightText" Foreground="#5C5C5C" Margin="0,6,0,0" />
+      <SelectableTextBlock x:Name="Contact1Text" Foreground="#5C5C5C" />
+      <SelectableTextBlock x:Name="Contact2Text" Foreground="#5C5C5C" />
     </StackPanel>
+    <TextBlock x:Name="LicenseText" Foreground="#5C5C5C" TextWrapping="Wrap" />
+    <TextBlock x:Name="ThirdTitle" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,4,0,0" />
+    <TextBlock x:Name="ThirdText" Foreground="#5C5C5C" TextWrapping="Wrap" />
     <TextBlock x:Name="NoticeStatus" Foreground="#C42B1C" IsVisible="False" TextWrapping="Wrap" />
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
       <Button x:Name="NoticesButton" MinWidth="120" />

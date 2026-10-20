@@ -463,9 +463,14 @@
   <data name="Help_Shortcuts" xml:space="preserve"><value>단축키</value></data>
   <data name="Help_ShortcutsText" xml:space="preserve"><value>Ctrl+O 열기 · Ctrl+S 저장 · Ctrl+Shift+S 다른 이름으로 저장 · Ctrl+P 인쇄
 Ctrl+Z 실행 취소 · Ctrl+Y 다시 실행 · Ctrl+F 찾기 · F3 다음 찾기
-Ctrl+1 실제 크기 · Ctrl+2 폭 맞춤 · Ctrl+0 쪽 맞춤 · F11 전체 화면
+Ctrl+1 실제 크기 · Ctrl+2 폭 맞춤 · Ctrl+0 쪽 맞춤 · Ctrl+L 또는 F11 전체 화면
 Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value></data>
   <data name="Help_Note" xml:space="preserve"><value>자세한 매뉴얼은 이후 단계에서 제공됩니다.</value></data>
   <data name="About_Description" xml:space="preserve"><value>Windows용 오픈소스 PDF 편집기</value></data>
   <data name="About_Copyright" xml:space="preserve"><value>© 2026 박재민 · 박세현. MIT 라이선스</value></data>
+  <data name="Msg_SnapshotWorking" xml:space="preserve"><value>스냅숏을 만드는 중…</value></data>
+  <data name="About_BuildDate" xml:space="preserve"><value>빌드 날짜: {0}</value></data>
+  <data name="About_License" xml:space="preserve"><value>이 프로그램은 MIT 라이선스로 배포되는 오픈소스 소프트웨어입니다. 개인과 기업 모두 무료로 쓸 수 있습니다.</value></data>
+  <data name="About_ThirdTitle" xml:space="preserve"><value>사용한 오픈소스</value></data>
+  <data name="About_ThirdList" xml:space="preserve"><value>PDFium (BSD-3-Clause) · PDFsharp (MIT) · Avalonia (MIT) · HarfBuzzSharp (MIT) · CommunityToolkit.Mvvm (MIT) · Noto Sans KR 글꼴 (SIL OFL 1.1). 자세한 고지는 아래 &quot;타사 고지 보기&quot;에서 볼 수 있습니다.</value></data>
 </root>

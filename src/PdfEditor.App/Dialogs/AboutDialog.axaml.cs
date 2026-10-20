@@ -15,6 +15,10 @@ public sealed partial class AboutDialog : Window
         Title = Strings.Dlg_AboutTitle;
         NameText.Text = Strings.App_Name;
         VersionText.Text = string.Format(Strings.Dlg_AboutVersion, VersionString());
+        BuildText.Text = string.Format(Strings.About_BuildDate, BuildDate());
+        LicenseText.Text = Strings.About_License;
+        ThirdTitle.Text = Strings.About_ThirdTitle;
+        ThirdText.Text = Strings.About_ThirdList;
         DescriptionText.Text = Strings.About_Description;
         CopyrightText.Text = Strings.About_Copyright;
         AuthorsText.Text = Strings.About_Authors;
@@ -24,6 +28,13 @@ public sealed partial class AboutDialog : Window
         CloseButton.Content = Strings.Dlg_AboutClose;
         NoticesButton.Click += (_, _) => OpenNotices();
         CloseButton.Click += (_, _) => Close();
+    }
+
+    /// <summary>실행 파일의 빌드 날짜(파일 수정 시각).</summary>
+    public static string BuildDate()
+    {
+        try { return File.GetLastWriteTime(typeof(AboutDialog).Assembly.Location).ToString("yyyy-MM-dd"); }
+        catch (Exception) { return "?"; }
     }
 
     public static string VersionString() =>

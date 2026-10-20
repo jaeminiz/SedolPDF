@@ -121,6 +121,18 @@ public sealed partial class MainWindow : Window
     {
         foreach (var c in _vm.Commands.All.Where(c => c.Gesture is not null))
             KeyBindings.Add(new KeyBinding { Gesture = c.Gesture!, Command = c.Command });
+        // 같은 명령의 보조 단축키(널리 쓰이는 PDF 뷰어 관례): 단축키 자체는 기능 관례라 저작권과 무관하지만 화면·문구는 따로 정한다
+        void Alt(string id, Key key, KeyModifiers mods)
+        {
+            if (_vm.Commands.Find(id) is { } cmd) KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(key, mods), Command = cmd.Command });
+        }
+        Alt("edit.redo", Key.Z, KeyModifiers.Control | KeyModifiers.Shift);
+        Alt("find.next", Key.G, KeyModifiers.Control);
+        Alt("find.prev", Key.G, KeyModifiers.Control | KeyModifiers.Shift);
+        Alt("file.exit", Key.Q, KeyModifiers.Control);
+        Alt("view.fullscreen", Key.L, KeyModifiers.Control);
+        Alt("zoom.in", Key.Add, KeyModifiers.Control);
+        Alt("zoom.out", Key.Subtract, KeyModifiers.Control);
         KeyBindings.Add(new KeyBinding
         {
             Gesture = new KeyGesture(Key.OemPeriod, KeyModifiers.Control),

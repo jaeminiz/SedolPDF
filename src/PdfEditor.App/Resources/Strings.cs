@@ -467,4 +467,9 @@ public static class Strings
     public static string Help_Note => Get(nameof(Help_Note));
     public static string About_Description => Get(nameof(About_Description));
     public static string About_Copyright => Get(nameof(About_Copyright));
+    public static string Msg_SnapshotWorking => Get(nameof(Msg_SnapshotWorking));
+    public static string About_BuildDate => Get(nameof(About_BuildDate));
+    public static string About_License => Get(nameof(About_License));
+    public static string About_ThirdTitle => Get(nameof(About_ThirdTitle));
+    public static string About_ThirdList => Get(nameof(About_ThirdList));
 }

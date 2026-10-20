@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,6 +6,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>PdfEditor.App</RootNamespace>
     <AssemblyName>SedolPDF</AssemblyName>
+    <ApplicationIcon>..\..\assets\icon\sedolpdf.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +23,11 @@
     <ProjectReference Include="..\PdfEditor.Pages\PdfEditor.Pages.csproj" />
     <ProjectReference Include="..\PdfEditor.Exchange\PdfEditor.Exchange.csproj" />
     <ProjectReference Include="..\PdfEditor.TextEdit\PdfEditor.TextEdit.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\..\assets\icon\sedolpdf.ico" Link="Assets\sedolpdf.ico" />
+    <AvaloniaResource Include="..\..\assets\icon\sedolpdf-256.png" Link="Assets\sedolpdf-256.png" />
   </ItemGroup>
 
   <ItemGroup>

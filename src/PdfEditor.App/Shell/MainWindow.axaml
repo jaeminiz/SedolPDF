@@ -9,7 +9,7 @@
         x:Class="PdfEditor.App.Shell.MainWindow"
         x:DataType="shell:MainWindowViewModel"
         Title="{x:Static res:Strings.App_Name}"
-        Width="1280" Height="800" MinWidth="900" MinHeight="560"
+        Width="1280" Height="800" MinWidth="900" MinHeight="560" Icon="avares://SedolPDF/Assets/sedolpdf.ico"
         Background="#F3F3F3"
         TransparencyLevelHint="Mica, None"
         ExtendClientAreaToDecorationsHint="True"
@@ -194,7 +194,7 @@
     </StackPanel>
 
     <!-- 3. 리본 -->
-    <Border Grid.Row="2" Classes="card" Margin="8,0" Padding="4,4" MinHeight="74">
+    <Border Grid.Row="2" Classes="card" Margin="8,0" Padding="4,4" MinHeight="96">
       <Panel>
       <shell:FormatTab IsVisible="{Binding IsFormatTabSelected}" />
       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" IsVisible="{Binding !IsFormatTabSelected}">

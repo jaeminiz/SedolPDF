@@ -89,6 +89,7 @@ public sealed partial class DocumentView : Control
         Focusable = true;
         ClipToBounds = true;
         RenderOptions.SetBitmapInterpolationMode(this, BitmapInterpolationMode.MediumQuality);
+        LostFocus += (_, _) => RestoreSpaceTool();
     }
 
     public DocumentTabViewModel? Tab { get => GetValue(TabProperty); set => SetValue(TabProperty, value); }
@@ -815,6 +816,18 @@ public sealed partial class DocumentView : Control
         bool single = _layout.Mode == ViewMode.SinglePage;
         switch (e.Key)
         {
+            case Key.Space:
+                // 스페이스바를 누르고 있는 동안 손(이동) 도구, 떼면 원래 도구(2026-10-20 사용자 요청)
+                if (_spacePrevTool is null && tab.Tool != ToolKind.Hand && !IsLineEditorOpen && !IsFreeTextEditorOpen)
+                {
+                    _spacePrevTool = tab.Tool;
+                    tab.Tool = ToolKind.Hand;
+                }
+                break;
+            case Key.H: tab.Tool = ToolKind.Hand; break;
+            case Key.V: tab.Tool = ToolKind.TextSelect; break;
+            case Key.Left when !(_sv.Extent.Width > _sv.Viewport.Width): tab.PrevPage(); GoToPage(tab.CurrentPageIndex); break;
+            case Key.Right when !(_sv.Extent.Width > _sv.Viewport.Width): tab.NextPage(); GoToPage(tab.CurrentPageIndex); break;
             case Key.PageDown:
                 if (single) tab.NextPage();
                 else _sv.Offset = ClampOffset(_sv.Offset.X, _sv.Offset.Y + _sv.Viewport.Height * 0.9);
@@ -828,6 +841,23 @@ public sealed partial class DocumentView : Control
             default: return;
         }
         e.Handled = true;
+    }
+
+    private ToolKind? _spacePrevTool;
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (e.Key == Key.Space) RestoreSpaceTool();
+    }
+
+    private void RestoreSpaceTool()
+    {
+        if (_spacePrevTool is { } prev && _state is { } st)
+        {
+            if (st.Tab.Tool == ToolKind.Hand) st.Tab.Tool = prev;
+        }
+        _spacePrevTool = null;
     }
 
     private Vector ClampOffset(double x, double y) =>

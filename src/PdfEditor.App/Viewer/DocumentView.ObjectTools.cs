@@ -80,6 +80,7 @@ public sealed partial class DocumentView
     /// <summary>끄는 도형의 점선 미리보기(쪽 위, DrawObjectSelection에서 부른다).</summary>
     private void DrawShapePreview(DrawingContext ctx, PageInfo info, Rect pr, double scale)
     {
+        DrawMarquee(ctx, info, pr, scale);
         if (!_shapeDragging || _shapeGeom is null || _shapePage < 0 || _shapePage >= _layoutPages.Length || _layoutPages[_shapePage].Id != info.Id) return;
         var tr = new PageTransform(_shapeGeom.Bounds, _shapeGeom.Rotation, scale);
         var va = tr.ToView(new RectangleF(_shapeA.X, _shapeA.Y, 0, 0));
