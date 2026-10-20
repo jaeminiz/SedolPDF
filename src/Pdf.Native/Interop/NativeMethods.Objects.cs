@@ -51,3 +51,16 @@ internal static unsafe partial class NativeMethods
     [LibraryImport(Lib)] public static partial int FPDFPath_Close(IntPtr path);
     [LibraryImport(Lib)] public static partial int FPDFPath_SetDrawMode(IntPtr path, int fillMode, int stroke);
 }
+
+/// <summary>FPDF_FILEACCESS (Windows: unsigned long = 32비트).</summary>
+internal unsafe struct FpdfFileAccess
+{
+    public uint FileLen;
+    public delegate* unmanaged[Cdecl]<void*, uint, byte*, uint, int> GetBlock;
+    public void* Param;
+}
+
+internal static unsafe partial class NativeMethods
+{
+    [LibraryImport(Lib)] public static partial int FPDFImageObj_LoadJpegFileInline(IntPtr* pages, int count, IntPtr imageObj, FpdfFileAccess* fileAccess);
+}

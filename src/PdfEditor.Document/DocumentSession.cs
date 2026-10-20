@@ -73,6 +73,9 @@ public sealed class DocumentSession : IAsyncDisposable
     /// <summary>쪽 객체 편집 기록(M4). 쪽을 불러올 때마다 다시 적용된다.</summary>
     public ContentEditStore Content { get; }
 
+    /// <summary>쪽에 넣은 그림(M4 InsertImageEdit)의 바이트. 앱이 주석 자산과 같은 저장소를 넣어 줄 수 있다.</summary>
+    public AnnotationAssets Assets { get; set; } = new();
+
     /// <summary>
     /// 원본 주석을 다 붙였거나(또는 실패를 기록했거나) 끝나면 완료된다. 예외로 끝나지 않는다.
     /// 주석·쪽 명령을 만들기 전에 기다린다 (그 사이 쪽 순서가 바뀌지 않게).
@@ -436,7 +439,7 @@ public sealed class DocumentSession : IAsyncDisposable
         var edits = Content.For(id);
         if (edits.Length > 0)
         {
-            try { _replay[id] = (page, ContentReplayer.Apply(page, edits)); }
+            try { _replay[id] = (page, ContentReplayer.Apply(page, edits, ReplayMode.Screen, Assets)); }
             catch { page.Dispose(); throw; }
         }
         else _replay.Remove(id);

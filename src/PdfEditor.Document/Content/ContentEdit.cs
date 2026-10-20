@@ -43,3 +43,23 @@ public sealed record AppTextSpec(string Text, float SizePt, PdfEditor.Document.A
 
 /// <summary>앱 글꼴 줄을 쪽 맨 위에 넣는다(C7: 화면 replay도 다른 편집을 모두 적용한 뒤 맨 마지막에). 가리킬 때는 ObjectRef.Inserted(Id).</summary>
 public sealed record InsertAppTextEdit(long Id, AppTextSpec Line) : ContentEdit(Id);
+
+public enum ShapeKind { Rectangle, Ellipse, Line }
+
+/// <summary>도형 스타일. Stroke가 null이면 선 없음, Fill이 null이면 채우기 없음. 기본: 선 #E5372D 1.5pt, 채우기 없음(C5).</summary>
+public sealed record ShapeStyle(PdfEditor.Document.Annotations.PdfColor? Stroke, float Width, PdfEditor.Document.Annotations.PdfColor? Fill)
+{
+    public static ShapeStyle Default { get; } = new(new PdfEditor.Document.Annotations.PdfColor(0xE5, 0x37, 0x2D), 1.5f, null);
+}
+
+/// <summary>새 도형. 사각형·타원은 Bounds, 선은 A → B(쪽 좌표).</summary>
+public sealed record ShapeSpec(ShapeKind Kind, PdfRectF Bounds, PdfPointF A, PdfPointF B, ShapeStyle Style);
+
+/// <summary>새 이미지(문서 자산 AssetId — PNG·JPEG)를 Placement(단위 사각형 → 쪽 좌표)에 쪽 맨 위로 넣는다.</summary>
+public sealed record InsertImageEdit(long Id, string AssetId, PdfMatrix Placement) : ContentEdit(Id);
+
+/// <summary>새 도형을 쪽 맨 위로 넣는다(PDFium 경로 객체).</summary>
+public sealed record InsertShapeEdit(long Id, ShapeSpec Shape) : ContentEdit(Id);
+
+/// <summary>도형(경로 객체)의 선·채우기 바꾸기.</summary>
+public sealed record SetShapeStyleEdit(long Id, ObjectRef Target, ShapeStyle Style) : ContentEdit(Id);

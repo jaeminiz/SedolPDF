@@ -59,7 +59,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                 foreach (var (index, edits) in edited)
                 {
                     using var page = copy.LoadPage(index);
-                    ContentReplayer.Apply(page, edits, ReplayMode.Output);
+                    ContentReplayer.Apply(page, edits, ReplayMode.Output, s.Assets);
                     page.GenerateContent();
                 }
                 copy.SaveCopy(path);

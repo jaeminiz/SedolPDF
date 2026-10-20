@@ -247,6 +247,40 @@ public sealed class PdfPage : IDisposable
         return o;
     }
 
+
+    /// <summary>JPEG 바이트를 다시 압축하지 않고 그대로 담은 새 이미지 객체(/DCTDecode). placement는 단위 사각형 → 쪽 좌표.</summary>
+    public unsafe PdfPageObject CreateJpegImage(byte[] jpeg, PdfMatrix placement)
+    {
+        Check();
+        if (jpeg.Length == 0) throw new ArgumentException("Empty JPEG.", nameof(jpeg));
+        var h = NativeMethods.FPDFPageObj_NewImageObj(DocHandle);
+        if (h == IntPtr.Zero) throw new PdfiumException(0, "NewImageObj failed");
+        var o = new PdfPageObject(_t, this, h, attached: false);
+        fixed (byte* p = jpeg)
+        {
+            var src = new JpegSource { Data = p, Length = jpeg.Length };
+            var fa = new FpdfFileAccess { FileLen = (uint)jpeg.Length, GetBlock = &JpegGetBlock, Param = &src };
+            // Inline: 함수가 돌아오기 전에 바이트를 모두 복사하므로 고정은 이 블록 안에서만 필요하다
+            if (NativeMethods.FPDFImageObj_LoadJpegFileInline(null, 0, h, &fa) == 0)
+            {
+                o.DestroyIfDetached();
+                throw new PdfiumException(0, "LoadJpegFileInline failed");
+            }
+        }
+        o.Matrix = placement;
+        return o;
+    }
+
+    private unsafe struct JpegSource { public byte* Data; public int Length; }
+
+    [System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
+    private static unsafe int JpegGetBlock(void* param, uint position, byte* buf, uint size)
+    {
+        var src = (JpegSource*)param;
+        if ((long)position + size > src->Length) return 0;
+        Buffer.MemoryCopy(src->Data + position, buf, size, size);
+        return 1;
+    }
     /// <summary>(x, y)에서 시작하는 빈 경로 객체. MoveTo·LineTo·BezierTo·ClosePath로 채운 뒤 SetDrawMode.</summary>
     public PdfPageObject CreatePath(float x, float y)
     {

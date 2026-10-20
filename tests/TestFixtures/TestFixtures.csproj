@@ -8,6 +8,9 @@
   <ItemGroup>
     <PackageReference Include="PDFsharp" Version="6.2.4" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <!-- 시험용 실제 JPEG 만들기(MIT, Avalonia가 이미 쓰는 같은 버전) -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4" />
   </ItemGroup>
 
 </Project>

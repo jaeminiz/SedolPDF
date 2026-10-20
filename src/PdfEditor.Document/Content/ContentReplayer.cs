@@ -25,7 +25,8 @@ public sealed class ReplayResult(IReadOnlyList<PdfPageObject> originals, IReadOn
 /// </summary>
 public static class ContentReplayer
 {
-    public static ReplayResult Apply(PdfPage page, IReadOnlyList<ContentEdit> edits, ReplayMode mode = ReplayMode.Screen)
+    public static ReplayResult Apply(PdfPage page, IReadOnlyList<ContentEdit> edits, ReplayMode mode = ReplayMode.Screen,
+        Annotations.AnnotationAssets? assets = null)
     {
         int n = page.ObjectCount;
         var originals = new PdfPageObject[n];
@@ -75,6 +76,18 @@ public static class ContentReplayer
                     afterCounts[orig] = afterCounts.GetValueOrDefault(orig) + 1;
                     inserted[it.Id] = nt;
                     break;
+                case InsertImageEdit im:
+                    if (CreateImage(page, im, assets) is { } io) { page.InsertObject(io); inserted[im.Id] = io; }
+                    else skipped++;
+                    break;
+                case InsertShapeEdit sh:
+                    var so = CreateShape(page, sh.Shape);
+                    page.InsertObject(so);
+                    inserted[sh.Id] = so;
+                    break;
+                case SetShapeStyleEdit ss:
+                    if (result.Resolve(ss.Target) is { Type: PdfPageObjectType.Path } po) ApplyStyle(po, ss.Style); else skipped++;
+                    break;
                 default:
                     skipped++;
                     break;
@@ -101,6 +114,62 @@ public static class ContentReplayer
         return new ReplayResult(originals, inserted, skipped);
     }
 
+
+    /// <summary>자산의 PNG(풀어서 비트맵)·JPEG(바이트 그대로)로 이미지 객체를 만든다. 자산이 없거나 풀 수 없으면 null.</summary>
+    private static PdfPageObject? CreateImage(PdfPage page, InsertImageEdit im, Annotations.AnnotationAssets? assets)
+    {
+        if (assets is null || !assets.HasImage(im.AssetId)) return null;
+        var (data, _, _, format) = assets.GetImage(im.AssetId);
+        try
+        {
+            if (format == "jpeg") return page.CreateJpegImage(data, im.Placement);
+            var (bgra, w, h) = PngDecoder.Decode(data);
+            return page.CreateImage(bgra, w, h, im.Placement);
+        }
+        catch (Exception e) when (e is NotSupportedException or InvalidDataException or PdfiumException) { return null; }
+    }
+
+    private const float Kappa = 0.5522847f;   // 원을 베지어 4개로
+
+    private static PdfPageObject CreateShape(PdfPage page, ShapeSpec s)
+    {
+        PdfPageObject p;
+        switch (s.Kind)
+        {
+            case ShapeKind.Line:
+                p = page.CreatePath(s.A.X, s.A.Y);
+                p.LineTo(s.B.X, s.B.Y);
+                break;
+            case ShapeKind.Ellipse:
+            {
+                var r = s.Bounds;
+                float cx = (r.Left + r.Right) / 2, cy = (r.Bottom + r.Top) / 2, rx = r.Width / 2, ry = r.Height / 2, kx = rx * Kappa, ky = ry * Kappa;
+                p = page.CreatePath(cx + rx, cy);
+                p.BezierTo(cx + rx, cy + ky, cx + kx, cy + ry, cx, cy + ry);
+                p.BezierTo(cx - kx, cy + ry, cx - rx, cy + ky, cx - rx, cy);
+                p.BezierTo(cx - rx, cy - ky, cx - kx, cy - ry, cx, cy - ry);
+                p.BezierTo(cx + kx, cy - ry, cx + rx, cy - ky, cx + rx, cy);
+                p.ClosePath();
+                break;
+            }
+            default:
+            {
+                var r = s.Bounds;
+                p = page.CreatePath(r.Left, r.Bottom);
+                p.LineTo(r.Right, r.Bottom); p.LineTo(r.Right, r.Top); p.LineTo(r.Left, r.Top); p.ClosePath();
+                break;
+            }
+        }
+        ApplyStyle(p, s.Kind == ShapeKind.Line ? s.Style with { Fill = null } : s.Style);
+        return p;
+    }
+
+    private static void ApplyStyle(PdfPageObject p, ShapeStyle st)
+    {
+        if (st.Stroke is { } c) { p.StrokeColor = new PdfRgba(c.R, c.G, c.B, 255); p.StrokeWidth = st.Width; }
+        if (st.Fill is { } f) p.FillColor = new PdfRgba(f.R, f.G, f.B, 255);
+        p.SetDrawMode(fill: st.Fill is not null, stroke: st.Stroke is not null);
+    }
     /// <summary>앱 글꼴 줄의 글리프 윤곽선을 채운 경로 객체 하나로 만든다(쪽에는 넣지 않음). 윤곽선이 없으면 null.</summary>
     private static PdfPageObject? BuildOutlinePath(PdfPage page, AppTextSpec line)
     {
