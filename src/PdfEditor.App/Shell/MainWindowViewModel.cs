@@ -171,6 +171,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public double LeftPanelWidth => ActiveLeftPanel == PanelKind.Comments ? 320 : 200;
     public LayersViewModel? ActiveLayers => ActiveDocument?.Layers;
     public PropertiesViewModel? ActiveProperties => ActiveDocument?.Properties;
+    public PdfEditor.App.Panels.ObjectPropertiesViewModel? ActiveObjectProps => ActiveDocument?.ObjectProps;
 
     // ---- "형식" 탭 (M3b B5): 만들기 도구가 켜졌거나 주석이 선택되면 메뉴 탭 오른쪽 끝에 나타난다 ----
     public const string FormatTabId = "Format";
@@ -232,6 +233,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveComments));
         OnPropertyChanged(nameof(ActiveLayers));
         OnPropertyChanged(nameof(ActiveProperties));
+        OnPropertyChanged(nameof(ActiveObjectProps));
         OnPropertyChanged(nameof(ActiveStyles));
         OnPropertyChanged(nameof(ActiveAnnotationProperties));
         OnPropertyChanged(nameof(ActiveSearch));

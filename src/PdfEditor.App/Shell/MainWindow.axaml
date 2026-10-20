@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:res="using:PdfEditor.App.Resources"
         xmlns:shell="using:PdfEditor.App.Shell"
@@ -304,7 +304,10 @@
           <TextBlock DockPanel.Dock="Top" Text="{x:Static res:Strings.Panel_Properties}" FontWeight="SemiBold" Margin="10,8" />
           <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
           <Panel>
-            <Panel IsVisible="{Binding !HasNoDocument}"><panels:PropertiesPanel DataContext="{Binding ActiveProperties}" /></Panel>
+            <Panel IsVisible="{Binding !HasNoDocument}">
+              <Panel IsVisible="{Binding !ActiveObjectProps.HasSelection}"><panels:PropertiesPanel DataContext="{Binding ActiveProperties}" /></Panel>
+              <Panel IsVisible="{Binding ActiveObjectProps.HasSelection}"><panels:ObjectPropertiesPanel DataContext="{Binding ActiveObjectProps}" /></Panel>
+            </Panel>
             <TextBlock Text="{x:Static res:Strings.Panel_PropertiesEmpty}" IsVisible="{Binding HasNoDocument}"
                        Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
           </Panel>

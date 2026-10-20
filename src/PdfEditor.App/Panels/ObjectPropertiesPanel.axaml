@@ -1,0 +1,8 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PdfEditor.App.Panels.ObjectPropertiesPanel">
+  <!-- 고른 쪽 객체의 속성(M4 Task 9). 내용은 코드에서 채운다(값 판단은 ObjectPropertiesViewModel). -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel x:Name="Root" Margin="10,0,10,10" />
+  </ScrollViewer>
+</UserControl>

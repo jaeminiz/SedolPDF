@@ -240,6 +240,10 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     /// <summary>쪽 객체 선택·옮기기·크기 바꾸기(UI 스레드 전용).</summary>
     public PdfEditor.App.Viewer.Objects.ObjectSelectionController Objects { get; } = new();
 
+    /// <summary>고른 객체의 속성 패널 모델(UI 스레드 전용). 처음 쓸 때 만든다.</summary>
+    public PdfEditor.App.Panels.ObjectPropertiesViewModel ObjectProps => _objectProps ??= new(this);
+    private PdfEditor.App.Panels.ObjectPropertiesViewModel? _objectProps;
+
     /// <summary>이 문서의 쪽 내용을 고칠 수 있는가(권한의 "내용 수정" 비트).</summary>
     public bool CanEditContent => Session is { } s && s.Permissions.CanModify;
 

@@ -1,4 +1,4 @@
-using Pdf.Native;
+﻿using Pdf.Native;
 using PdfEditor.Appearance.Fonts;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
@@ -23,7 +23,8 @@ public sealed record ReplacePlan(IReadOnlyList<ContentEdit> Edits, bool Fallback
 /// </summary>
 public static class TextEditPlanner
 {
-    public static ReplacePlan PlanReplace(DocumentSession s, PageId page, ObjectRef target, string newText, AppFont? appFont)
+    public static ReplacePlan PlanReplace(DocumentSession s, PageId page, ObjectRef target, string newText, AppFont? appFont,
+        float? sizeOverride = null, PdfColor? colorOverride = null)
     {
         s.Thread.AssertOnThread();
         int pageIndex = s.IndexOf(page);
@@ -46,8 +47,8 @@ public static class TextEditPlanner
             // 앱 글꼴 줄을 다시 고침: 같은 자리·크기·색으로 새 앱 글꼴 줄 (그 뒤에 옮긴 것은 화면의 경로 객체에 반영돼 있다)
             placement = app.Line.Placement;
             foreach (var t in edits.OfType<TransformEdit>().Where(t => t.Target == target)) placement = placement.Then(t.Then);
-            size = app.Line.SizePt;
-            color = app.Line.Color;
+            size = sizeOverride ?? app.Line.SizePt;
+            color = colorOverride ?? app.Line.Color;
         }
         else
         {
