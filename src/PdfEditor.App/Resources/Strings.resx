@@ -409,4 +409,14 @@
   <data name="Format_NoStyles" xml:space="preserve"><value>이 대상에 맞는 스타일이 없습니다.</value></data>
   <data name="Msg_StyleNameInvalid" xml:space="preserve"><value>스타일 이름이 비어 있거나 이미 있는 이름입니다.</value></data>
   <data name="Msg_StyleBroken" xml:space="preserve"><value>이 스타일의 값이 올바르지 않아 적용하지 못했습니다.</value></data>
+  <data name="Group_Select" xml:space="preserve"><value>선택</value></data>
+  <data name="Group_Writing" xml:space="preserve"><value>글 쓰기</value></data>
+  <data name="Group_Emphasis" xml:space="preserve"><value>강조 표시</value></data>
+  <data name="Group_Marks" xml:space="preserve"><value>메모·도장</value></data>
+  <data name="Group_QuickAnnot" xml:space="preserve"><value>자주 쓰는 주석</value></data>
+  <data name="Group_Capture" xml:space="preserve"><value>복사</value></data>
+  <data name="Cmd_Snapshot" xml:space="preserve"><value>스냅숏</value></data>
+  <data name="Tip_Snapshot" xml:space="preserve"><value>끌어서 고른 영역을 그림으로 클립보드에 복사합니다</value></data>
+  <data name="Msg_SnapshotCopied" xml:space="preserve"><value>고른 영역을 그림으로 클립보드에 복사했습니다.</value></data>
+  <data name="Msg_SnapshotFailed" xml:space="preserve"><value>스냅숏을 클립보드에 넣지 못했습니다.</value></data>
 </root>

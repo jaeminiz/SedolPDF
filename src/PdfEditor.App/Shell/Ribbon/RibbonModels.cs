@@ -5,7 +5,11 @@ namespace PdfEditor.App.Shell.Ribbon;
 
 /// <summary>리본 정의(문구는 Strings에서). 명령 Id는 CommandRegistry에 모두 있어야 한다. Tool: 이 단추가 고르는 도구(켜진 표시용).</summary>
 public sealed record RibbonItemModel(string CommandId, string Label, string? DisabledTip = null, ToolKind? Tool = null,
-    IReadOnlyList<RibbonItemModel>? MoreItems = null);
+    IReadOnlyList<RibbonItemModel>? MoreItems = null)
+{
+    /// <summary>작은 단추 묶음(Compact) 안에서도 큰 단추로 보인다: 묶음의 대표 도구(2026-10-20 리본 재구성).</summary>
+    public bool Large { get; init; }
+}
 /// <summary>IconOnly: 작은 단추를 그림만으로(이름은 툴팁) — 그리기 도구 격자처럼 단추가 많은 묶음(2026-10-20 주석 탭 배치).</summary>
 public sealed record RibbonGroupModel(string Name, IReadOnlyList<RibbonItemModel> Items, bool Compact = false, bool IconOnly = false);
 

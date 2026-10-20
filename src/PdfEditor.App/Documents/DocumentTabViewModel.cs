@@ -21,6 +21,8 @@ public enum ToolKind
     InsertText, ReplaceText, Stamp, FileAttach,
     // M4 (편집 탭): 쪽 객체
     EditObject, EditText, AddText, AddImage, AddShape,
+    // 홈 탭(2026-10-20 사용자 요청): 끌어서 고른 영역을 그림으로 클립보드에
+    Snapshot,
 }
 
 /// <summary>문서 탭 하나. 세션이 있으면 변경 표시(제목 끝 " •")와 쪽 수를 세션에서 따라간다.</summary>

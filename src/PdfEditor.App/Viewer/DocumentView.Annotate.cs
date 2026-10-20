@@ -44,13 +44,13 @@ public sealed partial class DocumentView
     private static bool IsTextMarkupTool(ToolKind t) => t is ToolKind.HighlightText or ToolKind.Underline or ToolKind.StrikeOut or ToolKind.ReplaceText;
     private static bool UsesTextDrag(ToolKind t) => t == ToolKind.TextSelect || IsTextMarkupTool(t);
     private static bool IsAnnotationTool(ToolKind t) => t is not (ToolKind.Hand or ToolKind.TextSelect
-        or ToolKind.EditObject or ToolKind.EditText or ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape);
+        or ToolKind.EditObject or ToolKind.EditText or ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape or ToolKind.Snapshot);
 
     private static Cursor CursorFor(ToolKind t) => new(t switch
     {
         ToolKind.Hand => StandardCursorType.Hand,
         ToolKind.AnnotSelect or ToolKind.EditObject => StandardCursorType.Arrow,
-        ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape => StandardCursorType.Cross,
+        ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape or ToolKind.Snapshot => StandardCursorType.Cross,
         ToolKind.Pencil or ToolKind.Eraser or ToolKind.Rectangle or ToolKind.Ellipse or ToolKind.HighlightArea or ToolKind.StickyNote
             or ToolKind.Line or ToolKind.Arrow or ToolKind.PolyLine or ToolKind.Polygon or ToolKind.Cloud or ToolKind.Callout
             or ToolKind.TextBox or ToolKind.Stamp or ToolKind.FileAttach

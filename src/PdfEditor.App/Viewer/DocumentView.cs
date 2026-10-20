@@ -375,7 +375,7 @@ public sealed partial class DocumentView : Control
             var info = pages[i];
             var pr = lay.GetPageRect(i);
             pageRects.Add(pr);
-            if (IsAnnotationTool(st.Tab.Tool)) TryGetGeom(st, info, out _);   // 첫 클릭부터 쪽 정보가 있도록 미리 읽는다
+            if (IsAnnotationTool(st.Tab.Tool) || st.Tab.Tool == ToolKind.Snapshot) TryGetGeom(st, info, out _);   // 첫 클릭부터 쪽 정보가 있도록 미리 읽는다
             if (IsObjectTool(st.Tab.Tool)) { TryGetGeom(st, info, out _); TryGetObjectIndex(st, info, out _); }
             using (ctx.PushClip(pr))
             {
@@ -415,6 +415,7 @@ public sealed partial class DocumentView : Control
             DrawOverlays(ctx, st, info, pr, scale);   // ⑤ 검색 강조·텍스트 선택
         }
         DrawEraserCursor(ctx);
+        DrawSnapshotOverlay(ctx);
         LastCoverage = ViewportCoverage.Compute(vp, pageRects, painted);
         LastExactCoverage = ViewportCoverage.Compute(vp, pageRects, exact);
         LastVisiblePageCount = pageRects.Count;
@@ -724,6 +725,7 @@ public sealed partial class DocumentView : Control
         base.OnPointerPressed(e);
         Focus();
         if (_state is null || _sv is null) return;
+        if (HandleSnapshotPressed(e)) return;
         if (HandleObjectPointerPressed(e)) return;
         if (HandleAnnotPointerPressed(e)) return;
         if (_state.Tab.Tool == ToolKind.Hand && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
@@ -754,6 +756,7 @@ public sealed partial class DocumentView : Control
     {
         base.OnPointerMoved(e);
         if (_state is null || _sv is null) return;
+        if (HandleSnapshotMoved(e)) return;
         if (HandleObjectPointerMoved(e)) return;
         HandleAnnotPointerMoved(e);
         if (_selecting && _layout is { } lay && _selPageIndex >= 0 && _selPageIndex < _layoutPages.Length)
@@ -775,6 +778,7 @@ public sealed partial class DocumentView : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (HandleSnapshotReleased(e)) return;
         if (HandleObjectPointerReleased(e)) return;
         if (HandleAnnotPointerReleased(e)) return;
         if (_dragging) { _dragging = false; e.Pointer.Capture(null); }

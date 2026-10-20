@@ -80,11 +80,20 @@
       <Style Selector="^:compact">
         <Setter Property="ItemsPanel">
           <ItemsPanelTemplate>
-            <!-- 작은 단추 세 줄(PDF-XChange 주석 탭처럼, 2026-10-20 사용자 요청) -->
+            <!-- 작은 단추 세 줄. 대표 도구(큰 단추)는 한 줄을 다 차지한다(2026-10-20) -->
             <WrapPanel Orientation="Vertical" Height="72" />
           </ItemsPanelTemplate>
         </Setter>
       </Style>
     </ControlTheme>
   </Styles.Resources>
+
+  <!-- 작은 단추 묶음 안의 큰 단추(대표 도구)는 세 줄 높이를 다 차지해 한 칸을 혼자 쓴다 -->
+  <Style Selector="rb|RibbonGroup:compact rb|RibbonButton:not(:small)">
+    <Setter Property="Height" Value="70" />
+    <Setter Property="Margin" Value="0,0,4,0" />
+  </Style>
+  <Style Selector="rb|RibbonGroup:compact rb|RibbonButton:small">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
 </Styles>

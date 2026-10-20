@@ -66,14 +66,17 @@ public class MainWindowViewModelTests
         var groups = vm.Ribbon["Annotate"];
         var items = groups.SelectMany(g => g.Items).ToList();
         Assert.DoesNotContain(items, i => i.MoreItems is not null);
-        Assert.Equal([Strings.Group_Tools, Strings.Group_Text, Strings.Group_Note, Strings.Group_TextMarkup, Strings.Group_Shapes,
-                      Strings.Group_Stamp, Strings.Group_Draw, Strings.Group_AnnotManage], groups.Select(g => g.Name));
-        Assert.Equal([true, true, true, true, true, false, true, true], groups.Select(g => g.Compact));
+        // 다른 프로그램과 같은 배치를 피한 자체 구성(2026-10-20 사용자 결정): 묶음마다 대표 도구 하나가 큰 단추
+        Assert.Equal([Strings.Group_Select, Strings.Group_Writing, Strings.Group_Emphasis, Strings.Group_Draw, Strings.Group_Shapes,
+                      Strings.Group_Marks, Strings.Group_AnnotManage], groups.Select(g => g.Name));
+        Assert.All(groups, g => Assert.True(g.Compact));
+        Assert.Equal(["tool.hand", "annot.textbox", "annot.hlText", "annot.pencil", "annot.stamp", "annot.commentList"],
+            items.Where(i => i.Large).Select(i => i.CommandId));
         Assert.Equal([Strings.Group_Shapes], groups.Where(g => g.IconOnly).Select(g => g.Name));
         // 만들기 도구는 한 번씩, 쪽 객체 도구(M4: 편집 탭)는 주석 탭에 없다
         var all = items.Where(i => i.Tool is not null).Select(i => i.Tool!.Value).ToList();
         Assert.Equal(all.Count, all.Distinct().Count());
-        var objectTools = new[] { ToolKind.EditObject, ToolKind.EditText, ToolKind.AddText, ToolKind.AddImage, ToolKind.AddShape };
+        var objectTools = new[] { ToolKind.EditObject, ToolKind.EditText, ToolKind.AddText, ToolKind.AddImage, ToolKind.AddShape, ToolKind.Snapshot };
         Assert.Equal(Enum.GetValues<ToolKind>().Except(objectTools).Order(), all.Order());
         Assert.Equal(["annot.commentList", "annot.summary", "annot.importXfdf", "annot.exportXfdf"], groups[^1].Items.Select(i => i.CommandId));
     }
@@ -93,12 +96,24 @@ public class MainWindowViewModelTests
         }
     }
     [Fact]
-    public void HomeTab_HasAnnotateGroup()
+    public void HomeTab_SnapshotAndQuickAnnotations()
     {
+        // 2026-10-20 사용자 요청: 홈 탭에 스냅숏은 반드시, 자주 쓰는 주석·편집 도구도 둔다
         var vm = new MainWindowViewModel();
-        var g = vm.Ribbon["Home"].Single(x => x.Name == PdfEditor.App.Resources.Strings.Group_Annotate);
-        Assert.True(g.Compact);
-        Assert.Equal(["annot.hlText", "annot.sticky", "annot.pencil"], g.Items.Select(i => i.CommandId));
+        var home = vm.Ribbon["Home"];
+        Assert.Equal([Strings.Group_Select, Strings.Group_Capture, Strings.Group_Zoom, Strings.Group_Rotate, Strings.Group_Find,
+                      Strings.Group_EditTools, Strings.Group_QuickAnnot], home.Select(g => g.Name));
+        var snap = home.Single(g => g.Name == Strings.Group_Capture).Items.Single();
+        Assert.Equal(("tool.snapshot", (ToolKind?)ToolKind.Snapshot), (snap.CommandId, snap.Tool));
+        Assert.Equal(["annot.typewriter", "annot.hlText", "annot.underline", "annot.sticky", "annot.arrow", "annot.rect", "annot.stamp"],
+            home.Single(g => g.Name == Strings.Group_QuickAnnot).Items.Select(i => i.CommandId));
+
+        var d = new DocumentTabViewModel("a.pdf");
+        vm.Documents.Add(d);
+        vm.ActiveDocument = d;
+        vm.SelectedRibbonTab = "Home";
+        d.Tool = ToolKind.Snapshot;   // 명령은 세션이 있어야 실행된다(여기서는 단추 표시만 본다)
+        Assert.True(vm.CurrentRibbonGroups.SelectMany(g => g.Items).Single(b => b.Command.Id == "tool.snapshot").IsChecked);
     }
 
     [Fact]

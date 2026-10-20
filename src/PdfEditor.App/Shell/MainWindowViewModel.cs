@@ -565,7 +565,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (tab == FormatTabId) return [];   // "형식" 탭은 단추 묶음이 아니라 FormatTab 컨트롤이 그린다
         if (_groupCache.TryGetValue(tab, out var cached)) return cached;
         var groups = Ribbon[tab].Select(g => new RibbonGroupVm(g.Name,
-            g.Items.Select(i => MakeButton(i, !g.Compact, g.IconOnly)).ToList(),
+            g.Items.Select(i => MakeButton(i, !g.Compact || i.Large, g.IconOnly && !i.Large)).ToList(),
             g.Compact)).ToList();
         return _groupCache[tab] = groups;
     }
@@ -613,6 +613,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         Reg("tool.hand", Strings.Cmd_Hand, "hand", null, DocCmd(d => d.Tool = ToolKind.Hand));
         Reg("tool.textSelect", Strings.Cmd_TextSelect, "tsel", null, DocCmd(d => d.Tool = ToolKind.TextSelect));
+        Reg("tool.snapshot", Strings.Cmd_Snapshot, "snapshot", null, DocCmd(d => d.Tool = ToolKind.Snapshot));
         Reg("zoom.in", Strings.Cmd_ZoomIn, "zin", G(Key.OemPlus), DocCmd(d => d.ZoomIn()));
         Reg("zoom.out", Strings.Cmd_ZoomOut, "zout", G(Key.OemMinus), DocCmd(d => d.ZoomOut()));
         Reg("zoom.actual", Strings.Cmd_ActualSize, "actual", G(Key.D1), DocCmd(d => d.ActualSize()));
@@ -683,43 +684,50 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RibbonItemModel I(string id, string label, string? tip = null) => new(id, label, tip);
         RibbonItemModel T(string id, string label, ToolKind tool, string? tip = null) => new(id, label, tip, tool);
         RibbonGroupModel Gr(string name, bool compact, params RibbonItemModel[] items) => new(name, items, compact);
+        static RibbonItemModel L(RibbonItemModel i) => i with { Large = true };
 
         return new Dictionary<string, IReadOnlyList<RibbonGroupModel>>
         {
+            // 2026-10-20 사용자 결정: 다른 프로그램의 리본을 참고만 하고 똑같이 만들지 않는다. 묶음마다 대표 도구 하나를 큰 단추로,
+            // 나머지는 작은 단추로 두는 SedolPDF 고유 배치(묶음 이름·순서도 자체 구성).
             ["Home"] =
             [
-                Gr(Strings.Group_Tools, false, T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand, tbd), T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect, tbd)),
-                Gr(Strings.Group_Zoom, false, I("zoom.in", Strings.Cmd_ZoomIn, tbd), I("zoom.out", Strings.Cmd_ZoomOut, tbd),
-                    I("zoom.actual", Strings.Cmd_ActualSize, tbd), I("zoom.fitWidth", Strings.Cmd_FitWidth, tbd), I("zoom.fitPage", Strings.Cmd_FitPage, tbd)),
-                Gr(Strings.Group_Rotate, false, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
+                Gr(Strings.Group_Select, true, L(T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand)),
+                    T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect), T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
+                Gr(Strings.Group_Capture, false, T("tool.snapshot", Strings.Cmd_Snapshot, ToolKind.Snapshot, Strings.Tip_Snapshot)),
+                Gr(Strings.Group_Zoom, true, I("zoom.in", Strings.Cmd_ZoomIn), I("zoom.out", Strings.Cmd_ZoomOut), I("zoom.actual", Strings.Cmd_ActualSize),
+                    I("zoom.fitWidth", Strings.Cmd_FitWidth), I("zoom.fitPage", Strings.Cmd_FitPage)),
+                Gr(Strings.Group_Rotate, true, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
                 Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find)),
-                Gr(Strings.Group_Annotate, true, T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText),
-                    T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote), T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil)),
+                Gr(Strings.Group_EditTools, true, L(I("edit.text", Strings.Cmd_EditText, m45)), I("edit.object", Strings.Cmd_EditObject, m45),
+                    I("edit.addText", Strings.Cmd_AddText, m45), I("edit.addImage", Strings.Cmd_AddImage, m45)),
+                Gr(Strings.Group_QuickAnnot, true, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),
+                    T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText), T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline),
+                    T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote), T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
+                    T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), L(T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp))),
             ],
             ["Annotate"] =
             [
-                // 2026-10-20 사용자 요청(PDF-XChange 주석 탭처럼): "더보기" 없이 모든 도구를 작은 단추 세 줄로 보인다.
-                // 도형은 그림만 있는 격자(이름은 툴팁). U1(A14)의 "14개 + 더보기" 배치를 대신한다.
-                Gr(Strings.Group_Tools, true, T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand), T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect),
-                    T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
-                Gr(Strings.Group_Text, true, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),
-                    T("annot.textbox", Strings.Cmd_TextBox, ToolKind.TextBox), T("annot.callout", Strings.Cmd_Callout, ToolKind.Callout)),
-                Gr(Strings.Group_Note, true, T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote),
-                    T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach)),
-                Gr(Strings.Group_TextMarkup, true, T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText),
-                    T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea),
-                    T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline), T("annot.strike", Strings.Cmd_Strikeout, ToolKind.StrikeOut),
-                    T("annot.insertText", Strings.Cmd_InsertText, ToolKind.InsertText), T("annot.replaceText", Strings.Cmd_ReplaceText, ToolKind.ReplaceText)),
+                // "더보기" 없이 모든 만들기 도구가 보인다(2026-10-20). 도형은 그림만 있는 격자(이름은 툴팁).
+                Gr(Strings.Group_Select, true, L(T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand)),
+                    T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect), T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
+                Gr(Strings.Group_Writing, true, L(T("annot.textbox", Strings.Cmd_TextBox, ToolKind.TextBox)),
+                    T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter), T("annot.callout", Strings.Cmd_Callout, ToolKind.Callout)),
+                Gr(Strings.Group_Emphasis, true, L(T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText)),
+                    T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea), T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline),
+                    T("annot.strike", Strings.Cmd_Strikeout, ToolKind.StrikeOut), T("annot.insertText", Strings.Cmd_InsertText, ToolKind.InsertText),
+                    T("annot.replaceText", Strings.Cmd_ReplaceText, ToolKind.ReplaceText)),
+                Gr(Strings.Group_Draw, true, L(T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil)), T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser)),
                 new(Strings.Group_Shapes,
                 [
-                    T("annot.line", Strings.Cmd_Line, ToolKind.Line), T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
                     T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), T("annot.ellipse", Strings.Cmd_Ellipse, ToolKind.Ellipse),
-                    T("annot.polyline", Strings.Cmd_Polyline, ToolKind.PolyLine), T("annot.polygon", Strings.Cmd_Polygon, ToolKind.Polygon),
-                    T("annot.cloud", Strings.Cmd_Cloud, ToolKind.Cloud),
+                    T("annot.cloud", Strings.Cmd_Cloud, ToolKind.Cloud), T("annot.line", Strings.Cmd_Line, ToolKind.Line),
+                    T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow), T("annot.polyline", Strings.Cmd_Polyline, ToolKind.PolyLine),
+                    T("annot.polygon", Strings.Cmd_Polygon, ToolKind.Polygon),
                 ], Compact: true, IconOnly: true),
-                Gr(Strings.Group_Stamp, false, T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp)),
-                Gr(Strings.Group_Draw, true, T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil), T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser)),
-                Gr(Strings.Group_AnnotManage, true, I("annot.commentList", Strings.Cmd_CommentList), I("annot.summary", Strings.Cmd_AnnotSummary),
+                Gr(Strings.Group_Marks, true, L(T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp)),
+                    T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote), T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach)),
+                Gr(Strings.Group_AnnotManage, true, L(I("annot.commentList", Strings.Cmd_CommentList)), I("annot.summary", Strings.Cmd_AnnotSummary),
                     I("annot.importXfdf", Strings.Cmd_ImportXfdf), I("annot.exportXfdf", Strings.Cmd_ExportXfdf)),
             ],
             ["Edit"] =

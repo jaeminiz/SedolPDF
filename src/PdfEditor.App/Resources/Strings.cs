@@ -139,6 +139,16 @@ public static class Strings
     public static string Group_Draw => Get(nameof(Group_Draw));
     public static string Group_Stamp => Get(nameof(Group_Stamp));
     public static string Group_Shapes => Get(nameof(Group_Shapes));
+    public static string Msg_SnapshotFailed => Get(nameof(Msg_SnapshotFailed));
+    public static string Msg_SnapshotCopied => Get(nameof(Msg_SnapshotCopied));
+    public static string Tip_Snapshot => Get(nameof(Tip_Snapshot));
+    public static string Cmd_Snapshot => Get(nameof(Cmd_Snapshot));
+    public static string Group_Capture => Get(nameof(Group_Capture));
+    public static string Group_QuickAnnot => Get(nameof(Group_QuickAnnot));
+    public static string Group_Marks => Get(nameof(Group_Marks));
+    public static string Group_Emphasis => Get(nameof(Group_Emphasis));
+    public static string Group_Writing => Get(nameof(Group_Writing));
+    public static string Group_Select => Get(nameof(Group_Select));
     public static string Group_AnnotManage => Get(nameof(Group_AnnotManage));
     public static string Group_EditTools => Get(nameof(Group_EditTools));
     public static string Group_Insert => Get(nameof(Group_Insert));
