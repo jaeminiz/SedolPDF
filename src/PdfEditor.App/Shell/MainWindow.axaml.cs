@@ -4,7 +4,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using System.IO;
 using Avalonia.Media;
-using Avalonia.VisualTree;
 using Avalonia.Platform.Storage;
 using Pdf.Native;
 using PdfEditor.App.Dialogs;
@@ -57,11 +56,6 @@ public sealed partial class MainWindow : Window
         DataContext = _vm;
         BuildKeyBindings();
         FileTabButton.Flyout = BuildFileMenu();
-        // 시스템 창 조작 버튼이 오른쪽 가장자리에서 떨어져 있으면(2026-10-20 사용자 보고) 그만큼 오른쪽으로 옮긴다
-        Opened += (_, _) => AlignCaptionButtons();
-        SizeChanged += (_, _) => AlignCaptionButtons();
-        PropertyChanged += (_, e) => { if (e.Property == WindowStateProperty) AlignCaptionButtons(); };
-
         var prompts = new AvaloniaPrompts(this);
         // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
         var services = AppearanceServices.Create(AppContext.BaseDirectory);
@@ -120,29 +114,6 @@ public sealed partial class MainWindow : Window
         base.OnPropertyChanged(change);
         if (change.Property == ActualTransparencyLevelProperty)
             Background = ActualTransparencyLevel == WindowTransparencyLevel.Mica ? Brushes.Transparent : new SolidColorBrush(Color.Parse("#F3F3F3"));
-    }
-
-    private static readonly string[] CaptionButtonNames = ["PART_MinimizeButton", "PART_MaximizeButton", "PART_CloseButton"];
-
-    /// <summary>Avalonia가 그리는 최소화·최대화·닫기 버튼의 오른쪽 끝이 창 오른쪽 끝에서 떨어져 있으면 그 간격만큼 오른쪽으로 옮긴다(다른 앱과 맞춤). 이미 붙어 있으면 아무것도 하지 않는다.</summary>
-    private void AlignCaptionButtons()
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            try
-            {
-                var buttons = CaptionButtonNames.Select(n => this.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == n)).ToList();
-                if (buttons.Any(b => b is null) || buttons[2]!.Bounds.Width <= 0) return;
-                foreach (var b in buttons) b!.RenderTransform = null;   // 먼저 원래 자리로 두고 잰다
-                var close = buttons[2]!;
-                var right = close.TranslatePoint(new Point(close.Bounds.Width, 0), this);
-                if (right is null) return;
-                double gap = Bounds.Width - right.Value.X;
-                if (gap < 2 || gap > 120) return;   // 붙어 있거나, 예상 밖의 값이면 건드리지 않는다
-                foreach (var b in buttons) b!.RenderTransform = new TranslateTransform(gap, 0);
-            }
-            catch (Exception) { /* 모양 보정일 뿐: 실패해도 창은 그대로 쓴다 */ }
-        }, Avalonia.Threading.DispatcherPriority.Loaded);
     }
 
     private void BuildKeyBindings()

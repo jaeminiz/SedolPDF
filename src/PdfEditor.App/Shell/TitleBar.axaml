@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:res="using:PdfEditor.App.Resources"
              xmlns:shell="using:PdfEditor.App.Shell"
@@ -20,7 +20,7 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-      <TextBlock Text="{Binding FileName}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding FileName}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" />
     </StackPanel>
 
     <Panel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Width="300">

@@ -31,6 +31,7 @@ public sealed partial class DocumentView
 
     private PdfPointF _mqStart, _mqEnd;
     private bool _mqAdd;
+    private PdfEditor.App.Viewer.Objects.SelectedObject? _mqFramePick;   // 개체 편집에서 테두리 위에서 시작한 끌기(끌지 않으면 테두리를 고른다)
 
     private Gesture _gesture;
     private int _gPage = -1;
@@ -141,6 +142,7 @@ public sealed partial class DocumentView
                 if (!toggle) tab.Selection.Clear();
                 _mqStart = _mqEnd = pt;
                 _mqAdd = toggle;
+                _mqFramePick = null;
                 StartGesture(e.Pointer, Gesture.Marquee, e.PageIndex, info.Id, g);
                 return true;
             }
@@ -246,7 +248,10 @@ public sealed partial class DocumentView
         return true;
     }
 
-    /// <summary>끌어서 그린 사각형과 겹치는 주석을 모두 고른다(묶음은 함께). Ctrl/Shift로 시작했으면 원래 선택에 더한다.</summary>
+    /// <summary>
+    /// 끌어서 그린 사각형 안의 것을 고른다. 주석 선택 도구: 겹치는 주석(묶음은 함께), 주석이 없으면 편집 탭으로 넣은 객체(겹치는 것) → 개체 편집으로 전환.
+    /// 개체 편집 도구: 사각형 안에 완전히 든 객체(쪽 전체 테두리 제외). Ctrl/Shift로 시작했으면 원래 선택에 더한다.
+    /// </summary>
     private void FinishMarquee(ViewState st, PageId page)
     {
         _gGeom = null;
@@ -254,14 +259,38 @@ public sealed partial class DocumentView
         var tab = st.Tab;
         float l = Math.Min(_mqStart.X, _mqEnd.X), r = Math.Max(_mqStart.X, _mqEnd.X), b = Math.Min(_mqStart.Y, _mqEnd.Y), t = Math.Max(_mqStart.Y, _mqEnd.Y);
         float minPt = (float)(3 / (_layout?.Scale ?? 1));
-        if (r - l < minPt && t - b < minPt) return;   // 그냥 클릭
-        var annots = st.Session.Annotations.Get(page);
-        var ids = annots.Items.Where(v => v.Data is { } d && d.Rect.Left <= r && d.Rect.Right >= l && d.Rect.Bottom <= t && d.Rect.Top >= b)
-            .Select(v => v.Data.Id).ToList();
-        if (ids.Count == 0) return;
-        var all = SelectionController.ExpandGroups(annots, ids).ToList();
-        if (_mqAdd && tab.Selection.Page == page) foreach (var id in tab.Selection.Ids) if (!all.Contains(id)) all.Add(id);
-        tab.Selection.Set(page, all);
+        if (r - l < minPt && t - b < minPt)
+        {
+            // 그냥 클릭
+            if (_mqFramePick is { } frame) tab.Objects.Select(frame);
+            _mqFramePick = null;
+            return;
+        }
+        _mqFramePick = null;
+        if (tab.Tool == ToolKind.AnnotSelect)
+        {
+            var annots = st.Session.Annotations.Get(page);
+            var ids = annots.Items.Where(v => v.Data is { } d && d.Rect.Left <= r && d.Rect.Right >= l && d.Rect.Bottom <= t && d.Rect.Top >= b)
+                .Select(v => v.Data.Id).ToList();
+            if (ids.Count > 0)
+            {
+                var all = SelectionController.ExpandGroups(annots, ids).ToList();
+                if (_mqAdd && tab.Selection.Page == page) foreach (var id in tab.Selection.Ids) if (!all.Contains(id)) all.Add(id);
+                tab.Selection.Set(page, all);
+                return;
+            }
+        }
+        if (!tab.CanEditContent || _gPage < 0 || _gPage >= _layoutPages.Length || !TryGetObjectIndex(st, _layoutPages[_gPage], out var idx)) return;
+        bool objectTool = tab.Tool == ToolKind.EditObject;
+        var hits = idx.Entries.Where(e => !e.IsFrame && (objectTool || e.Ref.IsInserted)
+            && (objectTool ? e.Bounds.Left >= l && e.Bounds.Right <= r && e.Bounds.Bottom >= b && e.Bounds.Top <= t
+                           : e.Bounds.Left <= r && e.Bounds.Right >= l && e.Bounds.Bottom <= t && e.Bounds.Top >= b))
+            .Select(e => new PdfEditor.App.Viewer.Objects.SelectedObject(page, e.Ref, e.Type, e.Bounds)).ToList();
+        if (hits.Count == 0) return;
+        if (!objectTool) tab.Tool = ToolKind.EditObject;
+        if (_mqAdd && objectTool) foreach (var old in tab.Objects.All) if (!hits.Any(x => x.Ref == old.Ref)) hits.Add(old);
+        tab.Objects.SelectMany(hits);
+        InvalidateVisual();
     }
 
     private void DrawMarquee(DrawingContext ctx, PageInfo info, Rect pr, double scale)

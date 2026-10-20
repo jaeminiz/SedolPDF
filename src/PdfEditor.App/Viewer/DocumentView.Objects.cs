@@ -96,9 +96,10 @@ public sealed partial class DocumentView
         if (!TryGetObjectIndex(st, info, out var idx)) return false;
         var ctl = tab.Objects;
         bool cycle = (e.Mods & KeyModifiers.Alt) != 0;
+        bool toggle = (e.Mods & (KeyModifiers.Control | KeyModifiers.Shift)) != 0;
 
         // 이미 고른 객체의 손잡이·몸통이면 그대로 끌기
-        if (!cycle && tab.Tool == ToolKind.EditObject && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip) is var hh && hh != ObjectHandle.None)
+        if (!cycle && !toggle && tab.Tool == ToolKind.EditObject && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip) is var hh && hh != ObjectHandle.None)
         {
             StartObjectDrag(e.Pointer, hh, pt, e.PageIndex, g);
             return true;
@@ -111,6 +112,18 @@ public sealed partial class DocumentView
             filter = x => x.Type == PdfPageObjectType.Text || (x.Ref.IsInserted && appIds.Contains(x.Ref.InsertedId));
         }
         var pick = ctl.Pick(idx, pt, 4 * ptPerDip, cycle, filter);
+        _mqFramePick = null;
+        if (tab.Tool == ToolKind.EditObject && !cycle && (pick is null || pick.IsFrame))
+        {
+            // 빈 곳(또는 쪽 전체를 덮는 테두리)에서 끌면 사각형으로 안에 든 객체를 모두 고른다. 끌지 않고 놓으면 테두리를 고른다.
+            if (!toggle) ctl.Clear();
+            _mqFramePick = pick is null ? null : new SelectedObject(info.Id, pick.Ref, pick.Type, pick.Bounds);
+            _mqStart = _mqEnd = pt;
+            _mqAdd = toggle;
+            StartGesture(e.Pointer, Gesture.Marquee, e.PageIndex, info.Id, g);
+            InvalidateVisual();
+            return true;
+        }
         if (pick is null)
         {
             ctl.Clear();
@@ -118,7 +131,9 @@ public sealed partial class DocumentView
             if (tab.Tool == ToolKind.EditText) NoticeForMissedText(st, info, idx, pt, 4 * ptPerDip);
             return true;
         }
-        ctl.Select(new SelectedObject(info.Id, pick.Ref, pick.Type, pick.Bounds));
+        var chosen = new SelectedObject(info.Id, pick.Ref, pick.Type, pick.Bounds);
+        if (toggle && tab.Tool == ToolKind.EditObject) { ctl.Toggle(chosen); InvalidateVisual(); return true; }
+        ctl.Select(chosen);
         InvalidateVisual();
         if (tab.Tool == ToolKind.EditText) { _ = BeginTextEditAsync(st, e.PageIndex, g, info, pick); return true; }
         if (!cycle) StartObjectDrag(e.Pointer, ObjectHandle.Body, pt, e.PageIndex, g);   // 고르자마자 끌 수 있게
@@ -153,11 +168,11 @@ public sealed partial class DocumentView
         if (!_objDragging || _state is not { } st) return false;
         _objDragging = false;
         e.Pointer.Capture(null);
-        var sel = st.Tab.Objects.Selected;
+        var sels = st.Tab.Objects.All.ToList();
         var m = st.Tab.Objects.EndDrag();
         InvalidateVisual();
-        if (m is { } matrix && sel is not null)
-            _ = RunObjectEditAsync(st, sel.Page, new TransformEdit(st.Session.Content.NewId(), sel.Ref, matrix));
+        if (m is { } matrix && sels.Count > 0)
+            _ = RunObjectEditAsync(st, sels[0].Page, sels.Select(s => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), s.Ref, matrix)).ToArray());   // 여러 개면 모두 같은 양만큼, 실행 취소 한 번
         return true;
     }
 
@@ -176,8 +191,9 @@ public sealed partial class DocumentView
         if (!st.Tab.CanEditContent) return false;
         if (e.Key == Key.Delete && e.KeyModifiers == KeyModifiers.None)
         {
+            var gone = st.Tab.Objects.All.ToList();
             st.Tab.Objects.Clear();
-            _ = RunObjectEditAsync(st, sel.Page, new DeactivateEdit(st.Session.Content.NewId(), sel.Ref));
+            _ = RunObjectEditAsync(st, sel.Page, gone.Select(x => (ContentEdit)new DeactivateEdit(st.Session.Content.NewId(), x.Ref)).ToArray());
             e.Handled = true;
             return true;
         }
@@ -188,7 +204,7 @@ public sealed partial class DocumentView
         };
         if (d is not { } v || (e.KeyModifiers & ~KeyModifiers.Shift) != 0) return false;
         // 화면 위쪽 = PDF y 증가(회전 없는 쪽 기준). 회전된 쪽은 쪽 좌표 방향으로 움직인다(검증 필요: 회전 쪽에서의 체감).
-        _ = RunObjectEditAsync(st, sel.Page, new TransformEdit(st.Session.Content.NewId(), sel.Ref, PdfMatrix.Translate(v.dx, v.dy)));
+        _ = RunObjectEditAsync(st, sel.Page, st.Tab.Objects.All.Select(x => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), x.Ref, PdfMatrix.Translate(v.dx, v.dy))).ToArray());
         e.Handled = true;
         return true;
     }
@@ -199,16 +215,23 @@ public sealed partial class DocumentView
     {
         DrawShapePreview(ctx, info, pr, scale);
         var ctl = st.Tab.Objects;
-        if (ctl.Selected is not { } s || s.Page != info.Id) return;
+        if (ctl.Selected is not { } first || first.Page != info.Id) return;
         if (!TryGetGeom(st, info, out var g)) return;
         var tr = new PageTransform(g.Bounds, g.Rotation, scale);
-        var r = ctl.Preview ?? s.Bounds;
-        var v = tr.ToView(RectangleF.FromLTRB(r.Left, r.Bottom, r.Right, r.Top));
-        var box = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(1, v.W), Math.Max(1, v.H));
-        ctx.DrawRectangle(null, new Pen(SelAccent, 1, new DashStyle([4, 3], 0)), box);
-        if (ctl.IsDragging) return;
+        var pen = new Pen(SelAccent, 1, new DashStyle([4, 3], 0));
+        var (dx, dy) = ctl.DragDelta;
+        Rect last = default;
+        foreach (var s in ctl.All)
+        {
+            // 하나만 고른 채 끌면 미리보기 경계(크기 조절 포함), 여러 개면 모두 같은 양만큼 옮겨 그린다
+            var r = ctl.All.Count == 1 ? (ctl.Preview ?? s.Bounds) : s.Bounds.Offset(dx, dy);
+            var v = tr.ToView(RectangleF.FromLTRB(r.Left, r.Bottom, r.Right, r.Top));
+            last = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(1, v.W), Math.Max(1, v.H));
+            ctx.DrawRectangle(null, pen, last);
+        }
+        if (ctl.IsDragging || ctl.All.Count != 1) return;
         const double h = ObjectSelectionController.HandleDip;
-        foreach (var c in new[] { box.TopLeft, box.TopRight, box.BottomLeft, box.BottomRight })
+        foreach (var c in new[] { last.TopLeft, last.TopRight, last.BottomLeft, last.BottomRight })
             ctx.DrawRectangle(Brushes.White, new Pen(SelAccent, 1), new Rect(c.X - h / 2, c.Y - h / 2, h, h));
     }
 }

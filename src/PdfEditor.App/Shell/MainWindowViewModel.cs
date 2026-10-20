@@ -627,8 +627,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("file.print", Strings.Cmd_Print, "print", G(Key.P), _printCommand);
         Reg("file.prefs", Strings.Cmd_Preferences, null, null, new RelayCommand(() => PreferencesRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.about", Strings.Cmd_About, null, null, new RelayCommand(() => AboutRequested?.Invoke(this, EventArgs.Empty)));
-        Reg("help.show", Strings.Cmd_Help, null, null, new RelayCommand(() => HelpRequested?.Invoke(this, EventArgs.Empty)));
-        Reg("help.about", Strings.Cmd_About, null, null, new RelayCommand(() => AboutRequested?.Invoke(this, EventArgs.Empty)));
+        Reg("help.show", Strings.Cmd_Help, "help", null, new RelayCommand(() => HelpRequested?.Invoke(this, EventArgs.Empty)));
+        Reg("help.about", Strings.Cmd_About, "info", null, new RelayCommand(() => AboutRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
         Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z), PageCmd(p => p.UndoCommand));
         Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y), PageCmd(p => p.RedoCommand));
@@ -704,7 +704,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             new RelayCommand(() => IsLeftPanelVisible = !IsLeftPanelVisible));
         Reg("view.properties", Strings.Cmd_PropertiesPanel, "insp", null,
             new RelayCommand(() => IsPropertiesPanelVisible = !IsPropertiesPanelVisible));
-        Reg("view.fullscreen", Strings.Cmd_FullScreen, null, new KeyGesture(Key.F11),
+        Reg("view.fullscreen", Strings.Cmd_FullScreen, "fullscreen", new KeyGesture(Key.F11),
             new RelayCommand(() => IsFullScreen = !IsFullScreen));
     }
 

@@ -81,4 +81,62 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
         PumpUi(() => h.Tab.Tool == ToolKind.EditObject && h.Tab.Objects.Selected is not null);
         Assert.Equal(PdfEditor.Document.Content.ObjectRef.Inserted(edit.Id), h.Tab.Objects.Selected!.Ref);
     }
+
+    private static void WarmIndex(Host h) => HeadlessUi.Run(() =>
+    {
+        var st = typeof(PdfEditor.App.Viewer.DocumentView).GetField("_state", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(h.View)!;
+        var idx = (System.Collections.IDictionary)st.GetType().GetField("ObjIndex")!.GetValue(st)!;
+        Pump(() => { h.View.InvalidateVisual(); h.Window.UpdateLayout(); _ = h.Window.CaptureRenderedFrame(); return idx.Count > 0; });
+        return 0;
+    });
+
+    private async Task<(Host H, PdfEditor.Document.Content.InsertShapeEdit A, PdfEditor.Document.Content.InsertShapeEdit B)> TwoShapesAsync(ToolKind tool)
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateDocumentLike(p));
+        await s.AnnotationsReady;
+        var page = s.Pages[0].Id;
+        var a = new PdfEditor.Document.Content.InsertShapeEdit(s.Content.NewId(), ObjectToolController.MakeShape(PdfEditor.Document.Content.ShapeKind.Rectangle, new PdfPointF(300, 300), new PdfPointF(360, 340))!);
+        var b = new PdfEditor.Document.Content.InsertShapeEdit(s.Content.NewId(), ObjectToolController.MakeShape(PdfEditor.Document.Content.ShapeKind.Ellipse, new PdfPointF(400, 300), new PdfPointF(460, 340))!);
+        await s.Commands.ExecuteAsync(new PdfEditor.Document.Content.ContentEditCommand(page, [a, b]));
+        var h = Show(s);
+        SetTool(h, tool);
+        WarmIndex(h);
+        return (h, a, b);
+    }
+
+    [Fact]
+    public async Task AnnotSelectMarquee_OverInsertedShapes_SelectsBothAsObjects_MoveAndDeleteAreOneCommand()
+    {
+        var (h, a, b) = await TwoShapesAsync(ToolKind.AnnotSelect);
+        // 빈 곳(260,480)에서 (500,560)까지: 두 도형(쪽 아래 기준 y 300~340 = 위 기준 502~542)과 겹친다
+        Drag(h, AtPt(h, 260, 480), AtPt(h, 500, 560));
+        PumpUi(() => h.Tab.Tool == ToolKind.EditObject && h.Tab.Objects.All.Count == 2);
+        Assert.Equal([PdfEditor.Document.Content.ObjectRef.Inserted(a.Id), PdfEditor.Document.Content.ObjectRef.Inserted(b.Id)], h.Tab.Objects.All.Select(x => x.Ref).OrderBy(x => x.InsertedId).ToArray());
+        // 한 도형 위에서 끌면 둘 다 같은 양만큼 옮겨지고 명령은 하나
+        int before = Edits(h).Count;
+        Drag(h, AtPt(h, 330, 522), AtPt(h, 360, 522));   // 왼쪽 도형 가운데를 30pt 오른쪽으로
+        PumpUi(() => Edits(h).Count == before + 2);
+        var moves = Edits(h).Skip(before).Cast<PdfEditor.Document.Content.TransformEdit>().ToList();
+        Assert.All(moves, m => Assert.Equal(30, m.Then.E, 1f));
+        await h.Session.Commands.UndoAsync();
+        Assert.Equal(before, Edits(h).Count);   // 실행 취소 한 번에 둘 다 원래대로
+        // 지우기도 한 명령
+        PumpUi(() => h.Tab.Objects.All.Count == 2);
+        HeadlessUi.Run(() => { h.View.Focus(); h.Window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, null); return 0; });
+        PumpUi(() => Edits(h).Count == before + 2);
+        Assert.All(Edits(h).Skip(before), e => Assert.IsType<PdfEditor.Document.Content.DeactivateEdit>(e));
+    }
+
+    [Fact]
+    public async Task ObjectEditMarquee_SelectsOnlyFullyContainedObjects()
+    {
+        var (h, a, b) = await TwoShapesAsync(ToolKind.EditObject);
+        // 왼쪽 도형만 완전히 감싸는 사각형(위 기준 y 490~560, x 280~380)
+        Drag(h, AtPt(h, 280, 490), AtPt(h, 380, 560));
+        PumpUi(() => h.Tab.Objects.All.Count >= 1);
+        Assert.Equal([PdfEditor.Document.Content.ObjectRef.Inserted(a.Id)], h.Tab.Objects.All.Select(x => x.Ref).ToArray());
+        // 둘 다 감싸면 둘 다
+        Drag(h, AtPt(h, 280, 490), AtPt(h, 480, 560));
+        PumpUi(() => h.Tab.Objects.All.Count == 2);
+    }
 }

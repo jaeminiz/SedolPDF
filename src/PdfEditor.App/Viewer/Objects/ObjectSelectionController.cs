@@ -1,4 +1,4 @@
-using Pdf.Native;
+﻿using Pdf.Native;
 using PdfEditor.Document;
 using PdfEditor.Document.Content;
 
@@ -23,7 +23,16 @@ public sealed class ObjectSelectionController
     private PdfPointF _start;
     private PdfRectF _origin;
 
-    public SelectedObject? Selected { get; private set; }
+    private readonly List<SelectedObject> _all = [];
+
+    /// <summary>대표(첫 번째) 선택. 여러 개를 골랐으면 크기 조절은 못 하고 함께 옮기기·지우기만 한다.</summary>
+    public SelectedObject? Selected => _all.Count > 0 ? _all[0] : null;
+
+    /// <summary>고른 객체 모두(같은 쪽).</summary>
+    public IReadOnlyList<SelectedObject> All => _all;
+
+    /// <summary>끄는 동안 대표 객체가 옮겨진 양(쪽 좌표). 여러 개를 고른 경우 모두 같은 양만큼 옮겨 그린다.</summary>
+    public (float Dx, float Dy) DragDelta => Preview is { } p && IsDragging ? (p.Left - _origin.Left, p.Bottom - _origin.Bottom) : (0, 0);
 
     /// <summary>끄는 중의 새 경계(쪽 좌표). 끌지 않을 때 null.</summary>
     public PdfRectF? Preview { get; private set; }
@@ -35,7 +44,28 @@ public sealed class ObjectSelectionController
     public void Select(SelectedObject? o)
     {
         CancelDrag();
-        Selected = o;
+        _all.Clear();
+        if (o is not null) _all.Add(o);
+        Changed?.Invoke();
+    }
+
+    /// <summary>한꺼번에 여러 개 고르기(사각형 끌기). 모두 같은 쪽이어야 한다.</summary>
+    public void SelectMany(IEnumerable<SelectedObject> items)
+    {
+        CancelDrag();
+        _all.Clear();
+        var list = items.ToList();
+        if (list.Count > 0) _all.AddRange(list.Where(x => x.Page == list[0].Page));
+        Changed?.Invoke();
+    }
+
+    /// <summary>Ctrl/Shift+클릭: 이미 골랐으면 빼고, 아니면 더한다(다른 쪽 선택은 버린다).</summary>
+    public void Toggle(SelectedObject o)
+    {
+        CancelDrag();
+        if (_all.Count > 0 && _all[0].Page != o.Page) _all.Clear();
+        int at = _all.FindIndex(x => x.Ref == o.Ref);
+        if (at >= 0) _all.RemoveAt(at); else _all.Add(o);
         Changed?.Invoke();
     }
 
@@ -44,9 +74,11 @@ public sealed class ObjectSelectionController
     /// <summary>쪽 객체 목록이 새로 나오면(편집 뒤 버전이 올라감) 같은 객체의 경계를 따라가고, 사라졌으면 선택을 푼다.</summary>
     public void Refresh(PageObjectIndex idx)
     {
-        if (Selected is not { } s || s.Page != idx.Page || IsDragging) return;
-        var e = idx.Entries.FirstOrDefault(x => x.Ref == s.Ref);
-        Select(e is null ? null : s with { Bounds = e.Bounds, Type = e.Type });
+        if (_all.Count == 0 || _all[0].Page != idx.Page || IsDragging) return;
+        var next = new List<SelectedObject>();
+        foreach (var s in _all)
+            if (idx.Entries.FirstOrDefault(x => x.Ref == s.Ref) is { } e) next.Add(s with { Bounds = e.Bounds, Type = e.Type });
+        SelectMany(next);
     }
 
     /// <summary>점 p를 덮는 객체 중 고를 것. cycle(Alt)이면 지금 선택 바로 아래 것(맨 아래면 다시 맨 위).</summary>
@@ -67,6 +99,7 @@ public sealed class ObjectSelectionController
     {
         if (Selected is not { } s) return ObjectHandle.None;
         float h = (float)(HandleDip / 2) * ptPerDip;
+        if (_all.Count > 1) return _all.Any(x => x.Bounds.Inflate(h).Contains(p)) ? ObjectHandle.Body : ObjectHandle.None;
         var b = s.Bounds;
         bool Near(float x, float y) => Math.Abs(p.X - x) <= h && Math.Abs(p.Y - y) <= h;
         if (Near(b.Left, b.Bottom)) return ObjectHandle.BottomLeft;

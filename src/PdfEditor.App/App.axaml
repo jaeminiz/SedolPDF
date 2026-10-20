@@ -1,4 +1,4 @@
-<Application xmlns="https://github.com/avaloniaui"
+﻿<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PdfEditor.App.App"
              RequestedThemeVariant="Light">
@@ -24,6 +24,11 @@
     </Style>
     <Style Selector="Button#PART_FullScreenButton">
       <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- 전체 화면 버튼을 숨기면 창 장식 상자의 폭(4칸)은 그대로라 나머지 세 단추가 한 칸(47px) 왼쪽에 남는다(2026-10-20 사용자 보고, 실제 창 캡처로 확인).
+         같은 만큼 오른쪽으로 옮겨 오른쪽 끝에 붙인다. -->
+    <Style Selector="Button#PART_MinimizeButton, Button#PART_MaximizeButton, Button#PART_CloseButton">
+      <Setter Property="RenderTransform" Value="translate(47px, 0px)" />
     </Style>
   </Application.Styles>
 </Application>

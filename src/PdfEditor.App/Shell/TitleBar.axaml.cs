@@ -1,6 +1,8 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
+using Avalonia.VisualTree;
 
 namespace PdfEditor.App.Shell;
 
@@ -12,6 +14,16 @@ public sealed partial class TitleBar : UserControl
         QuickBox.KeyDown += OnQuickKeyDown;
         QuickList.DoubleTapped += (_, _) => RunSelected();
         QuickList.PointerReleased += (_, _) => RunSelected();
+        // 제목 줄의 빈 곳이나 파일 이름 글자를 더블클릭하면 최대화/복원(2026-10-20 사용자 요청). 단추·입력칸·목록 위는 제외.
+        DoubleTapped += OnTitleDoubleTapped;
+    }
+
+    private void OnTitleDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Source is Avalonia.Visual v && v.GetSelfAndVisualAncestors().Any(a => a is Button or TextBox or ListBox or ListBoxItem or Popup)) return;
+        if (TopLevel.GetTopLevel(this) is not Window w || !w.CanMaximize) return;
+        w.WindowState = w.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        e.Handled = true;
     }
 
     /// <summary>Ctrl+. : 빠른 실행 입력칸으로 포커스.</summary>

@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Pdf.Native;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
@@ -28,7 +28,7 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
 
     public IReadOnlyList<PdfColor> Swatches => PdfEditor.App.Viewer.Annotations.ToolDefaults.Swatches;
 
-    public bool HasSelection => _tab.Objects.Selected is not null;
+    public bool HasSelection => _tab.Objects.All.Count == 1;
     public bool IsShape { get; private set; }
     public bool IsAppText { get; private set; }
 
