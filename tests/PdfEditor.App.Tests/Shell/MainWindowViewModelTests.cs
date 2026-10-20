@@ -1,3 +1,4 @@
+using PdfEditor.App.Resources;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Shell;
 using PdfEditor.App.Shell.Ribbon;
@@ -58,50 +59,39 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
-    public void AnnotateTab_FourteenVisiblePlusMore()
+    public void AnnotateTab_AllToolsVisible_NoMoreMenu()
     {
+        // 2026-10-20 사용자 요청(PDF-XChange 주석 탭): "더보기" 없이 모든 도구가 보인다
         var vm = new MainWindowViewModel();
         var groups = vm.Ribbon["Annotate"];
         var items = groups.SelectMany(g => g.Items).ToList();
-        var visible = items.Where(i => i.MoreItems is null).Select(i => i.CommandId).ToList();
-        Assert.Equal(["tool.hand", "tool.textSelect", "annot.select", "annot.typewriter", "annot.textbox", "annot.callout", "annot.sticky",
-                      "annot.hlText", "annot.underline", "annot.strike", "annot.rect", "annot.line", "annot.cloud", "annot.pencil"], visible);
-        var more = items.Single(i => i.MoreItems is not null);
-        Assert.Equal("annot.more", more.CommandId);
-        Assert.Same(items[^1], more);   // 맨 끝
-        Assert.Equal([false, false, false, true, true], groups.Select(g => g.Compact));
-    }
-
-    [Fact]
-    public void MoreMenu_ContainsRemainingTools()
-    {
-        var vm = new MainWindowViewModel();
-        var more = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Single(i => i.MoreItems is not null);
-        Assert.Equal(["annot.hlArea", "annot.insertText", "annot.replaceText", "annot.arrow", "annot.ellipse", "annot.polygon",
-                      "annot.polyline", "annot.eraser", "annot.attach", "annot.stamp", "annot.commentList", "annot.summary", "annot.importXfdf", "annot.exportXfdf"], more.MoreItems!.Select(i => i.CommandId));
-        // 14개 + 더보기 10개 = 만들기 도구 24개가 한 번씩 (손·텍스트 선택·주석 선택 포함)
-        var all = vm.Ribbon["Annotate"].SelectMany(g => g.Items).Where(i => i.Tool is not null).Concat(more.MoreItems!.Where(i => i.Tool is not null)).Select(i => i.Tool!.Value).ToList();
+        Assert.DoesNotContain(items, i => i.MoreItems is not null);
+        Assert.Equal([Strings.Group_Tools, Strings.Group_Text, Strings.Group_Note, Strings.Group_TextMarkup, Strings.Group_Shapes,
+                      Strings.Group_Stamp, Strings.Group_Draw, Strings.Group_AnnotManage], groups.Select(g => g.Name));
+        Assert.Equal([true, true, true, true, true, false, true, true], groups.Select(g => g.Compact));
+        Assert.Equal([Strings.Group_Shapes], groups.Where(g => g.IconOnly).Select(g => g.Name));
+        // 만들기 도구는 한 번씩, 쪽 객체 도구(M4: 편집 탭)는 주석 탭에 없다
+        var all = items.Where(i => i.Tool is not null).Select(i => i.Tool!.Value).ToList();
         Assert.Equal(all.Count, all.Distinct().Count());
-        // 쪽 객체 도구(M4: 편집 탭)는 주석 탭에 없다
         var objectTools = new[] { ToolKind.EditObject, ToolKind.EditText, ToolKind.AddText, ToolKind.AddImage, ToolKind.AddShape };
-        Assert.Equal(Enum.GetValues<ToolKind>().Except(objectTools).Count(), all.Count);
+        Assert.Equal(Enum.GetValues<ToolKind>().Except(objectTools).Order(), all.Order());
+        Assert.Equal(["annot.commentList", "annot.summary", "annot.importXfdf", "annot.exportXfdf"], groups[^1].Items.Select(i => i.CommandId));
     }
 
     [Fact]
-    public void MoreMenu_Items_FollowActiveTool_WithCheckMark()
+    public void AnnotateTab_IconOnlyButtons_ShowNameAsTooltip()
     {
         var vm = new MainWindowViewModel();
-        var d = new DocumentTabViewModel("a.pdf");
-        vm.Documents.Add(d);
-        vm.ActiveDocument = d;
         vm.SelectedRibbonTab = "Annotate";
-        var more = vm.CurrentRibbonGroups.SelectMany(g => g.Items).Single(b => b.IsMore);
-        d.Tool = ToolKind.Stamp;
-        Assert.Equal([ToolKind.Stamp], more.MoreItems!.Where(b => b.IsChecked).Select(b => b.Tool!.Value));
-        d.Tool = ToolKind.Pencil;
-        Assert.DoesNotContain(more.MoreItems!, b => b.IsChecked);
+        var shapes = vm.CurrentRibbonGroups.Single(g => g.Name == Strings.Group_Shapes).Items;
+        Assert.Equal(7, shapes.Count);
+        foreach (var b in shapes)
+        {
+            Assert.True(b.IconOnly);
+            Assert.Equal("", b.DisplayLabel);
+            Assert.Equal(b.Label, b.Tip);
+        }
     }
-
     [Fact]
     public void HomeTab_HasAnnotateGroup()
     {
@@ -120,7 +110,7 @@ public class MainWindowViewModelTests
         vm.ActiveDocument = d;
         vm.SelectedRibbonTab = "Annotate";
         var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).ToList();
-        Assert.Equal(15, buttons.Count);   // 도구 14 + 더보기 1
+        Assert.Equal(28, buttons.Count);   // 만들기 도구 24 + 주석 관리 4
         Assert.Equal([ToolKind.Hand], buttons.Where(b => b.IsChecked).Select(b => b.Tool!.Value));
         d.Tool = ToolKind.Pencil;
         Assert.Equal([ToolKind.Pencil], buttons.Where(b => b.IsChecked).Select(b => b.Tool!.Value));

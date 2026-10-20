@@ -26,7 +26,8 @@
               <res:IconView Name="Icon" Key="{TemplateBinding IconKey}" Foreground="{TemplateBinding Foreground}"
                             Width="22" Height="22" HorizontalAlignment="Center" />
               <TextBlock Name="Text" Text="{TemplateBinding Label}" Foreground="{TemplateBinding Foreground}"
-                         HorizontalAlignment="Center" TextAlignment="Center" />
+                         HorizontalAlignment="Center" TextAlignment="Center"
+                         IsVisible="{TemplateBinding Label, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
           </Border>
         </ControlTemplate>
@@ -79,7 +80,8 @@
       <Style Selector="^:compact">
         <Setter Property="ItemsPanel">
           <ItemsPanelTemplate>
-            <WrapPanel Orientation="Vertical" Height="56" />
+            <!-- 작은 단추 세 줄(PDF-XChange 주석 탭처럼, 2026-10-20 사용자 요청) -->
+            <WrapPanel Orientation="Vertical" Height="72" />
           </ItemsPanelTemplate>
         </Setter>
       </Style>

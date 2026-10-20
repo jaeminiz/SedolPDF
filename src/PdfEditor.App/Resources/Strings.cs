@@ -138,6 +138,7 @@ public static class Strings
     public static string Group_TextMarkup => Get(nameof(Group_TextMarkup));
     public static string Group_Draw => Get(nameof(Group_Draw));
     public static string Group_Stamp => Get(nameof(Group_Stamp));
+    public static string Group_Shapes => Get(nameof(Group_Shapes));
     public static string Group_AnnotManage => Get(nameof(Group_AnnotManage));
     public static string Group_EditTools => Get(nameof(Group_EditTools));
     public static string Group_Insert => Get(nameof(Group_Insert));

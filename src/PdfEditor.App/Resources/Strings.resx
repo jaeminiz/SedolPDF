@@ -130,6 +130,7 @@
   <data name="Group_TextMarkup" xml:space="preserve"><value>텍스트 마크업</value></data>
   <data name="Group_Draw" xml:space="preserve"><value>그리기</value></data>
   <data name="Group_Stamp" xml:space="preserve"><value>스탬프</value></data>
+  <data name="Group_Shapes" xml:space="preserve"><value>도형</value></data>
   <data name="Group_AnnotManage" xml:space="preserve"><value>주석 관리</value></data>
   <data name="Group_EditTools" xml:space="preserve"><value>편집</value></data>
   <data name="Group_Insert" xml:space="preserve"><value>삽입</value></data>

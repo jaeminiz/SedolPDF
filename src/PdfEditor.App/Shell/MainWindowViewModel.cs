@@ -565,15 +565,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (tab == FormatTabId) return [];   // "형식" 탭은 단추 묶음이 아니라 FormatTab 컨트롤이 그린다
         if (_groupCache.TryGetValue(tab, out var cached)) return cached;
         var groups = Ribbon[tab].Select(g => new RibbonGroupVm(g.Name,
-            g.Items.Select(i => MakeButton(i, !g.Compact)).ToList(),
+            g.Items.Select(i => MakeButton(i, !g.Compact, g.IconOnly)).ToList(),
             g.Compact)).ToList();
         return _groupCache[tab] = groups;
     }
 
-    private RibbonButtonVm MakeButton(RibbonItemModel i, bool large)
+    private RibbonButtonVm MakeButton(RibbonItemModel i, bool large, bool iconOnly = false)
     {
         var more = i.MoreItems?.Select(m => MakeButton(m, large: false)).ToList();
-        var b = new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, large, i.DisabledTip, i.Tool, more);
+        var b = new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, large, i.DisabledTip ?? (iconOnly ? i.Label : null), i.Tool, more) { IconOnly = iconOnly };
         b.IsChecked = i.Tool is { } t && ActiveDocument?.Tool == t;
         if (i.Tool is not null) { _toolButtons.Add(b); ApplyPatchTip(b); }
         return b;
@@ -698,33 +698,29 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ],
             ["Annotate"] =
             [
-                // U1(A14): 보이는 단추 14개 + 맨 끝 "더보기 ▾"
-                Gr(Strings.Group_Tools, false, T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand), T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect),
+                // 2026-10-20 사용자 요청(PDF-XChange 주석 탭처럼): "더보기" 없이 모든 도구를 작은 단추 세 줄로 보인다.
+                // 도형은 그림만 있는 격자(이름은 툴팁). U1(A14)의 "14개 + 더보기" 배치를 대신한다.
+                Gr(Strings.Group_Tools, true, T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand), T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect),
                     T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
-                Gr(Strings.Group_Text, false, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),
+                Gr(Strings.Group_Text, true, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),
                     T("annot.textbox", Strings.Cmd_TextBox, ToolKind.TextBox), T("annot.callout", Strings.Cmd_Callout, ToolKind.Callout)),
-                Gr(Strings.Group_Note, false, T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote)),
+                Gr(Strings.Group_Note, true, T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote),
+                    T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach)),
                 Gr(Strings.Group_TextMarkup, true, T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText),
-                    T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline), T("annot.strike", Strings.Cmd_Strikeout, ToolKind.StrikeOut)),
-                Gr(Strings.Group_Draw, true, T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), T("annot.line", Strings.Cmd_Line, ToolKind.Line),
-                    T("annot.cloud", Strings.Cmd_Cloud, ToolKind.Cloud), T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil),
-                    new("annot.more", Strings.Cmd_More, null, null,
-                    [
-                        T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea),
-                        T("annot.insertText", Strings.Cmd_InsertText, ToolKind.InsertText),
-                        T("annot.replaceText", Strings.Cmd_ReplaceText, ToolKind.ReplaceText),
-                        T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
-                        T("annot.ellipse", Strings.Cmd_Ellipse, ToolKind.Ellipse),
-                        T("annot.polygon", Strings.Cmd_Polygon, ToolKind.Polygon),
-                        T("annot.polyline", Strings.Cmd_Polyline, ToolKind.PolyLine),
-                        T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser),
-                        T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach),
-                        T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp),
-                        I("annot.commentList", Strings.Cmd_CommentList),
-                        I("annot.summary", Strings.Cmd_AnnotSummary),
-                        I("annot.importXfdf", Strings.Cmd_ImportXfdf),
-                        I("annot.exportXfdf", Strings.Cmd_ExportXfdf),
-                    ])),
+                    T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea),
+                    T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline), T("annot.strike", Strings.Cmd_Strikeout, ToolKind.StrikeOut),
+                    T("annot.insertText", Strings.Cmd_InsertText, ToolKind.InsertText), T("annot.replaceText", Strings.Cmd_ReplaceText, ToolKind.ReplaceText)),
+                new(Strings.Group_Shapes,
+                [
+                    T("annot.line", Strings.Cmd_Line, ToolKind.Line), T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
+                    T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), T("annot.ellipse", Strings.Cmd_Ellipse, ToolKind.Ellipse),
+                    T("annot.polyline", Strings.Cmd_Polyline, ToolKind.PolyLine), T("annot.polygon", Strings.Cmd_Polygon, ToolKind.Polygon),
+                    T("annot.cloud", Strings.Cmd_Cloud, ToolKind.Cloud),
+                ], Compact: true, IconOnly: true),
+                Gr(Strings.Group_Stamp, false, T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp)),
+                Gr(Strings.Group_Draw, true, T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil), T("annot.eraser", Strings.Cmd_Eraser, ToolKind.Eraser)),
+                Gr(Strings.Group_AnnotManage, true, I("annot.commentList", Strings.Cmd_CommentList), I("annot.summary", Strings.Cmd_AnnotSummary),
+                    I("annot.importXfdf", Strings.Cmd_ImportXfdf), I("annot.exportXfdf", Strings.Cmd_ExportXfdf)),
             ],
             ["Edit"] =
             [

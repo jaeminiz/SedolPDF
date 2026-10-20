@@ -208,7 +208,7 @@
                 <rb:RibbonGroup.ItemTemplate>
                   <DataTemplate x:DataType="rb:RibbonButtonVm">
                     <Panel>
-                      <rb:RibbonButton Label="{Binding Label}" IconKey="{Binding Command.IconKey}" IsVisible="{Binding !IsMore}"
+                      <rb:RibbonButton Label="{Binding DisplayLabel}" IconKey="{Binding Command.IconKey}" IsVisible="{Binding !IsMore}"
                                        Command="{Binding Command.Command}" IsLarge="{Binding IsLarge}" IsChecked="{Binding IsChecked}"
                                        ToolTip.Tip="{Binding Tip}" ToolTip.ShowOnDisabled="True" />
                       <rb:RibbonMoreButton Label="{Binding Label}" IconKey="more" IsVisible="{Binding IsMore}"

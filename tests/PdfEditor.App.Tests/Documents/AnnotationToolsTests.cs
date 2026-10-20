@@ -179,7 +179,7 @@ public class AnnotationToolsTests : IAsyncLifetime
         var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).SelectMany(b => b.MoreItems is { } m ? m.Prepend(b) : [b])
             .Where(b => b.Tool is { } t && t is not ToolKind.Hand && !AnnotationToolController.IsPatchTool(t)).ToList();
         Assert.NotEmpty(buttons);
-        foreach (var b in buttons) Assert.Null(b.Tip);
+        foreach (var b in buttons) Assert.True(b.Tip is null || (b.IconOnly && b.Tip == b.Label), b.Command.Id);   // 그림만 있는 단추는 이름이 툴팁
         tab.Detach();
     }
 
@@ -194,7 +194,7 @@ public class AnnotationToolsTests : IAsyncLifetime
         foreach (var id in PatchToolCommandIds) Assert.True(vm.Commands.Find(id)!.Command.CanExecute(null), id);
         var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).SelectMany(b => b.MoreItems is { } m ? m.Prepend(b) : [b])
             .Where(b => b.Tool is { } t && AnnotationToolController.IsPatchTool(t));
-        foreach (var b in buttons) Assert.Null(b.Tip);
+        foreach (var b in buttons) Assert.True(b.Tip is null || (b.IconOnly && b.Tip == b.Label), b.Command.Id);   // 그림만 있는 단추는 이름이 툴팁
         tab.Detach();
     }
 

@@ -6,7 +6,8 @@ namespace PdfEditor.App.Shell.Ribbon;
 /// <summary>리본 정의(문구는 Strings에서). 명령 Id는 CommandRegistry에 모두 있어야 한다. Tool: 이 단추가 고르는 도구(켜진 표시용).</summary>
 public sealed record RibbonItemModel(string CommandId, string Label, string? DisabledTip = null, ToolKind? Tool = null,
     IReadOnlyList<RibbonItemModel>? MoreItems = null);
-public sealed record RibbonGroupModel(string Name, IReadOnlyList<RibbonItemModel> Items, bool Compact = false);
+/// <summary>IconOnly: 작은 단추를 그림만으로(이름은 툴팁) — 그리기 도구 격자처럼 단추가 많은 묶음(2026-10-20 주석 탭 배치).</summary>
+public sealed record RibbonGroupModel(string Name, IReadOnlyList<RibbonItemModel> Items, bool Compact = false, bool IconOnly = false);
 
 /// <summary>화면에 바인딩되는 리본 버튼. IsChecked: 활성 문서의 도구가 이 단추의 도구와 같을 때 true.</summary>
 public sealed partial class RibbonButtonVm(AppCommand command, string label, bool isLarge, string? tip, ToolKind? tool = null,
@@ -17,6 +18,9 @@ public sealed partial class RibbonButtonVm(AppCommand command, string label, boo
     public string? BaseTip { get; } = tip;
     public AppCommand Command { get; } = command;
     public string Label { get; } = label;
+    /// <summary>그림만 보이는 단추(이름은 툴팁으로).</summary>
+    public bool IconOnly { get; init; }
+    public string DisplayLabel => IconOnly ? "" : Label;
     public bool IsLarge { get; } = isLarge;
     /// <summary>툴팁. 암호 문서에서 패치 도구가 꺼진 이유처럼 활성 문서에 따라 바뀐다.</summary>
     [ObservableProperty] private string? _tip = tip;
