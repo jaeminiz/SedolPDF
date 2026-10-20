@@ -108,6 +108,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (data is not null) await d.AddImageAsync(data);
     }
     public event EventHandler? AboutRequested;
+    public event EventHandler? HelpRequested;
 
     /// <summary>찾기 명령이 검색 패널을 열었다. 창이 검색어 입력칸에 초점을 준다.</summary>
     public event EventHandler? FocusSearchRequested;
@@ -138,7 +139,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RibbonTabs =
         [
             new("Home", Strings.Tab_Home), new("Annotate", Strings.Tab_Annotate), new("Edit", Strings.Tab_Edit),
-            new("Page", Strings.Tab_Page), new("View", Strings.Tab_View),
+            new("Page", Strings.Tab_Page), new("View", Strings.Tab_View), new("Help", Strings.Tab_Help),
         ];
         RibbonTabs[0].IsSelected = true;
         PanelButtons =
@@ -626,6 +627,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("file.print", Strings.Cmd_Print, "print", G(Key.P), _printCommand);
         Reg("file.prefs", Strings.Cmd_Preferences, null, null, new RelayCommand(() => PreferencesRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.about", Strings.Cmd_About, null, null, new RelayCommand(() => AboutRequested?.Invoke(this, EventArgs.Empty)));
+        Reg("help.show", Strings.Cmd_Help, null, null, new RelayCommand(() => HelpRequested?.Invoke(this, EventArgs.Empty)));
+        Reg("help.about", Strings.Cmd_About, null, null, new RelayCommand(() => AboutRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.exit", Strings.Cmd_Exit, null, null, new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
         Reg("edit.undo", Strings.Cmd_Undo, "undo", G(Key.Z), PageCmd(p => p.UndoCommand));
         Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y), PageCmd(p => p.RedoCommand));
@@ -756,7 +759,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Gr(Strings.Group_Marks, true, L(T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp)),
                     T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote), T("annot.attach", Strings.Cmd_FileAttach, ToolKind.FileAttach)),
                 Gr(Strings.Group_AnnotManage, true, L(I("annot.commentList", Strings.Cmd_CommentList)), I("annot.summary", Strings.Cmd_AnnotSummary),
-                    I("annot.importXfdf", Strings.Cmd_ImportXfdf), I("annot.exportXfdf", Strings.Cmd_ExportXfdf)),
+                    I("annot.importXfdf", Strings.Cmd_ImportXfdf, Strings.Tip_ImportXfdf), I("annot.exportXfdf", Strings.Cmd_ExportXfdf, Strings.Tip_ExportXfdf)),
             ],
             ["Edit"] =
             [
@@ -778,6 +781,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Gr(Strings.Group_PageView, false, I("view.continuous", Strings.Cmd_Continuous, tbd), I("view.single", Strings.Cmd_SinglePage, tbd)),
                 Gr(Strings.Group_Panels, false, I("view.leftPanel", Strings.Cmd_LeftPanel), I("view.properties", Strings.Cmd_PropertiesPanel)),
                 Gr(Strings.Group_Screen, false, I("view.fullscreen", Strings.Cmd_FullScreen)),
+            ],
+            ["Help"] =
+            [
+                Gr(Strings.Group_HelpInfo, false, I("help.show", Strings.Cmd_Help, Strings.Tip_Help), I("help.about", Strings.Cmd_About, Strings.Tip_About)),
             ],
         };
     }

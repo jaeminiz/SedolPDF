@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PdfEditor.App.Dialogs.HelpDialog"
+        Width="560" SizeToContent="Height" MaxHeight="640"
+        CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="#F3F3F3">
+  <ScrollViewer>
+    <StackPanel Margin="24,20,24,16" Spacing="8">
+      <TextBlock x:Name="BasicsTitle" FontSize="16" FontWeight="SemiBold" Foreground="#1A1A1A" />
+      <TextBlock x:Name="BasicsText" TextWrapping="Wrap" Foreground="#1A1A1A" />
+      <TextBlock x:Name="ShortcutsTitle" FontSize="16" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,12,0,0" />
+      <TextBlock x:Name="ShortcutsText" TextWrapping="Wrap" Foreground="#1A1A1A" />
+      <TextBlock x:Name="NoteText" TextWrapping="Wrap" Foreground="#5C5C5C" Margin="0,12,0,0" />
+      <Button x:Name="CloseButton" MinWidth="88" HorizontalAlignment="Right" IsDefault="True" Classes="accent" Margin="0,8,0,0" />
+    </StackPanel>
+  </ScrollViewer>
+</Window>

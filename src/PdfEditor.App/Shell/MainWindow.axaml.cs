@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -75,6 +75,7 @@ public sealed partial class MainWindow : Window
         _vm.PickImageBytes = PickImageBytesAsync;
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
         _vm.AboutRequested += async (_, _) => await new AboutDialog().ShowDialog(this);
+        _vm.HelpRequested += async (_, _) => await new HelpDialog().ShowDialog(this);
 
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);

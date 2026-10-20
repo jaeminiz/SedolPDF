@@ -452,4 +452,19 @@ public static class Strings
     public static string Prop_Obj_TextSize => Get(nameof(Prop_Obj_TextSize));
     public static string Msg_ImageInsertFailed => Get(nameof(Msg_ImageInsertFailed));
     public static string Tip_AddImage => Get(nameof(Tip_AddImage));
+    public static string Tab_Help => Get(nameof(Tab_Help));
+    public static string Group_HelpInfo => Get(nameof(Group_HelpInfo));
+    public static string Cmd_Help => Get(nameof(Cmd_Help));
+    public static string Tip_Help => Get(nameof(Tip_Help));
+    public static string Tip_About => Get(nameof(Tip_About));
+    public static string Tip_ImportXfdf => Get(nameof(Tip_ImportXfdf));
+    public static string Tip_ExportXfdf => Get(nameof(Tip_ExportXfdf));
+    public static string Dlg_HelpTitle => Get(nameof(Dlg_HelpTitle));
+    public static string Help_Basics => Get(nameof(Help_Basics));
+    public static string Help_BasicsText => Get(nameof(Help_BasicsText));
+    public static string Help_Shortcuts => Get(nameof(Help_Shortcuts));
+    public static string Help_ShortcutsText => Get(nameof(Help_ShortcutsText));
+    public static string Help_Note => Get(nameof(Help_Note));
+    public static string About_Description => Get(nameof(About_Description));
+    public static string About_Copyright => Get(nameof(About_Copyright));
 }

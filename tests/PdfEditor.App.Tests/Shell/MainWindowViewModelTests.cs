@@ -30,7 +30,7 @@ public class MainWindowViewModelTests
         Assert.NotEmpty(ids);
         var missing = ids.Where(id => vm.Commands.Find(id) is null).ToList();
         Assert.True(missing.Count == 0, "Not registered: " + string.Join(", ", missing));
-        Assert.Equal(["Home", "Annotate", "Edit", "Page", "View"], vm.Ribbon.Keys);
+        Assert.Equal(["Home", "Annotate", "Edit", "Page", "View", "Help"], vm.Ribbon.Keys);
     }
 
     [Fact]

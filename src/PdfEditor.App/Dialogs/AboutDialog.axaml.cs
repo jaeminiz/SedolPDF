@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using Avalonia.Controls;
@@ -15,6 +15,8 @@ public sealed partial class AboutDialog : Window
         Title = Strings.Dlg_AboutTitle;
         NameText.Text = Strings.App_Name;
         VersionText.Text = string.Format(Strings.Dlg_AboutVersion, VersionString());
+        DescriptionText.Text = Strings.About_Description;
+        CopyrightText.Text = Strings.About_Copyright;
         AuthorsText.Text = Strings.About_Authors;
         Contact1Text.Text = Strings.About_Contact1;
         Contact2Text.Text = Strings.About_Contact2;

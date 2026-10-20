@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -139,6 +139,17 @@ public class SnapshotTests : IAsyncLifetime
         var size = h.View.LastSnapshotSize!.Value;
         Assert.Equal(100 * SnapshotRenderer.DefaultPixelsPerPt, size.Width, 3.0);
         Assert.Equal(50 * SnapshotRenderer.DefaultPixelsPerPt, size.Height, 3.0);
+    }
+
+    [Fact]
+    public async Task Click_WithoutDrag_MakesSnapshotOfWholePage()
+    {
+        var h = Show(await OpenAsync());
+        Drag(h, AtPt(h, 100, 100), AtPt(h, 100, 100));   // 끌지 않고 클릭만
+        HeadlessUi.Run(() => { Pump(() => h.View.LastSnapshotSize is not null); return 0; });
+        var size = h.View.LastSnapshotSize!.Value;
+        Assert.Equal(595 * SnapshotRenderer.DefaultPixelsPerPt, size.Width, 3.0);
+        Assert.Equal(842 * SnapshotRenderer.DefaultPixelsPerPt, size.Height, 3.0);
     }
 
     [Fact]

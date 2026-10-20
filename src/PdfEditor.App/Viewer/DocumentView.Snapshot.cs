@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Controls;
@@ -64,9 +64,16 @@ public sealed partial class DocumentView
         InvalidateVisual();
         var st = _state; var lay = _layout;
         var r = new Rect(_snapStart, _snapEnd).Normalize();
-        if (st is null || lay is null || pageIndex >= _layoutPages.Length || r.Width < 3 || r.Height < 3) return true;
+        if (st is null || lay is null || pageIndex >= _layoutPages.Length) return true;
         var info = _layoutPages[pageIndex];
         if (!TryGetGeom(st, info, out var g)) return true;
+        if (r.Width < 3 && r.Height < 3)
+        {
+            // 끌지 않고 그냥 누르면 그 쪽 전체(2026-10-20 사용자 요청)
+            _ = CopySnapshotAsync(st, info.Id, PdfRectF.FromLtrbRectangle(g.Bounds));
+            return true;
+        }
+        if (r.Width < 3 || r.Height < 3) return true;
         var a = ToPdf(g, pageIndex, r.TopLeft, lay.Scale);
         var b = ToPdf(g, pageIndex, r.BottomRight, lay.Scale);
         var region = new PdfRectF(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
