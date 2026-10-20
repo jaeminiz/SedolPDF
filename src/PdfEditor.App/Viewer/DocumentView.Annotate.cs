@@ -135,6 +135,8 @@ public sealed partial class DocumentView
             var h = tab.Editing.HitTest(annots, tab.Selection, pt, ptPerDip);
             if (h is null)
             {
+                // 편집 탭으로 넣은 이미지·도형·텍스트(쪽 객체)도 주석 선택 도구로 고를 수 있게: 도구를 객체 편집으로 바꾸고 바로 끌 수 있게 한다
+                if (TryPickInsertedObject(st, info, e, g, pt, ptPerDip)) return true;
                 // 빈 곳에서 끌면 사각형으로 여러 주석을 한꺼번에 고른다(2026-10-20 사용자 요청)
                 if (!toggle) tab.Selection.Clear();
                 _mqStart = _mqEnd = pt;
@@ -228,6 +230,20 @@ public sealed partial class DocumentView
         if (_gesture == Gesture.Marquee) { _mqEnd = pt; InvalidateVisual(); return; }
         if (_gesture == Gesture.Select) st.Tab.Editing.Move(pt); else st.Tab.Tools.Move(pt, shift);
         PushPreview();
+    }
+
+    private bool TryPickInsertedObject(ViewState st, PageInfo info, PressInfo e, PageGeom g, PdfPointF pt, float ptPerDip)
+    {
+        var tab = st.Tab;
+        if (!tab.CanEditContent || st.Session.Content.For(info.Id).Length == 0) return false;
+        if (!TryGetObjectIndex(st, info, out var idx)) return false;   // 목록이 오기 전: 이번에는 건너뛴다(요청은 이미 보냄)
+        var hit = idx.HitTest(pt, 4 * ptPerDip, x => x.Ref.IsInserted).FirstOrDefault();
+        if (hit is null) return false;
+        tab.Tool = ToolKind.EditObject;
+        tab.Objects.Select(new PdfEditor.App.Viewer.Objects.SelectedObject(info.Id, hit.Ref, hit.Type, hit.Bounds));
+        StartObjectDrag(e.Pointer, PdfEditor.App.Viewer.Objects.ObjectHandle.Body, pt, e.PageIndex, g);
+        InvalidateVisual();
+        return true;
     }
 
     /// <summary>끌어서 그린 사각형과 겹치는 주석을 모두 고른다(묶음은 함께). Ctrl/Shift로 시작했으면 원래 선택에 더한다.</summary>

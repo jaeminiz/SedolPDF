@@ -2,6 +2,7 @@
 using Avalonia.Input;
 using Pdf.Native;
 using PdfEditor.App.Documents;
+using PdfEditor.App.Viewer.Objects;
 using PdfEditor.App.Tests.Viewer.Annotations;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
@@ -55,5 +56,29 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
         Assert.Equal(ToolKind.Hand, h.Tab.Tool);            // 누르는 동안 손 도구
         HeadlessUi.Run(() => { h.Window.KeyRelease(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " "); return 0; });
         Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);
+    }
+
+    [Fact]
+    public async Task AnnotSelectTool_ClickOnInsertedShape_SwitchesToObjectEditAndSelects()
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateDocumentLike(p));
+        await s.AnnotationsReady;
+        var page = s.Pages[0].Id;
+        var spec = ObjectToolController.MakeShape(PdfEditor.Document.Content.ShapeKind.Rectangle, new PdfPointF(300, 300), new PdfPointF(400, 360))!;
+        var edit = new PdfEditor.Document.Content.InsertShapeEdit(s.Content.NewId(), spec);
+        await s.Commands.ExecuteAsync(new PdfEditor.Document.Content.ContentEditCommand(page, [edit]));
+        var h = Show(s);
+        SetTool(h, ToolKind.AnnotSelect);
+        // 객체 목록이 올 때까지 화면을 그리게 한다
+        HeadlessUi.Run(() =>
+        {
+            var st = typeof(PdfEditor.App.Viewer.DocumentView).GetField("_state", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(h.View)!;
+            var idx = (System.Collections.IDictionary)st.GetType().GetField("ObjIndex")!.GetValue(st)!;
+            Pump(() => { h.View.InvalidateVisual(); h.Window.UpdateLayout(); _ = h.Window.CaptureRenderedFrame(); return idx.Count > 0; });
+            return 0;
+        });
+        Click(h, AtPt(h, 350, 842 - 330));   // 도형 안(쪽 아래 기준 y 330 = 위 기준 512)
+        PumpUi(() => h.Tab.Tool == ToolKind.EditObject && h.Tab.Objects.Selected is not null);
+        Assert.Equal(PdfEditor.Document.Content.ObjectRef.Inserted(edit.Id), h.Tab.Objects.Selected!.Ref);
     }
 }

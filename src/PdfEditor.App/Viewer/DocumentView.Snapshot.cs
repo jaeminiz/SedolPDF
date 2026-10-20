@@ -91,18 +91,22 @@ public sealed partial class DocumentView
             using var rendered = await SnapshotRenderer.RenderAsync(st.Session, page, region);
             if (rendered is null) { st.Tab.RaiseNotice(Strings.Msg_SnapshotFailed); return; }
             LastSnapshotSize = rendered.PixelSize;
-            // Avalonia 12의 클립보드는 붙여넣을 때 그림을 만든다. 그림을 바로 버리면(using) 붙여넣기가 빈 그림이 되므로
-            // PNG로 굳혀 새 비트맵을 만들어 계속 쥐고(_snapshotBitmap) 클립보드에 넣은 뒤 비운다(Flush).
+            // 그림을 PNG로 굳히고 픽셀을 읽어 Windows 클립보드에 24비트 DIB + PNG로 직접 넣는다(WinClipboard):
+            // Avalonia 12 클립보드로는 카카오톡 등에서 검정으로 붙었다(2026-10-20). Win32 실패 시에만 Avalonia 클립보드로 되돌아간다.
+            int pw = rendered.PixelSize.Width, ph = rendered.PixelSize.Height;
+            var px = new byte[pw * ph * 4];
+            var pin = System.Runtime.InteropServices.GCHandle.Alloc(px, System.Runtime.InteropServices.GCHandleType.Pinned);
+            try { rendered.CopyPixels(new Avalonia.PixelRect(rendered.PixelSize), pin.AddrOfPinnedObject(), px.Length, pw * 4); }
+            finally { pin.Free(); }
             using var ms = new System.IO.MemoryStream();
             rendered.Save(ms, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
-            ms.Position = 0;
-            var keep = new Avalonia.Media.Imaging.Bitmap(ms);
-            if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb)
+            if (!WinClipboard.SetImage(px, pw, ph, ms.ToArray()))
             {
-                await cb.SetBitmapAsync(keep);
-                await cb.FlushAsync();
+                ms.Position = 0;
+                var keep = new Avalonia.Media.Imaging.Bitmap(ms);
+                if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) { await cb.SetBitmapAsync(keep); await cb.FlushAsync(); }
+                var old = _snapshotBitmap; _snapshotBitmap = keep; old?.Dispose();
             }
-            var old = _snapshotBitmap; _snapshotBitmap = keep; old?.Dispose();
             ShowToast(Strings.Msg_SnapshotCopied);
         }
         catch (Exception ex) { st.Tab.RaiseNotice(Strings.Msg_SnapshotFailed + " (" + ex.GetType().Name + ")"); }   // 쪽이 지워졌거나 클립보드를 다른 프로그램이 잡고 있음

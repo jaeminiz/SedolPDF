@@ -379,7 +379,7 @@ public sealed partial class DocumentView : Control
             var pr = lay.GetPageRect(i);
             pageRects.Add(pr);
             if (IsAnnotationTool(st.Tab.Tool) || st.Tab.Tool == ToolKind.Snapshot) TryGetGeom(st, info, out _);   // 첫 클릭부터 쪽 정보가 있도록 미리 읽는다
-            if (IsObjectTool(st.Tab.Tool)) { TryGetGeom(st, info, out _); TryGetObjectIndex(st, info, out _); }
+            if (IsObjectTool(st.Tab.Tool) || (st.Tab.Tool == ToolKind.AnnotSelect && st.Session.Content.HasEdits)) { TryGetGeom(st, info, out _); TryGetObjectIndex(st, info, out _); }
             using (ctx.PushClip(pr))
             {
                 ctx.FillRectangle(PlaceholderBrush, pr);

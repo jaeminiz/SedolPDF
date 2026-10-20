@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Media.Imaging;
 using Pdf.Native;
 using PdfEditor.App.Viewer.Annotations;
@@ -37,6 +37,8 @@ public static class SnapshotRenderer
             int x = (int)Math.Floor(v.X), y = (int)Math.Floor(v.Y);
             int w = Math.Max(1, (int)Math.Ceiling(v.X + v.W) - x), h = Math.Max(1, (int)Math.Ceiling(v.Y + v.H) - y);
             var bytes = p.RenderTile(scale, x, y, w, h, new RenderOptions(WithAnnotations: true, HiddenAnnotIndices: s.Annotations.HiddenPdfIndices(page)));
+            // PDFium은 알파를 채우지 않는 경우가 있다(BGRx). 알파를 따르는 프로그램(카카오톡 등)에 붙여넣으면 투명 = 검정이 되므로 불투명으로 굳힌다.
+            for (int i = 3; i < bytes.Length; i += 4) bytes[i] = 255;
             return new Raster(bytes, x, y, w, h, b, p.Rotation, scale);
         });
         if (raster is null) return null;
@@ -45,6 +47,7 @@ public static class SnapshotRenderer
         using var baseImage = new BitmapHandle(raster.Bgra, raster.W, raster.H);
         using (var ctx = rtb.CreateDrawingContext())
         {
+            ctx.FillRectangle(Avalonia.Media.Brushes.White, new Rect(0, 0, raster.W, raster.H));   // 어떤 경우에도 불투명한 흰 바탕
             ctx.DrawImage(baseImage.Bitmap, new Rect(0, 0, raster.W, raster.H));
             // 쪽 왼쪽 위가 (-x, -y)에 오도록 놓으면 화면 그리기와 같은 변환이 된다(96dpi에서 1 DIP = 1 픽셀).
             var tr = new PageTransform(raster.Bounds, raster.Rotation, raster.Scale);

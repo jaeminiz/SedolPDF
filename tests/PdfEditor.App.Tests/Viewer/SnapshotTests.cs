@@ -27,13 +27,49 @@ public class SnapshotTests : IAsyncLifetime
     private static bool _themed;
     private static readonly double K = ZoomMath.PointsToDip;
 
-    public Task InitializeAsync() { Directory.CreateDirectory(_dir); return Task.CompletedTask; }
+    private (int W, int H, byte[]? Png)? _clip;
+
+    public Task InitializeAsync()
+    {
+        Directory.CreateDirectory(_dir);
+        WinClipboard.TestSink = (_, w, h, png) => { _clip = (w, h, png); return true; };   // 사용자의 실제 클립보드를 건드리지 않는다
+        return Task.CompletedTask;
+    }
 
     public async Task DisposeAsync()
     {
         foreach (var s in _sessions) await s.DisposeAsync();
         _t.Dispose();
+        WinClipboard.TestSink = null;
         try { Directory.Delete(_dir, true); } catch { }
+    }
+
+    [Fact]
+    public void BuildDib_Is24BitOpaqueBottomUp_PaddedRows()
+    {
+        // 위 줄: 빨강(알파 255), 파랑(알파 255), 아래 줄: 완전 투명 두 픽셀 → 흰색으로 합성
+        byte[] bgra = [0, 0, 255, 255, 255, 0, 0, 255,   0, 0, 0, 0, 0, 0, 0, 0];
+        var dib = WinClipboard.BuildDib(bgra, 2, 2);
+        Assert.Equal(40, BitConverter.ToInt32(dib, 0));
+        Assert.Equal(2, BitConverter.ToInt32(dib, 4));
+        Assert.Equal(2, BitConverter.ToInt32(dib, 8));
+        Assert.Equal(24, BitConverter.ToInt16(dib, 14));
+        Assert.Equal(40 + 8 * 2, dib.Length);   // 줄 6바이트 → 8바이트로 맞춤
+        // 아래에서 위로: 첫 줄은 원본의 아래 줄(투명 → 흰색), 다음 줄이 원본의 위 줄
+        Assert.Equal([255, 255, 255], dib[40..43]);
+        Assert.Equal([0, 0, 255], dib[48..51]);        // 빨강(B,G,R = 0,0,255)
+        Assert.Equal([255, 0, 0], dib[51..54]);        // 파랑
+    }
+
+    [Fact]
+    public async Task Click_PutsWholePageOnClipboard_AsOpaqueDibAndPng()
+    {
+        var h = Show(await OpenAsync());
+        Drag(h, AtPt(h, 100, 100), AtPt(h, 100, 100));
+        HeadlessUi.Run(() => { Pump(() => _clip is not null); return 0; });
+        Assert.InRange(_clip!.Value.W, (int)(595 * SnapshotRenderer.DefaultPixelsPerPt) - 2, (int)(595 * SnapshotRenderer.DefaultPixelsPerPt) + 2);
+        Assert.NotNull(_clip.Value.Png);
+        Assert.Equal(0x89, _clip.Value.Png![0]);   // PNG 서명
     }
 
     private async Task<DocumentSession> OpenAsync(bool noCopy = false)
@@ -97,6 +133,27 @@ public class SnapshotTests : IAsyncLifetime
         Assert.Equal(140 * SnapshotRenderer.DefaultPixelsPerPt, size.Width, 2.0);
         Assert.Equal(140 * SnapshotRenderer.DefaultPixelsPerPt, size.Height, 2.0);
         Assert.True(center.R > 180 && center.G < 60 && center.B < 60, $"red square in the middle: {center}");
+    }
+
+    [Fact]
+    public async Task Renderer_Result_IsFullyOpaque_ForAlphaAwarePasteTargets()
+    {
+        // 카카오톡 등 알파를 따르는 붙여넣기 대상에서 검정으로 나오지 않게 모든 픽셀의 알파가 255여야 한다(2026-10-20 사용자 보고)
+        var s = await OpenAsync();
+        var minAlpha = HeadlessUi.Run(() =>
+        {
+            var task = SnapshotRenderer.RenderAsync(s, s.Pages[0].Id, new PdfRectF(0, 0, 595, 842));
+            Pump(() => task.IsCompleted);
+            using var bmp = task.Result!;
+            var px = new byte[bmp.PixelSize.Width * bmp.PixelSize.Height * 4];
+            var h = GCHandle.Alloc(px, GCHandleType.Pinned);
+            try { bmp.CopyPixels(new Avalonia.PixelRect(bmp.PixelSize), h.AddrOfPinnedObject(), px.Length, bmp.PixelSize.Width * 4); }
+            finally { h.Free(); }
+            int min = 255;
+            for (int i = 3; i < px.Length; i += 4) min = Math.Min(min, px[i]);
+            return min;
+        });
+        Assert.Equal(255, minAlpha);
     }
 
     private sealed record Host(Window Window, DocumentView View, DocumentTabViewModel Tab, Rect PageRect);
