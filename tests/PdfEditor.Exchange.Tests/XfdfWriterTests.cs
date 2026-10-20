@@ -68,7 +68,8 @@ public class XfdfWriterTests
             Assert.Equal(Ns + el, e.Name);
             Assert.Equal("2", (string?)e.Attribute("page"));
             Assert.Equal("10,20,110.5,70", (string?)e.Attribute("rect"));
-            Assert.Equal("#FF0000", (string?)e.Attribute("color"));
+            // freetext의 color는 배경색(/C), 테두리 색(#FF0000)은 defaultappearance의 RG
+            Assert.Equal(k == AnnotKind.FreeText ? null : "#FF0000", (string?)e.Attribute("color"));
             Assert.Equal("nm1", (string?)e.Attribute("name"));
             Assert.Equal("Kim", (string?)e.Attribute("title"));
             Assert.Equal("Sub", (string?)e.Attribute("subject"));
@@ -95,6 +96,7 @@ public class XfdfWriterTests
         Assert.Equal("FreeTextCallout", (string?)ft.Attribute("intent"));
         Assert.Equal("2,2,10.5,10", (string?)ft.Attribute("fringe"));
         Assert.Contains("14 Tf", ft.Element(Ns + "defaultappearance")!.Value);
+        Assert.Contains("1 0 0 RG", ft.Element(Ns + "defaultappearance")!.Value);
         var st = One(cases[12].F(A(1, AnnotKind.Stamp)));
         Assert.Equal("Approved", (string?)st.Attribute("icon"));
     }

@@ -248,6 +248,12 @@ public static class AnnotationReader
 
             var ft = kind == AnnotKind.FreeText ? ReadFreeText(e, rect.Value) : null;
             if (ft is { Failure: not ReadOnlyReason.None }) return Fail(ft.Failure);
+            if (ft is not null && !e.ContainsKey("/IC"))
+            {
+                // FreeText의 /C는 배경, 테두리 색은 /DA의 RG(다른 편집기 관례). /IC가 있으면 이전 SedolPDF가 쓴 파일(/C = 테두리, /IC = 배경)이다.
+                fill = color;
+                color = ft.Stroke ?? (ReadBorderWidth(e, bs) > 0 ? PdfColor.FromHex("#000000") : null);
+            }
 
             var shape = kind is AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon ? ReadShape(e, kind.Value) : null;
             if (shape is { Failure: not ReadOnlyReason.None }) return Fail(shape.Failure);
@@ -278,6 +284,7 @@ public static class AnnotationReader
                 FontSizePt = ft?.FontSizePt ?? 12f,
                 TextColor = ft?.TextColor,
                 Align = ft?.Align ?? TextAlign.Left,
+                Rotation = ft?.Rotation ?? 0,
                 State = reviewState,
             };
             return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent, replyParent);
@@ -372,7 +379,7 @@ public static class AnnotationReader
 
     private sealed record FreeTextData(
         ReadOnlyReason Failure, PdfRectF Rect, FreeTextIntent Intent, PdfRectF? TextBox, ImmutableArray<PdfPointF> Vertices,
-        LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align);
+        LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align, PdfColor? Stroke = null, int Rotation = 0);
 
     /// <summary>FreeText 전용 값: /IT, /DA, /Q, /CL, /RD, /LE. 지원하지 않는 /IT·/LE는 UnsupportedType, 모양이 망가진 /CL은 Malformed.</summary>
     private static FreeTextData ReadFreeText(PdfDictionary.DictionaryElements e, PdfRectF rect)
@@ -388,7 +395,8 @@ public static class AnnotationReader
             default: return Bad(ReadOnlyReason.UnsupportedType);
         }
 
-        var (size, color) = DefaultAppearance.Parse(Str(e, "/DA"));
+        var (size, color, stroke) = DefaultAppearance.Parse(Str(e, "/DA"));
+        int rotation = AnnotationRotation.Quarter(Int(e, "/Rotate") ?? 0) * 90;
         float fontSize = size is > 0f ? size.Value : 12f;   // 0 = 자동 크기: 12로 둔다
         int q = Int(e, "/Q") ?? 0;
         var align = q == 1 ? TextAlign.Center : q == 2 ? TextAlign.Right : TextAlign.Left;
@@ -428,8 +436,8 @@ public static class AnnotationReader
 
         // 설명선은 Rect 전체(지시선 포함)와 글 상자를 따로 갖는다. 나머지는 안쪽 상자가 곧 Rect다.
         return intent == FreeTextIntent.Callout
-            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align)
-            : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align);
+            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation)
+            : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation);
     }
 
     private static PdfItem? Resolve(PdfItem? item)

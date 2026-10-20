@@ -12,6 +12,9 @@ public static class PdfContentWriter
     {
         var sb = new StringBuilder();
         sb.Append("q\n");
+        if (d.Transform is { } tm)
+            sb.Append(Num(tm.A)).Append(' ').Append(Num(tm.B)).Append(' ').Append(Num(tm.C)).Append(' ').Append(Num(tm.D)).Append(' ')
+              .Append(Num(tm.E)).Append(' ').Append(Num(tm.F)).Append(" cm\n");
         if (d.Opacity < 1f) sb.Append("/GS gs\n");
         foreach (var op in d.Ops)
         {

@@ -282,6 +282,29 @@ public class NewToolsTests
         Assert.Null(c.CreateReplace(Style, Page, []));
     }
 
+    /// <summary>2026-10-20 버그: 회전된 쪽에서 만든 글자 주석은 쪽 회전만큼 Rotation을 갖고, 기본 크기도 화면 기준이다.</summary>
+    [Fact]
+    public void RotatedPage_TextBoxAndStamp_GetRotation()
+    {
+        var c = Make();
+        c.PageRotationOf = _ => 1;   // 시계 방향 90도로 보이는 쪽
+        c.Begin(ToolKind.TextBox, Style, Page, new(100, 300), 1f);
+        var a = Added(c.End(new(101, 299)));
+        Assert.Equal(90, a.Rotation);
+        // 화면에서 200 × 40(가로로 긴 상자) = 쪽 좌표 40 × 200, 클릭한 점이 화면 왼쪽 위(쪽 좌표의 왼쪽 아래)
+        Assert.Equal(new PdfRectF(100, 300, 140, 500), a.Rect);
+
+        c.Begin(ToolKind.Stamp, Style, Page, new(300, 400), 1f);
+        var st = Added(c.End(new(300, 400)));
+        Assert.Equal(90, st.Rotation);
+        Assert.Equal(50f, st.Rect.Width, 3);
+        Assert.Equal(150f, st.Rect.Height, 3);
+
+        c.PageRotationOf = _ => 0;
+        c.Begin(ToolKind.Stamp, Style, Page, new(300, 400), 1f);
+        Assert.Equal(0, Added(c.End(new(300, 400))).Rotation);
+    }
+
     [Fact]
     public void Stamp_DefaultSizeAtClick()
     {

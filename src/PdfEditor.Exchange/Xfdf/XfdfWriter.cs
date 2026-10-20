@@ -49,8 +49,18 @@ public static class XfdfWriter
         var e = new XElement(Ns + ElementName(a.Kind));
         e.SetAttributeValue("page", page.ToString(CultureInfo.InvariantCulture));
         e.SetAttributeValue("rect", Rect(a.Rect));
-        if (a.Color is { } c) e.SetAttributeValue("color", c.ToHex());
-        if (a.FillColor is { } fc) e.SetAttributeValue("interior-color", fc.ToHex());
+        if (a.Kind == AnnotKind.FreeText)
+        {
+            // freetext의 color(= /C)는 배경이다. 테두리 색은 defaultappearance의 RG로 쓴다(FreeText 아래).
+            if (a.FillColor is { } bg) e.SetAttributeValue("color", bg.ToHex());
+        }
+        else
+        {
+            if (a.Color is { } c) e.SetAttributeValue("color", c.ToHex());
+            if (a.FillColor is { } fc) e.SetAttributeValue("interior-color", fc.ToHex());
+        }
+        if (a.Kind is AnnotKind.FreeText or AnnotKind.Stamp && AnnotationRotation.Quarter(a.Rotation) != 0)
+            e.SetAttributeValue("rotation", (AnnotationRotation.Quarter(a.Rotation) * 90).ToString(CultureInfo.InvariantCulture));
         e.SetAttributeValue("opacity", Num(a.Opacity));
         e.SetAttributeValue("width", Num(a.BorderWidth));
         e.SetAttributeValue("name", Clean(names[a.Id]));
@@ -119,6 +129,8 @@ public static class XfdfWriter
         var tc = a.TextColor ?? new PdfColor(0, 0, 0);
         string da = string.Create(CultureInfo.InvariantCulture,
             $"/Helv {Num(a.FontSizePt)} Tf {tc.R / 255.0:0.###} {tc.G / 255.0:0.###} {tc.B / 255.0:0.###} rg");
+        if (a.Color is { } bc)
+            da += string.Create(CultureInfo.InvariantCulture, $" {bc.R / 255.0:0.###} {bc.G / 255.0:0.###} {bc.B / 255.0:0.###} RG");
         e.Add(new XElement(Ns + "defaultappearance", da));
         e.SetAttributeValue("justification", a.Align switch { TextAlign.Center => "centered", TextAlign.Right => "right", _ => "left" });
         switch (a.Intent)

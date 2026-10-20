@@ -20,15 +20,17 @@ internal static class FreeTextPainter
     public static PdfRectF BoxOf(Annotation a) => IntentOf(a) == FreeTextIntent.Callout ? a.TextBox ?? a.Rect : a.Rect;
 
     /// <summary>타자기: 왼쪽 위를 고정하고 상자를 글 크기에 맞춘다(자동 줄바꿈 없음). 나머지 유형은 그대로 돌려준다.</summary>
-    public static Annotation FitTypewriter(Annotation a, PaintContext ctx)
+    public static Annotation FitTypewriter(Annotation page, PaintContext ctx)
     {
-        if (IntentOf(a) != FreeTextIntent.Typewriter) return a;
+        if (IntentOf(page) != FreeTextIntent.Typewriter) return page;
+        // 회전한 타자기는 바로 선 자기 좌표에서 맞춘 뒤 되돌린다(화면에서 본 왼쪽 위가 고정된다).
+        var a = AnnotationRotation.ToLocal(page, out var toPage);
         var laid = TextLayout.Layout(ctx.Font ?? throw new InvalidOperationException("Fitting a typewriter annotation needs the app font."), a.Contents ?? "", a.FontSizePt, float.PositiveInfinity, a.Align,
             new PdfPointF(a.Rect.Left + Padding, a.Rect.Top - Padding));
         float lineH = a.FontSizePt * 1.2f;
         float w = Math.Max(laid.Bounds.Width, 0f) + 2 * Padding;
         float h = Math.Max(laid.Lines.Length, 1) * lineH + 2 * Padding;
-        return a with { Rect = new PdfRectF(a.Rect.Left, a.Rect.Top - h, a.Rect.Left + w, a.Rect.Top) };
+        return AnnotationRotation.FromLocal(a with { Rect = new PdfRectF(a.Rect.Left, a.Rect.Top - h, a.Rect.Left + w, a.Rect.Top) }, toPage, page.Rotation);
     }
 
     public static (ImmutableArray<TextRunOp> Texts, PdfRectF? TextBounds) Paint(

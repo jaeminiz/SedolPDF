@@ -262,6 +262,7 @@ public static class PatchPlanBuilder
         AddOpacity(ops, m);
         if (!isNew) ops.Add(new SetNumbers("/Rect", [m.Rect.Left, m.Rect.Bottom, m.Rect.Right, m.Rect.Top]));
         ops.Add(new SetName("/Name", spec.Kind == StampKind.Builtin && spec.BuiltinName.Length > 0 ? spec.BuiltinName : CustomStampName));
+        AddRotate(ops, m);
         AddCommonKeys(ops, m, isNew);
         if (spec.Kind == StampKind.Image)
             ops.Add(new AddApImage("Im1", spec.ImageId ?? throw new InvalidOperationException("An image stamp needs an ImageId.")));
@@ -282,6 +283,14 @@ public static class PatchPlanBuilder
         AddCommonKeys(ops, m, isNew);
         ops.Add(new EmbedFile(m.AttachmentName ?? "attachment", m.AttachmentId ?? throw new InvalidOperationException("A file attachment needs an AttachmentId.")));
         return ops.ToImmutable();
+    }
+
+    /// <summary>/Rotate: 글 방향(반시계 도, Acrobat의 FreeText·Stamp 키). 0이면 지운다.</summary>
+    private static void AddRotate(ImmutableArray<PatchOp>.Builder ops, Annotation m)
+    {
+        int q = AnnotationRotation.Quarter(m.Rotation);
+        if (q == 0) ops.Add(new RemoveKeys(["/Rotate"]));
+        else ops.Add(new SetInteger("/Rotate", q * 90));
     }
 
     private static void AddOpacity(ImmutableArray<PatchOp>.Builder ops, Annotation m)
@@ -401,7 +410,10 @@ public static class PatchPlanBuilder
         string contents = m.Contents ?? "";
         ops.Add(new SetString("/Contents", contents));
         var tc = m.TextColor ?? new PdfColor(0, 0, 0);
-        ops.Add(new SetString("/DA", $"{N(tc.R / 255f)} {N(tc.G / 255f)} {N(tc.B / 255f)} rg /Helv {N(m.FontSizePt)} Tf"));
+        // 테두리 색은 /DA의 RG로 쓴다. FreeText의 /C는 다른 편집기(Acrobat·PDF-XChange 등)가 배경색으로 읽는다(2026-10-20 버그:
+        // 다른 편집기에서 고치면 배경이 테두리 색으로 채워짐). 관례 출처: pypdf FreeText(/DA = 테두리 RG, /C = 배경).
+        string borderDa = m.Color is { } bc ? $" {N(bc.R / 255f)} {N(bc.G / 255f)} {N(bc.B / 255f)} RG" : "";
+        ops.Add(new SetString("/DA", $"{N(tc.R / 255f)} {N(tc.G / 255f)} {N(tc.B / 255f)} rg{borderDa} /Helv {N(m.FontSizePt)} Tf"));
         ops.Add(new SetInteger("/Q", (int)m.Align));
 
         // AP는 불투명하게 그리므로 손댄 원본에 남은 낡은 /CA는 지운다.
@@ -429,10 +441,11 @@ public static class PatchPlanBuilder
         // 두께는 /Border에 쓰므로 낡은 /BS는 지운다(M2 한계 1과 같은 이유).
         ops.Add(new RemoveKeys(["/BS"]));
         ops.Add(new SetNumbers("/Border", [0f, 0f, m.BorderWidth]));
-        if (m.Color is { } c) ops.Add(new SetNumbers("/C", [c.R / 255f, c.G / 255f, c.B / 255f]));
+        // /C = 배경(없으면 지움). /IC는 FreeText에 정의가 없다(이전 판이 쓰던 것) — 지운다.
+        if (m.FillColor is { } f) ops.Add(new SetNumbers("/C", [f.R / 255f, f.G / 255f, f.B / 255f]));
         else ops.Add(new RemoveKeys(["/C"]));
-        if (m.FillColor is { } f) ops.Add(new SetNumbers("/IC", [f.R / 255f, f.G / 255f, f.B / 255f]));
-        else ops.Add(new RemoveKeys(["/IC"]));
+        ops.Add(new RemoveKeys(["/IC"]));
+        AddRotate(ops, m);
 
         ops.Add(new SetString("/RC", AnnotationFlusher.MinimalXhtml(contents)));
         if (m.Author is not null) ops.Add(new SetString("/T", m.Author));

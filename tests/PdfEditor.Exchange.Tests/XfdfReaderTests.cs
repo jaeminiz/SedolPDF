@@ -20,6 +20,26 @@ public class XfdfReaderTests
         => Path.Combine(AppContext.BaseDirectory, "fixtures", "xfdf", name);
 
     [Fact]
+    public void FreeText_ColorIsBackground_BorderFromDaStroke_Rotation()
+    {
+        // 다른 편집기 관례(2026-10-20 버그): freetext의 color = 배경(/C), 테두리 색 = defaultappearance의 RG
+        var r = Read(Wrap("""
+            <freetext page="0" rect="0,0,100,40" color="#FFFF00" width="1" rotation="90" name="a">
+              <defaultappearance>0 0 0 rg 0 0 1 RG /Helv 12 Tf</defaultappearance>
+            </freetext>
+            <freetext page="0" rect="0,0,100,40" color="#FF0000" interior-color="#00FF00" width="1" name="b"/>
+            """));
+        var a = r.Annotations[0].A;
+        Assert.Equal(new PdfColor(255, 255, 0), a.FillColor);
+        Assert.Equal(new PdfColor(0, 0, 255), a.Color);
+        Assert.Equal(90, a.Rotation);
+        // 이전 SedolPDF 파일(interior-color가 있음): color = 테두리
+        var b = r.Annotations[1].A;
+        Assert.Equal(new PdfColor(255, 0, 0), b.Color);
+        Assert.Equal(new PdfColor(0, 255, 0), b.FillColor);
+    }
+
+    [Fact]
     public void Import_UnknownElementsSkipped_Reported()
     {
         var r = Read(Wrap("""

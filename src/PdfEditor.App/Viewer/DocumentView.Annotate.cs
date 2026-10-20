@@ -163,6 +163,7 @@ public sealed partial class DocumentView
             return true;
         }
         tab.Tools.PageBoundsOf = _ => PdfRectF.FromLtrbRectangle(g.Bounds);   // 스탬프 등이 쪽 밖으로 나가지 않게
+        tab.Tools.PageRotationOf = _ => g.Rotation;   // 회전된 쪽: 글자가 있는 주석을 바로 세운다
         tab.Tools.Begin(tool, DocumentTabViewModel.StyleFor(tool), info.Id, pt, ptPerDip);
         _polyActive = poly && tab.Tools.IsCollectingPoints;
         StartGesture(e.Pointer, tool == ToolKind.Eraser ? Gesture.Erase : Gesture.Create, hit.Page, info.Id, g);

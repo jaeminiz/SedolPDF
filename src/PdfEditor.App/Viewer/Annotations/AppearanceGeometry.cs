@@ -27,9 +27,13 @@ public sealed record CachedAppearance(IReadOnlyList<(Geometry Geometry, IBrush? 
     /// <summary>모든 입력(그림 비트맵)이 갖춰진 결과인가. false면 캐시하지 않는다(나중에 다시 만들어야 한다).</summary>
     public bool Complete { get; init; } = true;
 
+    /// <summary>모든 항목에 곱하는 쪽 좌표 행렬(AppearanceDrawing.Transform, 회전한 FreeText·Stamp). null이면 없음.</summary>
+    public Matrix? Transform { get; init; }
+
     /// <summary>경로 → 그림 → 글자 순(PDF 내용 스트림 순서와 같다).</summary>
     public void Draw(DrawingContext ctx)
     {
+        using var _ = Transform is { } t ? ctx.PushTransform(t) : default(DrawingContext.PushedState?);
         foreach (var (geo, fill, stroke) in Items) ctx.DrawGeometry(fill, stroke, geo);
         foreach (var (rect, bmp) in Images)
         {
@@ -136,7 +140,11 @@ public static class AppearanceGeometry
             var op = new PaintOp(path.ToImmutable(), run.Color, null, 0, PdfEditor.Appearance.LineCap.Butt, PdfEditor.Appearance.LineJoin.Miter);
             texts.Add((ToGeometry(op), brush, null));
         }
-        return new CachedAppearance(items) { Images = images, Texts = texts, Opacity = d.Opacity, Complete = complete };
+        return new CachedAppearance(items)
+        {
+            Images = images, Texts = texts, Opacity = d.Opacity, Complete = complete,
+            Transform = d.Transform is { } m ? new Matrix(m.A, m.B, m.C, m.D, m.E, m.F) : null,
+        };
     }
 
     /// <summary>글리프 윤곽선(em 단위)을 글자 크기만큼 키우고 기준선 원점으로 옮긴다.</summary>

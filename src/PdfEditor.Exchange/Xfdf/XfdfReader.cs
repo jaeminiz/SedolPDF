@@ -454,6 +454,7 @@ public static partial class XfdfReader
                     var r = Stamp(a, at, out error);
                     if (r is null) return null;
                     a = r;
+                    if (at.TryGetValue("rotation", out var srs) && TryFloat(srs, out var srv)) a = a with { Rotation = AnnotationRotation.Quarter((int)Math.Round(srv)) * 90 };
                     break;
                 }
             case AnnotKind.FileAttachment:
@@ -524,6 +525,17 @@ public static partial class XfdfReader
                 box = new PdfRectF(r.Left + f[0], r.Bottom + f[1], r.Right - f[2], r.Top - f[3]);
         }
         if (intent == FreeTextIntent.Callout && callout.IsDefaultOrEmpty) intent = FreeTextIntent.TextBox;   // 지시선이 없으면 설명선이 아니다
+        // freetext의 color(= /C)는 배경, 테두리 색은 defaultappearance의 RG(다른 편집기 관례). interior-color가 있으면 이전 SedolPDF 파일(color = 테두리).
+        if (!at.ContainsKey("interior-color"))
+        {
+            PdfColor? stroke = null;
+            if (da is not null && StrokeRgRegex().Match(da) is { Success: true } sm && TryFloat(sm.Groups[1].Value, out var sr) && TryFloat(sm.Groups[2].Value, out var sg) && TryFloat(sm.Groups[3].Value, out var sb))
+                stroke = new PdfColor(To255(sr), To255(sg), To255(sb));
+            a = a with { FillColor = a.Color, Color = stroke ?? (a.BorderWidth > 0 ? new PdfColor(0, 0, 0) : null) };
+        }
+        int rot = 0;
+        if (at.TryGetValue("rotation", out var rs) && TryFloat(rs, out var rv)) rot = AnnotationRotation.Quarter((int)Math.Round(rv)) * 90;
+        a = a with { Rotation = rot };
         a = a with { FontSizePt = size, TextColor = tc, Align = align, Intent = intent, Vertices = callout, TextBox = box };
         if (intent == FreeTextIntent.Callout) a = WithEndings(a, at, name, notes);
         return a;
@@ -775,6 +787,9 @@ public static partial class XfdfReader
 
     [GeneratedRegex(@"(-?\d+(?:\.\d+)?)\s+g\b")]
     private static partial Regex GRegex();
+
+    [GeneratedRegex(@"(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+RG")]
+    private static partial Regex StrokeRgRegex();
 
     [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_ \-]{0,39}$")]
     private static partial Regex StampNameRegex();

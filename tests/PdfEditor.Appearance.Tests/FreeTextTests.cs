@@ -435,6 +435,86 @@ public class FreeTextTests : IDisposable
 
     private static T Deref<T>(PdfItem? item) where T : PdfItem => (T)((item as PdfReference)?.Value ?? item)!;
 
+    [Fact]
+    public async Task Typewriter_Rotated_FitsAlongScreenLine_TopLeftFixed()
+    {
+        await using var s = await OpenBlankAsync("tw-rot.pdf");
+        var t = Box(s, new PdfRectF(50, 60, 70, 78.4f), "가나다라마바사", x => x with
+        {
+            Intent = FreeTextIntent.Typewriter, Rotation = 90, Color = null, FillColor = null, BorderWidth = 0, FontSizePt = 12,
+        });
+        var fit = AnnotationPainter.FitTypewriter(t, Ctx);
+        // 반시계 90도: 화면에서 본 왼쪽 위 = 쪽 좌표의 (Left, Bottom). 글줄은 쪽 좌표 위쪽(y)으로 자란다.
+        Assert.Equal(50f, fit.Rect.Left, 0.01);
+        Assert.Equal(60f, fit.Rect.Bottom, 0.01);
+        Assert.Equal(12f * 1.2f + 4, fit.Rect.Width, 0.01);
+        Assert.True(fit.Rect.Height > 12f * 7 * 0.8f, $"height {fit.Rect.Height}");
+        var d = AnnotationPainter.Paint(fit, 0, Ctx);
+        Assert.NotNull(d.Transform);
+        Assert.True(d.Bounds.Left >= fit.Rect.Left - 0.01 && d.Bounds.Right <= fit.Rect.Right + 0.01
+            && d.Bounds.Bottom >= fit.Rect.Bottom - 0.01 && d.Bounds.Top <= fit.Rect.Top + 0.01, $"bounds {d.Bounds} in {fit.Rect}");
+        Assert.Contains(" cm\n", PdfContentWriter.Write(d));
+    }
+
+    /// <summary>2026-10-20 버그: 다른 편집기는 FreeText의 /C를 배경으로 읽는다 → /C = 배경, 테두리 색은 /DA의 RG, /IC 없음.</summary>
+    [Fact]
+    public async Task TextBox_SavedKeys_CIsBackground_BorderInDa()
+    {
+        await using var s = await OpenBlankAsync("keys.pdf");
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, Box(s, new PdfRectF(20, 100, 120, 180), "abc")));
+        string target = Path.Combine(_dir, "keys-out.pdf");
+        await Svc().SaveAsync(s, target);
+        using (var doc = PdfReader.Open(target, PdfDocumentOpenMode.Import))
+        {
+            var d = AnnotDict(doc, 0);
+            static double V(PdfItem i) => i is PdfReal r ? r.Value : ((PdfInteger)i).Value;
+            var c = d.Elements.GetArray("/C")!;
+            Assert.Equal([255 / 255.0, 245 / 255.0, 157 / 255.0], c.Elements.Select(V).ToArray(), new Tol());
+            Assert.False(d.Elements.ContainsKey("/IC"));
+            Assert.Contains("0.898 0.216 0.176 RG", d.Elements.GetString("/DA"));
+        }
+        var r = Assert.Single(ReadBack(target)).Data!;
+        Assert.Equal(Red, r.Color);
+        Assert.Equal(Yellow, r.FillColor);
+    }
+
+    /// <summary>2026-10-20 버그: 회전된 쪽(/Rotate 90)에서 텍스트 상자 글자가 세로로 써짐 → Rotation만큼 돌려 화면에서 가로로 읽힌다.</summary>
+    [Fact]
+    public async Task TextBox_OnRotatedPage_TextReadsHorizontally()
+    {
+        string p = Path.Combine(_dir, "rot.pdf");
+        TestPdfFactory.CreateBlank(p, 1, 200, 300);
+        using (var d = PdfReader.Open(p, PdfDocumentOpenMode.Modify)) { d.Pages[0].Rotate = 90; d.Save(p); }
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        await s.AnnotationsReady;
+        // 쪽 좌표로 세로로 긴 상자(40 × 160) = 화면에서 가로로 긴 상자
+        var a = Box(s, new PdfRectF(80, 70, 120, 230), "WWWWWWWWWWWWWWWW",
+            x => x with { Rotation = 90, FillColor = null, Color = null, BorderWidth = 0, FontSizePt = 10 });
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, a));
+        string target = Path.Combine(_dir, "rot-out.pdf");
+        await Svc().SaveAsync(s, target);
+
+        var (w, h, px) = await _t.InvokeAsync(() =>
+        {
+            using var doc = Pdf.Native.PdfDocument.Open(_t, target);
+            using var page = doc.LoadPage(0);
+            var size = page.SizePt;
+            int pw = (int)size.Width, ph = (int)size.Height;
+            return (pw, ph, page.RenderTile(1, 0, 0, pw, ph, true));
+        });
+        Assert.True(w > h, "the page is shown in landscape");
+        int minX = int.MaxValue, maxX = -1, minY = int.MaxValue, maxY = -1;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (px[(y * w + x) * 4] + px[(y * w + x) * 4 + 1] + px[(y * w + x) * 4 + 2] < 600) { minX = Math.Min(minX, x); maxX = Math.Max(maxX, x); minY = Math.Min(minY, y); maxY = Math.Max(maxY, y); }
+        Assert.True(maxX >= 0, "text was drawn");
+        Assert.True(maxX - minX > 5 * (maxY - minY), $"ink {maxX - minX} x {maxY - minY}: text runs left to right on screen");
+
+        using (var doc = PdfReader.Open(target, PdfDocumentOpenMode.Import))
+            Assert.Equal(90, AnnotDict(doc, 0).Elements.GetInteger("/Rotate"));
+        Assert.Equal(90, Assert.Single(ReadBack(target)).Data!.Rotation);
+    }
+
     private static PdfDictionary AnnotDict(PdfSharpDocument doc, int index)
         => Deref<PdfDictionary>(Deref<PdfArray>(doc.Pages[0].Elements["/Annots"]).Elements[index]);
 

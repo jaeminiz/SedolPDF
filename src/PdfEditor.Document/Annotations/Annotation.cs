@@ -47,4 +47,9 @@ public sealed record Annotation
     public StampSpec? Stamp { get; init; }
     public string? AttachmentId { get; init; }
     public string? AttachmentName { get; init; }
+    /// <summary>
+    /// FreeText·Stamp의 글 방향: 쪽 좌표에서 반시계 방향 각도(0·90·180·270, PDF /Rotate). 회전된 쪽에 만들 때 쪽 회전과 같게 정해
+    /// 화면에서 글자가 바로 서 보이게 한다(2026-10-20 버그: 회전된 쪽에서 글자가 세로로 써짐). 쪽을 나중에 돌려도 주석은 그대로다(Acrobat과 같음).
+    /// </summary>
+    public int Rotation { get; init; }
 }

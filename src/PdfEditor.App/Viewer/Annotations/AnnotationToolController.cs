@@ -426,10 +426,10 @@ public sealed class AnnotationToolController(
                     float tiny = TinyDragDip * _ptPerDip;
                     // 작은 끌기(클릭)는 클릭한 자리를 왼쪽 위로 하는 기본 크기
                     if (r.Width < tiny && r.Height < tiny)
-                        r = new PdfRectF(_start.X, _start.Y - DefaultTextBoxHeightPt, _start.X + DefaultTextBoxWidthPt, _start.Y);
+                        r = UprightAt(_start, new PdfRectF(_start.X, _start.Y - DefaultTextBoxHeightPt, _start.X + DefaultTextBoxWidthPt, _start.Y));
                     return Finish(_tool, style, new Annotation
                     {
-                        Kind = AnnotKind.FreeText, Intent = FreeTextIntent.TextBox, Rect = r, Contents = "",
+                        Kind = AnnotKind.FreeText, Intent = FreeTextIntent.TextBox, Rect = r, Contents = "", Rotation = PageRotationDeg,
                         BorderWidth = style.Width, FillColor = style.Fill, TextColor = style.Color,
                     });
                 }
@@ -440,7 +440,7 @@ public sealed class AnnotationToolController(
                     var a = Finish(_tool, style, new Annotation
                     {
                         Kind = AnnotKind.FreeText, Intent = FreeTextIntent.Typewriter, Contents = "",
-                        Rect = new PdfRectF(_start.X, _start.Y - h, _start.X + w, _start.Y),
+                        Rect = UprightAt(_start, new PdfRectF(_start.X, _start.Y - h, _start.X + w, _start.Y)), Rotation = PageRotationDeg,
                         BorderWidth = 0f, TextColor = style.Color,
                     });
                     return RequireFit()(a);
@@ -449,13 +449,15 @@ public sealed class AnnotationToolController(
                 {
                     // 누른 점 = 지시선 끝, 놓은 곳 = 상자 왼쪽 위
                     var tip = _start;
-                    var topLeft = Dist(tip, end) < TinyDragDip * _ptPerDip ? new PdfPointF(tip.X + 40f * _ptPerDip, tip.Y + 40f * _ptPerDip) : end;
-                    var box = new PdfRectF(topLeft.X, topLeft.Y - DefaultCalloutHeightPt, topLeft.X + DefaultCalloutWidthPt, topLeft.Y);
+                    var topLeft = Dist(tip, end) < TinyDragDip * _ptPerDip
+                        ? AnnotationRotation.About(tip, AnnotationRotation.Quarter(PageRotationDeg)).Apply(new PdfPointF(tip.X + 40f * _ptPerDip, tip.Y + 40f * _ptPerDip))
+                        : end;
+                    var box = UprightAt(topLeft, new PdfRectF(topLeft.X, topLeft.Y - DefaultCalloutHeightPt, topLeft.X + DefaultCalloutWidthPt, topLeft.Y));
                     var leader = NormalizeCalloutLeader([tip, LeaderAttachPoint(box, tip)]);
                     if (leader is null) return null;
                     var a = Finish(_tool, style, new Annotation
                     {
-                        Kind = AnnotKind.FreeText, Intent = FreeTextIntent.Callout, Contents = "",
+                        Kind = AnnotKind.FreeText, Intent = FreeTextIntent.Callout, Contents = "", Rotation = PageRotationDeg,
                         TextBox = box, Vertices = leader.Value, EndEnding = LineEnding.OpenArrow,
                         BorderWidth = style.Width, FillColor = style.Fill, TextColor = style.Color,
                     });
@@ -477,9 +479,10 @@ public sealed class AnnotationToolController(
                         float k = StampWidthPt / Math.Max(iw, ih);   // 긴 변을 150pt에 맞춘다
                         w = iw * k; h = ih * k;
                     }
+                    if (AnnotationRotation.Quarter(PageRotationDeg) % 2 == 1) (w, h) = (h, w);   // 돌아간 쪽: 화면에서 가로로 보이게
                     return Finish(_tool, style, new Annotation
                     {
-                        Kind = AnnotKind.Stamp, Stamp = spec, Contents = StampLabel(spec),
+                        Kind = AnnotKind.Stamp, Stamp = spec, Contents = StampLabel(spec), Rotation = PageRotationDeg,
                         Rect = ClampToPage(new PdfRectF(end.X - w / 2f, end.Y - h / 2f, end.X + w / 2f, end.Y + h / 2f)),
                     });
                 }
@@ -492,6 +495,14 @@ public sealed class AnnotationToolController(
 
     private Annotation BuildCaret(ToolKind tool, ToolStyle style, CharBoundary at)
         => Finish(tool, style, new Annotation { Kind = AnnotKind.Caret, Rect = CaretRect(at), Contents = "" });
+
+    /// <summary>쪽 회전(0~3, PDFium). 호스트가 연결한다. 글자가 있는 주석(FreeText·Stamp)이 화면에서 바로 서도록 Rotation을 정한다.</summary>
+    public Func<PageId, int>? PageRotationOf { get; set; }
+
+    private int PageRotationDeg => AnnotationRotation.ForPage(PageRotationOf?.Invoke(_page) ?? 0);
+
+    /// <summary>바로 선(화면 기준) 사각형 r을 고정점 p를 중심으로 쪽 회전만큼 돌린다: 화면에서 본 왼쪽 위가 p에 온다.</summary>
+    private PdfRectF UprightAt(PdfPointF p, PdfRectF r) => AnnotationRotation.Apply(AnnotationRotation.About(p, AnnotationRotation.Quarter(PageRotationDeg)), r);
 
     /// <summary>쪽 경계(호스트가 연결, 없으면 그대로). 스탬프가 쪽 밖으로 나가지 않게 안으로 민다.</summary>
     public Func<PageId, PdfRectF?>? PageBoundsOf { get; set; }

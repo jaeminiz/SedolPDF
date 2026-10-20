@@ -21,6 +21,7 @@ public static class AnnotationPainter
         var texts = ImmutableArray<TextRunOp>.Empty;
         PdfRectF? textBounds = null;
         var images = ImmutableArray<ImageOp>.Empty;
+        PdfMatrix transform = default;
         switch (a.Kind)
         {
             case AnnotKind.Ink: PaintInk(a, ops); break;
@@ -35,13 +36,19 @@ public static class AnnotationPainter
             case AnnotKind.Polygon: PaintPolygon(a, ops); break;
             case AnnotKind.Caret: PaintCaret(a, ops); break;
             case AnnotKind.FileAttachment: Icons.PaintAttachment(a, pageRotation, ops); break;
-            case AnnotKind.FreeText: (texts, textBounds) = FreeTextPainter.Paint(a, ctx, ops); break;
-            case AnnotKind.Stamp: (texts, images, textBounds) = StampPainter.Paint(a, ctx, ops); break;
+            // 글자가 있는 두 유형은 바로 선 자기 좌표에서 그리고 Rotation만큼 돌린다(회전된 쪽, 2026-10-20).
+            case AnnotKind.FreeText: (texts, textBounds) = FreeTextPainter.Paint(AnnotationRotation.ToLocal(a, out transform), ctx, ops); break;
+            case AnnotKind.Stamp: (texts, images, textBounds) = StampPainter.Paint(AnnotationRotation.ToLocal(a, out transform), ctx, ops); break;
         }
         var arr = ops.ToImmutableArray();
         var bounds = ComputeBounds(arr);
         if (textBounds is { } tb) bounds = arr.Length == 0 ? tb : bounds.Union(tb);
-        return new AppearanceDrawing(arr, a.Kind == AnnotKind.FreeText ? 1f : a.Opacity, bounds) { Texts = texts, Images = images };
+        bool rotated = a.Kind is AnnotKind.FreeText or AnnotKind.Stamp && AnnotationRotation.Quarter(a.Rotation) != 0;
+        if (rotated) bounds = AnnotationRotation.Apply(transform, bounds);
+        return new AppearanceDrawing(arr, a.Kind == AnnotKind.FreeText ? 1f : a.Opacity, bounds)
+        {
+            Texts = texts, Images = images, Transform = rotated ? transform : null,
+        };
     }
 
     /// <summary>타자기 주석의 Rect를 글 배치 결과에 맞춘다(왼쪽 위 고정). 다른 유형은 그대로.</summary>

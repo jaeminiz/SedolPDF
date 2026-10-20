@@ -30,6 +30,8 @@ public sealed record ImageOp(string ImageResource, string ImageId, PdfRectF Rect
 /// </summary>
 public sealed record AppearanceDrawing(ImmutableArray<PaintOp> Ops, float Opacity, PdfRectF Bounds)
 {
+    /// <summary>모든 경로·그림·글자에 곱하는 행렬(PDF cm). 회전한 FreeText·Stamp만 쓰고 나머지는 null. Bounds는 이미 곱한 뒤의 경계.</summary>
+    public PdfMatrix? Transform { get; init; }
     public ImmutableArray<TextRunOp> Texts { get; init; } = ImmutableArray<TextRunOp>.Empty;
     public ImmutableArray<ImageOp> Images { get; init; } = ImmutableArray<ImageOp>.Empty;
 
