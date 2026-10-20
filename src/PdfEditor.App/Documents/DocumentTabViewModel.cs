@@ -293,7 +293,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     partial void OnToolChanged(ToolKind value)
     {
-        if (value is not (ToolKind.EditObject or ToolKind.EditText)) Objects.Clear();   // 객체 선택은 객체 도구에서만
+        if (value is not (ToolKind.EditObject or ToolKind.EditText or ToolKind.AnnotSelect)) Objects.Clear();   // 객체 선택은 객체 도구·주석 선택 도구에서만(주석 선택에서는 주석과 함께 골라 옮기고 지운다)
         Tools.Cancel();
         Tools.CancelAttach();
         Editing.Cancel();

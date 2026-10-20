@@ -136,10 +136,17 @@ public sealed partial class DocumentView
             var h = tab.Editing.HitTest(annots, tab.Selection, pt, ptPerDip);
             if (h is null)
             {
-                // 편집 탭으로 넣은 이미지·도형·텍스트(쪽 객체)도 주석 선택 도구로 고를 수 있게: 도구를 객체 편집으로 바꾸고 바로 끌 수 있게 한다
-                if (TryPickInsertedObject(st, info, e, g, pt, ptPerDip)) return true;
-                // 빈 곳에서 끌면 사각형으로 여러 주석을 한꺼번에 고른다(2026-10-20 사용자 요청)
-                if (!toggle) tab.Selection.Clear();
+                // 이미 고른 객체(편집 탭으로 넣은 도형·이미지·텍스트)의 몸통·손잡이를 누르면 그대로 끈다
+                if (!toggle && tab.CanEditContent && tab.Objects.Selected is { } picked && picked.Page == info.Id
+                    && tab.Objects.HitHandle(pt, ptPerDip) is var oh && oh != PdfEditor.App.Viewer.Objects.ObjectHandle.None)
+                {
+                    StartObjectDrag(e.Pointer, oh, pt, e.PageIndex, g);
+                    return true;
+                }
+                // 편집 탭으로 넣은 객체도 주석 선택 도구로 고른다(도구는 그대로 주석 선택)
+                if (TryPickInsertedObject(st, info, e, g, pt, ptPerDip, toggle)) return true;
+                // 빈 곳에서 끌면 사각형으로 여러 주석·넣은 객체를 한꺼번에 고른다(2026-10-20 사용자 요청)
+                if (!toggle) { tab.Selection.Clear(); tab.Objects.Clear(); }
                 _mqStart = _mqEnd = pt;
                 _mqAdd = toggle;
                 _mqFramePick = null;
@@ -160,8 +167,12 @@ public sealed partial class DocumentView
                 OpenFreeTextEditor(st, info.Id, data, isNew: false);
                 return true;
             }
+            // 고른 주석을 끌면 함께 고른 객체도 같은 양만큼 옮긴다. 고르지 않은 주석을 누르면 객체 선택은 푼다.
+            bool withObjects = tab.CanEditContent && tab.Objects.Selected is { } so && so.Page == info.Id && tab.Selection.Ids.Contains(h.Id);
+            if (!withObjects) tab.Objects.Clear();
             tab.Editing.Begin(annots, tab.Selection, h, pt, PdfRectF.FromLtrbRectangle(g.Bounds), ptPerDip);
             StartGesture(e.Pointer, Gesture.Select, hit.Page, info.Id, g);
+            if (withObjects) StartObjectDrag(e.Pointer, PdfEditor.App.Viewer.Objects.ObjectHandle.Body, pt, e.PageIndex, g);
             return true;
         }
 
@@ -234,15 +245,17 @@ public sealed partial class DocumentView
         PushPreview();
     }
 
-    private bool TryPickInsertedObject(ViewState st, PageInfo info, PressInfo e, PageGeom g, PdfPointF pt, float ptPerDip)
+    private bool TryPickInsertedObject(ViewState st, PageInfo info, PressInfo e, PageGeom g, PdfPointF pt, float ptPerDip, bool toggle)
     {
         var tab = st.Tab;
         if (!tab.CanEditContent || st.Session.Content.For(info.Id).Length == 0) return false;
         if (!TryGetObjectIndex(st, info, out var idx)) return false;   // 목록이 오기 전: 이번에는 건너뛴다(요청은 이미 보냄)
         var hit = idx.HitTest(pt, 4 * ptPerDip, x => x.Ref.IsInserted).FirstOrDefault();
         if (hit is null) return false;
-        tab.Tool = ToolKind.EditObject;
-        tab.Objects.Select(new PdfEditor.App.Viewer.Objects.SelectedObject(info.Id, hit.Ref, hit.Type, hit.Bounds));
+        var chosen = new PdfEditor.App.Viewer.Objects.SelectedObject(info.Id, hit.Ref, hit.Type, hit.Bounds);
+        if (toggle) { tab.Objects.Toggle(chosen); InvalidateVisual(); return true; }
+        tab.Selection.Clear();
+        tab.Objects.Select(chosen);
         StartObjectDrag(e.Pointer, PdfEditor.App.Viewer.Objects.ObjectHandle.Body, pt, e.PageIndex, g);
         InvalidateVisual();
         return true;
@@ -269,6 +282,7 @@ public sealed partial class DocumentView
         _mqFramePick = null;
         if (tab.Tool == ToolKind.AnnotSelect)
         {
+            // 주석 선택 도구: 사각형과 겹치는 주석과 편집 탭으로 넣은 객체를 함께 고른다(도구는 그대로)
             var annots = st.Session.Annotations.Get(page);
             var ids = annots.Items.Where(v => v.Data is { } d && d.Rect.Left <= r && d.Rect.Right >= l && d.Rect.Bottom <= t && d.Rect.Top >= b)
                 .Select(v => v.Data.Id).ToList();
@@ -277,8 +291,17 @@ public sealed partial class DocumentView
                 var all = SelectionController.ExpandGroups(annots, ids).ToList();
                 if (_mqAdd && tab.Selection.Page == page) foreach (var id in tab.Selection.Ids) if (!all.Contains(id)) all.Add(id);
                 tab.Selection.Set(page, all);
-                return;
             }
+            if (tab.CanEditContent && _gPage >= 0 && _gPage < _layoutPages.Length && TryGetObjectIndex(st, _layoutPages[_gPage], out var oidx))
+            {
+                var found = oidx.Entries.Where(e => !e.IsFrame && e.Ref.IsInserted
+                        && e.Bounds.Left <= r && e.Bounds.Right >= l && e.Bounds.Bottom <= t && e.Bounds.Top >= b)
+                    .Select(e => new PdfEditor.App.Viewer.Objects.SelectedObject(page, e.Ref, e.Type, e.Bounds)).ToList();
+                if (_mqAdd) foreach (var old in tab.Objects.All) if (old.Page == page && !found.Any(x => x.Ref == old.Ref)) found.Add(old);
+                if (found.Count > 0) tab.Objects.SelectMany(found); else if (!_mqAdd) tab.Objects.Clear();
+            }
+            InvalidateVisual();
+            return;
         }
         if (!tab.CanEditContent || _gPage < 0 || _gPage >= _layoutPages.Length || !TryGetObjectIndex(st, _layoutPages[_gPage], out var idx)) return;
         bool objectTool = tab.Tool == ToolKind.EditObject;
@@ -288,7 +311,6 @@ public sealed partial class DocumentView
                            : e.Bounds.Left <= r && e.Bounds.Right >= l && e.Bounds.Bottom <= t && e.Bounds.Top >= b))
             .Select(e => new PdfEditor.App.Viewer.Objects.SelectedObject(page, e.Ref, e.Type, e.Bounds)).ToList();
         if (hits.Count == 0) return;
-        if (!objectTool) tab.Tool = ToolKind.EditObject;
         if (_mqAdd && objectTool) foreach (var old in tab.Objects.All) if (!hits.Any(x => x.Ref == old.Ref)) hits.Add(old);
         tab.Objects.SelectMany(hits);
         InvalidateVisual();

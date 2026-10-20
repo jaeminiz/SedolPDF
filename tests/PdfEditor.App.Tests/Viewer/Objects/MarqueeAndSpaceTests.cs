@@ -59,7 +59,7 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
     }
 
     [Fact]
-    public async Task AnnotSelectTool_ClickOnInsertedShape_SwitchesToObjectEditAndSelects()
+    public async Task AnnotSelectTool_ClickOnInsertedShape_SelectsItAndKeepsTheTool()
     {
         var s = await OpenAsync(p => ContentPdfFactory.CreateDocumentLike(p));
         await s.AnnotationsReady;
@@ -78,7 +78,8 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
             return 0;
         });
         Click(h, AtPt(h, 350, 842 - 330));   // 도형 안(쪽 아래 기준 y 330 = 위 기준 512)
-        PumpUi(() => h.Tab.Tool == ToolKind.EditObject && h.Tab.Objects.Selected is not null);
+        PumpUi(() => h.Tab.Objects.Selected is not null);
+        Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);   // 도구는 주석 선택 그대로(2026-10-20 사용자 요청)
         Assert.Equal(PdfEditor.Document.Content.ObjectRef.Inserted(edit.Id), h.Tab.Objects.Selected!.Ref);
     }
 
@@ -110,7 +111,8 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
         var (h, a, b) = await TwoShapesAsync(ToolKind.AnnotSelect);
         // 빈 곳(260,480)에서 (500,560)까지: 두 도형(쪽 아래 기준 y 300~340 = 위 기준 502~542)과 겹친다
         Drag(h, AtPt(h, 260, 480), AtPt(h, 500, 560));
-        PumpUi(() => h.Tab.Tool == ToolKind.EditObject && h.Tab.Objects.All.Count == 2);
+        PumpUi(() => h.Tab.Objects.All.Count == 2);
+        Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);
         Assert.Equal([PdfEditor.Document.Content.ObjectRef.Inserted(a.Id), PdfEditor.Document.Content.ObjectRef.Inserted(b.Id)], h.Tab.Objects.All.Select(x => x.Ref).OrderBy(x => x.InsertedId).ToArray());
         // 한 도형 위에서 끌면 둘 다 같은 양만큼 옮겨지고 명령은 하나
         int before = Edits(h).Count;
@@ -143,5 +145,28 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
         PumpUi(() => true);
         Assert.Equal(2, h.Tab.Objects.All.Count);
         Assert.All(h.Tab.Objects.All, x => Assert.True(x.Ref.IsInserted));
+    }
+
+    [Fact]
+    public async Task AnnotSelectMarquee_SelectsAnnotationsAndInsertedObjectsTogether_AndMovesBoth()
+    {
+        var (h, a, b) = await TwoShapesAsync(ToolKind.AnnotSelect);
+        var page = h.Session.Pages[0].Id;
+        var sq = Square(h.Session, 100, 842 - 540, 160, 842 - 500);
+        await h.Session.Commands.ExecuteAsync(new ChangeAnnotationsCommand(page, [new AnnotationChange(null, sq)]));
+        PumpUi(() => true);
+        // 주석(100~160, 위 기준 500~540)과 도형 둘(300~460)을 모두 감싸는 끌기
+        Drag(h, AtPt(h, 60, 470), AtPt(h, 500, 560));
+        await Task.Delay(500); PumpUi(() => true);
+        Assert.True(h.Tab.Selection.Ids.Count == 1 && h.Tab.Objects.All.Count == 2, $"ann={h.Tab.Selection.Ids.Count} obj={h.Tab.Objects.All.Count}");
+        Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);
+        // 고른 주석 위에서 끌면 함께 고른 객체도 같은 양만큼
+        int before = Edits(h).Count;
+        Drag(h, AtPt(h, 100, 520), AtPt(h, 130, 520));   // 네모 주석은 테두리에서만 잡힌다
+        await Task.Delay(700); PumpUi(() => true);
+        Assert.True(Edits(h).Count == before + 2, $"edits {Edits(h).Count - before}, objs={h.Tab.Objects.All.Count}, ann={h.Tab.Selection.Ids.Count}, rect={h.Session.Annotations.Get(page).Items.First(v => v.Data.Id == sq.Id).Data.Rect}");
+        Assert.All(Edits(h).Skip(before), e => Assert.Equal(30, ((PdfEditor.Document.Content.TransformEdit)e).Then.E, 1f));
+        var moved = h.Session.Annotations.Get(page).Items.First(v => v.Data.Id == sq.Id).Data.Rect;
+        Assert.Equal(130f, moved.Left, 1f);   // 주석도 30pt 옮겨짐
     }
 }

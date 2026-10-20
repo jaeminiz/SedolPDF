@@ -158,7 +158,7 @@ public sealed partial class DocumentView
         var pt = ToPdf(_objGeom, _objPage, e.GetPosition(this), lay.Scale);
         st.Tab.Objects.Drag(pt, (e.KeyModifiers & KeyModifiers.Shift) != 0);
         InvalidateVisual();
-        return true;
+        return _gesture == Gesture.None;   // 주석과 함께 끄는 중이면 주석 쪽 움직임도 이어서 처리한다
     }
 
     private bool HandleObjectPointerReleased(PointerReleasedEventArgs e)
@@ -173,7 +173,7 @@ public sealed partial class DocumentView
         InvalidateVisual();
         if (m is { } matrix && sels.Count > 0)
             _ = RunObjectEditAsync(st, sels[0].Page, sels.Select(s => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), s.Ref, matrix)).ToArray());   // 여러 개면 모두 같은 양만큼, 실행 취소 한 번
-        return true;
+        return _gesture == Gesture.None;   // 주석과 함께 끌었으면 주석 쪽 놓임도 이어서 처리한다
     }
 
     private async Task RunObjectEditAsync(ViewState st, PageId page, params ContentEdit[] edits)
@@ -186,14 +186,17 @@ public sealed partial class DocumentView
 
     private bool HandleObjectKey(KeyEventArgs e)
     {
-        if (_state is not { } st || !IsObjectTool(st.Tab.Tool) || st.Tab.Objects.Selected is not { } sel) return false;
-        if (e.Key == Key.Escape) { st.Tab.Objects.Clear(); InvalidateVisual(); e.Handled = true; return true; }
+        if (_state is not { } st || st.Tab.Objects.Selected is not { } sel) return false;
+        bool annotMode = st.Tab.Tool == ToolKind.AnnotSelect;   // 주석 선택 도구에서도 고른 객체를 지우고 방향키로 옮긴다(주석 처리와 함께)
+        if (!annotMode && !IsObjectTool(st.Tab.Tool)) return false;
+        if (e.Key == Key.Escape) { st.Tab.Objects.Clear(); InvalidateVisual(); if (annotMode) return false; e.Handled = true; return true; }
         if (!st.Tab.CanEditContent) return false;
         if (e.Key == Key.Delete && e.KeyModifiers == KeyModifiers.None)
         {
             var gone = st.Tab.Objects.All.ToList();
             st.Tab.Objects.Clear();
             _ = RunObjectEditAsync(st, sel.Page, gone.Select(x => (ContentEdit)new DeactivateEdit(st.Session.Content.NewId(), x.Ref)).ToArray());
+            if (annotMode) return false;
             e.Handled = true;
             return true;
         }
@@ -205,6 +208,7 @@ public sealed partial class DocumentView
         if (d is not { } v || (e.KeyModifiers & ~KeyModifiers.Shift) != 0) return false;
         // 화면 위쪽 = PDF y 증가(회전 없는 쪽 기준). 회전된 쪽은 쪽 좌표 방향으로 움직인다(검증 필요: 회전 쪽에서의 체감).
         _ = RunObjectEditAsync(st, sel.Page, st.Tab.Objects.All.Select(x => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), x.Ref, PdfMatrix.Translate(v.dx, v.dy))).ToArray());
+        if (annotMode) return false;
         e.Handled = true;
         return true;
     }
