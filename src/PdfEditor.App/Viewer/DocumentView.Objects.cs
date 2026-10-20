@@ -1,4 +1,4 @@
-using RectangleF = System.Drawing.RectangleF;
+﻿using RectangleF = System.Drawing.RectangleF;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -20,7 +20,7 @@ namespace PdfEditor.App.Viewer;
 /// </summary>
 public sealed partial class DocumentView
 {
-    private static bool IsObjectTool(ToolKind t) => t is ToolKind.EditObject or ToolKind.EditText;
+    private static bool IsObjectTool(ToolKind t) => t is ToolKind.EditObject or ToolKind.EditText || IsAddTool(t);
 
     private bool _objDragging;
     private int _objPage = -1;
@@ -89,24 +89,38 @@ public sealed partial class DocumentView
         if (lay is null || e.PageIndex >= _layoutPages.Length) return true;
         var info = _layoutPages[e.PageIndex];
         if (!TryGetGeom(st, info, out var g)) return false;
-        if (!TryGetObjectIndex(st, info, out var idx)) return false;
         var tab = st.Tab;
         var pt = ToPdf(g, e.PageIndex, e.Pos, lay.Scale);
         float ptPerDip = (float)(1.0 / lay.Scale);
+        if (IsAddTool(tab.Tool)) return BeginAddToolPress(st, e, info, g, pt);
+        if (!TryGetObjectIndex(st, info, out var idx)) return false;
         var ctl = tab.Objects;
         bool cycle = (e.Mods & KeyModifiers.Alt) != 0;
 
         // 이미 고른 객체의 손잡이·몸통이면 그대로 끌기
-        if (!cycle && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip) is var hh && hh != ObjectHandle.None)
+        if (!cycle && tab.Tool == ToolKind.EditObject && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip) is var hh && hh != ObjectHandle.None)
         {
             StartObjectDrag(e.Pointer, hh, pt, e.PageIndex, g);
             return true;
         }
-        Func<PageObjectEntry, bool>? filter = tab.Tool == ToolKind.EditText ? x => x.Type == PdfPageObjectType.Text : null;
+        Func<PageObjectEntry, bool>? filter = null;
+        if (tab.Tool == ToolKind.EditText)
+        {
+            // 텍스트 편집 도구: 글자 객체와, 앱 글꼴로 넣어 화면에서는 경로인 줄만 고른다
+            var appIds = st.Session.Content.For(info.Id).OfType<InsertAppTextEdit>().Select(a => a.Id).ToHashSet();
+            filter = x => x.Type == PdfPageObjectType.Text || (x.Ref.IsInserted && appIds.Contains(x.Ref.InsertedId));
+        }
         var pick = ctl.Pick(idx, pt, 4 * ptPerDip, cycle, filter);
-        if (pick is null) { ctl.Clear(); InvalidateVisual(); return true; }
+        if (pick is null)
+        {
+            ctl.Clear();
+            InvalidateVisual();
+            if (tab.Tool == ToolKind.EditText) NoticeForMissedText(st, info, idx, pt, 4 * ptPerDip);
+            return true;
+        }
         ctl.Select(new SelectedObject(info.Id, pick.Ref, pick.Type, pick.Bounds));
         InvalidateVisual();
+        if (tab.Tool == ToolKind.EditText) { _ = BeginTextEditAsync(st, e.PageIndex, g, info, pick); return true; }
         if (!cycle) StartObjectDrag(e.Pointer, ObjectHandle.Body, pt, e.PageIndex, g);   // 고르자마자 끌 수 있게
         return true;
     }
@@ -124,6 +138,7 @@ public sealed partial class DocumentView
 
     private bool HandleObjectPointerMoved(PointerEventArgs e)
     {
+        if (HandleShapePointerMoved(e)) return true;
         if (!_objDragging || _state is not { } st || _layout is not { } lay || _objGeom is null) return false;
         var pt = ToPdf(_objGeom, _objPage, e.GetPosition(this), lay.Scale);
         st.Tab.Objects.Drag(pt, (e.KeyModifiers & KeyModifiers.Shift) != 0);
@@ -134,6 +149,7 @@ public sealed partial class DocumentView
     private bool HandleObjectPointerReleased(PointerReleasedEventArgs e)
     {
         if (_pendingObjPress is not null) { _pendingObjPress = null; return true; }
+        if (HandleShapePointerReleased(e)) return true;
         if (!_objDragging || _state is not { } st) return false;
         _objDragging = false;
         e.Pointer.Capture(null);
@@ -181,6 +197,7 @@ public sealed partial class DocumentView
 
     private void DrawObjectSelection(DrawingContext ctx, ViewState st, PageInfo info, Rect pr, double scale)
     {
+        DrawShapePreview(ctx, info, pr, scale);
         var ctl = st.Tab.Objects;
         if (ctl.Selected is not { } s || s.Page != info.Id) return;
         if (!TryGetGeom(st, info, out var g)) return;

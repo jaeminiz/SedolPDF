@@ -83,12 +83,16 @@ public static class TextEditPlanner
 
     /// <summary>새 텍스트(앱 글꼴 한 줄)를 baseline 왼쪽 점 at에 넣는 편집. 암호 문서·글꼴 없음·없는 글자면 거절.</summary>
     public static ReplacePlan PlanAdd(DocumentSession s, PdfPointF at, string text, float sizePt, PdfColor color, AppFont? appFont)
+        => PlanAdd(s, text, sizePt, color, appFont, PdfMatrix.Translate(at.X, at.Y));
+
+    /// <summary>placement: 기준선 왼쪽 점이 원점인 글 → 쪽 좌표 행렬(회전된 쪽에서 글이 바로 서게 돌린 것).</summary>
+    public static ReplacePlan PlanAdd(DocumentSession s, string text, float sizePt, PdfColor color, AppFont? appFont, PdfMatrix placement)
     {
         s.Thread.AssertOnThread();
         if (string.IsNullOrWhiteSpace(text)) return ReplacePlan.Refused(ReplaceRefusal.NotText);
         if (!SavePolicy.CanPatch(s)) return ReplacePlan.Refused(ReplaceRefusal.Encrypted);
         if (appFont is null) return ReplacePlan.Refused(ReplaceRefusal.NoAppFont);
-        var (spec, missing) = AppFontLine.Build(appFont, text, sizePt, PdfMatrix.Translate(at.X, at.Y), color);
+        var (spec, missing) = AppFontLine.Build(appFont, text, sizePt, placement, color);
         if (spec is null) return ReplacePlan.Refused(ReplaceRefusal.AppFontMissingGlyphs, missing);
         return new ReplacePlan([new InsertAppTextEdit(s.Content.NewId(), spec)], true, ReplaceRefusal.None, []);
     }

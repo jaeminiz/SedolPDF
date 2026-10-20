@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
@@ -143,6 +143,7 @@ public sealed partial class DocumentView : Control
         CancelGesture();
         CloseStickyEditor(commit: true);
         CloseFreeTextEditor(commit: true);
+        CloseLineEditor(commit: true);
         if (_state is not null)
         {
             if (_sv is not null) _state.Offset = _sv.Offset;
@@ -205,6 +206,7 @@ public sealed partial class DocumentView : Control
     {
         if (_editState is not null && ReferenceEquals(_editState, st)) CloseStickyEditor(commit: false);
         if (_ftState is not null && ReferenceEquals(_ftState, st)) CloseFreeTextEditor(commit: false);
+        CloseLineEditor(commit: false, onlyFor: st);
         if (ReferenceEquals(_state, st))
         {
             st.Tab.PropertyChanged -= OnTabPropertyChanged;

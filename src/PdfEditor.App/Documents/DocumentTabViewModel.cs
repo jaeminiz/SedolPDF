@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Settings;
@@ -20,7 +20,7 @@ public enum ToolKind
     Line, Arrow, PolyLine, Polygon, Cloud, TextBox, Typewriter, Callout,
     InsertText, ReplaceText, Stamp, FileAttach,
     // M4 (편집 탭): 쪽 객체
-    EditObject, EditText, AddText, AddImage, AddShape,
+    EditObject, EditText, AddText, AddImage, AddShape, AddEllipse, AddLine,
     // 홈 탭(2026-10-20 사용자 요청): 끌어서 고른 영역을 그림으로 클립보드에
     Snapshot,
 }
@@ -192,6 +192,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         // 글자 경계 찾기는 PDFium 스레드 작업이라 동기 함수로 줄 수 없다: 텍스트 삽입은 DocumentView가 비동기로 찾아 CreateInsertCaret을 직접 부른다.
         Tools.CharBoundaryAt = static (_, _, _) => null;
         if (Session is null) return;
+        if (Appearance?.Assets is { } sharedAssets) Session.Assets = sharedAssets;   // 쪽 객체 이미지(M4)도 화면·저장·복구·인쇄가 같은 보관소를 읽는다
         Tools.PageAnnotationSource = id => [.. Session.Annotations.Get(id).Items.Select(v => v.Data)];
         Session.Annotations.Changed += OnAnnotationsChanged;
         _ = RefreshAnnotationNoticeAsync();
@@ -251,6 +252,22 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         if (Session is null || !CanEditContent) return;
         await Session.Commands.ExecuteAsync(c);
     }
+    /// <summary>
+    /// 이미지 추가(편집 탭): 지금 보는 쪽 가운데에 넣고 바로 객체 편집 도구로 선택한다.
+    /// 실패하면 안내(NoticeRequested)만 하고 아무것도 바꾸지 않는다.
+    /// </summary>
+    public async Task AddImageAsync(byte[] encoded)
+    {
+        if (!CanEditContent || !TryCurrentPage(out var page)) return;
+        var r = await PdfEditor.App.Viewer.Objects.ObjectToolController.AddImageAsync(this, page.Id, encoded);
+        if (r.Notice is not null) { RaiseNotice(r.Notice); return; }
+        if (r.Created is { } created && r.CreatedBounds is { } b)
+        {
+            Tool = ToolKind.EditObject;
+            Objects.Select(new PdfEditor.App.Viewer.Objects.SelectedObject(page.Id, created, r.CreatedType ?? Pdf.Native.PdfPageObjectType.Image, b));
+        }
+    }
+
     /// <summary>주석 명령 실행. 원본 주석이 붙을 때까지 기다린 뒤 실행한다. 권한이 없으면 아무것도 하지 않는다.</summary>
     public async Task RunAnnotationCommandAsync(PdfEditor.Document.Commands.IUndoableCommand c)
     {

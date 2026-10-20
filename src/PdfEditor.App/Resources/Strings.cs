@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Resources;
 
 [assembly: NeutralResourcesLanguage("ko")]
@@ -427,4 +427,29 @@ public static class Strings
     public static string Format_NoStyles => Get(nameof(Format_NoStyles));
     public static string Msg_StyleNameInvalid => Get(nameof(Msg_StyleNameInvalid));
     public static string Msg_StyleBroken => Get(nameof(Msg_StyleBroken));
+    public static string Msg_NoEditableText => Get(nameof(Msg_NoEditableText));
+    public static string Msg_FormChildNotice => Get(nameof(Msg_FormChildNotice));
+    public static string Msg_TextFallbackApp => Get(nameof(Msg_TextFallbackApp));
+    public static string Msg_TextRefusedEncrypted => Get(nameof(Msg_TextRefusedEncrypted));
+    public static string Msg_TextRefusedNoFont => Get(nameof(Msg_TextRefusedNoFont));
+    public static string Msg_TextRefusedMissingGlyphs => Get(nameof(Msg_TextRefusedMissingGlyphs));
+    public static string Msg_TextRefusedNotText => Get(nameof(Msg_TextRefusedNotText));
+    public static string Msg_ContentEditFailed => Get(nameof(Msg_ContentEditFailed));
+    public static string Msg_AddTextDisabledEncrypted => Get(nameof(Msg_AddTextDisabledEncrypted));
+    public static string Cmd_ShapeRect => Get(nameof(Cmd_ShapeRect));
+    public static string Cmd_ShapeEllipse => Get(nameof(Cmd_ShapeEllipse));
+    public static string Cmd_ShapeLine => Get(nameof(Cmd_ShapeLine));
+    public static string Group_AddShapes => Get(nameof(Group_AddShapes));
+    public static string Prop_Obj_Title => Get(nameof(Prop_Obj_Title));
+    public static string Prop_Obj_X => Get(nameof(Prop_Obj_X));
+    public static string Prop_Obj_Y => Get(nameof(Prop_Obj_Y));
+    public static string Prop_Obj_W => Get(nameof(Prop_Obj_W));
+    public static string Prop_Obj_H => Get(nameof(Prop_Obj_H));
+    public static string Prop_Obj_Stroke => Get(nameof(Prop_Obj_Stroke));
+    public static string Prop_Obj_StrokeWidth => Get(nameof(Prop_Obj_StrokeWidth));
+    public static string Prop_Obj_Fill => Get(nameof(Prop_Obj_Fill));
+    public static string Prop_Obj_NoFill => Get(nameof(Prop_Obj_NoFill));
+    public static string Prop_Obj_TextSize => Get(nameof(Prop_Obj_TextSize));
+    public static string Msg_ImageInsertFailed => Get(nameof(Msg_ImageInsertFailed));
+    public static string Tip_AddImage => Get(nameof(Tip_AddImage));
 }

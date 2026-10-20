@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace PdfEditor.App.Viewer.Annotations;
 
@@ -35,13 +36,38 @@ public partial class FreeTextEditor : UserControl
         Box.CaretIndex = text.Length;
     }
 
+    /// <summary>한 줄 모드(쪽 객체의 텍스트 편집·추가, M4): Enter = 확정, Esc = 취소. 줄바꿈 없음.</summary>
+    public bool SingleLine { get; private set; }
+
+    public void LoadLine(string text, double fontSizeDip, double minWidthDip, Color foreground)
+    {
+        Load(text, fontSizeDip, minWidthDip, 0, foreground, wrap: false, TextAlignment.Left);
+        SingleLine = true;
+        Box.AcceptsReturn = false;
+        Box.MinHeight = 0;
+    }
+
+    /// <summary>입력칸 글을 바꾼다(테스트용).</summary>
+    public void SetText(string text) { Box.Text = text; Box.CaretIndex = text.Length; }
+
     public void FocusBox() => Box.Focus();
+
+    /// <summary>입력칸이 IME 조합 중인 글자(밑줄 표시 중인 글)를 갖고 있는가. 조합 중의 Enter·Esc는 조합을 끝내는 키다.</summary>
+    private bool IsComposing()
+        => Box.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Any(p => !string.IsNullOrEmpty(p.PreeditText));
 
     /// <summary>글자 모양 설정 확인용 (테스트).</summary>
     public double EditorFontSize => Box.FontSize;
 
     private void OnBoxKeyDown(object? sender, KeyEventArgs e)
     {
+        if (SingleLine)
+        {
+            if (e.Key == Key.ImeProcessed || IsComposing()) return;
+            if (e is { Key: Key.Enter, KeyModifiers: KeyModifiers.None }) { e.Handled = true; AcceptRequested?.Invoke(); }
+            else if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { e.Handled = true; CancelRequested?.Invoke(); }
+            return;
+        }
         if (e is { Key: Key.Enter, KeyModifiers: KeyModifiers.Control }) { e.Handled = true; AcceptRequested?.Invoke(); }
         else if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { e.Handled = true; CancelRequested?.Invoke(); }
     }

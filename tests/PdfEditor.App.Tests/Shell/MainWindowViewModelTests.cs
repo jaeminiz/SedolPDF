@@ -1,4 +1,4 @@
-using PdfEditor.App.Resources;
+﻿using PdfEditor.App.Resources;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Shell;
 using PdfEditor.App.Shell.Ribbon;
@@ -76,7 +76,7 @@ public class MainWindowViewModelTests
         // 만들기 도구는 한 번씩, 쪽 객체 도구(M4: 편집 탭)는 주석 탭에 없다
         var all = items.Where(i => i.Tool is not null).Select(i => i.Tool!.Value).ToList();
         Assert.Equal(all.Count, all.Distinct().Count());
-        var objectTools = new[] { ToolKind.EditObject, ToolKind.EditText, ToolKind.AddText, ToolKind.AddImage, ToolKind.AddShape, ToolKind.Snapshot };
+        var objectTools = new[] { ToolKind.EditObject, ToolKind.EditText, ToolKind.AddText, ToolKind.AddImage, ToolKind.AddShape, ToolKind.AddEllipse, ToolKind.AddLine, ToolKind.Snapshot };
         Assert.Equal(Enum.GetValues<ToolKind>().Except(objectTools).Order(), all.Order());
         Assert.Equal(["annot.commentList", "annot.summary", "annot.importXfdf", "annot.exportXfdf"], groups[^1].Items.Select(i => i.CommandId));
     }

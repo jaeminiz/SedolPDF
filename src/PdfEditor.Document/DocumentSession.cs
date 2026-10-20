@@ -457,6 +457,17 @@ public sealed class DocumentSession : IAsyncDisposable
         return fresh;
     }
 
+    /// <summary>전용 스레드 전용. 쪽 객체 하나의 글(텍스트 객체, 편집한 줄 포함). 글자가 아니면 null.</summary>
+    public string? GetObjectText(PageId id, ObjectRef target)
+    {
+        Thread.AssertOnThread();
+        if (target.IsInserted && Content.For(id).OfType<InsertAppTextEdit>().FirstOrDefault(a => a.Id == target.InsertedId) is { } app)
+            return app.Line.Text;
+        var r = GetReplay(id);
+        var text = GetLoadedText(id);
+        return r.Resolve(target) is { Type: PdfPageObjectType.Text } o ? o.GetText(text) : null;
+    }
+
     private readonly Dictionary<PageId, PageObjectIndex> _objectIndex = new();
 
     /// <summary>전용 스레드 전용. 화면 hit test용 객체 목록. (PageId, Version)이 같으면 다시 만들지 않는다.</summary>

@@ -25,6 +25,19 @@ public sealed partial class MainWindow : Window
     private readonly SettingsStore _settings;
     private readonly RecoveryCoordinator _recovery;
 
+    /// <summary>이미지 추가: PNG·JPEG 고르기. 너무 큰 파일은 읽지 않고 빈 배열로 넘겨 보관소의 검증 실패(안내)를 탄다.</summary>
+    private async Task<byte[]?> PickImageBytesAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Strings.Dlg_PickImageTitle,
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType(Strings.Dlg_FilterImages) { Patterns = ["*.png", "*.jpg", "*.jpeg"] }],
+        });
+        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return null;
+        return new FileInfo(path).Length > PdfEditor.Document.Annotations.AnnotationAssets.MaxImageBytes ? [] : await File.ReadAllBytesAsync(path);
+    }
+
     private async Task ShowPreferencesAsync()
     {
         var cur = _settings.Load();
@@ -59,6 +72,7 @@ public sealed partial class MainWindow : Window
         _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance, patcher, services.Assets), _settings,
             new AvaloniaRecoveryUi(this), prompts);
         _recovery.Attach(workflow);
+        _vm.PickImageBytes = PickImageBytesAsync;
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
         _vm.AboutRequested += async (_, _) => await new AboutDialog().ShowDialog(this);
 

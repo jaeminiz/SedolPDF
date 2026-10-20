@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -419,4 +419,29 @@
   <data name="Tip_Snapshot" xml:space="preserve"><value>끌어서 고른 영역을 그림으로 클립보드에 복사합니다</value></data>
   <data name="Msg_SnapshotCopied" xml:space="preserve"><value>고른 영역을 그림으로 클립보드에 복사했습니다.</value></data>
   <data name="Msg_SnapshotFailed" xml:space="preserve"><value>스냅숏을 클립보드에 넣지 못했습니다.</value></data>
+  <data name="Msg_NoEditableText" xml:space="preserve"><value>편집 가능한 텍스트가 없습니다. 글자가 외곽선이나 스캔 이미지로 되어 있을 수 있습니다.</value></data>
+  <data name="Msg_FormChildNotice" xml:space="preserve"><value>묶음 안에 있어 편집할 수 없습니다. 묶음 전체는 개체 편집으로 옮기거나 지울 수 있습니다.</value></data>
+  <data name="Msg_TextFallbackApp" xml:space="preserve"><value>원래 글꼴에 없는 글자가 있어 기본 글꼴로 바꿨습니다.</value></data>
+  <data name="Msg_TextRefusedEncrypted" xml:space="preserve"><value>암호가 걸린 문서라 원래 글꼴에 없는 글자는 바꿀 수 없습니다.</value></data>
+  <data name="Msg_TextRefusedNoFont" xml:space="preserve"><value>기본 글꼴 파일을 찾지 못해 이 글자로 바꿀 수 없습니다.</value></data>
+  <data name="Msg_TextRefusedMissingGlyphs" xml:space="preserve"><value>기본 글꼴에도 없는 글자가 있어 바꿀 수 없습니다: {0}</value></data>
+  <data name="Msg_TextRefusedNotText" xml:space="preserve"><value>이 객체는 글자가 아니라 바꿀 수 없습니다.</value></data>
+  <data name="Msg_ContentEditFailed" xml:space="preserve"><value>객체를 편집하지 못했습니다.</value></data>
+  <data name="Msg_AddTextDisabledEncrypted" xml:space="preserve"><value>암호가 걸린 문서에는 새 텍스트를 넣을 수 없습니다. 이미지와 도형은 넣을 수 있습니다.</value></data>
+  <data name="Cmd_ShapeRect" xml:space="preserve"><value>사각형</value></data>
+  <data name="Cmd_ShapeEllipse" xml:space="preserve"><value>타원</value></data>
+  <data name="Cmd_ShapeLine" xml:space="preserve"><value>선</value></data>
+  <data name="Group_AddShapes" xml:space="preserve"><value>도형 넣기</value></data>
+  <data name="Prop_Obj_Title" xml:space="preserve"><value>객체</value></data>
+  <data name="Prop_Obj_X" xml:space="preserve"><value>왼쪽 (mm)</value></data>
+  <data name="Prop_Obj_Y" xml:space="preserve"><value>아래 (mm)</value></data>
+  <data name="Prop_Obj_W" xml:space="preserve"><value>너비 (mm)</value></data>
+  <data name="Prop_Obj_H" xml:space="preserve"><value>높이 (mm)</value></data>
+  <data name="Prop_Obj_Stroke" xml:space="preserve"><value>선 색</value></data>
+  <data name="Prop_Obj_StrokeWidth" xml:space="preserve"><value>선 두께 (pt)</value></data>
+  <data name="Prop_Obj_Fill" xml:space="preserve"><value>채우기</value></data>
+  <data name="Prop_Obj_NoFill" xml:space="preserve"><value>채우기 없음</value></data>
+  <data name="Prop_Obj_TextSize" xml:space="preserve"><value>글자 크기 (pt)</value></data>
+  <data name="Msg_ImageInsertFailed" xml:space="preserve"><value>이 이미지를 넣을 수 없습니다. PNG 또는 JPEG 파일인지, 크기가 너무 크지 않은지 확인하세요.</value></data>
+  <data name="Tip_AddImage" xml:space="preserve"><value>PNG·JPEG 이미지를 지금 보는 쪽 가운데에 넣습니다</value></data>
 </root>

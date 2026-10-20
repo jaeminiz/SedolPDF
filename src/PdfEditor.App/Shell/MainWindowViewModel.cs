@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -49,9 +49,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// 주석 도구를 고르는 명령. 주석 권한이 없는 문서에서는 비활성이다. 저장 때 PDFsharp 패치가 필요한 도구는
     /// 패치를 못 하는(암호) 문서에서도 비활성이다 — 켜 두면 만든 주석이 저장 때 조용히 사라진다 (A2).
     /// </summary>
+    private static bool IsContentTool(ToolKind t) => t is ToolKind.EditObject or ToolKind.EditText or ToolKind.AddText or ToolKind.AddShape or ToolKind.AddEllipse or ToolKind.AddLine;
+
     private RelayCommand ToolCmd(ToolKind tool)
     {
-        bool Allowed(DocumentTabViewModel d) => d.CanAnnotate && (!AnnotationToolController.IsPatchTool(tool) || d.CanUsePatchFeatures);
+        bool Allowed(DocumentTabViewModel d) => IsContentTool(tool)
+            ? d.CanEditContent && (tool != ToolKind.AddText || d.CanUsePatchFeatures)   // 새 텍스트는 앱 글꼴 줄이라 패치 단계가 필요하다(암호 문서는 안 됨)
+            : d.CanAnnotate && (!AnnotationToolController.IsPatchTool(tool) || d.CanUsePatchFeatures);
         var c = new RelayCommand(
             () => { if (ActiveDocument is { Session: not null } d && Allowed(d)) d.Tool = tool; },
             () => ActiveDocument is { Session: not null } d && Allowed(d));
@@ -90,6 +94,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>끝내기 명령이 실행되면 창이 닫는다.</summary>
     public event EventHandler? ExitRequested;
     public event EventHandler? PreferencesRequested;
+
+    /// <summary>이미지 추가(편집 탭)에서 PNG·JPEG 파일을 골라 바이트로 돌려주는 대화상자(취소하면 null). 메인 창이 연결한다.</summary>
+    public Func<Task<byte[]?>>? PickImageBytes { get; set; }
+    private AsyncRelayCommand _addImageCommand = null!;
+
+    private async Task AddImageAsync()
+    {
+        if (ActiveDocument is not { Session: not null, CanEditContent: true } d || PickImageBytes is null) return;
+        byte[]? data;
+        try { data = await PickImageBytes(); }
+        catch (Exception) { d.RaiseNotice(Strings.Msg_ImageInsertFailed); return; }
+        if (data is not null) await d.AddImageAsync(data);
+    }
     public event EventHandler? AboutRequested;
 
     /// <summary>찾기 명령이 검색 패널을 열었다. 창이 검색어 입력칸에 초점을 준다.</summary>
@@ -239,7 +256,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         bool noPatch = ActiveDocument is { Session: not null, CanAnnotate: true, CanUsePatchFeatures: false };
         b.Tip = noPatch && b.Tool is { } t && AnnotationToolController.IsPatchTool(t)
-            ? Strings.Msg_PatchFeaturesUnavailableEncrypted : b.BaseTip;
+            ? Strings.Msg_PatchFeaturesUnavailableEncrypted
+            : b.Tool == ToolKind.AddText && ActiveDocument is { Session: not null, CanEditContent: true, CanUsePatchFeatures: false }
+                ? Strings.Msg_AddTextDisabledEncrypted
+                : b.Tool is { } ct && IsContentTool(ct) && ActiveDocument is { Session: not null, CanEditContent: false }
+                    ? Strings.Msg_EditRestricted : b.BaseTip;
     }
 
     private void NotifyFileCommands()
@@ -653,11 +674,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("annot.exportXfdf", Strings.Cmd_ExportXfdf, "share", null, DocCmd(d => _ = ExportXfdfAsync(d)));
         Reg("annot.style", Strings.Cmd_AnnotStyle, "pen");
 
-        Reg("edit.text", Strings.Cmd_EditText, "textedit");
-        Reg("edit.object", Strings.Cmd_EditObject, "objedit");
-        Reg("edit.addText", Strings.Cmd_AddText, "type");
-        Reg("edit.addImage", Strings.Cmd_AddImage, "image");
-        Reg("edit.addShape", Strings.Cmd_AddShape, "rect");
+        Reg("edit.text", Strings.Cmd_EditText, "textedit", null, ToolCmd(ToolKind.EditText));
+        Reg("edit.object", Strings.Cmd_EditObject, "objedit", null, ToolCmd(ToolKind.EditObject));
+        Reg("edit.addText", Strings.Cmd_AddText, "type", null, ToolCmd(ToolKind.AddText));
+        _addImageCommand = new AsyncRelayCommand(AddImageAsync, () => ActiveDocument is { Session: not null, CanEditContent: true });
+        _docCommands.Add(_addImageCommand);
+        Reg("edit.addImage", Strings.Cmd_AddImage, "image", null, _addImageCommand);
+        Reg("edit.addShape", Strings.Cmd_AddShape, "rect", null, ToolCmd(ToolKind.AddShape));
+        Reg("edit.shapeRect", Strings.Cmd_ShapeRect, "rect", null, ToolCmd(ToolKind.AddShape));
+        Reg("edit.shapeEllipse", Strings.Cmd_ShapeEllipse, "oval", null, ToolCmd(ToolKind.AddEllipse));
+        Reg("edit.shapeLine", Strings.Cmd_ShapeLine, "line", null, ToolCmd(ToolKind.AddLine));
 
         Reg("page.insertBlank", Strings.Cmd_PageInsertBlank, "pageadd", null, PageCmd(p => p.InsertBlankCommand));
         Reg("page.insertFile", Strings.Cmd_PageInsertFromFile, "insertfile", null, PageCmd(p => p.InsertFromFileCommand));
@@ -680,7 +706,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // ---- 리본 정의 ----
     private static IReadOnlyDictionary<string, IReadOnlyList<RibbonGroupModel>> BuildRibbon()
     {
-        string m45 = Strings.Msg_ComingInM4M5, tbd = Strings.Msg_NotYetConnected;
+        string tbd = Strings.Msg_NotYetConnected;
         RibbonItemModel I(string id, string label, string? tip = null) => new(id, label, tip);
         RibbonItemModel T(string id, string label, ToolKind tool, string? tip = null) => new(id, label, tip, tool);
         RibbonGroupModel Gr(string name, bool compact, params RibbonItemModel[] items) => new(name, items, compact);
@@ -699,8 +725,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     I("zoom.fitWidth", Strings.Cmd_FitWidth), I("zoom.fitPage", Strings.Cmd_FitPage)),
                 Gr(Strings.Group_Rotate, true, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
                 Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find)),
-                Gr(Strings.Group_EditTools, true, L(I("edit.text", Strings.Cmd_EditText, m45)), I("edit.object", Strings.Cmd_EditObject, m45),
-                    I("edit.addText", Strings.Cmd_AddText, m45), I("edit.addImage", Strings.Cmd_AddImage, m45)),
+                Gr(Strings.Group_EditTools, true, L(T("edit.text", Strings.Cmd_EditText, ToolKind.EditText)), T("edit.object", Strings.Cmd_EditObject, ToolKind.EditObject),
+                    T("edit.addText", Strings.Cmd_AddText, ToolKind.AddText), I("edit.addImage", Strings.Cmd_AddImage, Strings.Tip_AddImage)),
                 Gr(Strings.Group_QuickAnnot, true, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),
                     T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText), T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline),
                     T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote), T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
@@ -732,8 +758,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ],
             ["Edit"] =
             [
-                Gr(Strings.Group_EditTools, false, I("edit.text", Strings.Cmd_EditText, m45), I("edit.object", Strings.Cmd_EditObject, m45),
-                    I("edit.addText", Strings.Cmd_AddText, m45), I("edit.addImage", Strings.Cmd_AddImage, m45), I("edit.addShape", Strings.Cmd_AddShape, m45)),
+                Gr(Strings.Group_EditTools, false, T("edit.text", Strings.Cmd_EditText, ToolKind.EditText), T("edit.object", Strings.Cmd_EditObject, ToolKind.EditObject),
+                    T("edit.addText", Strings.Cmd_AddText, ToolKind.AddText), I("edit.addImage", Strings.Cmd_AddImage, Strings.Tip_AddImage)),
+                Gr(Strings.Group_AddShapes, false, T("edit.shapeRect", Strings.Cmd_ShapeRect, ToolKind.AddShape), T("edit.shapeEllipse", Strings.Cmd_ShapeEllipse, ToolKind.AddEllipse),
+                    T("edit.shapeLine", Strings.Cmd_ShapeLine, ToolKind.AddLine)),
             ],
             ["Page"] =
             [
