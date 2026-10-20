@@ -27,3 +27,19 @@ public sealed record TransformEdit(long Id, ObjectRef Target, PdfMatrix Then) : 
 /// 넣은 객체는 <see cref="ObjectRef.Inserted"/>(이 편집의 Id)로 가리킨다.
 /// </summary>
 public sealed record InsertTextLikeEdit(long Id, ObjectRef Original, string Text) : ContentEdit(Id);
+
+/// <summary>앱 글꼴 줄의 윤곽선 한 토막(쪽 좌표). Op: 'M' 이동, 'L' 직선, 'C' 3차 베지어(A·B 제어점, C 끝점), 'Z' 닫기.</summary>
+public readonly record struct OutlineSeg(char Op, PdfPointF A, PdfPointF B = default, PdfPointF C = default);
+
+/// <summary>
+/// 앱 글꼴(Noto Sans KR) 한 줄(C6). 화면은 Outline(같은 글리프 윤곽선, 쪽 좌표)을 경로 객체로 그리고,
+/// 파일은 패치 단계가 Content(글리프 CID로 쓴 BT…ET, 글꼴 자원 이름은 자리표시 "{F}")와 Font(서브셋 재료)로 진짜 글자를 쓴다.
+/// Placement: 기준선 왼쪽 점(0,0)·글자 크기 1 기준 로컬 → 쪽 좌표 행렬(원래 줄의 텍스트 행렬). Content·Outline·Bounds는 이미 쪽 좌표다
+/// (나중의 TransformEdit는 패치 계획이 cm으로 감싼다).
+/// </summary>
+public sealed record AppTextSpec(string Text, float SizePt, PdfEditor.Document.Annotations.PdfColor Color, PdfMatrix Placement, PdfRectF Bounds,
+    System.Collections.Immutable.ImmutableArray<OutlineSeg> Outline, string Content,
+    PdfEditor.Document.Annotations.Patching.FontUse Font);
+
+/// <summary>앱 글꼴 줄을 쪽 맨 위에 넣는다(C7: 화면 replay도 다른 편집을 모두 적용한 뒤 맨 마지막에). 가리킬 때는 ObjectRef.Inserted(Id).</summary>
+public sealed record InsertAppTextEdit(long Id, AppTextSpec Line) : ContentEdit(Id);

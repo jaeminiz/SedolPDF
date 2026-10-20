@@ -142,8 +142,41 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             }
         }
 
+        // ④ 쪽 내용 덧붙이기(M4 앱 글꼴 줄) — 주석과 무관
+        if (!plan.ContentAppends.IsDefaultOrEmpty) AppendPageContents(doc, plan.ContentAppends);
+
         // 임시 파일에만 쓴다. 안 쓰이게 된 객체는 PDFsharp이 저장할 때 버린다.
         doc.Save(pdfPath);
+    }
+
+    // ---- 쪽 내용 덧붙이기 (M4) ----
+
+    /// <summary>
+    /// 쪽마다 기존 내용을 q … Q로 감싼 뒤(앞 내용이 남긴 행렬·색이 새 글자에 번지지 않게) 새 스트림을 붙이고,
+    /// 글꼴 서브셋을 쪽 /Resources /Font에 겹치지 않는 이름(SedolF1, SedolF2 …)으로 넣는다.
+    /// </summary>
+    private void AppendPageContents(PdfDocument doc, IEnumerable<PageContentAppend> appends)
+    {
+        foreach (var group in appends.GroupBy(a => a.PageIndex))
+        {
+            if (group.Key < 0 || group.Key >= doc.Pages.Count)
+                throw new InvalidOperationException($"Page {group.Key + 1} is out of range for a content append.");
+            var page = doc.Pages[group.Key];
+            var fonts = page.Resources.Elements.GetDictionary("/Font");
+            if (fonts is null) { fonts = new PdfDictionary(doc); page.Resources.Elements["/Font"] = fonts; }
+
+            page.Contents.PrependContent().CreateStream(System.Text.Encoding.ASCII.GetBytes("q\n"));
+            var sb = new System.Text.StringBuilder("Q\n");
+            int n = 1;
+            foreach (var a in group)
+            {
+                while (fonts.Elements.ContainsKey("/SedolF" + n)) n++;
+                string name = "SedolF" + n;
+                fonts.Elements["/" + name] = FontEmbedder.Embed(doc, GetFont(), a.Font);
+                sb.Append("q\n").Append(a.Content.Replace("{F}", name)).Append("Q\n");
+            }
+            page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString()));
+        }
     }
 
     // ---- 고치기 ----

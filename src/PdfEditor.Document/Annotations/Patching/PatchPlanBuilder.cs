@@ -140,8 +140,37 @@ public static class PatchPlanBuilder
             removals.Add(new AnnotationRemoval(pageIndex, [.. remove.Reverse()]));
         }
 
-        if (patches.Count == 0 && creates.Count == 0 && removals.Count == 0) return PatchPlan.Empty;
-        return new PatchPlan(patches.ToImmutable(), creates.ToImmutable(), removals.ToImmutable());
+        var appends = ContentAppends(s);
+        if (patches.Count == 0 && creates.Count == 0 && removals.Count == 0 && appends.IsEmpty) return PatchPlan.Empty;
+        return new PatchPlan(patches.ToImmutable(), creates.ToImmutable(), removals.ToImmutable()) { ContentAppends = appends };
+    }
+
+    /// <summary>
+    /// 앱 글꼴 줄(M4 C6)을 쪽 내용 끝에 붙일 목록. 나중에 끈 줄은 빼고, 나중에 옮긴 줄은 행렬을 모아 cm으로 감싼다.
+    /// 쪽 순서 = 지금 문서 순서. 문서에 없는(UndoStash) 쪽은 건너뛴다.
+    /// </summary>
+    private static ImmutableArray<PageContentAppend> ContentAppends(DocumentSession s)
+    {
+        var list = ImmutableArray.CreateBuilder<PageContentAppend>();
+        foreach (var pageId in s.Content.EditedPages)
+        {
+            int pageIndex = s.IndexOf(pageId);
+            if (pageIndex < 0) continue;
+            var edits = s.Content.For(pageId);
+            foreach (var a in edits.OfType<Content.InsertAppTextEdit>())
+            {
+                var target = Content.ObjectRef.Inserted(a.Id);
+                if (edits.Any(e => e is Content.DeactivateEdit d && d.Target == target)) continue;
+                var m = Pdf.Native.PdfMatrix.Identity;
+                foreach (var t in edits.OfType<Content.TransformEdit>().Where(t => t.Target == target)) m = m.Then(t.Then);
+                string content = m == Pdf.Native.PdfMatrix.Identity
+                    ? a.Line.Content
+                    : "q\n" + string.Join(' ', new[] { m.A, m.B, m.C, m.D, m.E, m.F }.Select(v => v.ToString("0.#####", CultureInfo.InvariantCulture)))
+                      + " cm\n" + a.Line.Content + "Q\n";
+                list.Add(new PageContentAppend(pageIndex, content, a.Line.Font));
+            }
+        }
+        return list.ToImmutable();
     }
 
     /// <summary>

@@ -12,6 +12,12 @@ public sealed record AnnotationCreate(int PageIndex, string Subtype, string Nm, 
 public sealed record AnnotationRemoval(int PageIndex, ImmutableArray<int> AnnotIndices);
 
 /// <summary>
+/// 쪽 내용 스트림 끝에 새 스트림을 붙인다(q … Q로 감쌈, M4 C6·C7). Content의 "{F}"는 쪽 /Resources /Font에 새로 넣는
+/// 글꼴(Font로 서브셋) 자원 이름으로 바뀐다(이름이 겹치지 않게 적용기가 고름). 매 출력마다 사본에만(상태 없음).
+/// </summary>
+public sealed record PageContentAppend(int PageIndex, string Content, FontUse Font);
+
+/// <summary>
 /// 저장 파일에만 적용할 변경 목록. 매번 모델에서 새로 만든다(상태 없음) — 같은 계획을 같은 SaveCopy 결과에
 /// 여러 번 적용해도 결과가 같다.
 /// </summary>
@@ -22,7 +28,10 @@ public sealed record PatchPlan(
 {
     public static PatchPlan Empty { get; } = new([], [], []);
 
-    public bool IsEmpty => Patches.IsDefaultOrEmpty && Creates.IsDefaultOrEmpty && Removals.IsDefaultOrEmpty;
+    /// <summary>쪽 내용 스트림 끝에 덧붙일 것(M4 앱 글꼴 줄). 주석 수에는 영향 없음.</summary>
+    public ImmutableArray<PageContentAppend> ContentAppends { get; init; } = [];
+
+    public bool IsEmpty => Patches.IsDefaultOrEmpty && Creates.IsDefaultOrEmpty && Removals.IsDefaultOrEmpty && ContentAppends.IsDefaultOrEmpty;
 
     /// <summary>그 쪽의 주석 수 변화: 만들기 + Popup(EnsurePopup마다 1) − 지우기.</summary>
     public int CountDelta(int pageIndex)
