@@ -25,6 +25,23 @@ public sealed class ReplayResult(IReadOnlyList<PdfPageObject> originals, IReadOn
 /// </summary>
 public static class ContentReplayer
 {
+    /// <summary>
+    /// GenerateContent 직전에 부른다(출력 사본에서만). PDFium의 쪽 내용 다시 쓰기는 ICCBased 같은 색 공간의 색을 제대로 못 써서
+    /// (예: macOS Quartz가 만든 PDF의 쪽 전체 흰 배경이 검정이 됨 — 2026-10-20 사용자 보고) 객체의 읽은 RGB 색을 그대로 다시 지정해 DeviceRGB로 쓰게 한다.
+    /// 렌더러가 보여 주던 색 그대로이므로 모양은 같다. 글·도형만(이미지·셰이딩·폼은 건드리지 않는다).
+    /// </summary>
+    public static void NormalizeColors(PdfPage page)
+    {
+        int n = page.ObjectCount;
+        for (int i = 0; i < n; i++)
+        {
+            var o = page.GetObject(i);
+            if (o.Type is not (PdfPageObjectType.Path or PdfPageObjectType.Text)) continue;
+            if (o.FillColor is { } f) o.FillColor = f;
+            if (o.StrokeColor is { } s) o.StrokeColor = s;
+        }
+    }
+
     public static ReplayResult Apply(PdfPage page, IReadOnlyList<ContentEdit> edits, ReplayMode mode = ReplayMode.Screen,
         Annotations.AnnotationAssets? assets = null)
     {

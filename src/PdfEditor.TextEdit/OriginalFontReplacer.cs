@@ -1,4 +1,4 @@
-using Pdf.Native;
+﻿using Pdf.Native;
 using PdfEditor.Document;
 
 namespace PdfEditor.TextEdit;
@@ -9,7 +9,7 @@ namespace PdfEditor.TextEdit;
 /// </summary>
 public static class OriginalFontReplacer
 {
-    public enum Result { Ok, NotText, SetTextFailed, ReadBackDiffers, GlyphNotDrawn }
+    public enum Result { Ok, NotText, SetTextFailed, ReadBackDiffers, GlyphNotDrawn, GlyphNotInSubset }
 
     /// <summary>
     /// 규칙: ① SetText 성공 ② 되읽기(GetText)가 입력과 완전히 같음 ③ 공백 아닌 글자마다 그 글자 칸에 잉크가 있음.
@@ -22,6 +22,16 @@ public static class OriginalFontReplacer
         if (originalIndex < 0 || originalIndex >= page.ObjectCount) return Result.NotText;
         var orig = page.GetObject(originalIndex);
         if (orig.Type != PdfPageObjectType.Text) return Result.NotText;
+        // ④ 임베드된(서브셋일 수 있는) 글꼴은 그 줄에 이미 있던 글자만 쓴다. 서브셋에 없는 글자는 빈 글리프(.notdef 네모)로 그려지는데,
+        //    ToUnicode가 있는 글꼴에서는 되읽기·잉크 검사를 통과해 버릴 수 있다(2026-10-20 사용자 보고: 글자가 네모로 나옴).
+        if (orig.Font is null or { Embedded: true })
+        {
+            string? before;
+            using (var t0 = page.LoadText()) before = orig.GetText(t0);
+            if (before is null) return Result.GlyphNotInSubset;
+            foreach (char c in newText)
+                if (!char.IsWhiteSpace(c) && !before.Contains(c)) return Result.GlyphNotInSubset;
+        }
         var probe = page.CreateTextLike(orig, newText);
         if (probe is null) return Result.SetTextFailed;
 

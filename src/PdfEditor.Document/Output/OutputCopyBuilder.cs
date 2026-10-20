@@ -60,6 +60,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                 {
                     using var page = copy.LoadPage(index);
                     ContentReplayer.Apply(page, edits, ReplayMode.Output, s.Assets);
+                    ContentReplayer.NormalizeColors(page);
                     page.GenerateContent();
                 }
                 copy.SaveCopy(path);
