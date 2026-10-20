@@ -5,9 +5,9 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <data name="App_Name" xml:space="preserve"><value>SedolPDF</value></data>
-  <data name="About_Authors" xml:space="preserve"><value>박재민 · 박세현</value></data>
-  <data name="About_Contact1" xml:space="preserve"><value>박재민  jaemini@gmail.com</value></data>
-  <data name="About_Contact2" xml:space="preserve"><value>박세현  sedolisehyun@gmail.com</value></data>
+  <data name="About_Authors" xml:space="preserve"><value>Park Jaemin · Park Sehyeon</value></data>
+  <data name="About_Contact1" xml:space="preserve"><value>jaemini@gmail.com</value></data>
+  <data name="About_Contact2" xml:space="preserve"><value>sedolisehyun@gmail.com</value></data>
   <data name="Tab_File" xml:space="preserve"><value>파일</value></data>
   <data name="Tab_Home" xml:space="preserve"><value>홈</value></data>
   <data name="Tab_Annotate" xml:space="preserve"><value>주석</value></data>
@@ -467,7 +467,7 @@ Ctrl+1 실제 크기 · Ctrl+2 폭 맞춤 · Ctrl+0 쪽 맞춤 · Ctrl+L 또는 
 Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value></data>
   <data name="Help_Note" xml:space="preserve"><value>자세한 매뉴얼은 이후 단계에서 제공됩니다.</value></data>
   <data name="About_Description" xml:space="preserve"><value>Windows용 오픈소스 PDF 편집기</value></data>
-  <data name="About_Copyright" xml:space="preserve"><value>© 2026 박재민 · 박세현. MIT 라이선스</value></data>
+  <data name="About_Copyright" xml:space="preserve"><value>Copyright © 2026 Park Jaemin · Park Sehyeon. MIT License</value></data>
   <data name="Msg_SnapshotWorking" xml:space="preserve"><value>스냅숏을 만드는 중…</value></data>
   <data name="About_BuildDate" xml:space="preserve"><value>빌드 날짜: {0}</value></data>
   <data name="About_License" xml:space="preserve"><value>이 프로그램은 MIT 라이선스로 배포되는 오픈소스 소프트웨어입니다. 개인과 기업 모두 무료로 쓸 수 있습니다.</value></data>

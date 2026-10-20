@@ -279,8 +279,8 @@
 ---
 
 ## 7. 저장소 규칙
-- 제품명: **SedolPDF** (세돌PDF), 제작자: 박재민 <jaemini@gmail.com>, 박세현 <sedolisehyun@gmail.com> (2026-10-16 사용자 결정). 화면 문구·설치 파일·정보 창에만 쓰고 코드 이름(`PdfEditor.*`)은 그대로 둡니다.
-- 라이선스: **MIT를 제안** *(사용자 확인 필요)*. 의존 라이브러리가 모두 MIT·BSD·Apache·OFL이라 호환됩니다. 저작권 줄: `Copyright (c) 2026 박재민, 박세현`.
+- 제품명: **SedolPDF** (세돌PDF), 제작자: Park Jaemin <jaemini@gmail.com>, Park Sehyeon <sedolisehyun@gmail.com> (2026-10-16 사용자 결정). 화면 문구·설치 파일·정보 창에만 쓰고 코드 이름(`PdfEditor.*`)은 그대로 둡니다.
+- 라이선스: **MIT를 제안** *(사용자 확인 필요)*. 의존 라이브러리가 모두 MIT·BSD·Apache·OFL이라 호환됩니다. 저작권 줄: `Copyright (c) 2026 Park Jaemin, Park Sehyeon`.
 - 함께 배포하는 PDFium과 Noto Sans KR의 라이선스 고지는 `THIRD-PARTY-NOTICES.md`에 모읍니다.
 - 테스트 프레임워크: xUnit. 테스트용 PDF 샘플은 `tests/fixtures/`에 둡니다. 회사 도면 등 공개하면 안 되는 문서는 저장소에 넣지 않습니다.
 

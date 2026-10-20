@@ -2,9 +2,9 @@
   <PropertyGroup>
     <Version>0.1.0</Version>
     <Product>SedolPDF</Product>
-    <Authors>박재민; 박세현</Authors>
+    <Authors>Park Jaemin; Park Sehyeon</Authors>
     <Company>SedolPDF</Company>
-    <Copyright>Copyright (c) 2026 박재민, 박세현</Copyright>
+    <Copyright>Copyright (c) 2026 Park Jaemin, Park Sehyeon</Copyright>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>

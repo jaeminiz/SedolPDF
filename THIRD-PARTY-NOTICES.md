@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-SedolPDF — 박재민, 박세현 (Copyright (c) 2026 박재민, 박세현)
+SedolPDF — Park Jaemin, Park Sehyeon (Copyright (c) 2026 Park Jaemin, Park Sehyeon)
 
 이 프로젝트가 사용하거나 함께 배포하는 외부 구성 요소의 고지입니다.
 
