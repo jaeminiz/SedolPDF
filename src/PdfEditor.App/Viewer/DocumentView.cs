@@ -42,6 +42,9 @@ public sealed partial class DocumentView : Control
         // 덧그림용(UI 스레드 전용): 쪽 경계·회전 캐시, 검색 결과의 쪽별 묶음, 선택 사각형.
         public readonly Dictionary<(PageId, int), PageGeom> Geoms = new();
         public readonly HashSet<(PageId, int)> GeomPending = new();
+        // 쪽 객체 목록(M4): (쪽, 버전)마다 한 번 전용 스레드에서 읽는다
+        public readonly Dictionary<(PageId, int), PdfEditor.Document.Content.PageObjectIndex> ObjIndex = new();
+        public readonly HashSet<(PageId, int)> ObjIndexPending = new();
         public Dictionary<PageId, List<SearchHit>>? HitsByPage;   // null = 다시 만들어야 함
         public (PageId Page, IReadOnlyList<System.Drawing.RectangleF> Rects)? SelRects;
         public bool SelBusy, SelDirty;
@@ -373,6 +376,7 @@ public sealed partial class DocumentView : Control
             var pr = lay.GetPageRect(i);
             pageRects.Add(pr);
             if (IsAnnotationTool(st.Tab.Tool)) TryGetGeom(st, info, out _);   // 첫 클릭부터 쪽 정보가 있도록 미리 읽는다
+            if (IsObjectTool(st.Tab.Tool)) { TryGetGeom(st, info, out _); TryGetObjectIndex(st, info, out _); }
             using (ctx.PushClip(pr))
             {
                 ctx.FillRectangle(PlaceholderBrush, pr);
@@ -406,6 +410,7 @@ public sealed partial class DocumentView : Control
                     }
                 DrawAnnotationLayer(ctx, st, info, pr, scale);   // ④ 주석 층
                 DrawSelection(ctx, st, info, pr, scale);
+                DrawObjectSelection(ctx, st, info, pr, scale);
             }
             DrawOverlays(ctx, st, info, pr, scale);   // ⑤ 검색 강조·텍스트 선택
         }
@@ -719,6 +724,7 @@ public sealed partial class DocumentView : Control
         base.OnPointerPressed(e);
         Focus();
         if (_state is null || _sv is null) return;
+        if (HandleObjectPointerPressed(e)) return;
         if (HandleAnnotPointerPressed(e)) return;
         if (_state.Tab.Tool == ToolKind.Hand && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
@@ -748,6 +754,7 @@ public sealed partial class DocumentView : Control
     {
         base.OnPointerMoved(e);
         if (_state is null || _sv is null) return;
+        if (HandleObjectPointerMoved(e)) return;
         HandleAnnotPointerMoved(e);
         if (_selecting && _layout is { } lay && _selPageIndex >= 0 && _selPageIndex < _layoutPages.Length)
         {
@@ -768,6 +775,7 @@ public sealed partial class DocumentView : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (HandleObjectPointerReleased(e)) return;
         if (HandleAnnotPointerReleased(e)) return;
         if (_dragging) { _dragging = false; e.Pointer.Capture(null); }
         if (_selecting)
@@ -788,6 +796,7 @@ public sealed partial class DocumentView : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (HandleObjectKey(e)) return;
         if (HandleAnnotKey(e)) return;
         if (e is { Key: Key.C, KeyModifiers: KeyModifiers.Control })
         {

@@ -19,6 +19,8 @@ public enum ToolKind
     // M3a
     Line, Arrow, PolyLine, Polygon, Cloud, TextBox, Typewriter, Callout,
     InsertText, ReplaceText, Stamp, FileAttach,
+    // M4 (편집 탭): 쪽 객체
+    EditObject, EditText, AddText, AddImage, AddShape,
 }
 
 /// <summary>문서 탭 하나. 세션이 있으면 변경 표시(제목 끝 " •")와 쪽 수를 세션에서 따라간다.</summary>
@@ -229,6 +231,24 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         if (Session is { } s && Selection.Page is { } p && e.Pages.Contains(p)) Selection.Prune(s.Annotations.Get(p));
     });
 
+
+    // ---- 쪽 객체 편집 (M4) ----
+
+    /// <summary>쪽 객체 선택·옮기기·크기 바꾸기(UI 스레드 전용).</summary>
+    public PdfEditor.App.Viewer.Objects.ObjectSelectionController Objects { get; } = new();
+
+    /// <summary>이 문서의 쪽 내용을 고칠 수 있는가(권한의 "내용 수정" 비트).</summary>
+    public bool CanEditContent => Session is { } s && s.Permissions.CanModify;
+
+    /// <summary>앱 글꼴이 필요한 편집(새 텍스트, 원래 글꼴로 안 되는 글 바꾸기)을 할 수 있는가(암호 문서는 패치 단계가 없어 안 됨, M3a A2).</summary>
+    public bool CanUseAppFontText => Session is { } s && PdfEditor.Document.Saving.SavePolicy.CanPatch(s);
+
+    /// <summary>쪽 객체 편집 명령을 실행한다. 권한이 없으면 아무것도 하지 않는다.</summary>
+    public async Task RunContentCommandAsync(PdfEditor.Document.Content.ContentEditCommand c)
+    {
+        if (Session is null || !CanEditContent) return;
+        await Session.Commands.ExecuteAsync(c);
+    }
     /// <summary>주석 명령 실행. 원본 주석이 붙을 때까지 기다린 뒤 실행한다. 권한이 없으면 아무것도 하지 않는다.</summary>
     public async Task RunAnnotationCommandAsync(PdfEditor.Document.Commands.IUndoableCommand c)
     {
@@ -250,6 +270,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     partial void OnToolChanged(ToolKind value)
     {
+        if (value is not (ToolKind.EditObject or ToolKind.EditText)) Objects.Clear();   // 객체 선택은 객체 도구에서만
         Tools.Cancel();
         Tools.CancelAttach();
         Editing.Cancel();
