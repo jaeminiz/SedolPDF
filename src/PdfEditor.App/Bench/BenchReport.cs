@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace PdfEditor.App.Bench;
 
@@ -82,6 +82,14 @@ public sealed class BenchReport
     public double OverlayDrawMsP50 { get; init; }
     public double OverlayDrawMsMax { get; init; }
     public int OverlayDrawSamples { get; init; }
+
+    // M4: 첫 쪽에 쪽 객체 편집(이동·도형·앱 글꼴 텍스트) EditCount개를 한 번에 넣은 뒤
+    public int EditCount { get; init; }
+    public double EditReplayMs { get; init; }          // 쪽을 다시 불러와 편집 기록을 적용하는 시간(전용 스레드)
+    public double EditIndexMs { get; init; }           // 객체 목록(글 판독 포함)을 만드는 시간
+    public double EditFirstRenderMs { get; init; }     // 명령 직후 화면이 새 버전으로 다시 다 덮일 때까지
+    public double EditOutputCopyMs { get; init; }      // 저장과 같은 출력 사본 만들기(주석 Flush + 내용 단계 + 패치)
+    public double EditOutputMb { get; init; }
 
     private static readonly JsonSerializerOptions Opt = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     public string ToJson() => JsonSerializer.Serialize(this, Opt);

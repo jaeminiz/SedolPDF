@@ -1,4 +1,4 @@
-using Pdf.Native;
+﻿using Pdf.Native;
 
 namespace PdfEditor.Document.Content;
 
@@ -14,6 +14,9 @@ public sealed class PageObjectIndex(PageId page, int version, IReadOnlyList<Page
 {
     public const float FrameAreaRatio = 0.9f;
     public const int TextPreviewMax = 80;
+
+    /// <summary>글 객체가 이보다 많은 쪽(큰 도면)은 미리보기 글을 만들지 않는다: 글 읽기가 객체마다 수 ms로 쪽 전체 글자 수에 비례해 5,000줄 도면에서 목록 만들기가 1.7 s였다(M4 성능 측정). 편집할 때 그 줄만 따로 읽는다.</summary>
+    public const int TextPreviewObjectLimit = 400;
 
     public PageId Page { get; } = page;
     public int Version { get; } = version;
@@ -37,6 +40,7 @@ public sealed class PageObjectIndex(PageId page, int version, IReadOnlyList<Page
         int n = page.ObjectCount;
         for (int i = 0; i < n; i++) order[page.GetObject(i).Handle] = i;
 
+        bool previews = text is not null && r.Originals.Count(o => o.Type == PdfPageObjectType.Text) + r.Inserted.Count <= TextPreviewObjectLimit;
         var list = new List<PageObjectEntry>();
         void Add(ObjectRef rf, PdfPageObject o)
         {
@@ -44,9 +48,9 @@ public sealed class PageObjectIndex(PageId page, int version, IReadOnlyList<Page
             var b = o.Bounds;
             if (b.Width <= 0 && b.Height <= 0) return;
             string? preview = null;
-            if (o.Type == PdfPageObjectType.Text && text is not null)
+            if (previews && o.Type == PdfPageObjectType.Text)
             {
-                var t = o.GetText(text);
+                var t = o.GetText(text!);
                 if (t is not null) preview = t.Length > TextPreviewMax ? t[..TextPreviewMax] : t;
             }
             bool frame = b.Width * b.Height >= FrameAreaRatio * pageArea;

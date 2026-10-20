@@ -1,4 +1,4 @@
-using Pdf.Native;
+﻿using Pdf.Native;
 using PdfEditor.Document.Content;
 using PdfEditor.Pages;
 using PdfEditor.TestFixtures;
@@ -217,5 +217,22 @@ public sealed class ContentEditTests : IDisposable
             Assert.True(onRect[^1].IsFrame);
             return 0;
         });
+    }
+
+    [Fact]
+    public async Task ObjectIndex_ManyTextObjects_SkipsPreviews_FullTextStillReadable()
+    {
+        string p = Path.Combine(_dir, "many.pdf");
+        ContentPdfFactory.CreateManyTextLines(p, PageObjectIndex.TextPreviewObjectLimit + 50);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        var id = s.Pages[0].Id;
+        var (previews, text) = await On(() =>
+        {
+            var idx = s.GetObjectIndex(id);
+            var first = idx.Entries.First(e => e.Type == PdfPageObjectType.Text);
+            return (idx.Entries.Count(e => e.TextPreview is not null), s.GetObjectText(id, first.Ref));
+        });
+        Assert.Equal(0, previews);   // 큰 도면은 목록 만들기 때 글을 읽지 않는다(5,000줄에서 1.7 s)
+        Assert.StartsWith("LINE", text);   // 편집할 때 그 줄만 따로 읽는다
     }
 }

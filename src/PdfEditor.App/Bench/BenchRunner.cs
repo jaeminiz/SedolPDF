@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Collections.Immutable;
 using System.IO;
 using Avalonia;
@@ -12,7 +12,7 @@ using PdfEditor.App.Viewer;
 
 namespace PdfEditor.App.Bench;
 
-public sealed record BenchOptions(string Pdf, string Out, int Annots = 0, int TextBoxes = 0);
+public sealed record BenchOptions(string Pdf, string Out, int Annots = 0, int TextBoxes = 0, int Edits = 0);
 
 /// <summary>
 /// `--bench &lt;pdf&gt; --out &lt;json&gt;`: 창을 띄워 문서를 열고 첫 화면 시간·스크롤 중 회색 비율·타일 렌더 시간·최대 작업 집합을 JSON으로 쓰고 종료한다.
@@ -25,15 +25,16 @@ public static class BenchRunner
     public static BenchOptions? Parse(string[] args)
     {
         string? pdf = null, outPath = null;
-        int annots = 0, textBoxes = 0;
+        int annots = 0, textBoxes = 0, edits = 0;
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--bench" && i + 1 < args.Length) pdf = args[++i];
             else if (args[i] == "--out" && i + 1 < args.Length) outPath = args[++i];
             else if (args[i] == "--annots" && i + 1 < args.Length) int.TryParse(args[++i], out annots);
             else if (args[i] == "--textboxes" && i + 1 < args.Length) int.TryParse(args[++i], out textBoxes);
+            else if (args[i] == "--edits" && i + 1 < args.Length) int.TryParse(args[++i], out edits);
         }
-        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath), annots, textBoxes);
+        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath), annots, textBoxes, edits);
     }
 
     public static async Task RunAsync(MainWindow window, BenchOptions o)
@@ -112,8 +113,10 @@ public static class BenchRunner
         lock (tiles) t = tiles.ToArray();
         var overlay = o.Annots > 0 ? await MeasureOverlayAsync(view, tab, o.Annots, textBoxes: false)
             : o.TextBoxes > 0 ? await MeasureOverlayAsync(view, tab, o.TextBoxes, textBoxes: true) : [];
+        var ed = o.Edits > 0 ? await MeasureEditsAsync(view, tab, o.Edits) : default;
         return new BenchReport
         {
+            EditCount = ed.Count, EditReplayMs = ed.ReplayMs, EditIndexMs = ed.IndexMs, EditFirstRenderMs = ed.RenderMs, EditOutputCopyMs = ed.OutputMs, EditOutputMb = ed.OutputMb,
             Pdf = Path.GetFileName(o.Pdf),
             PageCount = tab.PageCount,
             ViewportWidth = vw,
@@ -214,6 +217,65 @@ public static class BenchRunner
         }
         finally { DocumentView.OverlayDrawTimed = null; }
         lock (samples) return samples.ToArray();
+    }
+
+    /// <summary>첫 쪽에 쪽 객체 편집 n개(이동 · 사각형 · 앱 글꼴 텍스트 번갈아)를 한 명령으로 넣고 replay·화면·출력 사본 시간을 잰다(M4 Task 10).</summary>
+    private static async Task<(int Count, double ReplayMs, double IndexMs, double RenderMs, double OutputMs, double OutputMb)> MeasureEditsAsync(DocumentView view, DocumentTabViewModel tab, int n)
+    {
+        var s = tab.Session!;
+        var page = s.Pages[0].Id;
+        var font = DocumentTabViewModel.Appearance?.Font ?? throw new InvalidOperationException("app font not available");
+        var movable = await s.Thread.InvokeAsync(() => s.GetObjectIndex(page).Entries
+            .Where(e => e.Type is PdfPageObjectType.Path or PdfPageObjectType.Image && !e.IsFrame).Select(e => e.Ref).Take(50).ToList());
+        var edits = new List<PdfEditor.Document.Content.ContentEdit>();
+        var rng = new Random(777);
+        for (int i = 0; i < n; i++)
+        {
+            float x = 20 + (i % 20) * 28f, y = 30 + (i / 20 % 25) * 30f;
+            switch (i % 3)
+            {
+                case 0 when movable.Count > 0:
+                    edits.Add(new PdfEditor.Document.Content.TransformEdit(s.Content.NewId(), movable[i % movable.Count], PdfMatrix.Translate((float)rng.NextDouble() * 6, (float)rng.NextDouble() * 6)));
+                    break;
+                case 1:
+                    edits.Add(new PdfEditor.Document.Content.InsertShapeEdit(s.Content.NewId(), new PdfEditor.Document.Content.ShapeSpec(
+                        PdfEditor.Document.Content.ShapeKind.Rectangle, new PdfRectF(x, y, x + 24, y + 16), default, default, PdfEditor.Document.Content.ShapeStyle.Default)));
+                    break;
+                default:
+                    var (spec, _) = PdfEditor.TextEdit.AppFontLine.Build(font, "DWG " + i, 9, PdfMatrix.Translate(x, y), new PdfColor(0, 0, 0));
+                    if (spec is not null) edits.Add(new PdfEditor.Document.Content.InsertAppTextEdit(s.Content.NewId(), spec));
+                    break;
+            }
+        }
+        view.Scroller!.Offset = new Vector(view.Scroller.Offset.X, 0);
+        var sw = Stopwatch.StartNew();
+        await s.Commands.ExecuteAsync(new PdfEditor.Document.Content.ContentEditCommand(page, edits));
+        var renderStart = sw.Elapsed.TotalMilliseconds;
+        double replayOnly = 0;
+        double replay = await s.Thread.InvokeAsync(() =>
+        {
+            var t = Stopwatch.StartNew();
+            s.GetReplay(page);   // 쪽 핸들이 닫혔으므로 새로 불러와 편집 기록을 적용한다
+            replayOnly = t.Elapsed.TotalMilliseconds;
+            s.GetObjectIndex(page);   // 객체 목록(글 판독 포함)
+            return t.Elapsed.TotalMilliseconds;
+        });
+        while (true)
+        {
+            await Frame(view);
+            if (view.LastVisiblePageCount > 0 && view.LastExactCoverage >= Full) break;
+            if (sw.Elapsed.TotalSeconds > 60) throw new TimeoutException("edited page not redrawn within 60 s");
+        }
+        double render = sw.Elapsed.TotalMilliseconds - renderStart;
+
+        var svc = DocumentTabViewModel.Appearance;
+        string tmp = Path.Combine(Path.GetTempPath(), "pdfeditor-bench-out-" + Environment.ProcessId + ".pdf");
+        var ow = Stopwatch.StartNew();
+        await new PdfEditor.Document.Output.OutputCopyBuilder(svc?.Appearance, svc?.Patcher, svc?.Assets).BuildAsync(s, tmp);
+        double outMs = ow.Elapsed.TotalMilliseconds;
+        double mb = new FileInfo(tmp).Length / 1048576.0;
+        try { File.Delete(tmp); } catch (IOException) { }
+        return (edits.Count, replayOnly, replay - replayOnly, render, outMs, mb);
     }
 
     private static async Task SettleAsync(TopLevel top, DocumentView view)

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Advanced;
@@ -93,6 +93,21 @@ public static class ContentPdfFactory
                 XColors.Yellow, XColors.Purple), 900, 250, 200, 120);                   // 그러데이션
             g.DrawString("TITLE BLOCK 표제란", new XFont("Malgun Gothic", 12, XFontStyleEx.Regular, opt),
                 XBrushes.Black, new XPoint(900, 780));
+        }
+        doc.Save(path);
+    }
+
+    /// <summary>A4 1쪽에 글 줄 count개("LINE n", 각각 텍스트 객체 하나)를 격자로 쓴다(큰 도면의 글 객체 수 시험).</summary>
+    public static void CreateManyTextLines(string path, int count)
+    {
+        using var doc = new PdfDocument();
+        var page = doc.AddPage();
+        page.Width = XUnit.FromPoint(595);
+        page.Height = XUnit.FromPoint(842);
+        using (var g = XGraphics.FromPdfPage(page))
+        {
+            var font = new XFont("Arial", 6, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode));
+            for (int i = 0; i < count; i++) g.DrawString("LINE " + i, font, XBrushes.Black, new XPoint(20 + (i % 10) * 55, 20 + (i / 10) * 8));
         }
         doc.Save(path);
     }
