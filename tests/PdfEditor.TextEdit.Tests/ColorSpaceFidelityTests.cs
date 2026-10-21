@@ -20,9 +20,9 @@ public sealed class ColorSpaceFidelityTests : IDisposable
     private const string SRgbIcc = @"C:\Windows\System32\spool\drivers\color\sRGB Color Space Profile.icm";
     private const string AdobeIcc = @"C:\Windows\System32\spool\drivers\color\AdobeRGB1998.icc";
 
-    private sealed record Obj(string Dict, byte[]? Stream = null);
+    internal sealed record Obj(string Dict, byte[]? Stream = null);
 
-    private static byte[] Build(string resources, string content, IEnumerable<Obj> extra0)
+    internal static byte[] Build(string resources, string content, IEnumerable<Obj> extra0)
     {
         var extra = extra0.ToList();
         // 1 catalog, 2 pages, 3 page, 4 content, 5 font, 6.. extra
@@ -54,7 +54,7 @@ public sealed class ColorSpaceFidelityTests : IDisposable
     private static Obj[] Icc(byte[] icc) => [new("[/ICCBased 7 0 R]"), new("<< /N 3 /Alternate /DeviceRGB >>", icc)];
     private const string SepFn = "<< /FunctionType 2 /Domain [0 1] /C0 [1 1 1] /C1 [0.9 0.1 0.1] /N 1 >>";
 
-    private static IEnumerable<(string Name, byte[] Pdf)> Cases()
+    internal static IEnumerable<(string Name, byte[] Pdf)> Cases()
     {
         byte[] srgb = File.Exists(SRgbIcc) ? File.ReadAllBytes(SRgbIcc) : File.ReadAllBytes(AdobeIcc);
         // 8x8 1비트 스텐실 마스크(체크무늬)
