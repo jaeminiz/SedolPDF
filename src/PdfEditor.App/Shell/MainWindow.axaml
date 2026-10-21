@@ -259,8 +259,13 @@
 
       <Border Grid.Column="2" Margin="8,0,0,0" CornerRadius="8,8,0,0" BorderBrush="#17000000" BorderThickness="1,1,1,0" ClipToBounds="True">
         <Grid RowDefinitions="32,*">
-          <Grid ColumnDefinitions="*,Auto" Background="#F3F3F3">
-            <Panel>
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" Background="#F3F3F3">
+            <!-- 탭이 너무 많아 넘칠 때만 보이는 왼쪽·오른쪽 스크롤 단추(끝에 닿으면 흐리게) -->
+            <Button Name="TabScrollLeft" Grid.Column="0" Classes="quick" Width="24" Height="26" VerticalAlignment="Bottom" Margin="2,0,0,1"
+                    IsVisible="False" ToolTip.Tip="{x:Static res:Strings.Tip_TabScrollLeft}" Click="OnTabScrollLeft">
+              <res:IconView Key="prev" Width="12" Height="12" Foreground="{Binding $parent[Button].Foreground}" />
+            </Button>
+            <Panel Grid.Column="1">
             <ListBox Name="DocTabs" Classes="doctabs" ItemsSource="{Binding Documents}" SelectedItem="{Binding ActiveDocument}"
                      VerticalAlignment="Bottom" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.VerticalScrollBarVisibility="Disabled">
@@ -282,7 +287,11 @@
             <Border Name="TabDropLine" Width="3" CornerRadius="1.5" Background="#005FB8" HorizontalAlignment="Left"
                     Height="22" VerticalAlignment="Bottom" Margin="0,0,0,3" IsHitTestVisible="False" IsVisible="False" />
             </Panel>
-            <Button Grid.Column="1" Classes="quick" Width="28" Height="26" VerticalAlignment="Bottom" Margin="2,0,6,1"
+            <Button Name="TabScrollRight" Grid.Column="2" Classes="quick" Width="24" Height="26" VerticalAlignment="Bottom" Margin="0,0,0,1"
+                    IsVisible="False" ToolTip.Tip="{x:Static res:Strings.Tip_TabScrollRight}" Click="OnTabScrollRight">
+              <res:IconView Key="next" Width="12" Height="12" Foreground="{Binding $parent[Button].Foreground}" />
+            </Button>
+            <Button Grid.Column="3" Classes="quick" Width="28" Height="26" VerticalAlignment="Bottom" Margin="2,0,6,1"
                     Command="{Binding OpenCommand}" ToolTip.Tip="{x:Static res:Strings.Tip_NewTab}">
               <res:IconView Key="plus" Width="14" Height="14" />
             </Button>

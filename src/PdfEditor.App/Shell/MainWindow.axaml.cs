@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         DataContext = _vm;
         BuildKeyBindings();
         WireTabDrag();
+        TabStripPanel.ScrollStateChanged += _ => UpdateTabScrollButtons();
         FileTabButton.Flyout = BuildFileMenu();
         var prompts = new AvaloniaPrompts(this);
         // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
@@ -301,6 +302,18 @@ public sealed partial class MainWindow : Window
         _tabSlot = -1;
         TabDropLine.IsVisible = false;
     }
+
+    /// <summary>탭 줄이 넘칠 때만 왼쪽·오른쪽 스크롤 단추를 보이고, 끝에 닿은 쪽은 사용하지 않게 한다.</summary>
+    private void UpdateTabScrollButtons()
+    {
+        if (TabPanel is not { } p) return;
+        TabScrollLeft.IsVisible = TabScrollRight.IsVisible = p.IsOverflowing;
+        TabScrollLeft.IsEnabled = p.CanScrollLeft;
+        TabScrollRight.IsEnabled = p.CanScrollRight;
+    }
+
+    private void OnTabScrollLeft(object? sender, RoutedEventArgs e) { if (TabPanel is { } p) p.ScrollBy(-p.PageStep); }
+    private void OnTabScrollRight(object? sender, RoutedEventArgs e) { if (TabPanel is { } p) p.ScrollBy(p.PageStep); }
 
     private void OnTabCloseClick(object? sender, RoutedEventArgs e)
     {

@@ -473,4 +473,6 @@ public static class Strings
     public static string About_License => Get(nameof(About_License));
     public static string About_ThirdTitle => Get(nameof(About_ThirdTitle));
     public static string About_ThirdList => Get(nameof(About_ThirdList));
+    public static string Tip_TabScrollLeft => Get(nameof(Tip_TabScrollLeft));
+    public static string Tip_TabScrollRight => Get(nameof(Tip_TabScrollRight));
 }
