@@ -27,7 +27,7 @@ public sealed class TextSnapshot
     /// <summary>짝이 되는 `ET`의 연산자 번호(-1이면 없음). 분할이 끝난 뒤 채운다.</summary>
     public int EtOp { get; internal set; } = -1;
     /// <summary>글 위치(Tm)를 알 수 있고 BT 안에서 cm/q/Q가 없었는가 — 거짓이면 옮기기 불가.</summary>
-    public bool Movable { get; init; }
+    public bool Movable { get; internal set; }
 }
 
 /// <summary>쪽 객체 하나(PDFium 객체 목록의 한 항목에 대응).</summary>
@@ -175,7 +175,7 @@ public static class ContentSegmenter
                 // --- 글 ---
                 case "BT": inText = true; tmKnown = true; textDirty = false; tm = tlm = Mat.Identity; btOp = i; break;
                 case "ET":
-                    foreach (var s in textInBt) if (s.BtOp == btOp) s.EtOp = i;
+                    foreach (var s in textInBt) if (s.BtOp == btOp) { s.EtOp = i; if (textDirty) s.Movable = false; }   // 보인 뒤에 cm/q/Q가 있으면 ET 시점의 CTM이 달라진다
                     textInBt.Clear();
                     inText = false; tmKnown = false;
                     break;

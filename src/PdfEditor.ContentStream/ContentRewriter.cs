@@ -1,0 +1,245 @@
+using System.Text;
+
+namespace PdfEditor.ContentStream;
+
+/// <summary>객체에 하는 편집. 번호는 <see cref="Segmentation.Objects"/>의 번호(= 검증된 PDFium 객체 번호).</summary>
+public abstract record ObjectEdit(int ObjectIndex);
+
+/// <summary>객체를 안 보이게 한다(경로: 칠하기/선 → `n`, 글: `3 Tr`로 감싸 글자 폭은 유지, 그림·셰이딩: 삭제).</summary>
+public sealed record DisableObject(int ObjectIndex) : ObjectEdit(ObjectIndex);
+
+/// <summary>객체를 쪽 공간 변환 <see cref="Then"/>(원래 모양에 이어서 적용)만큼 옮기거나 키운다.</summary>
+public sealed record TransformObject(int ObjectIndex, Mat Then) : ObjectEdit(ObjectIndex);
+
+public sealed class RewriteResult
+{
+    public bool Ok => Failure is null;
+    public string? Failure { get; init; }
+    public byte[]? Data { get; init; }
+}
+
+/// <summary>
+/// 편집한 객체의 바이트만 고쳐 쓰고 나머지는 원본 바이트 그대로 둔다(충실도 100 %).
+/// 옮기기: `q X cm … Q`, X = C·Then·C⁻¹ (C = 객체 시점 CTM) — 글은 BT 안에서 q/cm을 쓸 수 없으므로 원본을 보이지 않게 하고 ET 뒤에 같은 글을 변환해 다시 그린다.
+/// 결과는 다시 해석해 q/Q·BT/ET 균형과 객체 구성을 확인하고, 하나라도 어긋나면 실패를 돌려준다(호출자는 원본을 그대로 둔다).
+/// </summary>
+public static class ContentRewriter
+{
+    private sealed record Piece(int Start, int End, byte[] Text, int Order, int Seq);
+
+    private const int OrderClose = 0, OrderOpen = 1;
+
+    public static RewriteResult Rewrite(ParsedContent pc, Segmentation seg, IReadOnlyList<ObjectEdit> edits,
+        IReadOnlyList<byte[]>? appends = null, Func<string, XObjectInfo?>? xobjects = null)
+    {
+        if (!pc.Ok) return Fail("content not parsed: " + pc.Failure);
+        if (!seg.Ok) return Fail("segmentation failed: " + seg.Failure);
+        var data = pc.Data; var ops = pc.Ops;
+        var pieces = new List<Piece>();
+        int seq = 0;
+        void Insert(int pos, string s, int order) => pieces.Add(new Piece(pos, pos, Latin1(s), order, seq++));
+        void Replace(int start, int end, string s) => pieces.Add(new Piece(start, end, Latin1(s), OrderOpen, seq++));
+
+        var seen = new HashSet<int>();
+        int textCopies = 0;
+        var removedKinds = new Dictionary<ObjectKind, int>();
+        foreach (var edit in edits)
+        {
+            if (edit.ObjectIndex < 0 || edit.ObjectIndex >= seg.Objects.Count) return Fail($"object index {edit.ObjectIndex} out of range");
+            if (!seen.Add(edit.ObjectIndex)) return Fail($"object {edit.ObjectIndex} edited twice");
+            var obj = seg.Objects[edit.ObjectIndex];
+            var main = ops[obj.OpIndex];
+            switch (edit)
+            {
+                case DisableObject:
+                    switch (obj.Kind)
+                    {
+                        case ObjectKind.Path:
+                            Replace(main.OpStart, main.End, "n");
+                            Bump(removedKinds, ObjectKind.Path);
+                            break;
+                        case ObjectKind.Text:
+                            if (obj.Text!.Tr >= 4) return Fail($"object {edit.ObjectIndex}: text render mode {obj.Text.Tr} clips; cannot hide");
+                            if (obj.Text.Tr != 3) HideText(obj, main, Insert);
+                            break;
+                        default:
+                            Replace(main.Start, main.End, " ");
+                            Bump(removedKinds, obj.Kind);
+                            break;
+                    }
+                    break;
+
+                case TransformObject t:
+                {
+                    var c = obj.Ctm;
+                    var inv = c.Invert();
+                    if (inv is null) return Fail($"object {edit.ObjectIndex}: singular CTM");
+                    if (!t.Then.IsFinite) return Fail("non-finite transform");
+                    var x = c.Then(t.Then).Then(inv.Value);
+                    if (!x.IsFinite) return Fail("non-finite matrix");
+                    string open = $"q {x.ToOperands()} cm ";
+                    switch (obj.Kind)
+                    {
+                        case ObjectKind.Path:
+                            if (obj.HasOwnClip) return Fail($"object {edit.ObjectIndex}: path also sets a clip");
+                            for (int k = obj.FirstOpIndex; k < obj.OpIndex; k++)
+                                if (ops[k].Name is not ("m" or "l" or "c" or "v" or "y" or "re" or "h"))
+                                    return Fail($"object {edit.ObjectIndex}: operator {ops[k].Name} inside path");
+                            Insert(ops[obj.FirstOpIndex].Start, open, OrderOpen);
+                            Insert(main.End, " Q", OrderClose);
+                            break;
+                        case ObjectKind.Text:
+                        {
+                            var s = obj.Text!;
+                            if (!s.Movable || s.EtOp < 0) return Fail($"object {edit.ObjectIndex}: text not movable (position unknown or state changed inside BT)");
+                            if (s.Tr >= 4) return Fail($"object {edit.ObjectIndex}: text render mode {s.Tr} clips");
+                            if (s.Tr != 3) HideText(obj, main, Insert);
+                            Insert(ops[s.EtOp].End, TextCopy(data, ops, main, s, open), OrderOpen);
+                            textCopies++;
+                            break;
+                        }
+                        default:
+                            Insert(main.Start, open, OrderOpen);
+                            Insert(main.End, " Q", OrderClose);
+                            break;
+                    }
+                    break;
+                }
+                default: return Fail("unknown edit");
+            }
+        }
+
+        var composed = Compose(data, pieces);
+        if (composed is null) return Fail("overlapping edits");
+
+        var origProfile = Profile(ops);
+        var reparsed = ContentLexer.Parse(composed);
+        if (!reparsed.Ok) return Fail("result does not parse: " + reparsed.Failure);
+        if (Profile(reparsed.Ops) != origProfile) return Fail("q/Q or BT/ET balance changed");
+
+        if (appends is null or { Count: 0 })
+        {
+            var re = ContentSegmenter.Segment(reparsed, xobjects);
+            if (!re.Ok) return Fail("result does not segment: " + re.Failure);
+            var expected = Counts(seg.Objects.Select(o => o.Kind));
+            foreach (var (k, n) in removedKinds) expected[k] = expected.GetValueOrDefault(k) - n;
+            // 글 옮기기: 원본은 남고(보이지 않게) 변환한 사본이 하나 늘어난다.
+            expected[ObjectKind.Text] = expected.GetValueOrDefault(ObjectKind.Text) + textCopies;
+            var actual = Counts(re.Objects.Select(o => o.Kind));
+            foreach (var k in Enum.GetValues<ObjectKind>())
+                if (expected.GetValueOrDefault(k) != actual.GetValueOrDefault(k)) return Fail($"object count of {k} is {actual.GetValueOrDefault(k)}, expected {expected.GetValueOrDefault(k)}");
+            return new RewriteResult { Data = composed };
+        }
+
+        var final = Append(composed, origProfile, appends);
+        if (final is null) return Fail("cannot append: unbalanced content");
+        var check = ContentLexer.Parse(final);
+        if (!check.Ok) return Fail("appended result does not parse: " + check.Failure);
+        return new RewriteResult { Data = final };
+    }
+
+    /// <summary>쪽 맨 끝에 `q … Q`로 감싼 조각을 덧붙인다(앞 상태를 이어받지 않도록 필요하면 열려 있는 q/BT를 먼저 닫는다).</summary>
+    public static RewriteResult AppendOnly(ParsedContent pc, IReadOnlyList<byte[]> snippets)
+    {
+        if (!pc.Ok) return Fail("content not parsed: " + pc.Failure);
+        var p = Profile(pc.Ops);
+        var final = Append(pc.Data, p, snippets);
+        if (final is null) return Fail("cannot append: unbalanced content");
+        var check = ContentLexer.Parse(final);
+        return check.Ok ? new RewriteResult { Data = final } : Fail("appended result does not parse: " + check.Failure);
+    }
+
+    // ---- 내부 ----
+
+    private static void HideText(PageObject obj, ContentOp show, Action<int, string, int> insert)
+    {
+        insert(show.Start, "3 Tr ", OrderOpen);
+        insert(show.End, $" {obj.Text!.Tr} Tr", OrderClose);
+    }
+
+    private static string TextCopy(byte[] data, List<ContentOp> ops, ContentOp show, TextSnapshot s, string open)
+    {
+        var sb = new StringBuilder();
+        sb.Append('\n').Append(open);
+        foreach (int k in s.ReplayOps) sb.Append(Slice(data, ops[k])).Append(' ');
+        sb.Append(Slice(data, ops[s.FontOp])).Append(' ');
+        sb.Append($"{Mat.Fmt(s.Tc)} Tc {Mat.Fmt(s.Tw)} Tw {Mat.Fmt(s.Tz)} Tz {Mat.Fmt(s.TL)} TL {Mat.Fmt(s.Ts)} Ts {s.Tr} Tr ");
+        sb.Append($"BT {s.Tm.ToOperands()} Tm ");
+        if (show.Name is "'" or "\"")
+        {
+            var str = show.Operands[^1];
+            sb.Append(Latin1S(data, str.Start, str.End)).Append(" Tj");
+        }
+        else sb.Append(Slice(data, show));
+        sb.Append(" ET Q\n");
+        return sb.ToString();
+    }
+
+    private static string Slice(byte[] d, ContentOp op) => Latin1S(d, op.Start, op.End);
+    private static string Latin1S(byte[] d, int s, int e) => Encoding.Latin1.GetString(d, s, e - s);
+    private static byte[] Latin1(string s) => Encoding.Latin1.GetBytes(s);
+    private static RewriteResult Fail(string why) => new() { Failure = why };
+    private static void Bump(Dictionary<ObjectKind, int> d, ObjectKind k) => d[k] = d.GetValueOrDefault(k) + 1;
+    private static Dictionary<ObjectKind, int> Counts(IEnumerable<ObjectKind> kinds) =>
+        kinds.GroupBy(k => k).ToDictionary(g => g.Key, g => g.Count());
+
+    private static byte[]? Compose(byte[] data, List<Piece> pieces)
+    {
+        var sorted = pieces.OrderBy(p => p.Start).ThenBy(p => p.Order).ThenBy(p => p.Seq).ToList();
+        var ms = new MemoryStream(data.Length + 256);
+        int pos = 0;
+        foreach (var p in sorted)
+        {
+            if (p.Start < pos) return null;   // 바꾸는 구간이 겹침
+            ms.Write(data, pos, p.Start - pos);
+            ms.Write(p.Text);
+            pos = p.End;
+        }
+        ms.Write(data, pos, data.Length - pos);
+        return ms.ToArray();
+    }
+
+    /// <summary>(끝 q 깊이, 가장 낮았던 깊이, BT 끝 깊이, BT 가장 깊었던 값).</summary>
+    private readonly record struct BalanceProfile(int FinalDepth, int MinDepth, int FinalBt, int MaxBt);
+
+    private static BalanceProfile Profile(List<ContentOp> ops)
+    {
+        int d = 0, min = 0, bt = 0, maxBt = 0;
+        foreach (var op in ops)
+        {
+            switch (op.Name)
+            {
+                case "q": d++; break;
+                case "Q": d--; min = Math.Min(min, d); break;
+                case "BT": bt++; maxBt = Math.Max(maxBt, bt); break;
+                case "ET": bt = Math.Max(0, bt - 1); break;
+            }
+        }
+        return new BalanceProfile(d, min, bt, maxBt);
+    }
+
+    private static byte[]? Append(byte[] data, BalanceProfile p, IReadOnlyList<byte[]> snippets)
+    {
+        var ms = new MemoryStream();
+        bool clean = p.FinalDepth == 0 && p.MinDepth >= 0 && p.FinalBt == 0;
+        if (clean) ms.Write(data);
+        else
+        {
+            // 원본이 q/BT를 열어 둔 채 끝나면 덧붙인 조각이 그 상태를 이어받는다 → 앞에 q를 두고 끝에서 모두 닫는다.
+            int closers = 1 + p.FinalDepth;
+            if (closers < 0) return null;
+            ms.Write(Latin1("q\n"));
+            ms.Write(data);
+            ms.Write(Latin1("\n"));
+            for (int i = 0; i < p.FinalBt; i++) ms.Write(Latin1("ET\n"));
+            for (int i = 0; i < closers; i++) ms.Write(Latin1("Q\n"));
+        }
+        foreach (var s in snippets)
+        {
+            ms.Write(Latin1("\nq\n"));
+            ms.Write(s);
+            ms.Write(Latin1("\nQ\n"));
+        }
+        return ms.ToArray();
+    }
+}
