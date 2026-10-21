@@ -100,6 +100,26 @@ public static class ContentPdfFactory
         doc.Save(path);
     }
 
+    /// <summary>
+    /// A4 세로 1쪽, 선택 시험용(화면 위에서 아래 좌표 pt): 쪽의 약 89 %를 두른 속 빈 테두리(20,20,555,802), 안쪽 대각선 (100,100)-(300,300),
+    /// 안쪽 속 빈 사각형 (350,100,150,150), 안쪽 칠한 사각형 (350,400,100,100).
+    /// </summary>
+    public static void CreateFrameWithInner(string path)
+    {
+        using var doc = new PdfDocument();
+        var page = doc.AddPage();
+        page.Width = XUnit.FromPoint(595);
+        page.Height = XUnit.FromPoint(842);
+        using (var g = XGraphics.FromPdfPage(page))
+        {
+            g.DrawRectangle(new XPen(XColors.Black, 1), 20, 20, 555, 802);
+            g.DrawLine(new XPen(XColors.Red, 1), 100, 100, 300, 300);
+            g.DrawRectangle(new XPen(XColors.Blue, 1), 350, 100, 150, 150);
+            g.DrawRectangle(new XSolidBrush(XColors.Green), 350, 400, 100, 100);
+        }
+        doc.Save(path);
+    }
+
     /// <summary>A4 1쪽에 글 줄 count개("LINE n", 각각 텍스트 객체 하나)를 격자로 쓴다(큰 도면의 글 객체 수 시험).</summary>
     public static void CreateManyTextLines(string path, int count)
     {

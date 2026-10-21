@@ -207,14 +207,59 @@ public sealed class ContentEditTests : IDisposable
         {
             var idx = s.GetObjectIndex(id);
             Assert.Contains(idx.Entries, e => e.IsFrame);
-            // 빈 곳(테두리만 덮음): 테두리 하나
-            var empty = idx.HitTest(new PdfPointF(1100, 100), 1);
-            Assert.Single(empty);
-            Assert.True(empty[0].IsFrame);
-            // 반투명 사각형 위: 그 사각형이 먼저, 테두리는 맨 뒤
+            // 빈 곳(속 빈 테두리 안쪽): 이제 아무것도 안 맞는다 — 테두리는 선 위를 눌러야 맞는다
+            Assert.Empty(idx.HitTest(new PdfPointF(1100, 100), 1));
+            // 테두리 선 위(위에서 20pt = 쪽 아래에서 822)
+            var onLine = idx.HitTest(new PdfPointF(600, 842 - 20), 1);
+            Assert.Single(onLine);
+            Assert.True(onLine[0].IsFrame);
+            // 반투명 사각형 위: 그 사각형만(속 빈 테두리는 선 위가 아니면 안 맞는다)
             var onRect = idx.HitTest(new PdfPointF(750, 842 - 310), 1);
             Assert.False(onRect[0].IsFrame);
-            Assert.True(onRect[^1].IsFrame);
+            Assert.DoesNotContain(onRect, e => e.IsFrame);
+            // 테두리 선과 다른 객체가 겹치는 곳이면 테두리는 맨 뒤
+            var lineHits = idx.HitTest(new PdfPointF(600, 842 - 20), 1);
+            Assert.True(lineHits[^1].IsFrame);
+            return 0;
+        });
+    }
+
+    /// <summary>사용자 보고: 안쪽 선·도형을 눌러도 바깥 테두리(쪽의 90 % 미만이라 IsFrame도 아님)가 먼저 선택됨.</summary>
+    [Fact]
+    public async Task ObjectIndex_HollowFrame_DoesNotStealInnerClicks()
+    {
+        string p = Path.Combine(_dir, "frame.pdf");
+        ContentPdfFactory.CreateFrameWithInner(p);
+        await using var s = await DocumentSession.OpenAsync(_t, p, null);
+        var id = s.Pages[0].Id;
+        await On(() =>
+        {
+            var idx = s.GetObjectIndex(id);
+            var frame = idx.Entries.Single(e => e.Type == PdfPageObjectType.Path && e.Bounds.Width > 500);
+            Assert.False(frame.IsFrame);   // 89 % — 예전에는 이 때문에 먼저 잡혔다
+            Assert.NotNull(frame.Geometry);
+            PdfPointF P(float x, float yTop) => new(x, 842 - yTop);   // 위에서 아래 좌표 → 쪽 좌표
+
+            // 안쪽 대각선 위: 대각선이 먼저(그 다음에도 테두리는 없음)
+            var line = idx.HitTest(P(200, 200), 2);
+            Assert.Single(line);
+            Assert.NotEqual(frame.Ref, line[0].Ref);
+            // 대각선의 경계 상자 모서리 안(선에서 먼 곳): 아무것도 안 맞는다
+            Assert.Empty(idx.HitTest(P(120, 280), 2));
+            // 속 빈 안쪽 사각형 안쪽: 안 맞고, 그 선 위는 맞는다
+            Assert.Empty(idx.HitTest(P(425, 175), 2));
+            Assert.Single(idx.HitTest(P(350, 175), 2));
+            // 칠한 사각형은 안쪽도 맞는다
+            Assert.Single(idx.HitTest(P(400, 450), 2));
+            // 테두리는 그 선 위를 누를 때만
+            var edge = idx.HitTest(P(20, 400), 2);
+            Assert.Single(edge);
+            Assert.Equal(frame.Ref, edge[0].Ref);
+            Assert.Empty(idx.HitTest(P(300, 700), 2));
+            // 확대(허용 오차 축소): 대각선에서 3pt 떨어진 점은 허용 4pt면 맞고 0.5pt면 안 맞는다
+            var near = P(200 + 3 / MathF.Sqrt(2), 200 - 3 / MathF.Sqrt(2));
+            Assert.Single(idx.HitTest(near, 4));
+            Assert.Empty(idx.HitTest(near, 0.5f));
             return 0;
         });
     }

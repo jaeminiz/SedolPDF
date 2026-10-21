@@ -77,7 +77,7 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
             Pump(() => { h.View.InvalidateVisual(); h.Window.UpdateLayout(); _ = h.Window.CaptureRenderedFrame(); return idx.Count > 0; });
             return 0;
         });
-        Click(h, AtPt(h, 350, 842 - 330));   // 도형 안(쪽 아래 기준 y 330 = 위 기준 512)
+        Click(h, AtPt(h, 300, 842 - 330));   // 도형의 왼쪽 변 위(속 빈 도형은 선 근처를 눌러야 맞는다 — 안쪽은 아님)
         PumpUi(() => h.Tab.Objects.Selected is not null);
         Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);   // 도구는 주석 선택 그대로(2026-10-20 사용자 요청)
         Assert.Equal(PdfEditor.Document.Content.ObjectRef.Inserted(edit.Id), h.Tab.Objects.Selected!.Ref);

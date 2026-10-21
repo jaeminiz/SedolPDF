@@ -211,6 +211,81 @@ public sealed unsafe class PdfPageObject
         }
     }
 
+    // ---- 경로 읽기 ----
+
+    /// <summary>
+    /// 경로 객체의 모양(쪽 좌표 pt, 객체 행렬 적용). 곡선은 선분으로 펴고, 열린/닫힌 부분 경로(Subpaths)를 나눠 담는다.
+    /// 경로가 아니거나 선분이 maxSegments보다 많으면 null(호출한 쪽이 경계 상자로 대신한다).
+    /// </summary>
+    public PdfPathGeometry? ReadPathGeometry(int maxSegments)
+    {
+        var h = Handle;
+        if (NativeMethods.FPDFPageObj_GetType(h) != NativeMethods.FPDF_PAGEOBJ_PATH) return null;
+        int n = NativeMethods.FPDFPath_CountSegments(h);
+        if (n <= 0 || n > maxSegments) return null;
+        int fillMode, stroke;
+        if (NativeMethods.FPDFPath_GetDrawMode(h, &fillMode, &stroke) == 0) return null;
+        FsMatrix m;
+        var mat = NativeMethods.FPDFPageObj_GetMatrix(h, &m) == 0 ? PdfMatrix.Identity : PdfMatrix.FromNative(m);
+
+        var subs = new List<PdfSubpath>();
+        var cur = new List<PdfPointF>();
+        bool closed = false;
+        PdfPointF last = default;
+        Span<PdfPointF> bez = stackalloc PdfPointF[3];
+        int bezN = 0;
+        void Flush()
+        {
+            if (cur.Count > 0) subs.Add(new PdfSubpath(cur.ToArray(), closed));
+            cur = [];
+            closed = false;
+        }
+        for (int i = 0; i < n; i++)
+        {
+            var seg = NativeMethods.FPDFPath_GetPathSegment(h, i);
+            if (seg == IntPtr.Zero) continue;
+            float x, y;
+            if (NativeMethods.FPDFPathSegment_GetPoint(seg, &x, &y) == 0) continue;
+            var p = mat.Apply(new PdfPointF(x, y));
+            switch (NativeMethods.FPDFPathSegment_GetType(seg))
+            {
+                case 2:   // MOVETO (FPDF_SEGMENT_MOVETO)
+                    Flush();
+                    cur.Add(p);
+                    last = p;
+                    bezN = 0;
+                    break;
+                case 0:   // LINETO
+                    cur.Add(p);
+                    last = p;
+                    bezN = 0;
+                    break;
+                case 1:   // BEZIERTO — 점 3개가 한 곡선
+                    bez[bezN++] = p;
+                    if (bezN == 3)
+                    {
+                        for (int k = 1; k <= 8; k++)
+                        {
+                            float t = k / 8f, u = 1 - t;
+                            cur.Add(new PdfPointF(
+                                u * u * u * last.X + 3 * u * u * t * bez[0].X + 3 * u * t * t * bez[1].X + t * t * t * bez[2].X,
+                                u * u * u * last.Y + 3 * u * u * t * bez[0].Y + 3 * u * t * t * bez[1].Y + t * t * t * bez[2].Y));
+                        }
+                        last = bez[2];
+                        bezN = 0;
+                    }
+                    break;
+            }
+            if (NativeMethods.FPDFPathSegment_GetClose(seg) != 0) closed = true;
+        }
+        Flush();
+        // 선 굵기: 객체 행렬의 크기 배율을 곱해 쪽 좌표로 (PDFium의 StrokeWidth는 경로 좌표계 기준)
+        float w;
+        float sw = NativeMethods.FPDFPageObj_GetStrokeWidth(h, &w) == 0 ? 0 : w;
+        float scale = MathF.Sqrt(MathF.Abs(mat.A * mat.D - mat.B * mat.C));
+        return new PdfPathGeometry(subs, fillMode != NativeMethods.FPDF_FILLMODE_NONE, stroke != 0, sw * (scale > 0 ? scale : 1f));
+    }
+
     // ---- 경로 만들기 ----
 
     public void MoveTo(float x, float y) => NativeMethods.FPDFPath_MoveTo(Handle, x, y);

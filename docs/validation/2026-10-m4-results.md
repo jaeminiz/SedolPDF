@@ -181,3 +181,12 @@ PDFium 157 (bblanchon/pdfium-binaries, chromium/8100). 계획서: `docs/superpow
 
 ### 테스트
 - `dotnet test PdfEditor.sln` 3회 연속 통과(1112개: +ColorSpaceFidelity 1·RealPdfGuard 1·선택 Refresh 1·ErrorMessages 갱신), 경고 0.
+
+## 객체 선택: 속 빈 테두리가 안쪽 클릭을 가로채던 문제 (2026-10-21)
+
+- **보고:** CAD 도면을 확대해 안쪽 선·객체를 눌러도 바깥 테두리가 먼저 선택됨(Acrobat은 정상). **원인:** `PageObjectIndex.HitTest`가 경계 상자(`Bounds.Inflate`)로만 판정 — 선만 긋는 큰 경로는 상자 안 어디를 눌러도 맞았고, 테두리가 쪽의 90 % 미만(H4203 도면은 80 %, 경로 2개)이면 `IsFrame`도 아니라 위에 있는 객체보다 먼저 잡혔다.
+- **수정:** `Pdf.Native`에 PDFium 경로 선분 읽기(`PdfPageObject.ReadPathGeometry`: 선분 수·점·닫힘·그리기 방식, 객체 행렬 적용, 곡선은 8분할 선분) 추가, 순수 계산 `PdfPathGeometry.Hit`. 선만 긋는 경로는 **선분과의 거리 ≤ 허용 오차 + 선 굵기/2**일 때만, 칠한 경로는 안쪽(짝홀 규칙)도 맞는다. 허용 오차는 화면 4 DIP 기준이라 확대하면 쪽 pt로는 작아진다. 겹치면 기존 규칙(맨 위 우선, `IsFrame` 맨 뒤) 유지 — 면적 작은 순 규칙은 넣지 않았다(칠한 큰 도형이 위에 그려졌으면 눈에 보이는 대로 그것이 맞다). 속 빈 안쪽을 누르면 아무것도 안 맞아 기존 사각형 끌기(여러 개 선택)가 시작된다.
+- **모양을 읽는 경로:** 가로·세로 경계가 모두 2 pt 초과이고 긴 변이 24 pt 이상, 선분 4096개 이하만(`GeometryMinSidePt`·`GeometryMinLongSidePt`·`GeometryMaxSegments`). 그 밖의 작은·가는 경로는 예전처럼 경계 상자. 처음 기준(긴 변 제한 없음)은 A1 도면(205,000 객체)에서 목록 만들기가 179 → 320 ms로 늘어, 긴 변 24 pt 기준을 넣어 **약 166~179 ms(변화 없음)**로 되돌렸다. (A1 도면에는 큰 경로가 없어 모양을 읽은 객체 0개, 한 점 300번 무작위 hit test 3.1 ms 변화 없음.)
+- **실제 도면 확인(`private/`, Release):** H4203 도면 첫 쪽의 큰 경로 2개(쪽의 80 %, 선만 긋기, 선 굵기 0.72 pt)는 가운데를 눌러도 더는 맞지 않는다. 무작위 점당 평균 맞는 객체 수 4.1 → 0.8. 다른 도면은 변화 없음.
+- **시험:** `ObjectIndex_HollowFrame_DoesNotStealInnerClicks`(쪽의 89 % 테두리 + 안쪽 대각선·속 빈·칠한 사각형: 안쪽 선이 먼저·상자 모서리·속 빈 안쪽은 안 맞음·테두리는 선 위만·허용 오차 4 → 0.5 pt 축소), `PdfPathGeometryTests` 4개, 기존 `ObjectIndex_FrameLast_TopmostFirst`·`AnnotSelectTool_ClickOnInsertedShape…`(속 빈 도형은 선 위를 눌러야 함)를 새 동작에 맞게 수정. 전체 테스트 통과.
+- **동작 변경(검수 때 확인):** 속 빈 사각형 도형은 안쪽을 눌러서는 고를 수 없고 선 근처를 눌러야 한다. 실제 마우스·사용자 화면은 미확인(검증 필요).

@@ -50,6 +50,12 @@ internal static unsafe partial class NativeMethods
     [LibraryImport(Lib)] public static partial int FPDFPath_BezierTo(IntPtr path, float x1, float y1, float x2, float y2, float x3, float y3);
     [LibraryImport(Lib)] public static partial int FPDFPath_Close(IntPtr path);
     [LibraryImport(Lib)] public static partial int FPDFPath_SetDrawMode(IntPtr path, int fillMode, int stroke);
+    [LibraryImport(Lib)] public static partial int FPDFPath_GetDrawMode(IntPtr path, int* fillMode, int* stroke);
+    [LibraryImport(Lib)] public static partial int FPDFPath_CountSegments(IntPtr path);
+    [LibraryImport(Lib)] public static partial IntPtr FPDFPath_GetPathSegment(IntPtr path, int index);
+    [LibraryImport(Lib)] public static partial int FPDFPathSegment_GetPoint(IntPtr segment, float* x, float* y);
+    [LibraryImport(Lib)] public static partial int FPDFPathSegment_GetType(IntPtr segment);
+    [LibraryImport(Lib)] public static partial int FPDFPathSegment_GetClose(IntPtr segment);
 }
 
 /// <summary>FPDF_FILEACCESS (Windows: unsigned long = 32비트).</summary>
