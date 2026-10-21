@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -85,6 +85,18 @@ public sealed class TabStripPanel : Panel
         _offset = next;
         _reveal = false;
         InvalidateArrange();
+        NotifyIfStateChanged();   // 배치 전에 민 거리가 바뀌므로 단추 상태는 여기서도 알린다(오른쪽 단추가 안 켜지던 원인, 2026-10-21)
+    }
+
+    private (bool Overflow, bool Left, bool Right) _notified;
+
+    /// <summary>넘침·왼쪽·오른쪽 스크롤 가능 상태가 마지막으로 알린 것과 다르면 알린다.</summary>
+    private void NotifyIfStateChanged()
+    {
+        var now = (IsOverflowing, CanScrollLeft, CanScrollRight);
+        if (now == _notified) return;
+        _notified = now;
+        Dispatcher.UIThread.Post(() => ScrollStateChanged?.Invoke(this), DispatcherPriority.Loaded);
     }
 
     /// <summary>한 번 누를 때 미는 거리: 탭 두 개 폭.</summary>
@@ -108,7 +120,6 @@ public sealed class TabStripPanel : Panel
     {
         int n = Children.Count;
         double total = n == 0 ? 0 : n * _width + Gap * (n - 1);
-        double oldMax = _maxOffset, oldOffset = _offset;
         _maxOffset = Math.Max(0, total - finalSize.Width);
         if (n != _lastCount) { _reveal = true; _lastCount = n; }   // 탭이 늘거나 줄면 고른 탭이 보이게
         _offset = Math.Clamp(_offset, 0, _maxOffset);
@@ -128,8 +139,7 @@ public sealed class TabStripPanel : Panel
             c.Arrange(new Rect(x, 0, _width, finalSize.Height));
             x += _width + Gap;
         }
-        if (Math.Abs(oldMax - _maxOffset) > 0.5 || Math.Abs(oldOffset - _offset) > 0.5)
-            Dispatcher.UIThread.Post(() => ScrollStateChanged?.Invoke(this), DispatcherPriority.Loaded);
+        NotifyIfStateChanged();
         return finalSize;
     }
 

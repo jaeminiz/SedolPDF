@@ -92,4 +92,28 @@ public class TabStripScrollTests
             return 0;
         });
     }
+
+    [Fact]
+    public void ScrollBy_RaisesStateChanged_SoTheRightButtonEnablesAfterScrollingLeft()
+    {
+        HeadlessUi.Run(() =>
+        {
+            var (p, list, win) = Build(30, 600);
+            list.SelectedIndex = 29;                       // 끝(오른쪽 단추는 꺼진 상태)
+            win.UpdateLayout(); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); win.UpdateLayout();
+            Assert.False(p.CanScrollRight);
+            var seen = new List<(bool Left, bool Right)>();
+            Action<TabStripPanel> h = x => { if (ReferenceEquals(x, p)) seen.Add((x.CanScrollLeft, x.CanScrollRight)); };
+            TabStripPanel.ScrollStateChanged += h;
+            try
+            {
+                p.ScrollBy(-p.PageStep);                   // 왼쪽 단추를 누른 것과 같다
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Contains((true, true), seen);       // 이제 오른쪽 단추가 켜져야 한다
+            }
+            finally { TabStripPanel.ScrollStateChanged -= h; }
+            win.Close();
+            return 0;
+        });
+    }
 }

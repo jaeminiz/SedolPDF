@@ -245,12 +245,23 @@ public sealed partial class MainWindow : Window
         DocTabs.AddHandler(PointerMovedEvent, OnTabMoved, RoutingStrategies.Tunnel);
         DocTabs.AddHandler(PointerReleasedEvent, OnTabReleased, RoutingStrategies.Tunnel);
         DocTabs.AddHandler(PointerCaptureLostEvent, (_, _) => EndTabDrag(), RoutingStrategies.Tunnel);
+        DocTabs.AddHandler(PointerReleasedEvent, OnTabMiddleClick, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, (_, e) =>
         {
             if (e.Key != Key.Escape || !_tabDragging) return;
             EndTabDrag();   // 취소. 손을 떼면 아무 것도 하지 않는다.
             e.Handled = true;
         }, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>탭 제목을 휠(가운데) 단추로 누르면 그 탭을 닫는다(2026-10-21 사용자 요청).</summary>
+    private void OnTabMiddleClick(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Middle) return;
+        var item = (e.Source as Avalonia.Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        if (item?.DataContext is not DocumentTabViewModel d) return;
+        e.Handled = true;
+        _vm.CloseDocumentCommand.Execute(d);
     }
 
     private TabStripPanel? TabPanel => DocTabs.GetVisualDescendants().OfType<TabStripPanel>().FirstOrDefault();
