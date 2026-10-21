@@ -11,9 +11,10 @@ public sealed class Operand
     public double Number { get; init; }
     /// <summary>이름(# 해독 후, 앞의 / 없음).</summary>
     public string Text { get; init; } = "";
-    public byte[] Bytes { get; init; } = [];
+    public byte[] Bytes { get; init; } = Array.Empty<byte>();
     /// <summary>배열 원소, 또는 딕셔너리의 (키, 값, 키, 값…) 평면 목록.</summary>
-    public List<Operand> Items { get; init; } = [];
+    public List<Operand> Items { get; init; } = SharedEmpty;
+    private static readonly List<Operand> SharedEmpty = [];   // 초기화 때만 바꾸고 나중에 Add하지 않으므로 공유해도 안전(토큰마다 목록을 만들던 비용 제거)
     public bool Bool { get; init; }
     public int Start { get; internal set; }
     public int End { get; internal set; }

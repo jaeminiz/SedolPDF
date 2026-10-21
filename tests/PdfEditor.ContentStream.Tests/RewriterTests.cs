@@ -244,3 +244,28 @@ public class RewriterTests
         }
     }
 }
+
+public class RewriterPerformanceTests
+{
+    [Fact]
+    public void BigDrawing_200kObjects_ParseSegmentRewrite_Fast()
+    {
+        var sb = new System.Text.StringBuilder(14_000_000);
+        for (int i = 0; i < 200_000; i++)
+        {
+            int x = i % 1000, y = i / 1000;
+            if (i % 5 == 0) sb.Append($"BT /F1 6 Tf {x} {y} Td (T{i}) Tj ET\n");
+            else sb.Append($"q 1 0 0 1 {x} {y} cm 0.5 w 0 0 m 10 {i % 7 + 1} l S Q\n");
+        }
+        var data = System.Text.Encoding.Latin1.GetBytes(sb.ToString());
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var pc = ContentLexer.Parse(data); long tParse = sw.ElapsedMilliseconds;
+        var seg = ContentSegmenter.Segment(pc, null); long tSeg = sw.ElapsedMilliseconds;
+        var res = ContentRewriter.Rewrite(pc, seg, [new DisableObject(5), new TransformObject(100_000, Mat.Translate(3, 4))]);
+        sw.Stop();
+        Assert.True(pc.Ok && seg.Ok && res.Ok, res.Failure);
+        Assert.Equal(200_000, seg.Objects.Count);
+        System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "m4x-perf.txt"), $"{data.Length} bytes, 200000 objects: {sw.ElapsedMilliseconds} ms (parse {tParse}, +segment {tSeg - tParse}, +rewrite {sw.ElapsedMilliseconds - tSeg})");
+        Assert.True(sw.ElapsedMilliseconds < 10000, $"{sw.ElapsedMilliseconds} ms");
+    }
+}
