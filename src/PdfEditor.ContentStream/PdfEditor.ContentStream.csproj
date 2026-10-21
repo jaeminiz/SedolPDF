@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 쪽 내용 스트림 해석기·재작성기(M4x). PDFium 호출이 없어 일반 스레드에서 쓴다. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="PdfEditor.ContentStream.Tests" />
+    <InternalsVisibleTo Include="PdfEditor.TextEdit.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 6.5.0 이후는 AGPL이라 6.2.x에 고정한다. -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+  </ItemGroup>
+
+</Project>
