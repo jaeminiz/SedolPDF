@@ -17,6 +17,15 @@ public sealed record AnnotationRemoval(int PageIndex, ImmutableArray<int> AnnotI
 /// </summary>
 public sealed record PageContentAppend(int PageIndex, string Content, FontUse Font);
 
+/// <summary>PDFium이 알려 준 원본 객체 하나(종류 = PdfPageObjectType 값, 쪽 공간 경계). 해석기 객체 목록과 대응을 검증하는 데 쓴다.</summary>
+public readonly record struct ReferenceObj(int Kind, double L, double B, double R, double T);
+
+/// <summary>
+/// 이 쪽의 객체 편집을 PDFium GenerateContent 대신 내용 스트림 직접 고쳐 쓰기로 확정한다(M4x). Edits = 그 쪽의 편집 기록 전체(적용 순서),
+/// Reference = 편집 전 원본 쪽의 PDFium 객체 목록. 해석기 객체 목록과 어긋나면 적용기는 ContentRegenerationException을 던진다.
+/// </summary>
+public sealed record PageContentRewrite(int PageIndex, ImmutableArray<Content.ContentEdit> Edits, ImmutableArray<ReferenceObj> Reference);
+
 /// <summary>
 /// 저장 파일에만 적용할 변경 목록. 매번 모델에서 새로 만든다(상태 없음) — 같은 계획을 같은 SaveCopy 결과에
 /// 여러 번 적용해도 결과가 같다.
@@ -31,7 +40,10 @@ public sealed record PatchPlan(
     /// <summary>쪽 내용 스트림 끝에 덧붙일 것(M4 앱 글꼴 줄). 주석 수에는 영향 없음.</summary>
     public ImmutableArray<PageContentAppend> ContentAppends { get; init; } = [];
 
-    public bool IsEmpty => Patches.IsDefaultOrEmpty && Creates.IsDefaultOrEmpty && Removals.IsDefaultOrEmpty && ContentAppends.IsDefaultOrEmpty;
+    /// <summary>PDFium이 못 다시 쓰는 쪽의 객체 편집을 내용 스트림 고쳐 쓰기로 확정할 쪽들(M4x). OutputCopyBuilder가 채운다 — 이 쪽들의 ContentAppends는 없어야 한다(고쳐 쓰기가 함께 한다).</summary>
+    public ImmutableArray<PageContentRewrite> ContentRewrites { get; init; } = [];
+
+    public bool IsEmpty => Patches.IsDefaultOrEmpty && Creates.IsDefaultOrEmpty && Removals.IsDefaultOrEmpty && ContentAppends.IsDefaultOrEmpty && ContentRewrites.IsDefaultOrEmpty;
 
     /// <summary>그 쪽의 주석 수 변화: 만들기 + Popup(EnsurePopup마다 1) − 지우기.</summary>
     public int CountDelta(int pageIndex)

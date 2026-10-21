@@ -1,6 +1,8 @@
 using System.Text;
 using PdfEditor.Appearance.Fonts;
+using PdfEditor.ContentStream;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Output;
 using PdfEditor.Document.Annotations.Patching;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
@@ -145,6 +147,9 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         // ④ 쪽 내용 덧붙이기(M4 앱 글꼴 줄) — 주석과 무관
         if (!plan.ContentAppends.IsDefaultOrEmpty) AppendPageContents(doc, plan.ContentAppends);
 
+        // ⑤ 객체 편집을 내용 스트림 직접 고쳐 쓰기로 확정(M4x) — PDFium이 못 다시 쓰는 쪽만
+        if (!plan.ContentRewrites.IsDefaultOrEmpty) ApplyContentRewrites(doc, plan.ContentRewrites, assets);
+
         // 임시 파일에만 쓴다. 안 쓰이게 된 객체는 PDFsharp이 저장할 때 버린다.
         doc.Save(pdfPath);
     }
@@ -176,6 +181,79 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                 sb.Append("q\n").Append(a.Content.Replace("{F}", name)).Append("Q\n");
             }
             page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString()));
+        }
+    }
+
+    // ---- 내용 스트림 고쳐 쓰기 (M4x) ----
+
+    /// <summary>
+    /// 쪽마다: 내용을 풀어 해석 → PDFium 객체 목록과 대응 검증(어긋나면 중단) → 끄기·옮기기를 원본 바이트 위에서만 고침 → 새 객체(도형·이미지·앱 글꼴 줄)를 끝에 덧붙임.
+    /// 바뀌지 않은 내용은 바이트 그대로다. 어느 단계든 실패하면 ContentRegenerationException(조용히 틀린 파일을 내지 않는다).
+    /// </summary>
+    private void ApplyContentRewrites(PdfDocument doc, IEnumerable<PageContentRewrite> rewrites, AnnotationAssets assets)
+    {
+        foreach (var rw in rewrites)
+        {
+            int number = rw.PageIndex + 1;
+            if (rw.PageIndex < 0 || rw.PageIndex >= doc.Pages.Count) throw new ContentRegenerationException(number, "page out of range");
+            var page = doc.Pages[rw.PageIndex];
+            var plan = ContentRewritePlanner.Plan(rw.Edits);
+            if (!plan.Ok) throw new ContentRegenerationException(number, plan.Failure);
+
+            var loaded = PageContent.Load(page);
+            if (loaded.Data is null) throw new ContentRegenerationException(number, loaded.Failure);
+            var parsed = ContentLexer.Parse(loaded.Data);
+            var resolver = PageContent.XObjectResolver(page);
+            var seg = ContentSegmenter.Segment(parsed, resolver);
+            var map = ObjectMap.Verify(seg, rw.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
+            if (!map.Ok) throw new ContentRegenerationException(number, map.Reason);
+
+            var res = ContentRewriter.Rewrite(parsed, seg, plan.ObjectEdits, null, resolver);
+            if (!res.Ok) throw new ContentRegenerationException(number, res.Failure);
+            byte[] data = res.Data!;
+
+            if (plan.Snippets.Count > 0)
+            {
+                var resources = page.Resources;
+                var snippets = new List<byte[]>();
+                var images = new Dictionary<string, string>();
+                int fontN = 1, imgN = 1;
+                foreach (var sn in plan.Snippets)
+                {
+                    string content = sn.Content;
+                    if (sn.Font is not null)
+                    {
+                        var fonts = resources.Elements.GetDictionary("/Font");
+                        if (fonts is null) { fonts = new PdfDictionary(doc); resources.Elements["/Font"] = fonts; }
+                        while (fonts.Elements.ContainsKey("/SedolF" + fontN)) fontN++;
+                        string name = "SedolF" + fontN;
+                        fonts.Elements["/" + name] = FontEmbedder.Embed(doc, GetFont(), sn.Font);
+                        content = content.Replace("{F}", name);
+                    }
+                    if (sn.ImageAssetId is { } assetId)
+                    {
+                        if (!images.TryGetValue(assetId, out var imgName))
+                        {
+                            if (!assets.HasImage(assetId)) throw new ContentRegenerationException(number, "image asset missing");
+                            var xobjs = resources.Elements.GetDictionary("/XObject");
+                            if (xobjs is null) { xobjs = new PdfDictionary(doc); resources.Elements["/XObject"] = xobjs; }
+                            while (xobjs.Elements.ContainsKey("/SedolIm" + imgN)) imgN++;
+                            imgName = "SedolIm" + imgN;
+                            var (bytes, _, _, format) = assets.GetImage(assetId);
+                            xobjs.Elements["/" + imgName] = ImageEmbedder.Embed(doc, bytes, format);
+                            images[assetId] = imgName;
+                        }
+                        content = content.Replace("{I}", imgName);
+                    }
+                    snippets.Add(System.Text.Encoding.Latin1.GetBytes(content));
+                }
+                var appended = ContentRewriter.AppendOnly(ContentLexer.Parse(data), snippets);
+                if (!appended.Ok) throw new ContentRegenerationException(number, appended.Failure);
+                data = appended.Data!;
+            }
+
+            page.Contents.Elements.Clear();
+            page.Contents.AppendContent().CreateStream(data);
         }
     }
 
