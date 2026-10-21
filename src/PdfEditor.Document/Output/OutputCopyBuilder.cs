@@ -18,6 +18,9 @@ public sealed record OutputCopy(int[] ExpectedAnnotCounts, bool ContentApplied, 
 /// </summary>
 public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotationPatcher? patcher, AnnotationAssets? assets)
 {
+    /// <summary>시험용: PDFium 다시 쓰기를 건너뛰고 편집한 모든 쪽을 내용 스트림 고쳐 쓰기로 확정한다(패치 가능한 문서에서만).</summary>
+    public bool ForceContentRewrite { get; init; }
+
     /// <summary>언제나 path에 사본을 만든다(저장·복구). onCopied: SaveCopy가 끝난 직후(그 뒤의 실패는 "후처리" 단계).</summary>
     public async Task<OutputCopy> BuildAsync(DocumentSession s, string path, CancellationToken ct = default, Action? onCopied = null)
         => (await BuildCoreAsync(s, path, always: true, ct, onCopied).ConfigureAwait(false))!;
@@ -58,7 +61,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             rewrite = await s.Thread.InvokeAsync(() =>
             {
                 // 사본은 메모리로 읽어 열므로(PdfDocument.Open) 같은 경로에 다시 써도 된다.
-                return RegenerateContent(s, path, pw, edited, canRewrite);
+                return RegenerateContent(s, path, pw, edited, canRewrite, ForceContentRewrite);
             }, ct).ConfigureAwait(false);
             content = true;
         }
@@ -144,11 +147,11 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
     private sealed record RewriteWork(ImmutableArray<PageContentRewrite> Rewrites, Dictionary<int, (byte[] Pixels, int W, int H)> Look);
 
     private static RewriteWork RegenerateContent(DocumentSession s, string path, string? pw,
-        IReadOnlyList<(int Index, ImmutableArray<ContentEdit> Edits)> edited, bool canRewrite)
+        IReadOnlyList<(int Index, ImmutableArray<ContentEdit> Edits)> edited, bool canRewrite, bool force)
     {
         var look = new Dictionary<int, (byte[] Pixels, int W, int H)>();
         var level = edited.ToDictionary(x => x.Index, _ => 0);   // 0 = 색을 건드리지 않음, 1 = 도형 색 정규화, 2 = 도형·글 색 정규화
-        var rewritePages = new HashSet<int>();   // PDFium이 못 다시 쓰는 쪽 → 내용 스트림 고쳐 쓰기(M4x)
+        var rewritePages = force && canRewrite ? edited.Select(x => x.Index).ToHashSet() : new HashSet<int>();   // PDFium이 못 다시 쓰는 쪽 → 내용 스트림 고쳐 쓰기(M4x)
         string gen = path + ".gen";
         try
         {

@@ -181,6 +181,21 @@ public class RewriterTests
     }
 
     [Fact]
+    public void Append_Isolates_PageLevelState_That_Original_Leaves_Behind()
+    {
+        // q/Q 없이 cm·gs를 남기는 원본(쪽 전체 투명도·혼합 모드 등): 덧붙인 새 객체는 기본 상태에서 그려져야 한다
+        var (pc, _) = Load("2 0 0 2 10 10 cm /G1 gs 0 0 m 5 5 l S");
+        var r = ContentRewriter.AppendOnly(pc, [LexerTests.B("0 0 3 3 re f")]);
+        Assert.True(r.Ok, r.Failure);
+        var re = Reseg(r);
+        Assert.Equal(Mat.Identity, re.Objects[^1].Ctm);
+        Assert.Equal(new Mat(2, 0, 0, 2, 10, 10), re.Objects[0].Ctm);   // 원본 객체는 그대로
+        // 원본이 q를 더 많이 닫는 파손: 거절
+        var (broken, _) = Load("Q 0 0 m 5 5 l S");
+        Assert.False(ContentRewriter.AppendOnly(broken, [LexerTests.B("0 0 3 3 re f")]).Ok);
+    }
+
+    [Fact]
     public void Append_Clean_And_Dirty()
     {
         var (pc, _) = Load("0 0 m 5 5 l S");

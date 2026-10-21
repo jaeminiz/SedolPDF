@@ -220,20 +220,15 @@ public static class ContentRewriter
 
     private static byte[]? Append(byte[] data, BalanceProfile p, IReadOnlyList<byte[]> snippets)
     {
+        // 덧붙인 조각은 쪽 첫머리와 같은 기본 상태에서 그려져야 한다(PDFium이 넣은 새 객체와 같게). 원본이 gs·색·cm을 q/Q 없이 남기고 끝나는 일이 흔하므로
+        // (예: 투명도·혼합 모드를 쪽 전체에 건 PDF) 원본을 항상 q … Q로 감싼다. 원본이 q를 더 많이 닫는 파손이면 감쌀 수 없어 거절한다.
+        if (p.MinDepth < 0) return null;
         var ms = new MemoryStream();
-        bool clean = p.FinalDepth == 0 && p.MinDepth >= 0 && p.FinalBt == 0;
-        if (clean) ms.Write(data);
-        else
-        {
-            // 원본이 q/BT를 열어 둔 채 끝나면 덧붙인 조각이 그 상태를 이어받는다 → 앞에 q를 두고 끝에서 모두 닫는다.
-            int closers = 1 + p.FinalDepth;
-            if (closers < 0) return null;
-            ms.Write(Latin1("q\n"));
-            ms.Write(data);
-            ms.Write(Latin1("\n"));
-            for (int i = 0; i < p.FinalBt; i++) ms.Write(Latin1("ET\n"));
-            for (int i = 0; i < closers; i++) ms.Write(Latin1("Q\n"));
-        }
+        ms.Write(Latin1("q\n"));
+        ms.Write(data);
+        ms.Write(Latin1("\n"));
+        for (int i = 0; i < p.FinalBt; i++) ms.Write(Latin1("ET\n"));
+        for (int i = 0; i < 1 + p.FinalDepth; i++) ms.Write(Latin1("Q\n"));
         foreach (var s in snippets)
         {
             ms.Write(Latin1("\nq\n"));
