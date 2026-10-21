@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PdfEditor.TextEdit\PdfEditor.TextEdit.csproj" />
+    <ProjectReference Include="..\..\src\PdfEditor.ContentStream\PdfEditor.ContentStream.csproj" />
     <ProjectReference Include="..\..\src\PdfEditor.Document\PdfEditor.Document.csproj" />
     <ProjectReference Include="..\..\src\PdfEditor.Appearance\PdfEditor.Appearance.csproj" />
     <ProjectReference Include="..\..\src\Pdf.Native\Pdf.Native.csproj" />
