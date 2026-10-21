@@ -19,6 +19,7 @@
       <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
   </UserControl.Styles>
+  <Grid>
   <ListBox x:Name="List" Classes="thumbs" ItemsSource="{Binding Items}" SelectionMode="Multiple" DragDrop.AllowDrop="True"
            Background="Transparent" Padding="0,4"
            ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -51,4 +52,8 @@
       </ContextMenu>
     </ListBox.ContextMenu>
   </ListBox>
+  <!-- 쪽을 끌어 옮길 때 놓일 자리를 보여 주는 선 -->
+  <Border x:Name="DropLine" Height="3" CornerRadius="1.5" Background="#005FB8" VerticalAlignment="Top"
+          HorizontalAlignment="Stretch" IsHitTestVisible="False" IsVisible="False" />
+  </Grid>
 </UserControl>

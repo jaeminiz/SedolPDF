@@ -141,6 +141,58 @@ public class PageCommandsViewModelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DragMove_UnselectedPage_MovesOnlyThatPage_UndoRestores()
+    {
+        var (s, tab, vm) = await OpenAsync(Make("a.pdf", 4));
+        tab.SelectedPages = new HashSet<PageId> { s.Pages[1].Id };
+        // 3번 쪽(번호 2)을 맨 앞으로: 선택 밖 쪽을 끌면 그 쪽만 움직인다
+        await vm.MovePagesToDropAsync(s.Pages[2].Id, 0);
+        Assert.Equal([120f, 100f, 110f, 130f], Widths(s));
+        await vm.UndoCommand.ExecuteAsync(null);
+        Assert.Equal([100f, 110f, 120f, 130f], Widths(s));
+    }
+
+    [Fact]
+    public async Task DragMove_SelectedPages_MoveTogether_InOneUndo()
+    {
+        var (s, tab, vm) = await OpenAsync(Make("a.pdf", 5));
+        tab.SelectedPages = new HashSet<PageId> { s.Pages[0].Id, s.Pages[1].Id };
+        // 1·2쪽을 끌어 5쪽 앞(drop=4)에 놓기 → 3,4,1,2,5
+        await vm.MovePagesToDropAsync(s.Pages[0].Id, 4);
+        Assert.Equal([120f, 130f, 100f, 110f, 140f], Widths(s));
+        await vm.UndoCommand.ExecuteAsync(null);
+        Assert.Equal([100f, 110f, 120f, 130f, 140f], Widths(s));
+        Assert.False(vm.UndoCommand.CanExecute(null));   // 한 번으로 모두 복원
+    }
+
+    [Fact]
+    public async Task DragMove_SamePlace_DoesNothing_EndDrop_GoesLast()
+    {
+        var (s, _, vm) = await OpenAsync(Make("a.pdf", 3));
+        await vm.MovePagesToDropAsync(s.Pages[1].Id, 1);   // 자기 앞
+        await vm.MovePagesToDropAsync(s.Pages[1].Id, 2);   // 자기 뒤
+        Assert.False(vm.UndoCommand.CanExecute(null));
+        await vm.MovePagesToDropAsync(s.Pages[0].Id, 3);   // 맨 끝
+        Assert.Equal([110f, 120f, 100f], Widths(s));
+    }
+
+    [Theory]
+    [InlineData(new[] { 2 }, 0, 0)]
+    [InlineData(new[] { 0 }, 3, 2)]
+    [InlineData(new[] { 0, 1 }, 4, 2)]
+    [InlineData(new[] { 0, 2 }, 5, 3)]   // 떨어진 쪽은 한데 모인다
+    public void TryMoveDestination_Computes(int[] moving, int drop, int expected)
+        => Assert.Equal(expected, PageCommandsViewModel.TryMoveDestination(moving, drop, 5));
+
+    [Theory]
+    [InlineData(new[] { 1 }, 1)]
+    [InlineData(new[] { 1 }, 2)]
+    [InlineData(new[] { 1, 2 }, 1)]
+    [InlineData(new[] { 1, 2 }, 3)]
+    public void TryMoveDestination_NoChange_IsNull(int[] moving, int drop)
+        => Assert.Null(PageCommandsViewModel.TryMoveDestination(moving, drop, 5));
+
+    [Fact]
     public async Task MoveTo_UsesDialogAnswer()
     {
         var (s, tab, vm) = await OpenAsync(Make("a.pdf", 4));

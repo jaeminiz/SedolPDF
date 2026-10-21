@@ -393,6 +393,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ActiveDocument?.RefreshTitle();
     }
 
+    /// <summary>
+    /// 탭을 끌어 놓은 자리로 옮긴다. slot = 놓은 자리(그 번호의 탭 앞, 탭 수면 맨 끝). 문서·편집 내용은 그대로이고 순서만 바뀌며
+    /// 고른 탭도 유지한다. 순서가 달라지면 true.
+    /// </summary>
+    public bool MoveDocument(DocumentTabViewModel tab, int slot)
+    {
+        int from = Documents.IndexOf(tab);
+        if (from < 0) return false;
+        int to = TabReorder.FinalIndex(from, slot, Documents.Count);
+        if (to == from) return false;
+        var active = ActiveDocument;
+        Documents.Move(from, to);
+        if (!ReferenceEquals(ActiveDocument, active)) ActiveDocument = active;
+        return true;
+    }
+
     /// <summary>탭을 닫는다. 변경이 있으면 먼저 묻고, 취소하면 그대로 둔다.</summary>
     public async Task<bool> CloseDocumentAsync(DocumentTabViewModel d)
     {

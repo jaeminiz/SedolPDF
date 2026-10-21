@@ -40,8 +40,18 @@ public sealed partial class ThumbnailsPanel : UserControl
             e.Handled = true;
             _ = c.InsertFilesAtAsync(paths, DropIndex(e));
         });
+        // 썸네일을 끌어 쪽 순서 바꾸기(2026-10-21 사용자 요청). 파일 끌어 놓기와 달리 포인터 이벤트로 처리한다.
+        List.AddHandler(PointerPressedEvent, OnThumbPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        List.AddHandler(PointerMovedEvent, OnThumbMoved, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        List.AddHandler(PointerReleasedEvent, OnThumbReleased, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        List.AddHandler(PointerCaptureLostEvent, (_, _) => EndDrag(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         List.KeyDown += (_, e) =>
         {
+            if (e.Key == Key.Escape && _dragging)
+            {
+                EndDrag();
+                e.Handled = true;
+            }
             if (e.Key == Key.Delete && _vm?.Commands is { } c && c.DeleteCommand.CanExecute(null))
             {
                 _ = c.DeleteCommand.ExecuteAsync(null);
@@ -50,6 +60,107 @@ public sealed partial class ThumbnailsPanel : UserControl
         };
     }
 
+
+    // ---- 쪽 끌어 옮기기 ----
+
+    private const double DragThreshold = 6;
+    private ThumbnailItem? _pressed;
+    private Point _pressPoint;
+    private bool _collapseOnRelease;
+    private bool _dragging;
+    private int _dropIndex = -1;
+
+    private void OnThumbPressed(object? sender, PointerPressedEventArgs e)
+    {
+        EndDrag();
+        if (!e.GetCurrentPoint(List).Properties.IsLeftButtonPressed || _vm?.Commands is null) return;
+        var item = (e.Source as Avalonia.Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        if (item?.DataContext is not ThumbnailItem it) return;
+        _pressed = it;
+        _pressPoint = e.GetPosition(List);
+        // 여러 쪽을 고른 채 그중 하나를 눌러 끌 수 있도록, 수정키 없이 고른 쪽을 누르면 선택 정리는 손을 뗄 때(끌지 않았을 때) 한다.
+        if (e.KeyModifiers == KeyModifiers.None && item.IsSelected && (List.SelectedItems?.Count ?? 0) > 1)
+        {
+            _collapseOnRelease = true;
+            e.Handled = true;
+        }
+    }
+
+    private void OnThumbMoved(object? sender, PointerEventArgs e)
+    {
+        if (_pressed is null) return;
+        var pos = e.GetPosition(List);
+        if (!_dragging)
+        {
+            if (!e.GetCurrentPoint(List).Properties.IsLeftButtonPressed) { EndDrag(); return; }
+            if (Math.Abs(pos.Y - _pressPoint.Y) < DragThreshold && Math.Abs(pos.X - _pressPoint.X) < DragThreshold) return;
+            _dragging = true;
+            e.Pointer.Capture(List);
+        }
+        e.Handled = true;
+        AutoScroll(pos.Y);
+        UpdateDropLine(pos);
+    }
+
+    private void OnThumbReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_dragging)
+        {
+            var dragged = _pressed;
+            int drop = _dropIndex;
+            EndDrag();
+            e.Handled = true;
+            if (dragged is not null && drop >= 0 && _vm?.Commands is { } c) _ = c.MovePagesToDropAsync(dragged.Id, drop);
+        }
+        else if (_collapseOnRelease && _pressed is { } it)
+        {
+            _collapseOnRelease = false;
+            List.SelectedItem = it;
+            e.Handled = true;
+        }
+        _pressed = null;
+        _collapseOnRelease = false;
+    }
+
+    private void EndDrag()
+    {
+        _dragging = false;
+        _dropIndex = -1;
+        _pressed = null;
+        _collapseOnRelease = false;
+        DropLine.IsVisible = false;
+    }
+
+    private void AutoScroll(double y)
+    {
+        var sv = List.FindDescendantOfType<ScrollViewer>();
+        if (sv is null) return;
+        const double edge = 28, step = 24;
+        if (y < edge) sv.Offset = sv.Offset.WithY(Math.Max(0, sv.Offset.Y - step));
+        else if (y > List.Bounds.Height - edge) sv.Offset = sv.Offset.WithY(Math.Min(sv.Extent.Height - sv.Viewport.Height, sv.Offset.Y + step));
+    }
+
+    private void UpdateDropLine(Point pos)
+    {
+        int count = _vm?.Items.Count ?? 0;
+        var hit = List.InputHitTest(pos) as Avalonia.Visual;
+        var item = hit?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        double y;
+        if (item?.DataContext is ThumbnailItem it)
+        {
+            bool lower = item.TranslatePoint(new Point(0, 0), List) is { } top && pos.Y - top.Y > item.Bounds.Height / 2;
+            _dropIndex = ThumbnailsViewModel.DropIndex(it.PageNumber - 1, lower, count);
+            y = (item.TranslatePoint(new Point(0, lower ? item.Bounds.Height : 0), List) ?? pos).Y;
+        }
+        else
+        {
+            // 칸 밖: 맨 위보다 위면 맨 앞, 그 밖에는 맨 끝.
+            _dropIndex = pos.Y < 0 ? 0 : count;
+            y = _dropIndex == 0 ? 0 : List.Bounds.Height - 3;
+        }
+        DropLine.Margin = new Thickness(8, Math.Max(0, y - 1.5), 8, 0);
+        DropLine.IsVisible = true;
+    }
 
     private static IEnumerable<string> PdfPaths(DragEventArgs e) =>
         (e.DataTransfer.TryGetFiles() ?? []).Select(f => f.TryGetLocalPath())

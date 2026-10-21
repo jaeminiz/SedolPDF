@@ -199,6 +199,36 @@ public sealed class PageCommandsViewModel : IDisposable
         await MoveAsync(idx, dest);
     });
 
+    // ---- 끌어다 놓기로 쪽 이동 (2026-10-21 사용자 요청) ----
+
+    /// <summary>
+    /// 끌어 온 쪽을 dropIndex(놓은 자리: 이 번호의 쪽 앞, 쪽 수면 맨 끝) 앞으로 옮긴다. 끌어 온 쪽이 고른 쪽에 들어 있으면
+    /// 고른 쪽 전부를, 아니면 그 쪽 하나만 옮긴다. 순서가 달라지지 않으면 아무 것도 하지 않는다. 실행 취소는 한 번.
+    /// </summary>
+    public Task MovePagesToDropAsync(PageId dragged, int dropIndex) => Run(async () =>
+    {
+        if (!CanEdit()) return;
+        var pages = _s.Pages;
+        var sel = _doc.SelectedPages;
+        var moving = sel.Contains(dragged)
+            ? Enumerable.Range(0, pages.Length).Where(i => sel.Contains(pages[i].Id)).ToList()
+            : [.. Enumerable.Range(0, pages.Length).Where(i => pages[i].Id == dragged)];
+        if (moving.Count == 0) return;
+        if (TryMoveDestination(moving, dropIndex, pages.Length) is not { } dest) return;
+        await MoveAsync(moving, dest);
+    });
+
+    /// <summary>옮길 쪽(번호 오름차순)을 drop 자리 앞으로 옮길 때 결과 위치. 순서가 그대로면 null.</summary>
+    public static int? TryMoveDestination(IReadOnlyList<int> moving, int dropIndex, int pageCount)
+    {
+        if (moving.Count == 0) return null;
+        int drop = Math.Clamp(dropIndex, 0, pageCount);
+        // 결과 위치 = 옮기는 쪽을 뺀 나머지 중 놓은 자리보다 앞에 있는 쪽 수.
+        int dest = Enumerable.Range(0, drop).Count(i => !moving.Contains(i));
+        bool contiguous = moving[^1] - moving[0] == moving.Count - 1;
+        return contiguous && dest == moving[0] ? null : dest;
+    }
+
     private async Task MoveAsync(List<int> indices, int dest)
     {
         var pages = _s.Pages;

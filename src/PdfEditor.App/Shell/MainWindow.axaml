@@ -143,6 +143,7 @@
       <Setter Property="Padding" Value="12,0,4,0" />
       <Setter Property="Height" Value="28" />
       <Setter Property="MinHeight" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="CornerRadius" Value="6,6,0,0" />
       <Setter Property="Foreground" Value="#5C5C5C" />
       <Setter Property="FontSize" Value="11.5" />
@@ -259,22 +260,28 @@
       <Border Grid.Column="2" Margin="8,0,0,0" CornerRadius="8,8,0,0" BorderBrush="#17000000" BorderThickness="1,1,1,0" ClipToBounds="True">
         <Grid RowDefinitions="32,*">
           <Grid ColumnDefinitions="*,Auto" Background="#F3F3F3">
-            <ListBox Classes="doctabs" ItemsSource="{Binding Documents}" SelectedItem="{Binding ActiveDocument}"
-                     VerticalAlignment="Bottom">
+            <Panel>
+            <ListBox Name="DocTabs" Classes="doctabs" ItemsSource="{Binding Documents}" SelectedItem="{Binding ActiveDocument}"
+                     VerticalAlignment="Bottom" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
               <ListBox.ItemsPanel>
-                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+                <ItemsPanelTemplate><shell:TabStripPanel /></ItemsPanelTemplate>
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="docs:DocumentTabViewModel">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
-                    <Button Classes="tabclose" ToolTip.Tip="{x:Static res:Strings.Tip_CloseTab}" Click="OnTabCloseClick">
+                  <Grid ColumnDefinitions="*,Auto" ToolTip.Tip="{Binding Title}">
+                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Column="1" Margin="6,0,0,0" Classes="tabclose" ToolTip.Tip="{x:Static res:Strings.Tip_CloseTab}" Click="OnTabCloseClick">
                       <res:IconView Key="close" Width="10" Height="10" />
                     </Button>
-                  </StackPanel>
+                  </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
+            <!-- 탭을 끌어 옮길 때 놓일 자리를 보여 주는 선 -->
+            <Border Name="TabDropLine" Width="3" CornerRadius="1.5" Background="#005FB8" HorizontalAlignment="Left"
+                    Height="22" VerticalAlignment="Bottom" Margin="0,0,0,3" IsHitTestVisible="False" IsVisible="False" />
+            </Panel>
             <Button Grid.Column="1" Classes="quick" Width="28" Height="26" VerticalAlignment="Bottom" Margin="2,0,6,1"
                     Command="{Binding OpenCommand}" ToolTip.Tip="{x:Static res:Strings.Tip_NewTab}">
               <res:IconView Key="plus" Width="14" Height="14" />

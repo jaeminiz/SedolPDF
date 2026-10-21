@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using System.IO;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Avalonia.Platform.Storage;
 using Pdf.Native;
 using PdfEditor.App.Dialogs;
@@ -55,6 +56,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         DataContext = _vm;
         BuildKeyBindings();
+        WireTabDrag();
         FileTabButton.Flyout = BuildFileMenu();
         var prompts = new AvaloniaPrompts(this);
         // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
@@ -227,6 +229,77 @@ public sealed partial class MainWindow : Window
     private void OnPanelButtonClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is PanelButtonVm p) _vm.SetPanelCommand.Execute(p.Kind);
+    }
+
+    // ---- 문서 탭 끌어 순서 바꾸기 (2026-10-21 사용자 요청) ----
+
+    private DocumentTabViewModel? _tabPressed;
+    private Point _tabPressPoint;
+    private bool _tabDragging;
+    private int _tabSlot = -1;
+
+    private void WireTabDrag()
+    {
+        DocTabs.AddHandler(PointerPressedEvent, OnTabPressed, RoutingStrategies.Tunnel);
+        DocTabs.AddHandler(PointerMovedEvent, OnTabMoved, RoutingStrategies.Tunnel);
+        DocTabs.AddHandler(PointerReleasedEvent, OnTabReleased, RoutingStrategies.Tunnel);
+        DocTabs.AddHandler(PointerCaptureLostEvent, (_, _) => EndTabDrag(), RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key != Key.Escape || !_tabDragging) return;
+            EndTabDrag();   // 취소. 손을 떼면 아무 것도 하지 않는다.
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+    }
+
+    private TabStripPanel? TabPanel => DocTabs.GetVisualDescendants().OfType<TabStripPanel>().FirstOrDefault();
+
+    private void OnTabPressed(object? sender, PointerPressedEventArgs e)
+    {
+        EndTabDrag();
+        if (!e.GetCurrentPoint(DocTabs).Properties.IsLeftButtonPressed) return;
+        var src = e.Source as Avalonia.Visual;
+        if (src?.FindAncestorOfType<Button>(includeSelf: true) is not null) return;   // 닫기 단추는 끌기가 아니다
+        if (src?.FindAncestorOfType<ListBoxItem>(includeSelf: true)?.DataContext is not DocumentTabViewModel d) return;
+        _tabPressed = d;
+        _tabPressPoint = e.GetPosition(DocTabs);
+    }
+
+    private void OnTabMoved(object? sender, PointerEventArgs e)
+    {
+        if (_tabPressed is null || TabPanel is not { } panel) return;
+        if (!_tabDragging)
+        {
+            if (!e.GetCurrentPoint(DocTabs).Properties.IsLeftButtonPressed) { EndTabDrag(); return; }
+            if (Math.Abs(e.GetPosition(DocTabs).X - _tabPressPoint.X) < 6) return;
+            _tabDragging = true;
+            e.Pointer.Capture(DocTabs);
+        }
+        e.Handled = true;
+        var tabs = panel.TabBounds();
+        _tabSlot = TabReorder.Slot(tabs, e.GetPosition(panel).X);
+        double x = tabs.Count == 0 ? 0 : _tabSlot < tabs.Count ? tabs[_tabSlot].Left : tabs[^1].Left + tabs[^1].Width;
+        var at = panel.TranslatePoint(new Point(x, 0), (Visual)DocTabs.Parent!) ?? default;
+        TabDropLine.Margin = new Thickness(Math.Max(0, at.X - 1.5), 0, 0, 3);
+        TabDropLine.IsVisible = true;
+    }
+
+    private void OnTabReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_tabDragging) { _tabPressed = null; return; }
+        var tab = _tabPressed;
+        int slot = _tabSlot;
+        EndTabDrag();
+        e.Handled = true;
+        if (tab is not null && slot >= 0) _vm.MoveDocument(tab, slot);
+    }
+
+    private void EndTabDrag()
+    {
+        _tabDragging = false;
+        _tabPressed = null;
+        _tabSlot = -1;
+        TabDropLine.IsVisible = false;
     }
 
     private void OnTabCloseClick(object? sender, RoutedEventArgs e)
