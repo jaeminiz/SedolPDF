@@ -213,3 +213,31 @@ Task 1과 같은 합성 22쪽·정답표에서 문턱 0.62: 표 병합 0, 잘못
 3. 줄 수가 바뀌면 뒤쪽 원본 줄까지 모두 다시 쓴다(위 동기화 조건). 긴 문단 중간에 줄이 하나 늘면 아래 줄이 모두 새 줄(대체 글꼴이 섞일 수 있음)이 된다 — 원본 줄을 "위치만 옮겨" 보존하는 방안은 Task 5에서 `TransformEdit`와 함께 검토할 수 있다.
 4. 한글 줄 이음 방식(어절/글자)의 문서별 판정, 겹쳐 찍은 글의 `Duplicates` 처리, 코드북 생성(원본 글 객체의 문자열 바이트 수집)은 `ParagraphReader`/`ParagraphEditPlanner`(Task 5) 몫이다.
 5. 세로쓰기·임의 각도는 대상 아님(C18).
+
+## Task 5 — 편집 모델·replay·ParagraphReader·ParagraphEditPlanner (2026-10-22, Sonnet)
+구현: `ContentEdit.cs`(`ReplaceParagraphEdit`·`ParagraphTextLine`·`ParagraphMeta`), `ContentEditStore.cs`(`ParagraphEditCommand`, 기록 중간 빼기/넣기), `ContentReplayer.cs`(문단 편집 Screen/Output), `OutputCopyBuilder.cs`(저장 거절 가드), `PdfEditor.TextEdit/Paragraphs/{ParagraphReader,ParagraphEditPlanner}.cs`, `OriginalFontReplacer.cs`(허용 글자 집합 오버로드), `PdfEditor.ContentStream/Fonts/PageTextFonts.cs`(글 객체 번호 → 글꼴 사전·보인 문자열·Tc/Tz). 시험: `tests/PdfEditor.Document.Tests/Content/ParagraphReplayTests.cs` 11개, `tests/PdfEditor.TextEdit.Tests/Paragraphs/ParagraphPlannerTests.cs` 17개(Theory 포함). 전체 `dotnet test PdfEditor.sln` 통과(1390개, 실패 0).
+
+### 계획과 달라진 점
+1. **`ParagraphTextLine`에서 `FontChoice Font`를 뺐다**(Document는 TextEdit를 참조하지 못함). 원래 글꼴 줄은 `OriginalFontLines`, 앱 글꼴 줄은 `AppLines`로 이미 나뉘므로 정보는 같다. 대신 줄을 가리킬 `LineId`를 추가했고, 앱 글꼴 줄은 `AppLineIds`(AppLines와 같은 순서)를 둔다 — 줄마다 `ObjectRef.Inserted(id)`로 선택·옮기기·끄기를 할 수 있게 하려는 것(앱 글꼴 줄은 기존 `InsertAppTextEdit`처럼 화면 replay에서 맨 위로 미뤄 넣고, 그 줄을 가리키는 편집도 함께 미룬다).
+2. `ParagraphMeta.Model`은 `object?`(TextEdit의 `ParagraphModel`을 담는다). `PlanReEdit`이 이것으로 원본 재추정 없이 다시 편집한다(C14).
+3. **다시 편집 = `ParagraphEditCommand(page, previous, next)`**: 이전 편집을 기록의 같은 자리에서 새 편집으로 바꾼다(쌓이지 않음). `next=null`이면 이전 편집을 뺀다(원래 글로 되돌림), 실행 취소는 자리까지 복원. 기존 `ContentEditCommand`는 그대로.
+4. `ParagraphEditPlanner.Plan`의 `AppFontCatalog`(Task 7)는 아직 없어 M4 `TextEditPlanner`처럼 `AppFont?`를 받는다. 한글 줄 이음 방식은 호출자가 `KoreanLineBreak`으로 넘기고, 판정 함수 `DecideKorean`(V19 규칙: 비마지막 줄 6개 미만이면 어절 단위, 여유 > 1.1 em 줄 비율 ≤ 15 %면 글자 단위)을 제공한다.
+5. **글 코드북 재료는 `IParagraphFontSource`로 분리**: 기본 구현 `SessionFileFontSource`는 세션의 원본 파일을 PDFsharp로 열어(`PdfDocumentOpenMode.Import`) `PageTextFonts`로 객체 번호를 대응하고(V16: 객체 종류 열이 PDFium과 같을 때만), 문단의 모든 글 객체가 같은 글꼴 사전을 쓸 때만 `FontCodebook`을 만든다. 코드북으로 푼 글이 PDFium이 읽은 글과 다르면(쪽·글꼴 어긋남) 쓰지 않는다. 못 만들면 앱 글꼴 경로.
+6. **V14 규칙을 줄마다 쓰되 ④(원래 줄에 있던 글자만)를 문단 단위로 넓혔다**: `OriginalFontReplacer.Verify(…, allowedChars)` — 허용 글자 = 코드북이 아는 글자(문단에서 실제 보인 글). 글 객체 하나가 아니라 문단의 모든 줄·낱말 객체의 글자를 허용한다. 같은 글꼴 사전의 서브셋은 그 글자들을 가지므로 안전하다고 보지만, 같은 이름의 다른 사전이 섞이면 어긋날 수 있다(②되읽기·③글자 칸 잉크가 마지막 보호) — **검증 필요**.
+
+### 동작 요약
+- `ParagraphReader.Read`(PDFium 스레드): 시작 줄과 같은 줄대의 가로 범위와 겹치는 글 객체를 세로 거리순으로 최대 `MaxObjects`(240)개(마지막 줄은 끝까지)·세로 `MaxLines`(60) × 1.5 글자 크기 창 안에서 `TextRun`으로 읽는다. 쪽 전체를 읽지 않는다(후보 선택은 이미 있는 `PageObjectIndex` 경계 목록에서). 장애물(선·칠한 가는 막대·그림)은 후보 창 안에서만. 폼 객체는 `InForm`(V15), 지워진·글 아닌 객체는 `NotText`, 직각이 아닌 각도는 `UnsupportedAngle`, 보이지 않는 글은 `Hidden`. **겹쳐 찍은 글(굵게 흉내)**: PDFium이 두 번째 객체의 글을 비우므로(Task 2 발견 1) 같은 자리·크기의 대표 글과 짝지어 같은 글로 넘기고, 줄 조립이 한 줄로 합쳐 `Duplicates`에 보존 → 끄기 대상에 복사본도 들어간다(시험으로 확인).
+- `ParagraphEditPlanner.Plan`: 암호 문서 → `Refused(Encrypted)`(한 줄 편집은 그대로 됨, 시험으로 확인). 레이아웃(Task 4) → 바뀐 것 없음이면 편집 없음(이전 편집이 있으면 되돌림). 원래 글꼴로 정해졌으면 다시 쓰는 줄마다 V14를 통과해야 하고, 하나라도 못 하면 다시 쓰는 줄 전체를 앱 글꼴로 다시 배치(C10 2패스). 둘 다 못 그리는 글자는 `MissingGlyphs`, 쪽 아래를 넘으면 `Overflow`(겹침은 막지 않고 `Overlap` 표시). 끄기 대상 = 다시 쓰는 줄이 대체하는 원본 줄(동기화되면 first..last, 아니면 first..끝)의 글 객체 + 겹친 복사본. 새 줄의 위치 행렬 = 원본 글 객체 행렬에서 이동량만 줄의 기준선 원점으로 바꾼 것.
+- **화면 replay**: Remove를 끄고 원래 글꼴 줄은 `CreateTextLike` + `Matrix = Placement`로 줄의 원본 글 객체 바로 뒤에 넣는다(그리기 순서 유지). 앱 글꼴 줄은 윤곽선 경로로 맨 위에. **Output replay는 끄기만** 한다.
+
+### 안전장치 (Task 6 전까지)
+- 문단 편집은 **아직 파일로 저장되지 않는다**: `OutputCopyBuilder.BuildAsync`가 `ReplaceParagraphEdit`가 있으면 `NotSupportedException`으로 저장·복구·인쇄를 거절한다(새 줄이 조용히 사라지는 것을 막음, 시험 `OutputBuilder_RefusesParagraphEditsUntilTask6`). 화면에는 아직 이 편집을 만드는 길이 없다(Task 8). Task 6이 이 가드를 없앤다.
+
+### 알려진 한계·검증 필요 (Task 6 이후에 영향)
+1. **화면의 원래 글꼴 줄은 PDFium 글 객체라 자간(Tc)·양쪽 맞춤 늘임(JustifyExtra)·가로 비율(Tz)을 그리지 못한다**(PDFium에 쓰기 API 없음). 파일은 Task 6이 `TextLineWriter`로 정확히 쓰므로 양쪽 맞춤 문단은 화면과 저장 모양이 조금 다를 수 있다 — 저장 뒤 비교 보호(C9)에서 확인할 것. 앱 글꼴 줄도 `AppFontLine`이 자간·늘임·가로 비율을 지원하지 않아 같은 한계(왼쪽 맞춤처럼 그려짐, 늘임은 무시) — Task 7이 `AppFontLine` 매개변수를 넓힐 때 함께 볼 것.
+2. 클릭 경로(`Read`)는 Tc=0·Tz=100으로 읽는다(PDFium 글 객체에서 읽을 수 없음). `SessionFileFontSource`가 내용 스트림의 값을 얻으면 `Plan`이 모델의 폭 재료를 바로잡는다(Tz ≠ 100인 합성 시험은 아직 없음 — 검증 필요).
+3. `SessionFileFontSource`는 세션 파일이 있는 문서에서만 코드북을 만든다(새 문서·암호 문서는 앱 글꼴). 쪽을 옮기거나 끼워 넣어 파일과 쪽 번호가 어긋나면 객체 종류 열 비교에서 거절되지만 같은 종류 열이면 잘못 대응할 수 있다 → 코드북 되읽기 확인(글 일치)이 마지막 보호이며 쪽 순서를 바꾼 문서에서의 시험은 없다(검증 필요). 문서를 열고 닫는 비용(PDFsharp Import)이 `Plan` 호출마다 든다 — Task 8이 쪽 버전마다 캐시해야 한다(A1에서 쪽 해석 약 0.4 s).
+4. 후보 상한: 객체 240개(줄 수 약 24~60). 낱말마다 글 객체로 쪼개진 긴 문단(줄당 12낱말 × 20줄 ≈ 240)은 끝줄이 잘릴 수 있다 — 잘리면 문단이 짧게 추정된다(`줄 포함(+)` 탈출구, C13). 실제 문서에서의 영향은 측정하지 못했다.
+5. 후보 창 안 장애물 읽기 상한 2,000개. 페이지 경계(`PageBounds`)는 `(0,0,쪽 크기)`로 가정한다(쪽 /CropBox가 원점이 아니거나 /Rotate가 있는 쪽에서 `Overflow` 판정이 어긋날 수 있음 — 회전 쪽은 가로·세로를 바꿔 계산, 검증 필요).
+6. 쪽 아래 겹침(`Overlap`)·줄 이음(`DecideKorean`)·`Plan`의 V14 줄별 확인 비용(줄마다 쪽을 한 번 더 열어 타일 렌더)은 큰 문단에서 느릴 수 있다 — Task 10에서 측정.
+7. 시험 표본: 합성 샘플 `doc-en-left`(영문 TrueType Identity-H)·`doc-ko-left-wordwrap`(한글)에서 원래 글꼴 경로를 확인했다. 실제 PDF와 도면(ToUnicode 없는 CFF를 배워서 쓰는 경로)에서의 계획은 아직 시험하지 않았다(검증 필요).

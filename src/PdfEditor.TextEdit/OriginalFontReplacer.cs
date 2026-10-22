@@ -15,7 +15,13 @@ public static class OriginalFontReplacer
     /// 규칙: ① SetText 성공 ② 되읽기(GetText)가 입력과 완전히 같음 ③ 공백 아닌 글자마다 그 글자 칸에 잉크가 있음.
     /// 서브셋에 없는 글자는 PDFium이 조용히 빼므로 ②에서 걸린다(V14: 거짓 통과 0).
     /// </summary>
-    public static Result Verify(DocumentSession s, int pageIndex, int originalIndex, string newText)
+    public static Result Verify(DocumentSession s, int pageIndex, int originalIndex, string newText) => Verify(s, pageIndex, originalIndex, newText, null);
+
+    /// <summary>
+    /// 문단 편집용(M5): ④의 "원래 줄에 있던 글자"를 그 글 객체 하나가 아니라 <paramref name="allowedChars"/>(같은 글꼴로 보인 문단의 모든 글자)로 넓힌다.
+    /// 같은 글꼴 사전의 서브셋은 문단 전체의 글자를 가지므로 안전하다고 보지만, 같은 이름의 다른 사전이 섞이면 어긋날 수 있다(검증 필요) — ②③이 마지막 보호.
+    /// </summary>
+    public static Result Verify(DocumentSession s, int pageIndex, int originalIndex, string newText, IReadOnlySet<char>? allowedChars)
     {
         s.Thread.AssertOnThread();
         using var page = s.Document.LoadPage(pageIndex);
@@ -26,11 +32,19 @@ public static class OriginalFontReplacer
         //    ToUnicode가 있는 글꼴에서는 되읽기·잉크 검사를 통과해 버릴 수 있다(2026-10-20 사용자 보고: 글자가 네모로 나옴).
         if (orig.Font is null or { Embedded: true })
         {
-            string? before;
-            using (var t0 = page.LoadText()) before = orig.GetText(t0);
-            if (before is null) return Result.GlyphNotInSubset;
-            foreach (char c in newText)
-                if (!char.IsWhiteSpace(c) && !before.Contains(c)) return Result.GlyphNotInSubset;
+            if (allowedChars is null)
+            {
+                string? before;
+                using (var t0 = page.LoadText()) before = orig.GetText(t0);
+                if (before is null) return Result.GlyphNotInSubset;
+                foreach (char c in newText)
+                    if (!char.IsWhiteSpace(c) && !before.Contains(c)) return Result.GlyphNotInSubset;
+            }
+            else
+            {
+                foreach (char c in newText)
+                    if (!char.IsWhiteSpace(c) && !allowedChars.Contains(c)) return Result.GlyphNotInSubset;
+            }
         }
         var probe = page.CreateTextLike(orig, newText);
         if (probe is null) return Result.SetTextFailed;
