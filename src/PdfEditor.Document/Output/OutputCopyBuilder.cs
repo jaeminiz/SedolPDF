@@ -44,6 +44,9 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             // 앱 글꼴 줄은 패치 단계만 쓸 수 있다. 패치를 못 하는(암호) 문서에서 조용히 버리지 않는다(M3a A2와 같은 원칙).
             if (!SavePolicy.CanPatch(s) && e.Any(x => x.Edits.OfType<InsertAppTextEdit>().Any()))
                 throw new InvalidOperationException("App-font text lines need the patch stage, which is not available for encrypted documents.");
+            // 문단 편집(M5)의 새 줄 직렬화는 Task 6이 만든다. 그 전에는 조용히 글이 사라지지 않게 저장·인쇄·복구를 거절한다(화면에는 아직 이 편집을 만드는 길이 없다).
+            if (e.Any(x => x.Edits.OfType<ReplaceParagraphEdit>().Any()))
+                throw new NotSupportedException("Paragraph edits cannot be written to a file yet (M5 Task 6).");
             if (!always && e.Count == 0 && !patch) return ((int[]?)null, p, e);
             s.Document.SaveCopy(path);
             return ((int[]?)CollectAnnotCounts(s.Document), p, e);

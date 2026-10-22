@@ -63,3 +63,24 @@ public sealed record InsertShapeEdit(long Id, ShapeSpec Shape) : ContentEdit(Id)
 
 /// <summary>도형(경로 객체)의 선·채우기 바꾸기.</summary>
 public sealed record SetShapeStyleEdit(long Id, ObjectRef Target, ShapeStyle Style) : ContentEdit(Id);
+
+/// <summary>
+/// 문단 편집(M5)에서 원래 글꼴로 다시 쓰는 줄 하나. Placement = 쪽 좌표 글 객체 행렬(원본 글 객체 행렬에서 이동량(E,F)만 이 줄의 기준선 원점으로 바꾼 것).
+/// OriginalFontSource = 글꼴·색·렌더 모드를 가져올 원본 글 객체(원본 번호). LineId는 이 줄을 가리킬 때 쓰는 편집 Id(<see cref="ObjectRef.Inserted"/>).
+/// Tc·Tz·JustifyExtra·OrigRenderMode는 저장(직접 인코딩, Task 6)이 쓴다 — 화면 replay의 PDFium 글 객체는 자간·맞춤 늘임을 그리지 못한다(한계).
+/// </summary>
+public sealed record ParagraphTextLine(long LineId, string Text, PdfMatrix Placement, float SizePt, PdfEditor.Document.Annotations.PdfColor Color,
+    ObjectRef OriginalFontSource, float Tc, float Tz, float JustifyExtra, int OrigRenderMode);
+
+/// <summary>다시 편집(원본 문단 재추정 없이)에 쓰는 문단 정보. Model은 TextEdit의 ParagraphModel(Document는 TextEdit를 모르므로 불투명 개체로 보관).</summary>
+public sealed record ParagraphMeta(PdfRectF Box, string OriginalText, string NewText, string Align, string FontKey, float Leading, object? Model);
+
+/// <summary>
+/// 문단 편집 하나(M5 C14): 끄기 대상 원본 객체들 + 새 줄(원래 글꼴 / 앱 글꼴) + 메타를 한 묶음으로.
+/// 화면 replay는 Remove를 끄고 새 줄을 넣는다. 출력(Output) replay는 끄기만 하고 새 줄은 내용 스트림 경로(Task 6)가 쓴다.
+/// AppLineIds[i]는 AppLines[i]를 가리키는 Id.
+/// </summary>
+public sealed record ReplaceParagraphEdit(long Id, System.Collections.Immutable.ImmutableArray<ObjectRef> Remove,
+    System.Collections.Immutable.ImmutableArray<ParagraphTextLine> OriginalFontLines,
+    System.Collections.Immutable.ImmutableArray<AppTextSpec> AppLines, System.Collections.Immutable.ImmutableArray<long> AppLineIds,
+    ParagraphMeta Meta) : ContentEdit(Id);

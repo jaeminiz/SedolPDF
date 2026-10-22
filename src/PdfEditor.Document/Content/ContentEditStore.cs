@@ -45,6 +45,26 @@ public sealed class ContentEditStore
         Snap(page, list);
     }
 
+    /// <summary>기록 가운데 edit 하나를 빼고 그 자리(index)를 돌려준다(문단 다시 편집이 이전 편집을 대체할 때).</summary>
+    internal int Remove(PageId page, ContentEdit edit)
+    {
+        _thread.AssertOnThread();
+        if (!_pages.TryGetValue(page, out var list)) throw new InvalidOperationException("No edits on this page.");
+        int i = list.FindIndex(e => ReferenceEquals(e, edit));
+        if (i < 0) throw new InvalidOperationException("The edit is not in the log.");
+        list.RemoveAt(i);
+        Snap(page, list);
+        return i;
+    }
+
+    internal void Insert(PageId page, int index, ContentEdit edit)
+    {
+        _thread.AssertOnThread();
+        if (!_pages.TryGetValue(page, out var list)) _pages[page] = list = [];
+        list.Insert(Math.Min(index, list.Count), edit);
+        Snap(page, list);
+    }
+
     private void Snap(PageId page, List<ContentEdit> list) =>
         ImmutableInterlocked.AddOrUpdate(ref _snapshot, page, [.. list], (_, _) => [.. list]);
 }
@@ -67,6 +87,43 @@ public sealed class ContentEditCommand(PageId page, IReadOnlyList<ContentEdit> e
     public void Undo(DocumentSession s)
     {
         for (int i = _edits.Length - 1; i >= 0; i--) s.Content.RemoveLast(page, _edits[i]);
+        s.BumpVersion(page);
+    }
+}
+
+/// <summary>
+/// 문단 편집 명령(M5 C14). previous를 next로 대체한다(이전 편집이 쌓이지 않음). previous만 있으면 되돌리기(원래 문단으로), next만 있으면 새 편집 덧붙이기.
+/// 실행 취소는 이전 편집의 자리까지 정확히 원래 상태로 돌린다.
+/// </summary>
+public sealed class ParagraphEditCommand(PageId page, ReplaceParagraphEdit? previous, ReplaceParagraphEdit? next) : IUndoableCommand
+{
+    private int _slot = -1;
+
+    public PageId Page => page;
+    public ReplaceParagraphEdit? Previous => previous;
+    public ReplaceParagraphEdit? Next => next;
+
+    public void Execute(DocumentSession s)
+    {
+        if (previous is null && next is null) throw new InvalidOperationException("Nothing to do.");
+        if (s.IndexOf(page) < 0) throw new InvalidOperationException("The page is not in the document.");
+        if (previous is not null) _slot = s.Content.Remove(page, previous);
+        if (next is not null)
+        {
+            if (previous is null) s.Content.Append(page, next);
+            else s.Content.Insert(page, _slot, next);
+        }
+        s.BumpVersion(page);
+    }
+
+    public void Undo(DocumentSession s)
+    {
+        if (next is not null)
+        {
+            if (previous is null) s.Content.RemoveLast(page, next);
+            else s.Content.Remove(page, next);
+        }
+        if (previous is not null) s.Content.Insert(page, _slot, previous);
         s.BumpVersion(page);
     }
 }

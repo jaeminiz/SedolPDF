@@ -65,8 +65,9 @@ public static class ContentReplayer
         var result = new ReplayResult(originals, inserted, 0);
         // 앱 글꼴 줄(C7)은 화면에서는 다른 편집을 다 적용한 뒤 맨 위에 넣는다. 그 줄을 가리키는 편집(옮기기·끄기)은
         // 줄을 넣은 뒤에 적용해야 하므로 함께 미룬다. 출력 모드에서는 넣지 않는다(패치 단계가 진짜 글자로 씀).
-        var appText = edits.OfType<InsertAppTextEdit>().ToDictionary(a => a.Id);
-        bool TargetsAppText(ObjectRef r) => r.IsInserted && appText.ContainsKey(r.InsertedId);
+        var appText = edits.OfType<InsertAppTextEdit>().Select(a => a.Id).ToHashSet();
+        foreach (var pe in edits.OfType<ReplaceParagraphEdit>()) foreach (var id in pe.AppLineIds) appText.Add(id);   // 문단의 앱 글꼴 줄도 같은 방식으로 미룬다(M5)
+        bool TargetsAppText(ObjectRef r) => r.IsInserted && appText.Contains(r.InsertedId);
         var deferred = new List<ContentEdit>();
         foreach (var e in edits)
         {
@@ -98,6 +99,10 @@ public static class ContentReplayer
                     if (CreateImage(page, im, assets) is { } io) { page.InsertObject(io); inserted[im.Id] = io; }
                     else skipped++;
                     break;
+                case ReplaceParagraphEdit rp:
+                    skipped += ApplyParagraphOriginalPart(page, rp, result, inserted, InsertPosAfter, afterCounts, mode);
+                    if (mode == ReplayMode.Screen && !rp.AppLines.IsDefaultOrEmpty) deferred.Add(rp);
+                    break;
                 case InsertShapeEdit sh:
                     var so = CreateShape(page, sh.Shape);
                     page.InsertObject(so);
@@ -115,6 +120,15 @@ public static class ContentReplayer
         {
             switch (e)
             {
+                case ReplaceParagraphEdit rp:
+                    for (int i = 0; i < rp.AppLines.Length; i++)
+                    {
+                        var ap = BuildOutlinePath(page, rp.AppLines[i]);
+                        if (ap is null) { skipped++; continue; }
+                        page.InsertObject(ap);
+                        inserted[rp.AppLineIds[i]] = ap;
+                    }
+                    break;
                 case InsertAppTextEdit a:
                     var path = BuildOutlinePath(page, a.Line);
                     if (path is null) { skipped++; break; }
@@ -132,6 +146,33 @@ public static class ContentReplayer
         return new ReplayResult(originals, inserted, skipped);
     }
 
+
+    /// <summary>
+    /// 문단 편집의 앞부분(M5): 끄기 + 원래 글꼴 새 줄. 화면에서만 새 줄을 넣는다(출력은 끄기만 — 새 줄은 내용 스트림 경로가 쓴다, Task 6).
+    /// 새 줄은 줄의 원본 글 객체 바로 뒤에 넣어 그리기 순서를 지킨다. 건너뛴 수를 돌려준다.
+    /// </summary>
+    private static int ApplyParagraphOriginalPart(PdfPage page, ReplaceParagraphEdit rp, ReplayResult result, Dictionary<long, PdfPageObject> inserted,
+        Func<int, int> insertPosAfter, SortedList<int, int> afterCounts, ReplayMode mode)
+    {
+        int skipped = 0;
+        foreach (var r in rp.Remove)
+            if (result.Resolve(r) is { } o) o.IsActive = false; else skipped++;
+        if (mode != ReplayMode.Screen) return skipped;
+        foreach (var line in rp.OriginalFontLines)
+        {
+            if (line.OriginalFontSource.IsInserted || result.Resolve(line.OriginalFontSource) is not { } src || page.CreateTextLike(src, line.Text) is not { } nt)
+            {
+                skipped++;
+                continue;
+            }
+            nt.Matrix = line.Placement;
+            int orig = line.OriginalFontSource.OriginalIndex;
+            page.InsertObject(nt, insertPosAfter(orig));
+            afterCounts[orig] = afterCounts.GetValueOrDefault(orig) + 1;
+            inserted[line.LineId] = nt;
+        }
+        return skipped;
+    }
 
     /// <summary>자산의 PNG(풀어서 비트맵)·JPEG(바이트 그대로)로 이미지 객체를 만든다. 자산이 없거나 풀 수 없으면 null.</summary>
     private static PdfPageObject? CreateImage(PdfPage page, InsertImageEdit im, Annotations.AnnotationAssets? assets)
