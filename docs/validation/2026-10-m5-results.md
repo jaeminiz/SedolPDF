@@ -182,3 +182,34 @@ Tw(낱말 간격)는 2바이트 글꼴에서 안 먹으므로 C15대로 쓰지 �
 
 ### 정식 구현 합성 샘플 결과 (시험으로 고정, `SyntheticSamples_PrecisionAndTableMerge_AtThreshold`)
 Task 1과 같은 합성 22쪽·정답표에서 문턱 0.62: 표 병합 0, 잘못 묶음 0, 문서형 정밀도 100 %, 문서형 재현율 ≥ 90 %(시험 기준), 도면형은 묶은 것이 모두 정답. 상수는 모두 `ParagraphOptions`에 모으고 `Options_Defaults_AreFixedByTask1`이 값을 고정한다.
+
+## Task 3~4 — 글꼴 코드북·글 폭, 다시 맞추기 (2026-10-22, Sonnet)
+구현: `src/PdfEditor.ContentStream/Fonts/{FontCodebook,TextLineWriter}.cs`(PDFsharp만, PDFium 참조 없음 — 시험 `ContentStream_DoesNotReferencePdfium`이 확인), `src/PdfEditor.TextEdit/Paragraphs/{TextMeasure,ParagraphLayout}.cs`. 시험 `tests/PdfEditor.ContentStream.Tests/Fonts/*`(코드북 10·쓰기 7), `tests/PdfEditor.TextEdit.Tests/Paragraphs/{CodebookWidthTests,ParagraphLayoutTests,ParagraphLayoutRealFontTests}.cs`(폭 1·다시 맞추기 28·실제 글꼴 2).
+
+### Task 3 — 코드북·쓰기
+- 코드북 대상(C8 그대로): ToUnicode + 폭표가 있는 임베드 글꼴. 제외 사유는 `TryBuild(..., out reason)`에 코드로 남는다: `type3`, `mixed-code-space`(Identity-H 아닌 Type0), `not-embedded`(V18에서 폭표가 렌더와 안 맞은 비임베드 글꼴 제외), `no-widths`(표준 14), `no-tounicode`, `learn-conflict`, `width-missing`(폭표 밖 코드가 보였는데 MissingWidth도 없음), `no-usable-chars`.
+- C8 확장(ToUnicode 없으면 PDFium 글과 짝지어 배우기)은 `learnFrom` 인자로 구현. 코드 수 = 글자 수(공백 포함 1:1)이거나 공백을 뺀 글자 수 = 코드 수일 때만 배우고, 같은 코드가 다른 글자로 풀리면 그 글꼴 제외. **한계: 배운 코드북에는 공백 글자가 없다**(공백 코드를 알 수 없음) → 공백이 든 글은 그 글꼴로 못 쓰고 앱 글꼴로 간다. ToUnicode가 있는 글꼴은 공백이 문단에 한 번이라도 보였을 때만 공백을 쓸 수 있다(낱말마다 글 객체인 양쪽 맞춤 문서는 공백이 안 보여 앱 글꼴로 간다 — 아래 한계 1).
+- 코드북에는 **이 문단에서 실제로 보인 코드의 글자만** 들어간다(`Codebook_OnlyCharsPresentInParagraph`).
+- `TextLineWriter.Write`: `q [색] [w] Tc Tz Ts Tr BT /F 크기 Tf a b c d e f Tm <hex> Tj|[…] TJ ET Q`. 양쪽 맞춤은 공백 글자 뒤(이을 글이 있을 때만)에 `TJ` 숫자(= −이동량×1000 / (크기×Tz/100))로. Tw는 쓰지 않음(C15). 결과를 `ContentLexer`로 되읽어 연산자·피연산자·q/BT 균형 확인. 행렬은 `ContentStream.Mat`(PdfMatrix 대신 — PDFium 의존 방지).
+- 계획 인터페이스와 달라진 점: `EncodedText`에 `Text`를 추가(TJ 분할용), `TextLineStyle`은 색을 연산자 문자열(`FillOps`/`StrokeOps`)로 받음(원본 색 공간 그대로 쓰기 위해), `ITextMeasure.CanRender`의 `missing`은 코드포인트.
+- **폭 정확도(`WidthMatchesPdfium_Within1Percent`, 합성 샘플 코드북 598개 글 객체):** 코드북 폭 ↔ PDFium 객체 폭(잉크)이 "1 % 또는 1 pt + 글자 여백 0.15 em" 안인 것이 **582/598 (97.3 %)**, 초과 16개. 실제 PDF에서의 폭 정확도는 Task 1 V18(위 표)이 근거이며 이번에 새로 재지는 않았다.
+
+### Task 4 — 다시 맞추기
+- 알고리즘: 편집 창 글을 원래 문단 글(`OriginalText`: 줄 사이는 공백, 글자 단위 줄바꿈 문서의 한글끼리만 붙임)과 비교해 공통 앞·뒷부분을 찾고, **바뀐 곳이 든 줄부터** 탐욕으로 줄바꿈 → 새 줄 끝이 원래 줄 끝(글자 수 변화만큼 이동)과 같아지는 첫 곳에서 멈추고 나머지는 원본 줄. 줄 맨 앞이 바뀌었을 때만 앞 줄이 첫 낱말을 받을 수 있으면 앞 줄부터 다시 맞춘다.
+- **동기화 조건에 "줄 번호가 같을 것"을 더했다(계획에 없던 보강):** 줄 수가 달라지면 뒤쪽 원본 줄이 한 줄씩 밀려야 하므로 원본 그대로 둘 수 없어, 동기화 없이 끝까지 다시 쓴다. 줄 수가 같게 돌아오는 경우(대부분의 낱말 고치기)에만 뒤 줄이 원본 그대로 남는다. 줄이 줄면 남는 원본 줄은 지워진다(`OriginalLineCount`와 `Lines.Length` 차이 — Task 5가 끄기 대상에 넣어야 함).
+- **열 폭 = 상자(글자 잉크) 폭과 같은 측정으로 잰 원래 줄 최대 폭 중 큰 값.** 처음엔 잉크 폭 + 0.1 em 여유로 했더니 실제 한글 글꼴에서 줄 이동량이 잉크보다 1~2 pt 커서(글자 여백) 원래와 같은 줄도 안 들어가 한 줄을 고치면 뒤 줄까지 다시 쓰였다(실제 글꼴 시험 2/4 → 수정 뒤 4/4). 여유는 0.02 em(부동소수 오차용)으로 줄임.
+- 2패스(C10): 다시 쓰는 줄 전체를 원래 글꼴로 배치해 보고 한 글자라도 못 그리면(코드북에 없음) 앱 글꼴 폭으로 **다시 줄바꿈**(원본 줄은 그대로). 둘 다 못 그리는 글자는 `MissingCodepoints`로. 시그니처가 계획(`Layout(p, text, measure, opt)`)과 달리 `Layout(p, text, original, app, opt)`(2패스에 두 측정이 필요).
+- C6: 겹침은 `Overlap` 표시만(막지 않음), 쪽 경계는 `LayoutOptions.PageBounds`로 `MaxLines`를 계산해 `Overflow`만 표시(자르지 않음). 쪽 경계 없으면 `MaxLines = int.MaxValue`.
+- C16: 어절 단위(공백 우선, 공백 없는 긴 낱말만 글자 사이) / 글자 단위(한글 사이 어디서나) 두 방식은 `LayoutOptions.Korean`으로 받는다 — **어느 쪽인지 문서·열 단위로 판정하는 코드는 이 Task 범위 밖**(V19 판정 규칙을 부르는 쪽(Task 5)이 적용). 금칙: 줄 머리 `.,;:!?)]}」』”’%·、。，．`, 줄 끝 `([{「『“‘`. 문단 안 `\n`은 강제 줄바꿈(그 줄은 마지막 줄 취급 — 양쪽 맞춤에서 늘리지 않음). 끝의 공백·빈 줄은 무시. 글이 비면 `DeleteAll`.
+- C15: 양쪽 맞춤은 마지막 줄·강제 줄바꿈 줄 제외, 공백이 있는 줄마다 `JustifyExtra`(= 남는 폭 / 공백 수, 글 공간 단위) — `TextLineWriter`의 `justifyExtraAtSpaces`에 그대로 넣는다. 공백 없는 줄(글자 단위 한글 등)은 늘리지 않는다.
+
+### 수치
+- 합성 가짜 측정(글자당 0.5 em) 시험 28개: 무편집 0기록, 같은 길이 낱말 고치기는 그 줄만, 길어지면 바뀐 줄부터 다시 줄이 같아지면 원본, 줄어들면 줄 수 감소, 한글 어절/글자 단위, 금칙, 긴 낱말, 양쪽·가운데·오른쪽, 첫 줄 들여쓰기, 강제 줄바꿈, 전체 삭제, 겹침, 쪽 아래, 90° 회전, 2패스 대체 글꼴, 양쪽 글꼴 모두 불가 — 모두 통과.
+- 실제 글꼴 폭(코드북, 합성 샘플 `doc-en-left`·`doc-ko-left-wordwrap`의 3줄 이상 문단): 같은 길이 낱말(글자 순서만 뒤집음)로 한 줄을 고쳤을 때 **그 줄만 다시 쓰임 8/8**(영문 4/4, 한글 4/4), 무편집은 모두 `NoChange`. 표본이 작다(검증 필요).
+
+### 알려진 한계·검증 필요 (Task 5 이후에 영향)
+1. **낱말마다 글 객체로 쪼개진 문서(양쪽 맞춤 등)는 공백 글 코드가 문단에 안 보여 원래 글꼴로 공백을 쓸 수 없다** → 그 문서의 다시 쓰는 줄은 앱 글꼴로 간다(U3 알림 대상). 공백 코드를 PDF 글꼴 사전에서 직접 찾는 방법(예: 1바이트 글꼴의 코드 32가 공백 글리프인지 확인)은 아직 없다 — 필요하면 Task 5에서 결정.
+2. 폭표가 맞아도 글자 쌍 조정(커닝)은 PDF 글꼴 폭표에 없으므로 앱 글꼴(HarfBuzz) 폭과 원래 글꼴 폭의 정의가 다르다. 한 문단 안에서 원본 줄과 대체 글꼴 줄의 줄 끝이 조금 어긋날 수 있다.
+3. 줄 수가 바뀌면 뒤쪽 원본 줄까지 모두 다시 쓴다(위 동기화 조건). 긴 문단 중간에 줄이 하나 늘면 아래 줄이 모두 새 줄(대체 글꼴이 섞일 수 있음)이 된다 — 원본 줄을 "위치만 옮겨" 보존하는 방안은 Task 5에서 `TransformEdit`와 함께 검토할 수 있다.
+4. 한글 줄 이음 방식(어절/글자)의 문서별 판정, 겹쳐 찍은 글의 `Duplicates` 처리, 코드북 생성(원본 글 객체의 문자열 바이트 수집)은 `ParagraphReader`/`ParagraphEditPlanner`(Task 5) 몫이다.
+5. 세로쓰기·임의 각도는 대상 아님(C18).
