@@ -463,6 +463,8 @@ public sealed partial class DocumentView : Control
     private static readonly IBrush SelectionBrush = new SolidColorBrush(Color.FromArgb(0x55, 0x00, 0x5F, 0xB8));
 
     private SearchHit? _revealPending;
+    private static readonly Pen MarqueePen = new(new SolidColorBrush(Color.FromRgb(0x00, 0x5F, 0xB8)), 1, new DashStyle([3, 3], 0));
+    private bool _rectSelecting;   // Alt+끌기 사각형 선택 중
     private bool _selecting;
     private int _selPageIndex = -1;
     private readonly List<(int Page, Point InPage, bool Begin)> _charQueue = new();
@@ -508,7 +510,7 @@ public sealed partial class DocumentView : Control
     private void OnSelectionChanged()
     {
         if (_state is null) return;
-        if (_state.Tab.TextSelection.Range is null) _state.SelRects = null;
+        if (_state.Tab.TextSelection.Page is null) _state.SelRects = null;
         RefreshSelection(_state);
         InvalidateVisual();
     }
@@ -547,6 +549,16 @@ public sealed partial class DocumentView : Control
         });
     }
 
+    /// <summary>쪽 안의 화면 점(쪽 왼쪽 위 기준)을 쪽 좌표(pt)로 바꾼다. 쪽 정보가 아직 없으면 null.</summary>
+    private System.Drawing.PointF? TryPagePoint(int pageIndex, Point inPage)
+    {
+        if (_state is not { } st || _layout is not { } lay || pageIndex < 0 || pageIndex >= _layoutPages.Length) return null;
+        if (!TryGetGeom(st, _layoutPages[pageIndex], out var g)) return null;
+        var tr = new Pdf.Native.PageTransform(g.Bounds, g.Rotation, lay.Scale);
+        var (x, y) = tr.ToPage(new Pdf.Native.ViewPoint(inPage.X, inPage.Y));
+        return new System.Drawing.PointF((float)x, (float)y);
+    }
+
     private static Rect ToDoc(Pdf.Native.PageTransform tr, System.Drawing.RectangleF r, Rect pageRect)
     {
         var v = tr.ToView(r);
@@ -558,12 +570,14 @@ public sealed partial class DocumentView : Control
         var search = st.Tab.Search;
         bool hasHits = search is { Results.Count: > 0 };
         bool hasSel = st.SelRects is { } sr && sr.Page == info.Id;
-        if (!hasHits && !hasSel) return;
+        var tsel = st.Tab.TextSelection;
+        bool hasMarquee = tsel.RectPt is not null && tsel.Page == info.Id;
+        if (!hasHits && !hasSel && !hasMarquee) return;
         if (hasHits && st.HitsByPage is null)
             st.HitsByPage = search!.Results.GroupBy(h => h.Page).ToDictionary(g => g.Key, g => g.ToList());
         List<SearchHit>? hits = null;
         bool pageHasHits = hasHits && st.HitsByPage!.TryGetValue(info.Id, out hits);
-        if (!pageHasHits && !hasSel) return;
+        if (!pageHasHits && !hasSel && !hasMarquee) return;
         if (!TryGetGeom(st, info, out var g)) return;   // 도착하면 다시 그린다
 
         var tr = new Pdf.Native.PageTransform(g.Bounds, g.Rotation, scale);
@@ -577,6 +591,12 @@ public sealed partial class DocumentView : Control
                 }
             if (hasSel)
                 foreach (var r in st.SelRects!.Value.Rects) ctx.FillRectangle(SelectionBrush, ToDoc(tr, r, pr));
+            if (hasMarquee)
+            {
+                // 사각형 선택 테두리: 점선. 쪽 좌표에서 매번 변환하므로 확대·스크롤에도 같은 자리에 남는다.
+                var mr = ToDoc(tr, tsel.RectPt!.Value, pr);
+                ctx.DrawRectangle(null, MarqueePen, mr);
+            }
         }
     }
 
@@ -610,7 +630,14 @@ public sealed partial class DocumentView : Control
             {
                 st.SelDirty = false;
                 var sel = st.Tab.TextSelection;
-                if (sel.Page is not { } page || sel.Range is not { } r) { st.SelRects = null; }
+                if (sel.Page is { } rpage && sel.RectPt is { } rectPt)
+                {
+                    var session = st.Session;
+                    var rects = await session.Thread.InvokeAsync(() => RectTextSelector.Resolve(session, rpage, rectPt).Rects);
+                    if (st.Disposed) return;
+                    st.SelRects = (rpage, rects);
+                }
+                else if (sel.Page is not { } page || sel.Range is not { } r) { st.SelRects = null; }
                 else
                 {
                     var session = st.Session;
@@ -746,9 +773,20 @@ public sealed partial class DocumentView : Control
             var hit = _layout?.HitTest(e.GetPosition(this));
             if (hit is { } h)
             {
-                _selecting = true;
-                _selPageIndex = h.Page;
-                QueueCharQuery(h.Page, h.InPage, begin: true);
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Alt) && _state.Tab.Tool == ToolKind.TextSelect
+                    && TryPagePoint(h.Page, h.InPage) is { } startPt)
+                {
+                    // Alt+끌기: 사각형 선택. 시작 점을 쪽 좌표로 저장한다.
+                    _rectSelecting = true;
+                    _selPageIndex = h.Page;
+                    _state.Tab.TextSelection.BeginRect(_layoutPages[h.Page].Id, startPt);
+                }
+                else
+                {
+                    _selecting = true;
+                    _selPageIndex = h.Page;
+                    QueueCharQuery(h.Page, h.InPage, begin: true);
+                }
                 e.Pointer.Capture(this);
             }
             e.Handled = true;
@@ -768,6 +806,13 @@ public sealed partial class DocumentView : Control
             var p = e.GetPosition(this);
             QueueCharQuery(_selPageIndex, new Point(p.X - origin.X, p.Y - origin.Y), begin: false);
         }
+        if (_rectSelecting && _layout is { } rlay && _selPageIndex >= 0 && _selPageIndex < _layoutPages.Length)
+        {
+            var origin = rlay.GetPageRect(_selPageIndex).TopLeft;
+            var p = e.GetPosition(this);
+            if (TryPagePoint(_selPageIndex, new Point(p.X - origin.X, p.Y - origin.Y)) is { } pt)
+                _state.Tab.TextSelection.ExtendRect(pt);
+        }
         if (_dragging)
         {
             var d = e.GetPosition(_sv) - _dragStartPos;
@@ -785,6 +830,14 @@ public sealed partial class DocumentView : Control
         if (HandleObjectPointerReleased(e)) return;
         if (HandleAnnotPointerReleased(e)) return;
         if (_dragging) { _dragging = false; e.Pointer.Capture(null); }
+        if (_rectSelecting)
+        {
+            _rectSelecting = false;
+            _selPageIndex = -1;
+            e.Pointer.Capture(null);
+            // 클릭만 한 경우(사각형이 거의 없음)는 선택을 지운다.
+            if (_state?.Tab.TextSelection.RectPt is { } rc && rc.Width < 2 && rc.Height < 2) _state.Tab.TextSelection.Clear();
+        }
         if (_selecting)
         {
             e.Pointer.Capture(null);

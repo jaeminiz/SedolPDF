@@ -407,6 +407,7 @@ public sealed partial class DocumentView
     /// <summary>진행 중이거나 끝나기를 기다리는 텍스트 마크업 끌기를 취소한다 (아무것도 만들지 않는다).</summary>
     private void CancelMarkup()
     {
+        if (_rectSelecting) { _rectSelecting = false; _selPageIndex = -1; _state?.Tab.TextSelection.Clear(); }
         if (!_selecting && !_markupPending) return;   // 끌기 중이거나 놓은 뒤 끝나기를 기다리는 중일 때만
         _markupEpoch++;
         _markupPending = false;

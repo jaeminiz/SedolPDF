@@ -90,6 +90,22 @@ public static class TestPdfFactory
         Save(doc, path);
     }
 
+    /// <summary>한 쪽(595×842)에 줄마다 한 줄씩(왼쪽 50pt, 위에서 100pt부터 30pt 간격). rotate는 쪽 /Rotate(0·90·180·270). 한글이면 맑은 고딕, 아니면 Arial.</summary>
+    public static void CreateTextLines(string path, IReadOnlyList<string> lines, int rotate = 0, bool korean = false)
+    {
+        using var doc = Build(1, 595, 842);
+        doc.Pages[0].Rotate = rotate;
+        using (var gfx = XGraphics.FromPdfPage(doc.Pages[0]))
+        {
+            var font = korean
+                ? new XFont("Malgun Gothic", 14, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode))
+                : new XFont("Arial", 14);
+            for (int i = 0; i < lines.Count; i++)
+                gfx.DrawString(lines[i], font, XBrushes.Black, new XPoint(50, 100 + 30 * i));
+        }
+        Save(doc, path);
+    }
+
     /// <summary>3쪽. 책갈피: 1장(→1쪽) 아래 1.1 절(→2쪽), 2장(→3쪽, 닫힘).</summary>
     public static void CreateWithOutline(string path)
     {

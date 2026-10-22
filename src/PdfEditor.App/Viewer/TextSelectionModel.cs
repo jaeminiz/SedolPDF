@@ -1,3 +1,4 @@
+using System.Drawing;
 using PdfEditor.Document;
 
 namespace PdfEditor.App.Viewer;
@@ -18,6 +19,7 @@ public sealed class TextSelectionModel
     public void Begin(PageId page, int charIndex)
     {
         Page = page;
+        RectPt = null;
         _anchor = _focus = Math.Max(0, charIndex);
         Changed?.Invoke();
     }
@@ -29,12 +31,41 @@ public sealed class TextSelectionModel
         Changed?.Invoke();
     }
 
+    // 사각형 선택(Alt+끌기): 쪽 좌표(pt)로 저장해서 확대·스크롤에도 그대로 유지된다.
+    private PointF _rectAnchor, _rectFocus;
+
+    /// <summary>사각형 선택 중이면 쪽 좌표 사각형(PDF 사용자 좌표: Y=아래, 높이는 위로). 읽는 순서 선택에서는 null.</summary>
+    public RectangleF? RectPt { get; private set; }
+
+    public void BeginRect(PageId page, PointF pagePt)
+    {
+        Page = page;
+        _anchor = _focus = -1;
+        _rectAnchor = _rectFocus = pagePt;
+        RectPt = ToRect();
+        Changed?.Invoke();
+    }
+
+    public void ExtendRect(PointF pagePt)
+    {
+        if (Page is null || RectPt is null) return;
+        _rectFocus = pagePt;
+        RectPt = ToRect();
+        Changed?.Invoke();
+    }
+
+    private RectangleF ToRect() => RectangleF.FromLTRB(
+        Math.Min(_rectAnchor.X, _rectFocus.X), Math.Min(_rectAnchor.Y, _rectFocus.Y),
+        Math.Max(_rectAnchor.X, _rectFocus.X), Math.Max(_rectAnchor.Y, _rectFocus.Y));
+
+    /// <summary>글자 범위 선택일 때만 값이 있다. 사각형 선택에서는 null(RectPt를 쓴다).</summary>
     public (int Start, int Count)? Range =>
-        Page is null ? null : (Math.Min(_anchor, _focus), Math.Abs(_focus - _anchor) + 1);
+        Page is null || RectPt is not null ? null : (Math.Min(_anchor, _focus), Math.Abs(_focus - _anchor) + 1);
 
     public void Clear()
     {
         Page = null;
+        RectPt = null;
         _anchor = _focus = -1;
         Changed?.Invoke();
     }
@@ -53,10 +84,14 @@ public static class TextCopier
     /// <summary>선택한 글자를 클립보드에 넣는다. 문서 권한이 복사를 막으면 클립보드를 건드리지 않는다.</summary>
     public static async Task<CopyResult> CopyAsync(DocumentSession session, TextSelectionModel selection, IClipboardService clipboard)
     {
-        if (selection.Page is not { } page || selection.Range is not { } r) return CopyResult.NothingSelected;
+        if (selection.Page is not { } page) return CopyResult.NothingSelected;
+        var rectPt = selection.RectPt;
+        var range = selection.Range;
+        if (rectPt is null && range is null) return CopyResult.NothingSelected;
         if (!session.Permissions.CanCopy) return CopyResult.Restricted;
         string text = await session.Thread.InvokeAsync(() =>
-            session.IndexOf(page) < 0 ? "" : session.GetLoadedText(page).GetText(r.Start, r.Count));
+            rectPt is { } rc ? RectTextSelector.Resolve(session, page, rc).Result.Text
+            : session.IndexOf(page) < 0 ? "" : session.GetLoadedText(page).GetText(range!.Value.Start, range.Value.Count));
         if (text.Length == 0) return CopyResult.NothingSelected;
         await clipboard.SetTextAsync(text);
         return CopyResult.Copied;

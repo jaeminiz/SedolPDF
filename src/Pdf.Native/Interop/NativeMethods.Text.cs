@@ -13,6 +13,8 @@ internal static unsafe partial class NativeMethods
     [LibraryImport(Lib)] public static partial int FPDFText_CountChars(IntPtr textPage);
     [LibraryImport(Lib)] public static partial int FPDFText_GetText(IntPtr textPage, int startIndex, int count, ushort* result);
     [LibraryImport(Lib)] public static partial int FPDFText_GetCharIndexAtPos(IntPtr textPage, double x, double y, double xTolerance, double yTolerance);
+    [LibraryImport(Lib)] public static partial uint FPDFText_GetUnicode(IntPtr textPage, int index);
+    [LibraryImport(Lib)] public static partial int FPDFText_GetCharBox(IntPtr textPage, int index, double* left, double* right, double* bottom, double* top);
     [LibraryImport(Lib)] public static partial int FPDFText_CountRects(IntPtr textPage, int startIndex, int count);
     [LibraryImport(Lib)] public static partial int FPDFText_GetRect(IntPtr textPage, int rectIndex, double* left, double* top, double* right, double* bottom);
 

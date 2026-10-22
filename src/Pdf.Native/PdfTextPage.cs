@@ -5,6 +5,9 @@ namespace Pdf.Native;
 
 public sealed record PdfTextMatch(int CharIndex, int CharCount);
 
+/// <summary>글자 하나: PDFium 글자 번호, 글자(문자열), 상자(PDF 사용자 좌표: X=왼쪽, Y=아래, 높이는 위로).</summary>
+public sealed record PdfTextChar(int Index, string Text, RectangleF Box);
+
 public sealed unsafe class PdfTextPage : IDisposable
 {
     private readonly PdfiumThread _t;
@@ -50,6 +53,31 @@ public sealed unsafe class PdfTextPage : IDisposable
             double l, t, r, b;
             if (NativeMethods.FPDFText_GetRect(h, i, &l, &t, &r, &b) == 0) continue;
             list.Add(RectangleF.FromLTRB((float)l, (float)b, (float)r, (float)t));
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// 글자 상자의 중심점이 사각형(PDF 사용자 좌표) 안에 있는 글자들. 줄바꿈 같은 제어 문자와 상자를 못 얻는 글자는 뺀다.
+    /// 반환 순서는 PDFium 글자 번호 순서이다.
+    /// </summary>
+    public IReadOnlyList<PdfTextChar> GetCharsInRect(RectangleF rectPt)
+    {
+        var h = H;
+        int n = NativeMethods.FPDFText_CountChars(h);
+        var list = new List<PdfTextChar>();
+        float l0 = Math.Min(rectPt.Left, rectPt.Right), r0 = Math.Max(rectPt.Left, rectPt.Right);
+        float b0 = Math.Min(rectPt.Top, rectPt.Bottom), t0 = Math.Max(rectPt.Top, rectPt.Bottom);
+        for (int i = 0; i < n; i++)
+        {
+            uint u = NativeMethods.FPDFText_GetUnicode(h, i);
+            if (u < 0x20 || u == 0xFFFE || u == 0xFFFF) continue;
+            double l, r, b, t;
+            if (NativeMethods.FPDFText_GetCharBox(h, i, &l, &r, &b, &t) == 0) continue;
+            double cx = (l + r) / 2, cy = (b + t) / 2;
+            if (cx < l0 || cx > r0 || cy < b0 || cy > t0) continue;
+            list.Add(new PdfTextChar(i, char.ConvertFromUtf32((int)(u > 0x10FFFF || (u >= 0xD800 && u <= 0xDFFF) ? 0xFFFD : u)),
+                RectangleF.FromLTRB((float)l, (float)b, (float)r, (float)t)));
         }
         return list;
     }
