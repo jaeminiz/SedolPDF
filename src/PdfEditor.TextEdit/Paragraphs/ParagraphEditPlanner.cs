@@ -193,8 +193,9 @@ public static class ParagraphEditPlanner
                 var color = p.Style.Color;
                 if (layout.Choice == FontChoice.Original)
                 {
+                    byte[]? encoded = book is not null && book.TryEncode(line.Text, out var enc) ? enc.Bytes : null;
                     origLines.Add(new ParagraphTextLine(st.NewId(), line.Text, placement, srcObj.FontSize, color, srcRun.Ref,
-                        srcRun.Tc, p.Style.Tz, line.JustifyExtra, srcObj.TextRenderMode));
+                        srcRun.Tc, p.Style.Tz, line.JustifyExtra, srcObj.TextRenderMode, encoded, book?.TwoByte ?? false));
                 }
                 else
                 {

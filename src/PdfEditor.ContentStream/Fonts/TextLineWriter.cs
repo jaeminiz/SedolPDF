@@ -15,7 +15,11 @@ public static class TextLineWriter
     /// <param name="placement">기준선 왼쪽 점을 원점으로 한 로컬 좌표 → 쪽(또는 내용 스트림 현재 좌표계) 변환. 글자 크기는 포함하지 않는다(Tf로 씀).</param>
     /// <param name="justifyExtraAtSpaces">있으면 공백 글자 <b>뒤(다음 글이 이어질 때만)</b>마다 이만큼(글 공간 단위, Tz 적용 뒤의 실제 이동량)을 더 벌린다 — <c>TJ</c> 숫자로.
     /// Tw는 2바이트 글꼴에서 안 먹으므로 쓰지 않는다(C15).</param>
-    public static byte[] Write(FontCodebook book, string fontResName, EncodedText line, TextLineStyle style, Mat placement, float? justifyExtraAtSpaces = null)
+    public static byte[] Write(FontCodebook book, string fontResName, EncodedText line, TextLineStyle style, Mat placement, float? justifyExtraAtSpaces = null) =>
+        Write(book.TwoByte, fontResName, line, style, placement, justifyExtraAtSpaces);
+
+    /// <summary>코드북 없이 쓴다(저장 단계 — 글 코드는 계획 때 이미 정해졌고 한 글자가 1바이트인지 2바이트인지만 필요).</summary>
+    public static byte[] Write(bool twoByte, string fontResName, EncodedText line, TextLineStyle style, Mat placement, float? justifyExtraAtSpaces = null)
     {
         var sb = new StringBuilder();
         sb.Append("q\n");
@@ -27,7 +31,7 @@ public static class TextLineWriter
         sb.Append("BT\n/").Append(NameToken(fontResName)).Append(' ').Append(Mat.Fmt(style.SizePt)).Append(" Tf\n");
         sb.Append(placement.ToOperands()).Append(" Tm\n");
 
-        int unit = book.TwoByte ? 2 : 1;
+        int unit = twoByte ? 2 : 1;
         if (justifyExtraAtSpaces is { } extra && Math.Abs(extra) > 1e-6f && line.Text.Contains(' '))
         {
             double tz = style.Tz / 100.0;
@@ -58,7 +62,7 @@ public static class TextLineWriter
         sb.Append('<').Append(Convert.ToHexString(bytes, offset, count)).Append('>');
     }
 
-    private static string NameToken(string name)
+    public static string NameToken(string name)
     {
         var sb = new StringBuilder();
         foreach (char c in name)

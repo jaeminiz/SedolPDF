@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text;
 using PdfEditor.Appearance.Fonts;
 using PdfEditor.ContentStream;
@@ -14,7 +15,7 @@ namespace PdfEditor.Appearance.Patching;
 /// 패치 계획을 SaveCopy로 만든 임시 파일에 적용한다(PDFsharp 6.2.x, Modify 모드).
 /// 파일만 읽고 쓰며 편집 중인 PDFium 문서는 건드리지 않는다. 계획은 상태가 없으므로 같은 입력에서 항상 같은 결과가 나온다.
 /// </summary>
-public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher, IDisposable
+public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher, IContentRewriteProbe, IContentRewriteReport, IDisposable
 {
     // 글꼴 바이트 공급자. AddApFont가 처음 나올 때 한 번 AppFont로 올려 두고 계속 쓴다(셰이핑은 AppFont 안에서 직렬화됨).
     private readonly Func<byte[]> _fontData = fontData;
@@ -53,8 +54,12 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         lock (_fontLock) { if (_ownsFont) _font?.Dispose(); _font = null; }
     }
 
+    /// <summary>가장 최근 Apply에서 숨김으로 남은 원본 글 객체 수(C12).</summary>
+    public int HiddenTextCount { get; private set; }
+
     public void Apply(string pdfPath, string? password, PatchPlan plan, AnnotationAssets assets)
     {
+        HiddenTextCount = 0;
         if (plan.IsEmpty) return;
 
         // 같은 경로로 다시 저장하므로 먼저 전부 읽어 파일을 놓는다.
@@ -173,13 +178,11 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             page.Contents.PrependContent().CreateStream(System.Text.Encoding.ASCII.GetBytes("q\n"));
             var sb = new System.Text.StringBuilder("Q\n");
             int n = 1;
-            foreach (var a in group)
-            {
-                while (fonts.Elements.ContainsKey("/SedolF" + n)) n++;
-                string name = "SedolF" + n;
-                fonts.Elements["/" + name] = FontEmbedder.Embed(doc, GetFont(), a.Font);
-                sb.Append("q\n").Append(a.Content.Replace("{F}", name)).Append("Q\n");
-            }
+            // 쪽의 앱 글꼴 줄이 모두 한 서브셋을 나눠 쓴다(줄마다 글꼴 객체를 만들지 않음 — 글자 집합을 합친다).
+            while (fonts.Elements.ContainsKey("/SedolF" + n)) n++;
+            string name = "SedolF" + n;
+            fonts.Elements["/" + name] = FontEmbedder.Embed(doc, GetFont(), MergeFontUse(group.Select(a => a.Font)));
+            foreach (var a in group) sb.Append("q\n").Append(a.Content.Replace("{F}", name)).Append("Q\n");
             page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString()));
         }
     }
@@ -192,49 +195,84 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     /// </summary>
     private void ApplyContentRewrites(PdfDocument doc, IEnumerable<PageContentRewrite> rewrites, AnnotationAssets assets)
     {
-        foreach (var rw in rewrites)
+        foreach (var rw in rewrites) RewritePage(doc, rw, assets, dryRun: false);
+    }
+
+    private static FontUse MergeFontUse(IEnumerable<FontUse> uses)
+    {
+        var list = uses.ToList();
+        if (list.Count == 1) return list[0];
+        var cps = list.SelectMany(u => u.Codepoints).Distinct().OrderBy(c => c).ToImmutableArray();
+        var glyphs = list.SelectMany(u => u.Glyphs).GroupBy(g => g.Cid).Select(g => g.First()).OrderBy(g => g.Cid).ToImmutableArray();
+        return new FontUse(cps, glyphs);
+    }
+
+    /// <summary>M5 C7: 파일을 바꾸지 않고(메모리에서 해 보고 버림) 쪽마다 직접 고쳐 쓰기가 되는지 본다. 글꼴·이미지는 넣지 않는다.</summary>
+    public IReadOnlyDictionary<int, string> CheckContentRewrites(string pdfPath, string? password, IReadOnlyList<PageContentRewrite> pages, AnnotationAssets assets)
+    {
+        var bad = new Dictionary<int, string>();
+        if (pages.Count == 0) return bad;
+        byte[] bytes = File.ReadAllBytes(pdfPath);
+        using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
+        foreach (var rw in pages)
         {
-            int number = rw.PageIndex + 1;
-            if (rw.PageIndex < 0 || rw.PageIndex >= doc.Pages.Count) throw new ContentRegenerationException(number, "page out of range");
-            var page = doc.Pages[rw.PageIndex];
-            var plan = ContentRewritePlanner.Plan(rw.Edits);
-            if (!plan.Ok) throw new ContentRegenerationException(number, plan.Failure);
+            try { RewritePage(doc, rw, assets, dryRun: true); }
+            catch (ContentRegenerationException e) { bad[rw.PageIndex] = e.Reason ?? e.Message; }
+        }
+        return bad;
+    }
 
-            var loaded = PageContent.Load(page);
-            if (loaded.Data is null) throw new ContentRegenerationException(number, loaded.Failure);
-            var parsed = ContentLexer.Parse(loaded.Data);
-            var resolver = PageContent.XObjectResolver(page);
-            var seg = ContentSegmenter.Segment(parsed, resolver);
-            var map = ObjectMap.Verify(seg, rw.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
-            if (!map.Ok) throw new ContentRegenerationException(number, map.Reason);
+    private void RewritePage(PdfDocument doc, PageContentRewrite rw, AnnotationAssets assets, bool dryRun)
+    {
+        int number = rw.PageIndex + 1;
+        if (rw.PageIndex < 0 || rw.PageIndex >= doc.Pages.Count) throw new ContentRegenerationException(number, "page out of range");
+        var page = doc.Pages[rw.PageIndex];
+        var plan = ContentRewritePlanner.Plan(rw.Edits);
+        if (!plan.Ok) throw new ContentRegenerationException(number, plan.Failure);
 
-            var res = ContentRewriter.Rewrite(parsed, seg, plan.ObjectEdits, null, resolver);
-            if (!res.Ok) throw new ContentRegenerationException(number, res.Failure);
-            byte[] data = res.Data!;
+        var loaded = PageContent.Load(page);
+        if (loaded.Data is null) throw new ContentRegenerationException(number, loaded.Failure);
+        var parsed = ContentLexer.Parse(loaded.Data);
+        var resolver = PageContent.XObjectResolver(page);
+        var seg = ContentSegmenter.Segment(parsed, resolver);
+        var map = ObjectMap.Verify(seg, rw.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
+        if (!map.Ok) throw new ContentRegenerationException(number, map.Reason);
 
-            if (plan.Snippets.Count > 0)
+        var res = ContentRewriter.Rewrite(parsed, seg, plan.ObjectEdits, null, resolver);
+        if (!res.Ok) throw new ContentRegenerationException(number, res.Failure);
+        if (!dryRun) HiddenTextCount += res.HiddenTextCount;
+        byte[] data = res.Data!;
+
+        if (plan.Snippets.Count > 0)
+        {
+            var resources = page.Resources;
+            var snippets = new List<byte[]>();
+            var images = new Dictionary<string, string>();
+            int imgN = 1;
+            // 앱 글꼴 줄은 쪽마다 서브셋 하나를 나눠 쓴다(글자 집합을 합침).
+            string? appFontName = null;
+            if (!dryRun && plan.Snippets.Any(x => x.Font is not null))
             {
-                var resources = page.Resources;
-                var snippets = new List<byte[]>();
-                var images = new Dictionary<string, string>();
-                int fontN = 1, imgN = 1;
-                foreach (var sn in plan.Snippets)
+                var fonts = resources.Elements.GetDictionary("/Font");
+                if (fonts is null) { fonts = new PdfDictionary(doc); resources.Elements["/Font"] = fonts; }
+                int fontN = 1;
+                while (fonts.Elements.ContainsKey("/SedolF" + fontN)) fontN++;
+                appFontName = "SedolF" + fontN;
+                fonts.Elements["/" + appFontName] = FontEmbedder.Embed(doc, GetFont(), MergeFontUse(plan.Snippets.Where(x => x.Font is not null).Select(x => x.Font!)));
+            }
+            foreach (var sn in plan.Snippets)
+            {
+                string content = sn.Content;
+                if (sn.Para is { } ps) content += ParagraphLineBytes(number, page, parsed, seg, ps);
+                if (sn.Font is not null) content = content.Replace("{F}", appFontName ?? "SedolFDry");   // 시험 적용(dryRun)은 자리표시자만 해 본다
+                if (sn.ImageAssetId is { } assetId)
                 {
-                    string content = sn.Content;
-                    if (sn.Font is not null)
-                    {
-                        var fonts = resources.Elements.GetDictionary("/Font");
-                        if (fonts is null) { fonts = new PdfDictionary(doc); resources.Elements["/Font"] = fonts; }
-                        while (fonts.Elements.ContainsKey("/SedolF" + fontN)) fontN++;
-                        string name = "SedolF" + fontN;
-                        fonts.Elements["/" + name] = FontEmbedder.Embed(doc, GetFont(), sn.Font);
-                        content = content.Replace("{F}", name);
-                    }
-                    if (sn.ImageAssetId is { } assetId)
+                    if (!assets.HasImage(assetId)) throw new ContentRegenerationException(number, "image asset missing");
+                    if (dryRun) content = content.Replace("{I}", "SedolImDry");
+                    else
                     {
                         if (!images.TryGetValue(assetId, out var imgName))
                         {
-                            if (!assets.HasImage(assetId)) throw new ContentRegenerationException(number, "image asset missing");
                             var xobjs = resources.Elements.GetDictionary("/XObject");
                             if (xobjs is null) { xobjs = new PdfDictionary(doc); resources.Elements["/XObject"] = xobjs; }
                             while (xobjs.Elements.ContainsKey("/SedolIm" + imgN)) imgN++;
@@ -245,16 +283,46 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                         }
                         content = content.Replace("{I}", imgName);
                     }
-                    snippets.Add(System.Text.Encoding.Latin1.GetBytes(content));
                 }
-                var appended = ContentRewriter.AppendOnly(ContentLexer.Parse(data), snippets);
-                if (!appended.Ok) throw new ContentRegenerationException(number, appended.Failure);
-                data = appended.Data!;
+                snippets.Add(System.Text.Encoding.Latin1.GetBytes(content));
             }
-
-            page.Contents.Elements.Clear();
-            page.Contents.AppendContent().CreateStream(data);
+            var appended = ContentRewriter.AppendOnly(ContentLexer.Parse(data), snippets);
+            if (!appended.Ok) throw new ContentRegenerationException(number, appended.Failure);
+            data = appended.Data!;
         }
+
+        if (dryRun) return;
+        page.Contents.Elements.Clear();
+        page.Contents.AppendContent().CreateStream(data);
+    }
+
+    /// <summary>
+    /// 문단의 원래 글꼴 줄 하나를 직접 인코딩해 쓴다(M5 C8). 글꼴은 <b>이미 쪽 자원에 있는</b> 글꼴 사전을 이름으로 가리킬 뿐 새 글꼴 객체를 만들지 않는다.
+    /// 글 행렬의 기울기·크기는 원본 글 객체(내용 스트림의 Tm·CTM), 위치는 계획이 정한 기준선 원점, 색·선 굵기·투명도는 원본의 상태 연산자 그대로.
+    /// 원본 글 객체를 쓸 수 없으면(글꼴 자원 없음·클립 글 등) 이 방식을 못 쓴다 → ContentRegenerationException(호출자가 PDFium 경로로 내려감).
+    /// </summary>
+    private static string ParagraphLineBytes(int number, PdfPage page, ParsedContent parsed, Segmentation seg, ParagraphLineSnippet ps)
+    {
+        var line = ps.Line;
+        int idx = line.OriginalFontSource.OriginalIndex;
+        if (line.Encoded is null || idx < 0 || idx >= seg.Objects.Count) throw new ContentRegenerationException(number, "paragraph line source not found");
+        var src = seg.Objects[idx];
+        if (src.Kind != ObjectKind.Text || src.Text is not { } snap || snap.FontOp < 0 || snap.Tr is 3 or >= 4)
+            throw new ContentRegenerationException(number, "paragraph source text is not a plain visible text object");
+        var tf = parsed.Ops[snap.FontOp];
+        string? name = tf.Operands.FirstOrDefault(x => x.Kind == OperandKind.Name)?.Text;
+        double size = tf.Operands.LastOrDefault(x => x.Kind == OperandKind.Number)?.Number ?? 0;
+        var fonts = page.Resources?.Elements.GetDictionary("/Font");
+        if (name is null || size <= 0 || fonts?.Elements.GetDictionary("/" + name) is null)
+            throw new ContentRegenerationException(number, "paragraph source font is not in the page resources");
+
+        var tm = snap.Tm.Then(src.Ctm);
+        var placement = new Mat(tm.A, tm.B, tm.C, tm.D, line.Placement.E, line.Placement.F);
+        string fill = string.Join(' ', snap.ReplayOps.Select(k => Encoding.Latin1.GetString(parsed.Data, parsed.Ops[k].Start, parsed.Ops[k].End - parsed.Ops[k].Start)));
+        var style = new PdfEditor.ContentStream.Fonts.TextLineStyle((float)size, line.Tc, line.Tz, 0, snap.Tr, fill.Length > 0 ? fill : null);
+        var bytes = PdfEditor.ContentStream.Fonts.TextLineWriter.Write(line.TwoByte, name, new PdfEditor.ContentStream.Fonts.EncodedText(line.Text, line.Encoded, default),
+            style, placement, Math.Abs(line.JustifyExtra) > 1e-6f ? line.JustifyExtra : null);
+        return Encoding.Latin1.GetString(bytes);
     }
 
     // ---- 고치기 ----
@@ -502,3 +570,4 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     private static PdfString MakeString(string value)
         => new(value, value.All(c => c < 0x80) ? PdfStringEncoding.RawEncoding : PdfStringEncoding.Unicode);
 }
+

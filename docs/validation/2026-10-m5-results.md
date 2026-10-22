@@ -241,3 +241,28 @@ Task 1과 같은 합성 22쪽·정답표에서 문턱 0.62: 표 병합 0, 잘못
 5. 후보 창 안 장애물 읽기 상한 2,000개. 페이지 경계(`PageBounds`)는 `(0,0,쪽 크기)`로 가정한다(쪽 /CropBox가 원점이 아니거나 /Rotate가 있는 쪽에서 `Overflow` 판정이 어긋날 수 있음 — 회전 쪽은 가로·세로를 바꿔 계산, 검증 필요).
 6. 쪽 아래 겹침(`Overlap`)·줄 이음(`DecideKorean`)·`Plan`의 V14 줄별 확인 비용(줄마다 쪽을 한 번 더 열어 타일 렌더)은 큰 문단에서 느릴 수 있다 — Task 10에서 측정.
 7. 시험 표본: 합성 샘플 `doc-en-left`(영문 TrueType Identity-H)·`doc-ko-left-wordwrap`(한글)에서 원래 글꼴 경로를 확인했다. 실제 PDF와 도면(ToUnicode 없는 CFF를 배워서 쓰는 경로)에서의 계획은 아직 시험하지 않았다(검증 필요).
+
+## Task 6 — 저장: 직접 인코딩 덧붙임·지운 글 제거·경로 선택 (2026-10-22, Sonnet)
+구현: `ContentStream/ContentRewriter.cs`(글 완전 제거), `ContentStream/Fonts/TextLineWriter.cs`(코드북 없이 쓰는 오버로드), `Appearance/Patching/{ContentRewritePlanner,PdfSharpAnnotationPatcher}.cs`(문단 편집 접기·원래 글꼴 줄 직접 쓰기·시험 적용), `Document/Output/OutputCopyBuilder.cs`(C7 경로 선택·충실도 보호 마스크), `Document/Content/{ContentEdit,ContentReplayer}.cs`, `Document/Annotations/Patching/{IAnnotationPatcher,PatchPlanBuilder}.cs`, `TextEdit/Paragraphs/ParagraphEditPlanner.cs`. 시험: `tests/PdfEditor.ContentStream.Tests/ParagraphRemovalTests.cs` 7개, `tests/PdfEditor.TextEdit.Tests/Paragraphs/ParagraphSaveTests.cs` 13개(계획서의 `tests/PdfEditor.Document.Tests/Output/`가 아니라 TextEdit 시험 프로젝트에 둠 — 문단 계획기가 필요해서). 전체 `dotnet test PdfEditor.sln` 통과(실패 0; ContentStream 72·Document 262·TextEdit 150·App 527 …). M4/M4x 저장 시험 변화 없음.
+
+### 동작
+- **C12 지운 글 완전 제거:** `DisableObject(index, RemoveText: true)`. 지울 글 뒤의 첫 글 보이기가 `Tm/Td/TD/T*/'/"`로 자리를 새로 잡거나 `ET/BT`·끝이 먼저 오면 연산자째 삭제(`'`는 `T*`, `"`는 `aw Tw ac Tc T*`를 남김). `Tj/TJ`가 이어 쓰면 그 글도 함께 지워지고 안전할 때만 삭제(연쇄 판정), 아니면 지금의 `3 Tr` 숨김. `RewriteResult.DeletedTextCount/HiddenTextCount` → `PdfSharpAnnotationPatcher.HiddenTextCount` → `OutputCopy.HiddenTextCount`(화면 알림 문구는 Task 8). **문단 편집이 끄는 원본에만 켠다** — M4x의 일반 글 지우기(`RemoveText` 꺼짐)는 이전과 같이 숨김이라 M4/M4x 저장 바이트가 달라지지 않는다(원하면 같은 플래그를 켜는 한 줄 변경 — 사용자 결정 거리).
+- **원래 글꼴 줄 덧붙임:** 계획 때 코드북으로 인코딩한 글 코드(`ParagraphTextLine.Encoded`, `TwoByte`)를 저장이 그대로 쓴다(PDFium·ToUnicode 학습 불필요). 저장 단계(`ParagraphLineBytes`)는 원본 글 객체에서 글꼴 자원 **이름**(이미 쪽 `/Resources /Font`에 있는 것)·`Tf` 크기·`Tm·CTM`의 기울기/크기·색/굵기/투명도 상태 연산자(`ReplayOps`)를 읽고, 위치만 계획한 기준선 원점으로 바꿔 `TextLineWriter`로 쓴다 → **새 글꼴 객체 없음**(시험 `OriginalFontLine_ReusesExistingFontDictionary`: 글꼴 객체 수·쪽 글꼴 이름 동일).
+- **앱 글꼴 줄:** 쪽의 앱 글꼴 줄(문단 여러 줄 포함)이 서브셋 **하나**를 나눠 쓴다(글자 집합 합침, `MergeFontUse`). M4 PDFium 경로의 `AppendPageContents`도 같은 방식으로 바뀌어 줄마다 글꼴 객체를 만들던 것이 쪽당 하나가 됨(바이트는 줄어든다).
+- **C7 경로 선택(`OutputCopyBuilder.RegenerateContent`):** 문단 편집이 있는 쪽 → ① 사본에서 PDFium 객체 목록을 읽고 패처의 `IContentRewriteProbe.CheckContentRewrites`(파일은 안 바꾸는 시험 적용: 번호 대응·글꼴 자원·상태 해석까지)로 확인 → 되면 내용 스트림 직접 쓰기 ② 거절된 쪽만 PDFium 경로(`ReplayMode.OutputPdfium`: 끄기 + 원래 글꼴 줄을 PDFium 글 객체로 + 기존 충실도 보호/색 정규화 재시도) ③ PDFium 경로도 모양이 달라지면 `ContentRegenerationException`(쪽 번호 + "paragraph edit: direct text writing was rejected (이유) and the PDFium path changed the look")로 저장 거절. 암호 문서는 문단 편집 자체가 계획 단계에서 거절(`Refused(Encrypted)`). 문단 편집이 없으면 새 코드는 실행되지 않는다(시험 `NoParagraphEdits_NoCostAndBytesIdentical`). 이전의 "문단 편집은 저장 거절" 가드와 그 시험(`OutputBuilder_RefusesParagraphEditsUntilTask6`)은 없앴다.
+- **충실도 보호:** 직접 쓴 쪽도 기존대로 "화면 replay 모양(메모리) ≡ 저장 파일을 다시 연 모양"을 비교한다. 단 화면의 PDFium 글 객체는 자간(Tc)·가로 비율(Tz)·양쪽 맞춤 늘임을 못 그리므로(Task 5 한계 1) 그런 줄 주변 띠(줄 높이 3 em × 문단 상자 폭 양쪽)는 비교에서 뺀다(`MaskInfo`, 쪽 회전 반영). 그 띠 밖은 그대로 엄격하다.
+
+### 수치·확인한 것
+- 합성 `doc-en-left`: 한 낱말(같은 길이)을 고쳐 저장 → 그 줄만 바뀌고 문단 상자 밖 0 px 차이(`ParagraphPage_ContentRewritePath_UntouchedRegion_ZeroPixelDiff`), 원본 내용 바이트가 그대로 포함됨(PDFium이 쪽을 다시 쓰지 않았다는 증거), 저장 파일에서 옛 줄 글 추출 불가·새 줄 추출 가능, `3 Tr` 없음.
+- 셰이딩(`sh`)·패턴(채우기+선) 쪽(M4x 알려진 한계, 400×400 Helvetica 5줄 문단): 문단 편집 저장 성공, 상자 밖 0 px(셰이딩 포함). 객체 번호 대응 거절을 흉내 내면(`RejectingProbe`) PDFium 경로를 시도하고 모양이 달라져 저장 거절 + 이유 노출(`BothPathsRejected_SaveRefused_WithReason`).
+- 3회 저장 내용 동일, 편집→저장→실행 취소→저장 내용이 편집 없는 저장과 같음, 저장 뒤 재렌더 ≡ 화면 렌더(0 px).
+
+### 알려진 한계·검증 필요
+1. **글 순서:** 직접 쓴 새 줄은 쪽 맨 위(마지막)에 그려진다. 화면 replay는 원본 줄 바로 뒤에 넣으므로, 문단 위로 다른 도형이 덮고 있던 드문 쪽에서 겹침 순서가 다를 수 있다(보호 비교가 잡으면 저장 거절).
+2. **Tw(낱말 간격)·Ts(글 올림):** 새 줄은 `Tw 0`·`Ts 0`으로 쓴다. 원본 줄이 Tw/Ts를 쓰던 문서에서 줄 폭이 조금 다르거나 올림이 빠질 수 있다 — 실제 PDF에서 확인 못 함.
+3. **색:** 원본의 색 상태 연산자를 그대로 재생하므로 CMYK/그레이 글도 같은 색 공간으로 나가지만 `Tr` 1·2(선 있는 글)의 선 굵기는 상태에 있던 `w`에 의존한다. 글 클립(Tr ≥ 4)·보이지 않는 글(Tr 3)은 이 방식을 안 쓴다(PDFium 경로).
+4. 저장 단계 시험 적용은 `PdfReader.Open(Modify)`를 한 번 더 한다(문단 편집이 있는 쪽이 있을 때만; 큰 파일에서 비용은 측정 못 함 — Task 10).
+5. 양쪽 맞춤 문단의 직접 쓰기(`TJ` 숫자 조정)는 합성 `doc-en-justified`로 저장이 성공함만 확인했다. 다른 뷰어(Acrobat·Chrome·Foxit·PDF-XChange)에서의 `TJ` 모양은 사용자 확인 필요(`spikes/out/m5-v20-*.pdf`와 같은 검증).
+6. PDFium 바닥 경로(`OutputPdfium`)는 자간·양쪽 맞춤 늘임·Tz를 쓰지 못한다(PDFium에 쓰기 API 없음) — 이 경로로 내려간 양쪽 맞춤 문단은 왼쪽 맞춤처럼 저장된다. 실제로 내려가는 비율은 실제 PDF로 못 재었다.
+7. `HiddenTextCount` 알림 문구와 표시는 화면 Task(8)가 한다. 현재는 `OutputCopy.HiddenTextCount`로만 노출.
+8. 문단 안 원래 글꼴 줄 + 앱 글꼴 줄이 한 쪽에 섞이면 앱 글꼴 줄은 맨 뒤에 그려진다(M4 규칙과 같음).

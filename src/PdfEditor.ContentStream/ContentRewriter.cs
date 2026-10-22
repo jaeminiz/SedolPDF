@@ -5,8 +5,11 @@ namespace PdfEditor.ContentStream;
 /// <summary>객체에 하는 편집. 번호는 <see cref="Segmentation.Objects"/>의 번호(= 검증된 PDFium 객체 번호).</summary>
 public abstract record ObjectEdit(int ObjectIndex);
 
-/// <summary>객체를 안 보이게 한다(경로: 칠하기/선 → `n`, 글: `3 Tr`로 감싸 글자 폭은 유지, 그림·셰이딩: 삭제).</summary>
-public sealed record DisableObject(int ObjectIndex) : ObjectEdit(ObjectIndex);
+/// <summary>
+/// 객체를 안 보이게 한다(경로: 칠하기/선 → `n`, 글: `3 Tr`로 감싸 글자 폭은 유지, 그림·셰이딩: 삭제).
+/// <paramref name="RemoveText"/>(M5 C12)이면 글은 가능할 때 보이기 연산자째 지워 문자열이 파일에 남지 않게 한다 — 뒤의 글 위치가 이 글의 이동량에 기대면 숨김으로 내려간다.
+/// </summary>
+public sealed record DisableObject(int ObjectIndex, bool RemoveText = false) : ObjectEdit(ObjectIndex);
 
 /// <summary>객체를 쪽 공간 변환 <see cref="Then"/>(원래 모양에 이어서 적용)만큼 옮기거나 키운다.</summary>
 public sealed record TransformObject(int ObjectIndex, Mat Then) : ObjectEdit(ObjectIndex);
@@ -16,6 +19,10 @@ public sealed class RewriteResult
     public bool Ok => Failure is null;
     public string? Failure { get; init; }
     public byte[]? Data { get; init; }
+    /// <summary>연산자째 지운 글 객체 수(M5 C12).</summary>
+    public int DeletedTextCount { get; init; }
+    /// <summary>지우려 했지만 뒤 글이 이동량에 기대어 `3 Tr` 숨김으로 내려간 글 객체 수 — 0보다 크면 옛 글이 파일에 보이지 않는 글자로 남는다.</summary>
+    public int HiddenTextCount { get; init; }
 }
 
 /// <summary>
@@ -41,7 +48,8 @@ public static class ContentRewriter
         void Replace(int start, int end, string s) => pieces.Add(new Piece(start, end, Latin1(s), OrderOpen, seq++));
 
         var seen = new HashSet<int>();
-        int textCopies = 0;
+        int textCopies = 0, deletedText = 0, hiddenText = 0;
+        var deletable = DeletableTexts(pc, seg, edits);
         var removedKinds = new Dictionary<ObjectKind, int>();
         foreach (var edit in edits)
         {
@@ -60,6 +68,17 @@ public static class ContentRewriter
                             break;
                         case ObjectKind.Text:
                             if (obj.Text!.Tr >= 4) return Fail($"object {edit.ObjectIndex}: text render mode {obj.Text.Tr} clips; cannot hide");
+                            if (edit is DisableObject { RemoveText: true })
+                            {
+                                if (deletable.Contains(obj.OpIndex))
+                                {
+                                    Replace(main.Start, main.End, ShowReplacement(data, main));
+                                    Bump(removedKinds, ObjectKind.Text);
+                                    deletedText++;
+                                    break;
+                                }
+                                if (obj.Text.Tr != 3) hiddenText++;
+                            }
                             if (obj.Text.Tr != 3) HideText(obj, main, Insert);
                             break;
                         default:
@@ -128,14 +147,14 @@ public static class ContentRewriter
             var actual = Counts(re.Objects.Select(o => o.Kind));
             foreach (var k in Enum.GetValues<ObjectKind>())
                 if (expected.GetValueOrDefault(k) != actual.GetValueOrDefault(k)) return Fail($"object count of {k} is {actual.GetValueOrDefault(k)}, expected {expected.GetValueOrDefault(k)}");
-            return new RewriteResult { Data = composed };
+            return new RewriteResult { Data = composed, DeletedTextCount = deletedText, HiddenTextCount = hiddenText };
         }
 
         var final = Append(composed, origProfile, appends);
         if (final is null) return Fail("cannot append: unbalanced content");
         var check = ContentLexer.Parse(final);
         if (!check.Ok) return Fail("appended result does not parse: " + check.Failure);
-        return new RewriteResult { Data = final };
+        return new RewriteResult { Data = final, DeletedTextCount = deletedText, HiddenTextCount = hiddenText };
     }
 
     /// <summary>쪽 맨 끝에 `q … Q`로 감싼 조각을 덧붙인다(앞 상태를 이어받지 않도록 필요하면 열려 있는 q/BT를 먼저 닫는다).</summary>
@@ -150,6 +169,42 @@ public static class ContentRewriter
     }
 
     // ---- 내부 ----
+
+    /// <summary>
+    /// 연산자째 지워도 뒤 글 위치가 변하지 않는 글 보이기 연산자 번호들(C12). 지울 글 바로 뒤의 글 보이기가 Tm/Td/TD/T*/'/"로 자리를 새로 잡거나 ET/BT(또는 끝)가 먼저 오면 안전하고,
+    /// Tj/TJ가 그대로 이어 쓰면 그 글이 이 글의 이동량에 기댄다 — 이어 쓰는 글도 함께 지워지고 그 글도 안전할 때만 안전하다.
+    /// </summary>
+    private static HashSet<int> DeletableTexts(ParsedContent pc, Segmentation seg, IReadOnlyList<ObjectEdit> edits)
+    {
+        var remove = new SortedSet<int>();
+        foreach (var e in edits)
+            if (e is DisableObject { RemoveText: true } && e.ObjectIndex >= 0 && e.ObjectIndex < seg.Objects.Count
+                && seg.Objects[e.ObjectIndex] is { Kind: ObjectKind.Text, Text: { Tr: < 4 } } o)
+                remove.Add(o.OpIndex);
+        var safe = new HashSet<int>();
+        var ops = pc.Ops;
+        foreach (int i in remove.Reverse())
+        {
+            bool ok = true;
+            for (int j = i + 1; j < ops.Count; j++)
+            {
+                string n = ops[j].Name;
+                if (n is "Tm" or "Td" or "TD" or "T*" or "'" or "\"" or "ET" or "BT") break;
+                if (n is "Tj" or "TJ") { ok = remove.Contains(j) && safe.Contains(j); break; }
+            }
+            if (ok) safe.Add(i);
+        }
+        return safe;
+    }
+
+    /// <summary>글 보이기 연산자를 지운 자리에 남길 것: `'`는 줄 이동만(`T*`), `"`는 낱말·글자 간격 지정과 줄 이동, 나머지는 빈칸.</summary>
+    private static string ShowReplacement(byte[] data, ContentOp show)
+    {
+        if (show.Name == "'") return "T*";
+        if (show.Name == "\"" && show.Operands.Count >= 3)
+            return $"{Latin1S(data, show.Operands[0].Start, show.Operands[0].End)} Tw {Latin1S(data, show.Operands[1].Start, show.Operands[1].End)} Tc T*";
+        return " ";
+    }
 
     private static void HideText(PageObject obj, ContentOp show, Action<int, string, int> insert)
     {

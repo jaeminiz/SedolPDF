@@ -3,7 +3,13 @@ using Pdf.Native;
 namespace PdfEditor.Document.Content;
 
 /// <summary>화면용(앱 글꼴 줄을 윤곽선 경로로) 또는 출력용(앱 글꼴 줄은 건너뜀 — 패치 단계가 진짜 글자로 씀).</summary>
-public enum ReplayMode { Screen, Output }
+public enum ReplayMode
+{
+    Screen,
+    Output,
+    /// <summary>출력 + 문단 편집의 원래 글꼴 새 줄을 PDFium 글 객체로 넣는다(M5 C7의 바닥 경로: 내용 스트림 직접 쓰기가 안 되는 쪽). 앱 글꼴 줄은 여전히 패치 단계가 쓴다.</summary>
+    OutputPdfium,
+}
 
 /// <summary>replay 뒤 객체를 찾는 표. Originals[i] = 원본 i번 객체, Inserted[id] = 편집 id가 넣은 객체.</summary>
 public sealed class ReplayResult(IReadOnlyList<PdfPageObject> originals, IReadOnlyDictionary<long, PdfPageObject> inserted, int skipped)
@@ -157,7 +163,7 @@ public static class ContentReplayer
         int skipped = 0;
         foreach (var r in rp.Remove)
             if (result.Resolve(r) is { } o) o.IsActive = false; else skipped++;
-        if (mode != ReplayMode.Screen) return skipped;
+        if (mode == ReplayMode.Output) return skipped;
         foreach (var line in rp.OriginalFontLines)
         {
             if (line.OriginalFontSource.IsInserted || result.Resolve(line.OriginalFontSource) is not { } src || page.CreateTextLike(src, line.Text) is not { } nt)

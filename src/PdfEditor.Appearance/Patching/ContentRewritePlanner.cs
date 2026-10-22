@@ -7,7 +7,10 @@ using PdfEditor.Document.Content;
 namespace PdfEditor.Appearance.Patching;
 
 /// <summary>쪽 끝에 덧붙일 새 객체 하나. Content의 "{F}"는 글꼴 자원 이름, "{I}"는 이미지 XObject 이름으로 바뀐다.</summary>
-public sealed record NewSnippet(string Content, FontUse? Font, string? ImageAssetId);
+/// <summary>문단 편집의 원래 글꼴 줄(M5). 저장 단계가 원본 내용 스트림의 글 객체 <c>Line.OriginalFontSource</c>에서 글꼴 자원 이름·글 상태를 읽어 직접 쓴다. </summary>
+public sealed record ParagraphLineSnippet(ParagraphTextLine Line);
+
+public sealed record NewSnippet(string Content, FontUse? Font, string? ImageAssetId, ParagraphLineSnippet? Para = null);
 
 /// <summary>한 쪽의 편집 기록을 내용 스트림 고쳐 쓰기용으로 풀어 놓은 것(M4x). <see cref="Failure"/>가 있으면 이 방식으로 저장할 수 없다.</summary>
 public sealed class ContentRewritePlan
@@ -29,10 +32,11 @@ public static class ContentRewritePlanner
     private sealed class Ins
     {
         public required int Order;
-        public required char Kind;   // S 도형, I 이미지, T 앱 글꼴 줄
+        public required char Kind;   // S 도형, I 이미지, T 앱 글꼴 줄, P 문단의 원래 글꼴 줄
         public ShapeSpec? Shape;
         public InsertImageEdit? Image;
         public InsertAppTextEdit? Text;
+        public ParagraphTextLine? Para;
         public Mat M = Mat.Identity;
         public bool Disabled;
     }
@@ -41,6 +45,7 @@ public static class ContentRewritePlanner
     {
         var origDisabled = new HashSet<int>();
         var origThen = new Dictionary<int, Mat>();
+        var textRemoved = new HashSet<int>();   // 문단 편집이 끄는 원본 객체: 글이면 완전 제거를 시도
         var ins = new Dictionary<long, Ins>();
         int order = 0;
         foreach (var e in edits)
@@ -50,6 +55,25 @@ public static class ContentRewritePlanner
                 case InsertShapeEdit sh: ins[sh.Id] = new Ins { Order = order++, Kind = 'S', Shape = sh.Shape }; break;
                 case InsertImageEdit im: ins[im.Id] = new Ins { Order = order++, Kind = 'I', Image = im }; break;
                 case InsertAppTextEdit at: ins[at.Id] = new Ins { Order = order++, Kind = 'T', Text = at }; break;
+                case ReplaceParagraphEdit pe:
+                    // 끄기: 문단이 대체하는 원본 글 — 문자열이 파일에 남지 않게 연산자째 지운다(C12, 안전하지 않으면 숨김).
+                    foreach (var rf in pe.Remove)
+                    {
+                        if (rf.IsInserted)
+                        {
+                            if (ins.TryGetValue(rf.InsertedId, out var rt)) rt.Disabled = true; else return Fail("paragraph removes an unknown inserted object");
+                        }
+                        else { origDisabled.Add(rf.OriginalIndex); textRemoved.Add(rf.OriginalIndex); }
+                    }
+                    foreach (var ln in pe.OriginalFontLines)
+                    {
+                        if (ln.Encoded is null || ln.OriginalFontSource.IsInserted)
+                            return Fail("paragraph line has no direct text encoding (needs the PDFium path)");
+                        ins[ln.LineId] = new Ins { Order = order++, Kind = 'P', Para = ln };
+                    }
+                    for (int i = 0; i < pe.AppLines.Length; i++)
+                        ins[pe.AppLineIds[i]] = new Ins { Order = order++, Kind = 'T', Text = new InsertAppTextEdit(pe.AppLineIds[i], pe.AppLines[i]) };
+                    break;
                 case InsertTextLikeEdit: return Fail("inserting text in the original font needs the PDFium path (app font only here)");
                 case DeactivateEdit d:
                     if (d.Target.IsInserted)
@@ -82,7 +106,7 @@ public static class ContentRewritePlanner
         var objEdits = new List<ObjectEdit>();
         foreach (int i in origDisabled.Union(origThen.Keys).OrderBy(x => x))
         {
-            if (origDisabled.Contains(i)) objEdits.Add(new DisableObject(i));
+            if (origDisabled.Contains(i)) objEdits.Add(new DisableObject(i, textRemoved.Contains(i)));
             else if (origThen[i] != Mat.Identity) objEdits.Add(new TransformObject(i, origThen[i]));
         }
 
@@ -101,6 +125,9 @@ public static class ContentRewritePlanner
                 if (x.M != Mat.Identity) sb.Append(Ops(x.M)).Append(" cm\n");
                 Shape(sb, x.Shape!);
                 return new NewSnippet(sb.ToString(), null, null);
+            case 'P':
+                if (x.M != Mat.Identity) sb.Append(Ops(x.M)).Append(" cm\n");
+                return new NewSnippet(sb.ToString(), null, null, new ParagraphLineSnippet(x.Para!));
             case 'I':
             {
                 var p = ToMat(x.Image!.Placement).Then(x.M);

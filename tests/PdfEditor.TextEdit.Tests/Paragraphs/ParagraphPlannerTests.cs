@@ -357,15 +357,4 @@ public sealed class ParagraphPlannerTests : IDisposable
             Assert.Equal(expect, got);
         }
     }
-
-    [Fact]
-    public async Task OutputBuilder_RefusesParagraphEditsUntilTask6()
-    {
-        var (s, page, m) = await OpenParagraph("doc-en-left");
-        var ed = ReverseWord(m)!.Value;
-        var plan = await Plan(s, page, m, ed.Edited, Font.Value);
-        await s.Commands.ExecuteAsync(plan.ToCommand(page)!);
-        var b = new PdfEditor.Document.Output.OutputCopyBuilder(null, null, null);
-        await Assert.ThrowsAsync<NotSupportedException>(() => b.BuildAsync(s, Path.Combine(_dir, "out.pdf")));
-    }
 }

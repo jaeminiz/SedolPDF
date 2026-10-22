@@ -70,7 +70,9 @@ public sealed record SetShapeStyleEdit(long Id, ObjectRef Target, ShapeStyle Sty
 /// Tc·Tz·JustifyExtra·OrigRenderMode는 저장(직접 인코딩, Task 6)이 쓴다 — 화면 replay의 PDFium 글 객체는 자간·맞춤 늘임을 그리지 못한다(한계).
 /// </summary>
 public sealed record ParagraphTextLine(long LineId, string Text, PdfMatrix Placement, float SizePt, PdfEditor.Document.Annotations.PdfColor Color,
-    ObjectRef OriginalFontSource, float Tc, float Tz, float JustifyExtra, int OrigRenderMode);
+    ObjectRef OriginalFontSource, float Tc, float Tz, float JustifyExtra, int OrigRenderMode,
+    byte[]? Encoded = null, bool TwoByte = false);
+// Encoded = 원래 글꼴 코드북으로 인코딩한 글 코드 바이트(계획 때 정함 — 저장은 PDFium 없이 이것을 그대로 쓴다). null이면 직접 쓰기 불가(PDFium 경로로 내려간다).
 
 /// <summary>다시 편집(원본 문단 재추정 없이)에 쓰는 문단 정보. Model은 TextEdit의 ParagraphModel(Document는 TextEdit를 모르므로 불투명 개체로 보관).</summary>
 public sealed record ParagraphMeta(PdfRectF Box, string OriginalText, string NewText, string Align, string FontKey, float Leading, object? Model);
