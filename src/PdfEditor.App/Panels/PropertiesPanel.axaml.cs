@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -190,10 +190,44 @@ public sealed partial class PropertiesPanel : UserControl
     }
 
     private void Rebuild(WrapPanel host, PdfColor? current, bool includeNone, bool noneSelected, Action<PdfColor?> onPick)
+        => FillColorChoices(host, _vm!.Swatches, current, includeNone, noneSelected, onPick);
+
+    /// <summary>이번 실행에서 "다른 색…"으로 고른 색(최근 것이 앞, 최대 8개). 견본 줄에 이어서 보인다.</summary>
+    internal static readonly List<PdfColor> RecentCustom = [];
+
+    /// <summary>견본 줄을 채운다: (없음) → 기본 견본 → 최근 고른 색 → 지금 색(목록에 없으면) → "다른 색…" 단추.</summary>
+    internal static void FillColorChoices(WrapPanel host, IReadOnlyList<PdfColor> swatches, PdfColor? current, bool includeNone, bool noneSelected, Action<PdfColor?> onPick)
     {
         host.Children.Clear();
         if (includeNone) host.Children.Add(MakeSwatch(null, noneSelected, onPick));
-        foreach (var c in _vm!.Swatches) host.Children.Add(MakeSwatch(c, current == c, onPick));
+        foreach (var c in swatches) host.Children.Add(MakeSwatch(c, current == c, onPick));
+        foreach (var c in RecentCustom.Where(x => !swatches.Contains(x))) host.Children.Add(MakeSwatch(c, current == c, onPick));
+        if (current is { } cur && !swatches.Contains(cur) && !RecentCustom.Contains(cur)) host.Children.Add(MakeSwatch(cur, true, onPick));
+        host.Children.Add(MakeMoreButton(host, current, onPick));
+    }
+
+    internal static Button MakeMoreButton(Control anchor, PdfColor? current, Action<PdfColor?> onPick)
+    {
+        var b = new Button
+        {
+            Width = 22, Height = 22, Margin = new Thickness(0, 4, 4, 0), Padding = new Thickness(0),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xC8)), BorderThickness = new Thickness(1),
+            Content = new TextBlock { Text = "+", FontSize = 14, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+        };
+        Avalonia.Automation.AutomationProperties.SetName(b, PdfEditor.App.Resources.Strings.Tip_MoreColors);
+        ToolTip.SetTip(b, PdfEditor.App.Resources.Strings.Tip_MoreColors);
+        b.Click += async (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(anchor) as Window is not { } owner) return;
+            var dlg = new PdfEditor.App.Dialogs.ColorPickerDialog(current ?? new PdfColor(0, 0, 0));
+            var picked = await dlg.ShowDialog<PdfColor?>(owner);
+            if (picked is not { } c) return;
+            RecentCustom.Remove(c);
+            RecentCustom.Insert(0, c);
+            if (RecentCustom.Count > 8) RecentCustom.RemoveRange(8, RecentCustom.Count - 8);
+            onPick(c);
+        };
+        return b;
     }
 
     internal static Button MakeSwatch(PdfColor? c, bool selected, Action<PdfColor?> onPick)

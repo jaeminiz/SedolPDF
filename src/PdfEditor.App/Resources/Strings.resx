@@ -476,4 +476,9 @@ Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value
   <data name="About_ThirdList" xml:space="preserve"><value>PDFium (BSD-3-Clause) · PDFsharp (MIT) · Avalonia (MIT) · HarfBuzzSharp (MIT) · CommunityToolkit.Mvvm (MIT) · Noto Sans KR 글꼴 (SIL OFL 1.1). 자세한 고지는 아래 &quot;타사 고지 보기&quot;에서 볼 수 있습니다.</value></data>
   <data name="Tip_TabScrollLeft" xml:space="preserve"><value>왼쪽 탭 보기</value></data>
   <data name="Tip_TabScrollRight" xml:space="preserve"><value>오른쪽 탭 보기</value></data>
+  <data name="Dlg_ColorTitle" xml:space="preserve"><value>색 고르기</value></data>
+  <data name="Dlg_ColorHex" xml:space="preserve"><value>16진수</value></data>
+  <data name="Dlg_ColorOld" xml:space="preserve"><value>지금 색</value></data>
+  <data name="Dlg_ColorNew" xml:space="preserve"><value>새 색</value></data>
+  <data name="Tip_MoreColors" xml:space="preserve"><value>다른 색 고르기…</value></data>
 </root>

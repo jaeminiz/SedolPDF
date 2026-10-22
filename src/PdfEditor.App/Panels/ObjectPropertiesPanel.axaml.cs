@@ -100,8 +100,6 @@ public sealed partial class ObjectPropertiesPanel : UserControl
 
     private void Rebuild(WrapPanel host, PdfColor? current, bool includeNone, Action<PdfColor?> onPick)
     {
-        host.Children.Clear();
-        if (includeNone) host.Children.Add(PropertiesPanel.MakeSwatch(null, current is null, onPick));
-        foreach (var c in _vm!.Swatches) host.Children.Add(PropertiesPanel.MakeSwatch(c, current == c, onPick));
+        PropertiesPanel.FillColorChoices(host, _vm!.Swatches, current, includeNone, current is null, onPick);
     }
 }

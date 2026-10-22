@@ -475,4 +475,9 @@ public static class Strings
     public static string About_ThirdList => Get(nameof(About_ThirdList));
     public static string Tip_TabScrollLeft => Get(nameof(Tip_TabScrollLeft));
     public static string Tip_TabScrollRight => Get(nameof(Tip_TabScrollRight));
+    public static string Dlg_ColorTitle => Get(nameof(Dlg_ColorTitle));
+    public static string Dlg_ColorHex => Get(nameof(Dlg_ColorHex));
+    public static string Dlg_ColorOld => Get(nameof(Dlg_ColorOld));
+    public static string Dlg_ColorNew => Get(nameof(Dlg_ColorNew));
+    public static string Tip_MoreColors => Get(nameof(Tip_MoreColors));
 }

@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using PdfEditor.App.Panels;
@@ -100,8 +100,7 @@ public sealed partial class FormatTab : UserControl
 
     private void Rebuild(WrapPanel host, PdfColor? current, Action<PdfColor?> onPick)
     {
-        host.Children.Clear();
-        foreach (var c in _props!.Swatches) host.Children.Add(PropertiesPanel.MakeSwatch(c, current == c, onPick));
+        PropertiesPanel.FillColorChoices(host, _props!.Swatches, current, includeNone: false, noneSelected: false, onPick);
     }
 
     private static void SelectEnding(ComboBox box, LineEnding e)
