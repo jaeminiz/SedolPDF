@@ -177,7 +177,7 @@ public class AnnotationToolsTests : IAsyncLifetime
         vm.Commands.Find("annot.pencil")!.Command.Execute(null);
         Assert.Equal(ToolKind.Pencil, tab.Tool);
         var buttons = vm.CurrentRibbonGroups.SelectMany(g => g.Items).SelectMany(b => b.MoreItems is { } m ? m.Prepend(b) : [b])
-            .Where(b => b.Tool is { } t && t is not ToolKind.Hand && !AnnotationToolController.IsPatchTool(t)).ToList();
+            .Where(b => b.Tool is { } t && t is not ToolKind.Hand and not ToolKind.TextSelect && !AnnotationToolController.IsPatchTool(t)).ToList();
         Assert.NotEmpty(buttons);
         foreach (var b in buttons) Assert.True(b.Tip is null || (b.IconOnly && b.Tip == b.Label), b.Command.Id);   // 그림만 있는 단추는 이름이 툴팁
         tab.Detach();

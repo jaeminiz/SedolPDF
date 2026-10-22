@@ -141,6 +141,16 @@ public static class Strings
     public static string Group_Shapes => Get(nameof(Group_Shapes));
     public static string Msg_SnapshotFailed => Get(nameof(Msg_SnapshotFailed));
     public static string Msg_SnapshotCopied => Get(nameof(Msg_SnapshotCopied));
+    public static string Tip_TextSelect => Get(nameof(Tip_TextSelect));
+    public static string Status_RectSelectHint => Get(nameof(Status_RectSelectHint));
+    public static string Ctx_Copy => Get(nameof(Ctx_Copy));
+    public static string Ctx_SelectAll => Get(nameof(Ctx_SelectAll));
+    public static string Ctx_Highlight => Get(nameof(Ctx_Highlight));
+    public static string Ctx_Underline => Get(nameof(Ctx_Underline));
+    public static string Ctx_Strikeout => Get(nameof(Ctx_Strikeout));
+    public static string Ctx_FindSelected => Get(nameof(Ctx_FindSelected));
+    public static string Ctx_HandTool => Get(nameof(Ctx_HandTool));
+    public static string Ctx_TextSelectTool => Get(nameof(Ctx_TextSelectTool));
     public static string Tip_Snapshot => Get(nameof(Tip_Snapshot));
     public static string Cmd_Snapshot => Get(nameof(Cmd_Snapshot));
     public static string Group_Capture => Get(nameof(Group_Capture));

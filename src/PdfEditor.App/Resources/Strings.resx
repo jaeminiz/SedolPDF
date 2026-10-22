@@ -417,6 +417,16 @@
   <data name="Group_QuickAnnot" xml:space="preserve"><value>자주 쓰는 주석</value></data>
   <data name="Group_Capture" xml:space="preserve"><value>복사</value></data>
   <data name="Cmd_Snapshot" xml:space="preserve"><value>스냅숏</value></data>
+  <data name="Tip_TextSelect" xml:space="preserve"><value>글줄을 따라 끌면 읽는 순서로 선택합니다. Alt를 누른 채 끌면 사각형 안의 글자만 선택합니다</value></data>
+  <data name="Status_RectSelectHint" xml:space="preserve"><value>Alt+끌기: 사각형으로 글 선택</value></data>
+  <data name="Ctx_Copy" xml:space="preserve"><value>복사</value></data>
+  <data name="Ctx_SelectAll" xml:space="preserve"><value>모두 선택</value></data>
+  <data name="Ctx_Highlight" xml:space="preserve"><value>선택한 글 강조</value></data>
+  <data name="Ctx_Underline" xml:space="preserve"><value>선택한 글에 밑줄</value></data>
+  <data name="Ctx_Strikeout" xml:space="preserve"><value>선택한 글에 취소선</value></data>
+  <data name="Ctx_FindSelected" xml:space="preserve"><value>선택한 글 찾기</value></data>
+  <data name="Ctx_HandTool" xml:space="preserve"><value>손 도구로 바꾸기</value></data>
+  <data name="Ctx_TextSelectTool" xml:space="preserve"><value>글 선택 도구로 바꾸기</value></data>
   <data name="Tip_Snapshot" xml:space="preserve"><value>끌어서 고른 영역을, 그냥 클릭하면 그 쪽 전체를 그림으로 클립보드에 복사합니다</value></data>
   <data name="Msg_SnapshotCopied" xml:space="preserve"><value>고른 영역을 그림으로 클립보드에 복사했습니다.</value></data>
   <data name="Msg_SnapshotFailed" xml:space="preserve"><value>스냅숏을 클립보드에 넣지 못했습니다.</value></data>

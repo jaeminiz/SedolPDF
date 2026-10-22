@@ -243,10 +243,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         LoadVisiblePanels();
     }
 
+    /// <summary>상태줄 안내: 글 선택 도구일 때만 사각형 선택(Alt+끌기)을 알린다.</summary>
+    public string TextSelectHint => ActiveDocument?.Tool == ToolKind.TextSelect ? Strings.Status_RectSelectHint : "";
+
     /// <summary>활성 문서의 도구와 같은 도구 단추를 켜진 상태로 보인다.</summary>
     private void RefreshToolButtons()
     {
         var tool = ActiveDocument?.Tool;
+        OnPropertyChanged(nameof(TextSelectHint));
         foreach (var b in _toolButtons)
         {
             b.IsChecked = tool is not null && b.Tool == tool;
@@ -350,6 +354,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         };
         var search = tab.Search = new SearchViewModel(tab);
         tab.NoticeRequested += msg => { _ = _prompts!.ShowInfoAsync(msg); };
+        // 우클릭 메뉴의 "선택한 글 찾기": 검색 패널을 열고 그 글로 바로 찾는다.
+        tab.FindTextRequested += text =>
+        {
+            if (!ReferenceEquals(ActiveDocument, tab)) return;
+            search.Query = text;
+            ActiveLeftPanel = PanelKind.Search;
+            IsLeftPanelVisible = true;
+            FocusSearchRequested?.Invoke(this, EventArgs.Empty);
+            if (search.SearchCommand.CanExecute(null)) _ = search.SearchCommand.ExecuteAsync(null);
+        };
         tab.Detached += () => { search.Clear(); thumbs.Dispose(); cmds.Dispose(); tab.Comments?.Dispose(); tab.Comments = null; };
     }
 
@@ -740,7 +754,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ["Home"] =
             [
                 Gr(Strings.Group_Select, true, L(T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand)),
-                    T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect), T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
+                    T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect, Strings.Tip_TextSelect), T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
                 Gr(Strings.Group_Capture, false, T("tool.snapshot", Strings.Cmd_Snapshot, ToolKind.Snapshot, Strings.Tip_Snapshot)),
                 Gr(Strings.Group_Zoom, true, I("zoom.in", Strings.Cmd_ZoomIn), I("zoom.out", Strings.Cmd_ZoomOut), I("zoom.actual", Strings.Cmd_ActualSize),
                     I("zoom.fitWidth", Strings.Cmd_FitWidth), I("zoom.fitPage", Strings.Cmd_FitPage)),
@@ -757,7 +771,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             [
                 // "더보기" 없이 모든 만들기 도구가 보인다(2026-10-20). 도형은 그림만 있는 격자(이름은 툴팁).
                 Gr(Strings.Group_Select, true, L(T("tool.hand", Strings.Cmd_Hand, ToolKind.Hand)),
-                    T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect), T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
+                    T("tool.textSelect", Strings.Cmd_TextSelect, ToolKind.TextSelect, Strings.Tip_TextSelect), T("annot.select", Strings.Cmd_AnnotSelect, ToolKind.AnnotSelect)),
                 Gr(Strings.Group_Writing, true, L(T("annot.textbox", Strings.Cmd_TextBox, ToolKind.TextBox)),
                     T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter), T("annot.callout", Strings.Cmd_Callout, ToolKind.Callout)),
                 Gr(Strings.Group_Emphasis, true, L(T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText)),

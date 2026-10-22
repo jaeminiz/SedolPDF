@@ -84,16 +84,23 @@ public static class TextCopier
     /// <summary>선택한 글자를 클립보드에 넣는다. 문서 권한이 복사를 막으면 클립보드를 건드리지 않는다.</summary>
     public static async Task<CopyResult> CopyAsync(DocumentSession session, TextSelectionModel selection, IClipboardService clipboard)
     {
-        if (selection.Page is not { } page) return CopyResult.NothingSelected;
-        var rectPt = selection.RectPt;
-        var range = selection.Range;
-        if (rectPt is null && range is null) return CopyResult.NothingSelected;
+        if (selection.Page is null || (selection.RectPt is null && selection.Range is null)) return CopyResult.NothingSelected;
         if (!session.Permissions.CanCopy) return CopyResult.Restricted;
-        string text = await session.Thread.InvokeAsync(() =>
-            rectPt is { } rc ? RectTextSelector.Resolve(session, page, rc).Result.Text
-            : session.IndexOf(page) < 0 ? "" : session.GetLoadedText(page).GetText(range!.Value.Start, range.Value.Count));
+        string text = await ReadTextAsync(session, selection);
         if (text.Length == 0) return CopyResult.NothingSelected;
         await clipboard.SetTextAsync(text);
         return CopyResult.Copied;
+    }
+
+    /// <summary>선택한 글(읽는 순서). 선택이 없으면 빈 문자열. 권한은 확인하지 않는다(복사 전에 호출자가 확인).</summary>
+    public static async Task<string> ReadTextAsync(DocumentSession session, TextSelectionModel selection)
+    {
+        if (selection.Page is not { } page) return "";
+        var rectPt = selection.RectPt;
+        var range = selection.Range;
+        if (rectPt is null && range is null) return "";
+        return await session.Thread.InvokeAsync(() =>
+            rectPt is { } rc ? RectTextSelector.Resolve(session, page, rc).Result.Text
+            : session.IndexOf(page) < 0 ? "" : session.GetLoadedText(page).GetText(range!.Value.Start, range.Value.Count));
     }
 }

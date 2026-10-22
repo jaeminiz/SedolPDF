@@ -204,4 +204,48 @@ public class RectTextSelectionTests : PanelTestBase
         Assert.Equal(CopyResult.Restricted, await TextCopier.CopyAsync(tab.Session, sel, cb));
         Assert.Empty(cb.Texts);
     }
+
+    [Fact]
+    public async Task ReadText_RectSelection_ReturnsReadingOrderText()
+    {
+        var (s, id) = await Open("rt.pdf", ["ALPHA BRAVO", "CHARLIE DELTA"]);
+        var lines = await LineRects(s, id);
+        var sel = new TextSelectionModel();
+        sel.BeginRect(id, new PointF(0, 0));
+        sel.ExtendRect(new PointF(600, 800));
+        Assert.Equal("ALPHA BRAVO\r\nCHARLIE DELTA", await TextCopier.ReadTextAsync(s, sel));
+        Assert.Equal("", await TextCopier.ReadTextAsync(s, new TextSelectionModel()));
+    }
+
+    [Fact]
+    public async Task TextSelectHint_ShownOnlyForTextSelectTool()
+    {
+        var (s, _) = await Open("h.pdf", ["ALPHA"]);
+        var tab = await OpenTab(Path.Combine(Dir, "h.pdf"));
+        var vm = new PdfEditor.App.Shell.MainWindowViewModel();
+        vm.Documents.Add(tab);
+        vm.ActiveDocument = tab;
+        tab.Tool = PdfEditor.App.Documents.ToolKind.TextSelect;
+        Assert.Contains("Alt", vm.TextSelectHint);
+        tab.Tool = PdfEditor.App.Documents.ToolKind.Hand;
+        Assert.Equal("", vm.TextSelectHint);
+        tab.Detach();
+    }
+
+    [Fact]
+    public async Task RequestFind_RaisesEventWithText()
+    {
+        var tab = await OpenTab(await NewPdf("f.pdf"));
+        string? got = null;
+        tab.FindTextRequested += t => got = t;
+        tab.RequestFind("ALPHA");
+        Assert.Equal("ALPHA", got);
+    }
+
+    private Task<string> NewPdf(string name)
+    {
+        string p = Path.Combine(Dir, name);
+        TestPdfFactory.CreateTextLines(p, ["ALPHA"]);
+        return Task.FromResult(p);
+    }
 }

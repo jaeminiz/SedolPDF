@@ -571,7 +571,7 @@ public sealed partial class DocumentView : Control
         bool hasHits = search is { Results.Count: > 0 };
         bool hasSel = st.SelRects is { } sr && sr.Page == info.Id;
         var tsel = st.Tab.TextSelection;
-        bool hasMarquee = tsel.RectPt is not null && tsel.Page == info.Id;
+        bool hasMarquee = _rectSelecting && tsel.RectPt is not null && tsel.Page == info.Id;   // 끄는 동안만 점선 테두리를 보인다
         if (!hasHits && !hasSel && !hasMarquee) return;
         if (hasHits && st.HitsByPage is null)
             st.HitsByPage = search!.Results.GroupBy(h => h.Page).ToDictionary(g => g.Key, g => g.ToList());
@@ -755,6 +755,12 @@ public sealed partial class DocumentView : Control
         base.OnPointerPressed(e);
         Focus();
         if (_state is null || _sv is null) return;
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed && UsesTextMenu(_state.Tab.Tool))
+        {
+            ShowTextMenu(e);
+            e.Handled = true;
+            return;
+        }
         if (HandleSnapshotPressed(e)) return;
         if (HandleObjectPointerPressed(e)) return;
         if (HandleAnnotPointerPressed(e)) return;
@@ -837,6 +843,7 @@ public sealed partial class DocumentView : Control
             e.Pointer.Capture(null);
             // 클릭만 한 경우(사각형이 거의 없음)는 선택을 지운다.
             if (_state?.Tab.TextSelection.RectPt is { } rc && rc.Width < 2 && rc.Height < 2) _state.Tab.TextSelection.Clear();
+            InvalidateVisual();   // 점선 테두리를 지우고 하이라이트만 남긴다
         }
         if (_selecting)
         {
@@ -861,6 +868,12 @@ public sealed partial class DocumentView : Control
         if (e is { Key: Key.C, KeyModifiers: KeyModifiers.Control })
         {
             CopySelection();
+            e.Handled = true;
+            return;
+        }
+        if (e is { Key: Key.A, KeyModifiers: KeyModifiers.Control } && _state is { } ast && UsesTextMenu(ast.Tab.Tool))
+        {
+            SelectAllFromKeyboard();
             e.Handled = true;
             return;
         }

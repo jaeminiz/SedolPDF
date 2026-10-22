@@ -335,6 +335,10 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     public event Action<string>? NoticeRequested;
     public void RaiseNotice(string message) => NoticeRequested?.Invoke(message);
 
+    /// <summary>화면(우클릭 메뉴)이 선택한 글로 찾기를 요청한다. 메인 창이 검색 패널을 열고 찾는다.</summary>
+    public event Action<string>? FindTextRequested;
+    public void RequestFind(string text) => FindTextRequested?.Invoke(text);
+
     /// <summary>탭을 닫을 때(Detach) 발생. 화면이 이 탭의 캐시를 정리하는 데 쓴다.</summary>
     public event Action? Detached;
 

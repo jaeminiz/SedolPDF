@@ -6,7 +6,10 @@
              x:DataType="shell:MainWindowViewModel">
   <Border Background="#FBFBFB" BorderBrush="#17000000" BorderThickness="0,1,0,0" Height="30">
     <Grid ColumnDefinitions="*,Auto,*" Margin="12,0" TextElement.FontSize="11" TextElement.Foreground="#5C5C5C">
-      <TextBlock Grid.Column="0" Text="{Binding StatusSizeText}" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas" />
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+        <TextBlock Text="{Binding StatusSizeText}" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas" />
+        <TextBlock Text="{Binding TextSelectHint}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
 
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
         <Button Classes="nav" Command="{Binding FirstPageCommand}" ToolTip.Tip="{x:Static res:Strings.Tip_FirstPage}" ToolTip.ShowOnDisabled="True">
