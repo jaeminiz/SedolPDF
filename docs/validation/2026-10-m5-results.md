@@ -104,7 +104,7 @@
 | **Type0 CIDFontType0 CFF(앱 글꼴 서브셋, 한 Tj에 여러 CID 포함)** | cff-sample | 0.00 % ×2 |
 | 표준 14 (Helvetica, 폭표 없음) | doc-std14 | 건너뜀(코드북 불가 → 대체 글꼴) |
 
-합격 10/10 (잉크 칸 대비 차이 칸 ≤ 1 %가 합격). 같은 PDFium으로 그린 비교라 **다른 뷰어(Acrobat·Chrome·Foxit·PDF-XChange)는 미확인 — 사용자 점검 필요.** 점검용 파일: `spikes/out/m5-v20-*.pdf` (원본/다시 쓴 것 쌍 8개: 영문·한글·CFF; Tc0.5·TJ 맞춤 변형 포함).
+합격 10/10 (잉크 칸 대비 차이 칸 ≤ 1 %가 합격). 같은 PDFium으로 그린 비교라 **영문 쌍은 Adobe·PDF-XChange·SedolPDF에서 사용자가 열어 원본과 같게 보임을 확인(2026-10-22, 일부러 늘린 TJ 변형만 다르게 보임 — 예상대로). 한글·CFF 쌍과 Chrome·Foxit은 미확인 — 사용자 점검 필요.** 점검용 파일: `spikes/out/m5-v20-*.pdf` (원본/다시 쓴 것 쌍 8개: 영문·한글·CFF; Tc0.5·TJ 맞춤 변형 포함).
 
 ### (b) 자간(Tc)·가로 비율(Tz)·TJ 맞춤
 같은 글을 기본(plain)으로 쓴 것 대비 PDFium 객체 폭 변화가 코드북 공식(Tc는 (글자 수−1) × Tc, Tz는 폭 × 비율 변화, TJ는 공백 수 × 추가 폭)과 일치하는지, 허용 0.3 pt + 0.5 %. TrueType Identity-H(87·44글자) 5/5, CFF(44글자) 5/5, 모두 오차 0.00 pt (Tc +0.5·−0.3, Tz 90·115 %, TJ 공백마다 +3 pt).
