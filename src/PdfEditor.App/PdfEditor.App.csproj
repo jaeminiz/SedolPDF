@@ -34,6 +34,7 @@
     <None Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\fonts\NotoSansKR-Regular.otf" Link="assets\fonts\NotoSansKR-Regular.otf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\fonts\NotoSerifKR-Regular.otf" Link="assets\fonts\NotoSerifKR-Regular.otf" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\fonts\OFL.txt" Link="assets\fonts\OFL.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\licenses\pdfium\*" Link="licenses\pdfium\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

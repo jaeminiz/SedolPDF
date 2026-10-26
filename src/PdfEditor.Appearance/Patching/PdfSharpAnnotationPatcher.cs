@@ -34,6 +34,34 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         _ownsFont = false;
     }
 
+    /// <summary>명조(Noto Serif KR) 공급자. 없으면 명조가 필요한 저장은 InvalidOperationException(조용히 고딕으로 바꾸지 않는다).</summary>
+    public Func<AppFont?>? SerifFont { get; init; }
+
+    private AppFont GetFontFor(FontUse use) =>
+        use.Family == FontUse.SerifFamily
+            ? SerifFont?.Invoke() ?? throw new InvalidOperationException("Text needs the Noto Serif KR font, but the font file is missing (assets/fonts/NotoSerifKR-Regular.otf).")
+            : GetFont();
+
+    /// <summary>
+    /// 쪽 /Resources /Font에 글꼴 가족마다 서브셋 하나(SedolF1, SedolF2 …)를 넣고 가족 → 자원 이름을 돌려 준다.
+    /// 같은 가족의 줄은 글자 집합을 합쳐 한 서브셋을 나눠 쓴다.
+    /// </summary>
+    private Dictionary<string, string> EmbedFamilies(PdfDocument doc, PdfDictionary resources, IEnumerable<FontUse> uses)
+    {
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        var fonts = resources.Elements.GetDictionary("/Font");
+        if (fonts is null) { fonts = new PdfDictionary(doc); resources.Elements["/Font"] = fonts; }
+        foreach (var g in uses.GroupBy(u => u.Family, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            int n = 1;
+            while (fonts.Elements.ContainsKey("/SedolF" + n)) n++;
+            var merged = MergeFontUse(g);
+            fonts.Elements["/SedolF" + n] = FontEmbedder.Embed(doc, GetFontFor(merged), merged);
+            names[g.Key] = "SedolF" + n;
+        }
+        return names;
+    }
+
     /// <summary>글꼴이 필요한데 공급자가 비어 있는 바이트를 주면 InvalidOperationException.</summary>
     private AppFont GetFont()
     {
@@ -172,17 +200,11 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             if (group.Key < 0 || group.Key >= doc.Pages.Count)
                 throw new InvalidOperationException($"Page {group.Key + 1} is out of range for a content append.");
             var page = doc.Pages[group.Key];
-            var fonts = page.Resources.Elements.GetDictionary("/Font");
-            if (fonts is null) { fonts = new PdfDictionary(doc); page.Resources.Elements["/Font"] = fonts; }
-
             page.Contents.PrependContent().CreateStream(System.Text.Encoding.ASCII.GetBytes("q\n"));
             var sb = new System.Text.StringBuilder("Q\n");
-            int n = 1;
-            // 쪽의 앱 글꼴 줄이 모두 한 서브셋을 나눠 쓴다(줄마다 글꼴 객체를 만들지 않음 — 글자 집합을 합친다).
-            while (fonts.Elements.ContainsKey("/SedolF" + n)) n++;
-            string name = "SedolF" + n;
-            fonts.Elements["/" + name] = FontEmbedder.Embed(doc, GetFont(), MergeFontUse(group.Select(a => a.Font)));
-            foreach (var a in group) sb.Append("q\n").Append(a.Content.Replace("{F}", name)).Append("Q\n");
+            // 쪽의 앱 글꼴 줄은 글꼴 가족(고딕/명조)마다 서브셋 하나를 나눠 쓴다(줄마다 글꼴 객체를 만들지 않음 — 글자 집합을 합친다).
+            var famNames = EmbedFamilies(doc, page.Resources, group.Select(a => a.Font));
+            foreach (var a in group) sb.Append("q\n").Append(a.Content.Replace("{F}", famNames[a.Font.Family])).Append("Q\n");
             page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString()));
         }
     }
@@ -204,7 +226,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         if (list.Count == 1) return list[0];
         var cps = list.SelectMany(u => u.Codepoints).Distinct().OrderBy(c => c).ToImmutableArray();
         var glyphs = list.SelectMany(u => u.Glyphs).GroupBy(g => g.Cid).Select(g => g.First()).OrderBy(g => g.Cid).ToImmutableArray();
-        return new FontUse(cps, glyphs);
+        return new FontUse(cps, glyphs, list[0].Family);
     }
 
     /// <summary>M5 C7: 파일을 바꾸지 않고(메모리에서 해 보고 버림) 쪽마다 직접 고쳐 쓰기가 되는지 본다. 글꼴·이미지는 넣지 않는다.</summary>
@@ -250,21 +272,14 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             var images = new Dictionary<string, string>();
             int imgN = 1;
             // 앱 글꼴 줄은 쪽마다 서브셋 하나를 나눠 쓴다(글자 집합을 합침).
-            string? appFontName = null;
+            Dictionary<string, string>? famNames = null;
             if (!dryRun && plan.Snippets.Any(x => x.Font is not null))
-            {
-                var fonts = resources.Elements.GetDictionary("/Font");
-                if (fonts is null) { fonts = new PdfDictionary(doc); resources.Elements["/Font"] = fonts; }
-                int fontN = 1;
-                while (fonts.Elements.ContainsKey("/SedolF" + fontN)) fontN++;
-                appFontName = "SedolF" + fontN;
-                fonts.Elements["/" + appFontName] = FontEmbedder.Embed(doc, GetFont(), MergeFontUse(plan.Snippets.Where(x => x.Font is not null).Select(x => x.Font!)));
-            }
+                famNames = EmbedFamilies(doc, resources, plan.Snippets.Where(x => x.Font is not null).Select(x => x.Font!));
             foreach (var sn in plan.Snippets)
             {
                 string content = sn.Content;
                 if (sn.Para is { } ps) content += ParagraphLineBytes(number, page, parsed, seg, ps);
-                if (sn.Font is not null) content = content.Replace("{F}", appFontName ?? "SedolFDry");   // 시험 적용(dryRun)은 자리표시자만 해 본다
+                if (sn.Font is not null) content = content.Replace("{F}", famNames?[sn.Font.Family] ?? "SedolFDry");   // 시험 적용(dryRun)은 자리표시자만 해 본다
                 if (sn.ImageAssetId is { } assetId)
                 {
                     if (!assets.HasImage(assetId)) throw new ContentRegenerationException(number, "image asset missing");

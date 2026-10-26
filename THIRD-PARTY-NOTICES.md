@@ -43,6 +43,12 @@ SedolPDF — Park Jaemin, Park Sehyeon (Copyright (c) 2026 Park Jaemin, Park Seh
 - 저작권 표시(글꼴 파일 안의 저작권 문구): Copyright 2014-2021 Adobe (http://www.adobe.com/). Noto is a trademark of Google Inc. — OFL은 사본마다 저작권 표시와 라이선스 원문을 함께 두라고 하므로 이 문구와 `assets/fonts/OFL.txt`를 패키지에 동봉한다(`build/package.ps1`이 필수 파일로 검사).
 - 확인 결과(2026-10-17, M3a Task 4): 글꼴 파일에 Reserved Font Name 선언이 없고, 포함 허용 값(`OS/2 fsType`)이 0(제한 없는 포함)이다. 글꼴 서브셋을 PDF 문서 안에 넣는 것은 OFL이 허용하는 "문서 포함"이며, 서브셋 글꼴 이름은 `XXXXXX+NotoSansKR-Regular`로 쓴다. 글꼴 파일 단독 판매만 금지.
 
+## Noto Serif KR
+- 용도: 대체 글꼴(명조) — 문단 편집에서 원래 글꼴을 쓸 수 없을 때 원본이 명조/세리프 계열이면 사용 (`assets/fonts/NotoSerifKR-Regular.otf`, 라이선스 원문 `assets/fonts/OFL.txt` — Noto Sans KR과 같은 OFL 원문). 앱에 포함해 배포 가능(기업 사용 무료), 폰트 파일 단독 판매만 금지
+- 라이선스: SIL Open Font License 1.1 (OFL-1.1)
+- 출처: https://github.com/notofonts/noto-cjk (Serif/SubsetOTF/KR/NotoSerifKR-Regular.otf, 7,669,020 바이트, 받은 날 2026-10-27, SHA-256 5ea012e15cb7eacc1f680aee1703f3b164791b1443ea3e52b65080cca5d179cf). 같은 저장소 `Serif/LICENSE`는 `assets/fonts/OFL.txt`와 바이트 단위로 같다.
+- 저작권 표시: 글꼴 파일 안의 저작권 문구(Copyright 2014-2021 Adobe, Noto는 Google의 상표)와 `assets/fonts/OFL.txt`를 패키지에 동봉한다(`build/package.ps1`이 필수 파일로 검사).
+- 확인 결과(2026-10-27, M5 Task 7): `OS/2 fsType` = 0(제한 없는 포함)을 시험(`FontCatalogTests.BundledFonts_FsTypeAllowsEmbedding`)이 확인한다. 서브셋 글꼴 이름은 `XXXXXX+NotoSerifKR-Regular`.
 ## HarfBuzzSharp / PDFsharp
 - HarfBuzzSharp 8.3.1.3 + HarfBuzzSharp.NativeAssets.Win32 8.3.1.3: MIT (래퍼) / HarfBuzz 본체는 Old MIT (원문은 위 표의 `licenses/pdfium/harfbuzz.txt`와 같은 라이선스). 앱은 글자 배치(셰이핑)·글꼴 서브셋(`hb_subset_*`)·글리프 윤곽선(`hb_font_draw_glyph`)에 쓰고, 서브셋·윤곽선은 네이티브 `libHarfBuzzSharp.dll`을 직접 호출한다.
 - PDFsharp 6.2.4: MIT

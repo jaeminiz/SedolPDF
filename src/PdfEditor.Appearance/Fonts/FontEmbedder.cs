@@ -22,7 +22,7 @@ public static class FontEmbedder
         VerifyCids(font, use, cps, sub, subCidByGid);
 
         double asc = font.Ascender1000, desc = font.Descender1000;
-        string baseFont = $"{SubsetTag(cps)}+NotoSansKR-Regular";
+        string baseFont = $"{SubsetTag(cps)}+" + (use.Family == FontUse.SerifFamily ? "NotoSerifKR-Regular" : "NotoSansKR-Regular");
 
         var fontFile = new PdfDictionary(doc);
         fontFile.CreateStream(CffCharset.ExtractCff(sub));
@@ -32,7 +32,7 @@ public static class FontEmbedder
         var descriptor = new PdfDictionary(doc);
         descriptor.Elements.SetName("/Type", "/FontDescriptor");
         descriptor.Elements.SetName("/FontName", "/" + baseFont);
-        descriptor.Elements.SetInteger("/Flags", 4);
+        descriptor.Elements.SetInteger("/Flags", use.Family == FontUse.SerifFamily ? 6 : 4);
         descriptor.Elements["/FontBBox"] = Arr(doc, 0, desc, 1000, asc);
         descriptor.Elements.SetInteger("/ItalicAngle", 0);
         descriptor.Elements.SetInteger("/Ascent", (int)asc);

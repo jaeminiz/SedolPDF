@@ -266,3 +266,41 @@ Task 1과 같은 합성 22쪽·정답표에서 문턱 0.62: 표 병합 0, 잘못
 6. PDFium 바닥 경로(`OutputPdfium`)는 자간·양쪽 맞춤 늘임·Tz를 쓰지 못한다(PDFium에 쓰기 API 없음) — 이 경로로 내려간 양쪽 맞춤 문단은 왼쪽 맞춤처럼 저장된다. 실제로 내려가는 비율은 실제 PDF로 못 재었다.
 7. `HiddenTextCount` 알림 문구와 표시는 화면 Task(8)가 한다. 현재는 `OutputCopy.HiddenTextCount`로만 노출.
 8. 문단 안 원래 글꼴 줄 + 앱 글꼴 줄이 한 쪽에 섞이면 앱 글꼴 줄은 맨 뒤에 그려진다(M4 규칙과 같음).
+
+## Task 7 — 대체 글꼴 선택(고딕/명조, 가짜 굵게·기울임, fsType) (2026-10-27, Sonnet)
+
+### 한 일
+- `AppFontCatalog`(신규, `src/PdfEditor.Appearance/Fonts/`): `Classify(PdfFontInfo)`·`Choose(PdfFontInfo) → AppFontChoice(Family, Font, SyntheticBold, SyntheticItalic, FellBack)`, `FsTypeAllowsEmbedding(byte[])`, `ReadFsType`. `PdfFontInfo.FromFontDictionary`는 글꼴 사전(Type0이면 DescendantFonts)에서 `/Flags`·`/FontWeight`·`/ItalicAngle`·이름을 읽는다.
+  - 명조 조건: 설명자 `Flags`의 Serif 비트(0x2) **또는** 이름에 serif/times/batang/myeongjo/mincho/garamond/georgia/palatino/bookman/century/gungsuh/바탕/명조/궁서 등(이름이 gothic/sans/dotum/굴림/arial 등이면 이름 규칙은 안 씀, 플래그가 있으면 항상 명조). `ming`·`song` 같은 짧은 조각은 오탐(Flamingo 등) 때문에 뺐다.
+  - 굵게: 이름(Bold/Black/Heavy/굵…)·`FontWeight ≥ 600`·`ForceBold`. 기울임: 이름(Italic/Oblique)·Italic 비트·`ItalicAngle ≠ 0`.
+  - 명조 파일이 없으면 고딕으로 물러나고 `FellBack = true`(알림용). 조용히 다른 글꼴로 저장하지는 않는다 — 저장 단계는 명조가 필요한데 공급자가 없으면 예외.
+- `AppFontLine.Build(AppFontChoice, …)`(오버로드 추가, 기존 시그니처 유지): 가짜 굵게 = `r g b RG`, `w`(글자 크기 × 3 %), `2 Tr`; 가짜 기울임 = `1 0 0.21 1 0 0 cm`(기준선 기준, 약 12°), 화면 윤곽선도 같은 식(x += 0.21·y). 결과 `AppTextSpec`에 `BoldStrokePt`(화면 그리기용 선 굵기) 추가, `FontUse.Family`에 글꼴 가족을 실어 보낸다.
+- 저장 경로: `FontUse`에 `Family`(""=고딕, "serif"=명조) 추가 → `PdfSharpAnnotationPatcher`가 쪽마다 **가족별로 서브셋 하나**(`SedolF1`, `SedolF2`)를 넣고(`EmbedFamilies`), `FontEmbedder`가 `XXXXXX+NotoSerifKR-Regular`·Flags 6(Serif)로 쓴다. 명조 공급자는 `PdfSharpAnnotationPatcher.SerifFont`(init 속성). 고딕만 쓰는 기존 경로는 결과가 같다(기존 시험 통과).
+- 번들: `assets/fonts/NotoSerifKR-Regular.otf` + `AppFontFile.SerifPathIn/ReadSerifOrEmpty`, `PdfEditor.App.csproj`가 출력 폴더로 복사, `build/package.ps1` 필수 파일 목록에 추가, `THIRD-PARTY-NOTICES.md`에 Noto Serif KR 절.
+
+### 다운로드 기록 (2026-10-27)
+| 항목 | 값 |
+|---|---|
+| 출처 | https://github.com/notofonts/noto-cjk — `Serif/SubsetOTF/KR/NotoSerifKR-Regular.otf` (공식 noto-cjk 저장소 main) |
+| 크기 | 7,669,020 바이트 (7.3 MiB) |
+| SHA-256 | 5ea012e15cb7eacc1f680aee1703f3b164791b1443ea3e52b65080cca5d179cf |
+| 라이선스 | SIL OFL 1.1. 같은 저장소 `Serif/LICENSE`(4,301 B)가 `assets/fonts/OFL.txt`와 바이트 단위로 같아 새 라이선스 파일은 만들지 않고 OFL.txt를 함께 쓴다 |
+| fsType | 0 (제한 없는 포함) — 시험이 두 번들 글꼴 모두 확인 |
+| 같이 받은 것(버림) | `Serif/OTF/Korean/NotoSerifCJKkr-Regular.otf` 24.5 MB — 너무 커서 쓰지 않고 지움 |
+
+### 크기 실측
+- **포터블 zip 영향:** 명조 파일 단독 압축 5.91 MB(고딕 3.75 MB). 따라서 **포터블 zip은 +약 5.9 MB**. 지금 `artifacts/`의 0.2.0 zip이 이미 57.9 MB(50 MB 넘음 — M3a부터 54.7 MB)이므로 새 zip은 약 **63.8 MB**로 예상(패키지를 새로 만들어 재지는 않음). 사용자에게 알림 대상.
+- **서브셋 후 글꼴 추가 크기** (한글 문단 약 4문장, 서로 다른 글자 117개): 고딕 18.5 KB, 명조 40.4 KB (한도 300 KB 대비 매우 작음).
+
+### 시험
+- `tests/PdfEditor.Appearance.Tests/Fonts/FontCatalogTests.cs` 41개 중 신규: Serif 플래그/이름 규칙, 고딕 기본(오탐 방지 포함), 굵게·기울임 판정, 명조 없을 때 물러남, fsType 값표(0·0x8 허용 / 0x2·0x4·0x100·0x200·모순 조합·OS/2 없음 거부), 번들 두 글꼴 fsType = 0, `BundledFontOnlyOfl`·`PackageContainsLicenses`(csproj·package.ps1·NOTICES 검사), `SubsetSizeReasonable_KoreanParagraph`, 명조 서브셋 이름.
+- `tests/PdfEditor.TextEdit.Tests/FontChoiceTests.cs` 7개: 굵게(`2 Tr`, 3 % 선, 선 색 = 글자 색), 보통 글은 아무 것도 안 붙음, 기울임 윤곽선 변위 = 0.21·y, 명조 줄의 가족·윤곽선, 명조+고딕 한 쪽에 저장(두 글꼴 객체 각각 1개, 글 추출 가능), 명조 없이 명조 저장 시 예외, 굵은 기울임 명조 저장.
+- 계획서 시험 이름 중 `Italic_UsesSkew`·`BoldName_UsesSyntheticBold_RenderMode2`·`FsTypeRestricted_NotEmbedded`·`BundledFontOnlyOfl`·`SubsetSizeReasonable_KoreanParagraph`·`PackageContainsLicenses`·`SerifFlag_ChoosesMyeongjo`·`NameContainsBatang_ChoosesMyeongjo`·`DefaultSans`는 그대로 쓴다(`PackageContainsLicenses`는 package.ps1 **실행**이 아니라 스크립트·csproj 내용 검사 — 실제 패키지 빌드는 하지 않음).
+
+### 알려진 한계·검증 필요·다음 Task에 넘기는 것
+1. **`ParagraphEditPlanner`는 아직 고딕(`AppFont` 하나)만 쓴다.** Task 7 범위(계획서 Files)에는 플래너가 없다. 카탈로그를 쓰려면 원본 글꼴 사전을 플래너가 `PdfFontInfo.FromFontDictionary`로 읽어 `Choose` → `AppFontLine.Build(choice, …)`를 부르게 하고, 앱 시작 때 `AppFontCatalog.ForBaseDirectory(sans, baseDir)`를 만들어 패치어의 `SerifFont`에 `() => catalog.Serif`를 연결해야 한다(App 조립부). **Task 8(화면)에서 같이 연결할지 Opus 판단 필요.** 연결 전에는 명조가 쓰이는 일이 없어 동작 변화 없음.
+2. **가짜 굵게의 화면 모양:** 파일은 렌더 모드 2 + 3 % 선이지만, 화면은 지금 윤곽선 채우기만 한다. `AppTextSpec.BoldStrokePt`를 화면 그리기가 선으로도 긋도록 해야 화면 ≡ 파일(설계서 4.2-3). 연결 전에는 굵게가 화면에서 조금 가늘게 보인다(**검증 필요**, 화면 Task).
+3. 가짜 굵게·기울임은 어디까지나 흉내다(실제 Bold/Italic 글리프와 모양이 다르다). 다른 뷰어(Acrobat·Chrome·Foxit·PDF-XChange)에서 렌더 모드 2 굵기는 **미확인**.
+4. 기울임은 글자 하나하나가 아니라 줄 전체를 기준선에서 기울인다(글리프 위치는 기울기와 무관하게 같음).
+5. 고딕/명조 판정은 이름·플래그만 본다. 원본이 세리프인데 이름에 단서가 없고 Flags도 0이면(드문 PDF) 고딕이 된다. 시스템 글꼴 직접 선택은 범위 밖(U2).
+6. 새 NuGet 없음. 명조 파일은 HarfBuzz가 CID-키 CFF로 읽는다(서브셋·CID 유지 시험 통과) — 고딕과 같은 규칙(V11).

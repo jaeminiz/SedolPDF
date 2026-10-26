@@ -19,6 +19,20 @@ public static class AppFontFile
         catch (UnauthorizedAccessException) { return []; }
     }
 
+    public static string SerifPathIn(string baseDirectory) => Path.Combine(baseDirectory, "assets", "fonts", "NotoSerifKR-Regular.otf");
+
+    /// <summary>명조 글꼴 파일 바이트. 없거나 읽을 수 없으면 빈 배열(고딕으로 물러난다).</summary>
+    public static byte[] ReadSerifOrEmpty(string baseDirectory)
+    {
+        try
+        {
+            string p = SerifPathIn(baseDirectory);
+            return File.Exists(p) ? File.ReadAllBytes(p) : [];
+        }
+        catch (IOException) { return []; }
+        catch (UnauthorizedAccessException) { return []; }
+    }
+
     /// <summary>처음 부르면 읽고 이후에는 같은 바이트를 돌려주는 공급자(빈 결과는 캐시하지 않아 다음에 다시 시도).</summary>
     public static Func<byte[]> CachedProvider(string baseDirectory)
     {

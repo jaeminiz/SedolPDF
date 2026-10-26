@@ -39,7 +39,7 @@ public readonly record struct OutlineSeg(char Op, PdfPointF A, PdfPointF B = def
 /// </summary>
 public sealed record AppTextSpec(string Text, float SizePt, PdfEditor.Document.Annotations.PdfColor Color, PdfMatrix Placement, PdfRectF Bounds,
     System.Collections.Immutable.ImmutableArray<OutlineSeg> Outline, string Content,
-    PdfEditor.Document.Annotations.Patching.FontUse Font);
+    PdfEditor.Document.Annotations.Patching.FontUse Font, float BoldStrokePt = 0f);
 
 /// <summary>앱 글꼴 줄을 쪽 맨 위에 넣는다(C7: 화면 replay도 다른 편집을 모두 적용한 뒤 맨 마지막에). 가리킬 때는 ObjectRef.Inserted(Id).</summary>
 public sealed record InsertAppTextEdit(long Id, AppTextSpec Line) : ContentEdit(Id);

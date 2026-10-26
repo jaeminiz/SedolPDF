@@ -36,6 +36,10 @@ public sealed record AddApFont(string ResourceName, FontUse Font) : PatchOp;
 public sealed record AddApImage(string ResourceName, string ImageId) : PatchOp;
 public sealed record EmbedFile(string FileName, string AttachmentId) : PatchOp;
 
-public sealed record FontUse(ImmutableArray<int> Codepoints, ImmutableArray<GlyphUse> Glyphs);
+/// <summary>글꼴 서브셋 재료. Family: "" = 고딕(Noto Sans KR, 기본), "serif" = 명조(Noto Serif KR). 가족이 다르면 다른 글꼴 객체로 넣는다.</summary>
+public sealed record FontUse(ImmutableArray<int> Codepoints, ImmutableArray<GlyphUse> Glyphs, string Family = "")
+{
+    public const string SerifFamily = "serif";
+}
 
 public readonly record struct GlyphUse(int Cid, int Advance1000, string Text);
