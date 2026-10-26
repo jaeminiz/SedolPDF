@@ -123,7 +123,8 @@ public static class ParagraphEditPlanner
     /// <param name="previous">이 문단을 이미 고친 편집이 있으면 그것(대체됨).</param>
     /// <param name="korean">한글 줄 이음 방식(문서·열 단위 판정은 <see cref="DecideKorean"/>).</param>
     public static ParagraphPlan Plan(DocumentSession s, PageId page, ParagraphModel p, string newText, AppFont? appFont,
-        ReplaceParagraphEdit? previous = null, KoreanLineBreak korean = KoreanLineBreak.Word, IParagraphFontSource? fontSource = null)
+        ReplaceParagraphEdit? previous = null, KoreanLineBreak korean = KoreanLineBreak.Word, IParagraphFontSource? fontSource = null,
+        AppFontCatalog? catalog = null)
     {
         s.Thread.AssertOnThread();
         if (!SavePolicy.CanPatch(s)) return ParagraphPlan.Refused(ParagraphRefusal.Encrypted);
@@ -135,6 +136,15 @@ public static class ParagraphEditPlanner
         var sz = loaded.SizePt;
         bool swap = loaded.Rotation % 2 != 0;
         var bounds = new PdfRectF(0, 0, swap ? sz.Height : sz.Width, swap ? sz.Width : sz.Height);
+
+        // 대체 글꼴 선택(C11): 원본 글꼴이 명조/세리프 계열이면 명조, 굵기·기울임은 가짜로 흉내. 카탈로그가 없으면 넘겨 받은 앱 글꼴(고딕)만.
+        AppFontChoice? choice = null;
+        if (catalog is not null && p.Lines[0].Runs.FirstOrDefault(x => !x.Ref.IsInserted) is { } fr && r.Resolve(fr.Ref)?.Font is { } pf)
+        {
+            choice = catalog.Choose(new PdfFontInfo(pf.BaseName));
+            appFont = choice.Font;
+        }
+        else if (catalog is not null) appFont ??= catalog.Sans;
 
         var book = (fontSource ?? new SessionFileFontSource()).Build(s, page, p, out double tc, out double tz, out _);
         if (book is not null) p = WithTextState(p, (float)tc, (float)tz);
@@ -199,7 +209,9 @@ public static class ParagraphEditPlanner
                 }
                 else
                 {
-                    var (spec, miss) = AppFontLine.Build(appFont!, line.Text, srcObj.FontSize, placement, color);
+                    var (spec, miss) = choice is not null
+                        ? AppFontLine.Build(choice, line.Text, srcObj.FontSize, placement, color)
+                        : AppFontLine.Build(appFont!, line.Text, srcObj.FontSize, placement, color);
                     if (spec is null) { missing.AddRange(miss); continue; }
                     appLines.Add(spec);
                     appIds.Add(st.NewId());
@@ -216,9 +228,9 @@ public static class ParagraphEditPlanner
 
     /// <summary>이전 편집(<see cref="ReplaceParagraphEdit"/>)에 저장된 원본 문단으로 다시 편집한다(원본 재추정 없음, C14). 모델이 없으면 거절.</summary>
     public static ParagraphPlan PlanReEdit(DocumentSession s, PageId page, ReplaceParagraphEdit previous, string newText, AppFont? appFont,
-        KoreanLineBreak korean = KoreanLineBreak.Word, IParagraphFontSource? fontSource = null) =>
+        KoreanLineBreak korean = KoreanLineBreak.Word, IParagraphFontSource? fontSource = null, AppFontCatalog? catalog = null) =>
         previous.Meta.Model is ParagraphModel model
-            ? Plan(s, page, model, newText, appFont, previous, korean, fontSource)
+            ? Plan(s, page, model, newText, appFont, previous, korean, fontSource, catalog)
             : ParagraphPlan.Refused(ParagraphRefusal.NotParagraph);
 
     /// <summary>다시 쓰는 줄마다 V14 규칙(OriginalFontReplacer)을 통과하는지. 허용 글자 = 코드북이 아는 글자(문단에서 보인 글자).</summary>

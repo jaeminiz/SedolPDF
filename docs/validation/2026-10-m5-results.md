@@ -304,3 +304,48 @@ Task 1과 같은 합성 22쪽·정답표에서 문턱 0.62: 표 병합 0, 잘못
 4. 기울임은 글자 하나하나가 아니라 줄 전체를 기준선에서 기울인다(글리프 위치는 기울기와 무관하게 같음).
 5. 고딕/명조 판정은 이름·플래그만 본다. 원본이 세리프인데 이름에 단서가 없고 Flags도 0이면(드문 PDF) 고딕이 된다. 시스템 글꼴 직접 선택은 범위 밖(U2).
 6. 새 NuGet 없음. 명조 파일은 HarfBuzz가 CID-키 CFF로 읽는다(서브셋·CID 유지 시험 통과) — 고딕과 같은 규칙(V11).
+
+## Task 8 — 화면: 문단 상자·여러 줄 편집 창·알림 (2026-10-27, Sonnet)
+
+### 한 일
+- **텍스트 편집 도구 확장(C1)**: 줄을 누르면 백그라운드(PDFium 전용 스레드)에서 `ParagraphReader.Detect` → 문단(2줄 이상, 신뢰도 문턱 0.62 이상 — Task 1 확정값이 계획의 0.7을 대체)이면 점선 문단 상자 + 여러 줄 편집 창, 아니면 M4 한 줄 창. 이유(표 안의 글·글꼴 섞임·확신 낮음·암호 문서·읽기 실패)는 토스트로 알리고, 이웃이 없는 외톨이 줄은 평범한 한 줄 편집이라 알리지 않는다(M4 시험 불변). `App/Viewer/Objects/ParagraphController.cs`(계산, Avalonia 없음), `ParagraphEditorPopup.axaml(.cs)`(편집 창), `DocumentView.Paragraph.cs`(입력·그리기·창 수명).
+- **편집 창(C17)**: 여러 줄 `TextBox`. Ctrl+Enter·확정 단추·창 밖 클릭 = 확정, Esc·취소 단추 = 취소, Enter = 줄바꿈(강제 줄바꿈). IME 조합 중(`PreeditText`)이거나 `Key.ImeProcessed`이면 모든 키를 조합에 맡긴다(M4 한 줄 창과 같은 판정). 열었다 그냥 닫으면 기록 0(`text == 처음 글 && 폭 안 바꿈`이면 계획도 안 함).
+- **입력 중 미리 계획**: 50 ms 디바운스(`Task.Delay` + Dispatcher — `DispatcherTimer`는 헤드리스에서 안 돌아 쓰지 않음) 뒤 PDFium 스레드에서 `ParagraphEditPlanner.Plan`을 돌려(문서는 안 바뀜) "줄 N/최대 M", 쪽 아래 넘침(빨강, 확정 단추 꺼짐), 다른 글·그림과 겹침(주황, 확정 가능), 대체 글꼴 예고("기본 글꼴로 바뀝니다")·고친 줄/안 고친 줄 글꼴 다름 알림을 창 아래 줄에 보인다. 코드북 만들기(원본 파일 PDFsharp 열기)는 `CachedFontSource`가 편집 창이 열려 있는 동안 한 번만 한다(Task 5 한계 3 해소).
+- **확정**: 확정 직전에 다시 계획해(미리 계획이 낡았을 수 있음) 거절(넘침·쓸 수 없는 글자)이면 창을 열어 둔 채 이유만 보이고, 통과하면 `ParagraphEditCommand` 하나(실행 취소 한 번). 대체 글꼴로 바뀌면 `Msg_TextFallbackApp` 토스트(+글꼴 다름 알림).
+- **상자 폭(C13)**: 편집 창 좌우 가장자리 손잡이(`Thumb`)를 끌었다 놓거나 속성 패널 "상자 폭 (mm)" 칸을 바꾸면 줄바꿈을 다시 맞춘다. 이를 위해 `ParagraphModel.ColumnWidthOverride`(TextEdit, 기본 null)를 추가했다: 있으면 `ParagraphLayout`이 원래 줄 폭을 무시하고 모든 줄을 그 폭으로 다시 맞춘다(최소 변경 동기화 끔, 글이 그대로여도 변경으로 본다). 왼쪽 손잡이는 글이 똑바로 선 쪽(쪽 회전 + 글 각도 0)에서만 시작 위치도 같이 옮기고, 그 밖은 오른쪽 손잡이와 같이 폭만 바꾼다. 폭은 `Meta.Model`에 실려 다시 편집에서도 유지된다.
+- **틀린 묶음 탈출구(C13)**: 창 위 "위 줄 포함/제외, 아래 줄 포함/제외" 단추와 Shift+↑/↓(포함)·Alt+Shift+↑/↓(제외). `ParagraphDetector.Extend` 사용. 글을 고치기 전에만 동작(고친 글이 사라지지 않게)하고, 이전에 고친 문단을 다시 열 때는 줄 목록이 없어 숨긴다.
+- **다시 편집**: 이미 고친 문단의 새 줄(원래 글꼴 줄·앱 글꼴 줄)이나 남은 원본 줄을 누르면 `ReplaceParagraphEdit.Meta`로 열고(원본 재추정 없음) 확정하면 이전 편집을 대체한다(쌓이지 않음). 앱 글꼴 문단 줄도 텍스트 편집 도구로 고를 수 있게 선택 거르개를 넓혔다.
+- **편집 탭 "한 줄만" 토글**: `MainWindowViewModel.OneLineOnly` → 활성 문서 `DocumentTabViewModel.OneLineOnly`. 켜면 문단을 묶지 않고 M4 한 줄 편집(아이콘은 기존 "textedit" 재사용, 툴팁 있음). 암호 문서는 문단 편집을 끄고 한 줄 편집으로 되돌린다(이유 토스트).
+- **알림**: 대체 글꼴·고친/안 고친 줄 글꼴 다름·옛 글이 보이지 않는 글자로 남음. 마지막은 저장 때 알 수 있으므로 `SaveService.LastHiddenTextCount`(= `OutputCopy.HiddenTextCount`)를 만들고 `FileWorkflow`가 저장 성공 뒤 정보 대화상자 `Msg_ParagraphHiddenText`를 한 번 보인다.
+- **명조/굵게/기울임 연결(Task 7 산출물)**: `ParagraphEditPlanner.Plan`/`PlanReEdit`에 `AppFontCatalog? catalog` 매개변수(끝, 기본 null)를 추가해 원본 글꼴 이름(PDFium `BaseName`)으로 `Choose`한 글꼴(고딕/명조, 가짜 굵게·기울임)로 앱 글꼴 줄을 만든다. 앱 쪽: `AppearanceServices.Catalog`(명조 파일은 필요할 때만 읽음 — 시작 비용 0)와 `PdfSharpAnnotationPatcher.Shared(font, serif)`로 저장 경로에 명조 공급자를 연결했다. **작은 변경이라 이 Task에서 했다.**
+- **그 밖**: `TestFixtures`의 글꼴 해석기에 Georgia 4종 추가(명조 원본 시험용).
+
+### 시험 (헤드리스, 합성 입력)
+- 신규 `tests/PdfEditor.App.Tests/Viewer/Objects/ParagraphEditInputTests.cs` 21개: 계획서 목록 이름 그대로 — `ClickLine_HighConfidence_ShowsBoxAndEditor`, `ClickTableCell_ShowsSingleLineEditor_WithReason`, `Ime_Composing_EnterEscIgnored`, `CtrlEnter_Commits_EnterInsertsNewline`, `Esc_Cancels_NoEdit`, `Unchanged_Close_NoEdit`, `PageBottomOverflow_CommitBlocked_ShowsCount`, `OverlapOtherObjects_CommitAllowed_BoxTurnsOrange`, `DragBoxEdge_RewrapsOnRelease`, `EmptyText_DeletesParagraph_ConfirmFlow`, `ExtendBox_PlusMinus_ChangesLines`, `OneLineOnlyToggle_UsesM4Editor`, `RotatedPage_EditorOrientation`, `ZoomChange_KeepsBoxAligned`, `UndoRedo_OneStepPerParagraph`, `EncryptedDocument_ParagraphToolFallsBackToSingleLine`, `ClickOnFormObject_Message` + 추가 `OutsideClick_Commits`, `PanelWidth_ChangesBox`, `ReEdit_OpensWithEditedText_NoStacking`, `MainWindow_OneLineOnlyToggle_AppliesToDocuments`.
+- `ParagraphLayoutTests` +3(폭 좁힘·넓힘·무변경), `ParagraphPlannerTests` +2(명조 원본 → 명조 서브셋 가족 `serif`, 굵은 고딕 원본 → `2 Tr`).
+- M4 한 줄 편집 시험(`TextEditInputTests` 포함 `Viewer.Objects` 41개)은 전부 그대로 통과.
+- 전체 `dotnet test PdfEditor.sln` 통과(실패 0): ContentStream 72 · Pages 48 · Pdf.Native 97 · Appearance 210 · Document 262 · Exchange 69 · TextEdit 162 · App 548.
+
+### 알려진 한계·검증 필요
+1. **실제 마우스·한글 IME·125/150 % 배율·다른 뷰어는 자동 시험으로 못 잡는다.** 시험은 합성 입력(키 이벤트·`PreeditText` 직접 지정·`Thumb` 끌기 흉내)이다.
+2. **편집 칸의 줄바꿈은 Avalonia 기본 글꼴 기준이다.** 실제 PDF 글꼴 폭과 달라 창에서 보이는 줄바꿈이 결과와 다를 수 있다. 결과 줄 수는 창 아래 "줄 N/최대 M"(PDF 폭 기준 계획)가 맞다. 확정 전 화면의 문단 자리에는 원래 글이 그대로 비치고 편집 창이 위에 덮인다(M4 한 줄 창과 같은 방식).
+3. 창 밖 클릭은 확정하고 그 클릭은 삼킨다(M4 한 줄 창과 같음, 리본 단추를 눌러도 첫 클릭은 확정에만 쓰임). 확정이 막혀(넘침) 있으면 창이 안 닫힌다. 탭 전환·도구 변경·문서 닫기는 **확정하지 않고 취소**로 닫는다 — 입력하던 글이 사라질 수 있다(검증 필요).
+4. 이전에 고친 문단을 다시 열면 위·아래 줄 포함/제외를 쓸 수 없다. 표 안의 글처럼 확신이 낮아 한 줄 편집으로 되돌아간 줄을 억지로 문단으로 묶는 길은 없다(계획서 C4/C13 범위 그대로 — 필요하면 사용자 결정).
+5. 폭을 줄이면 원래 줄 수보다 늘 수 있고 바로 아래 문단과 겹쳐도 확정된다(C6, 주황). 겹침 판정은 장애물과 같은 열의 다른 줄 기준이다.
+6. **가짜 굵게의 화면 모양**(Task 7 한계 2)은 이 Task에서 고치지 않았다 — 앱 글꼴 굵은 줄은 파일에는 렌더 모드 2 선이 있고 화면에는 선 없이 그려진다.
+7. 명조 선택은 PDFium이 주는 글꼴 이름만 본다(`Flags`/`FontWeight`는 쓰지 않음, 이름에 단서가 없는 세리프는 고딕). 코드북 경로(원래 글꼴)는 이전과 같다.
+8. 문단 편집 후 저장 때 옛 글이 숨김으로 남은 경우의 알림은 저장 성공 뒤 정보 대화상자로 보인다(인쇄·복구·요약에는 알리지 않음).
+9. 5,000줄 도면에서의 클릭→상자 시간, 편집 창을 열어 둔 채의 메모리 등 **성능은 Task 10에서 잰다**(이번에 `--bench` 하지 않음).
+
+### 사용자 검수 요청 — 문단 편집 화면에서 직접 해 볼 순서
+최신 빌드: `D:\INBOX_WP\95. Claude\PDF EDITOR\artifacts\m5-task8-build\SedolPDF.exe` (Release, 실행 중인 앱은 건드리지 않고 다른 폴더에 빌드)
+1. 글이 여러 줄인 PDF(Word·한글에서 만든 보고서 등)를 열고 **편집 탭 → 텍스트 편집**을 고른 뒤 본문 문단의 한 줄을 누른다. → 파란 점선 상자와 여러 줄 편집 창이 문단 위에 떠야 한다. 창 아래에 "줄 N/최대 M"가 보인다.
+2. 낱말 하나를 고쳐 **Ctrl+Enter**. → 그 줄 근처만 바뀌고 나머지 줄은 그대로여야 한다. **Ctrl+Z** 한 번에 문단 전체가 돌아와야 한다. 저장해 Acrobat·Chrome에서도 확인.
+3. 글을 아주 길게 붙여 넣는다. → 쪽 아래를 넘으면 빨간 글씨로 안내되고 확정 단추가 꺼져야 한다. 다음 문단과 겹칠 정도면 점선이 **주황색**으로 바뀌지만 확정은 되어야 한다.
+4. 편집 창 **좌우 가장자리(연한 파란 띠)를 끌었다 놓는다**. → 놓는 순간 줄바꿈이 다시 맞춰지고 줄 수가 바뀐다. 오른쪽 속성 패널의 "상자 폭 (mm)"에 숫자를 넣어도 같아야 한다.
+5. 한글을 입력해 본다(IME). 조합 중에 **Enter·Esc**를 눌러도 창이 닫히거나 확정되지 않아야 한다. 조합이 끝난 뒤 **Esc**는 취소, **Enter**는 줄바꿈.
+6. 표나 표제란의 칸을 눌러 본다. → 문단 창이 아니라 한 줄 창이 뜨고 화면 아래에 "표 안의 글처럼 보여 한 줄만 편집합니다"가 잠깐 보여야 한다. 편집 탭의 **"한 줄만"** 단추를 켜면 문단 글에서도 한 줄 창만 떠야 한다.
+7. 문단이 틀리게 묶였을 때 창 위의 **위/아래 줄 포함·제외** 단추(Shift+↑/↓, Alt+Shift+↑/↓)로 줄을 더하고 빼 본다(글을 고치기 전에만 눌림).
+8. 원래 글꼴에 없는 글자(예: 한글이 없는 영문 서브셋 글꼴 문단에 한글)를 넣고 확정 → "기본 글꼴로 바꿨습니다" 알림. 명조 계열 문서면 명조 모양이어야 한다.
+9. 같은 문단을 한 번 더 눌러 다시 고친다. → 고친 글이 열리고, 확정하면 겹쳐 쌓이지 않고 대체되어야 한다.
+10. 회전된 쪽, 125·150 % 배율, 암호 PDF(한 줄 편집으로 되돌아가야 함)도 가능하면 확인.

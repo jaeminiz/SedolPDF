@@ -152,10 +152,19 @@ public sealed partial class DocumentView
         });
     }
 
+    /// <summary>앱 글꼴로 넣어 화면에서는 경로인 줄의 Id들: 한 줄 텍스트(M4)와 고친 문단의 앱 글꼴 줄(M5).</summary>
+    private static HashSet<long> AppTextIds(ViewState st, PageId page)
+    {
+        var edits = st.Session.Content.For(page);
+        var ids = edits.OfType<InsertAppTextEdit>().Select(a => a.Id).ToHashSet();
+        foreach (var p in edits.OfType<ReplaceParagraphEdit>()) ids.UnionWith(p.AppLineIds);
+        return ids;
+    }
+
     /// <summary>편집할 글을 못 고른 눌림에 대한 안내: 묶음(폼) 안이면 그 사실을, 쪽에 편집할 글이 하나도 없으면 그 사실을 알린다(C10·C11).</summary>
     private void NoticeForMissedText(ViewState st, PageInfo info, PageObjectIndex idx, PdfPointF pt, float tolerancePt)
     {
-        var appIds = st.Session.Content.For(info.Id).OfType<InsertAppTextEdit>().Select(a => a.Id).ToHashSet();
+        var appIds = AppTextIds(st, info.Id);
         bool IsText(PageObjectEntry x) => x.Type == PdfPageObjectType.Text || (x.Ref.IsInserted && appIds.Contains(x.Ref.InsertedId));
         if (idx.HitTest(pt, tolerancePt, x => x.Type == PdfPageObjectType.Form).Count > 0) st.Tab.RaiseNotice(Strings.Msg_FormChildNotice);
         else if (!idx.Entries.Any(IsText)) st.Tab.RaiseNotice(Strings.Msg_NoEditableText);

@@ -11,8 +11,12 @@ public sealed class SaveService(
     IAnnotationPatcher? patcher = null,
     AnnotationAssets? assets = null)
 {
+    /// <summary>마지막 저장에서 지운 원본 글 중 연산자째 지우지 못해 보이지 않는 글자로 남긴 수(M5 C12). 0보다 크면 옛 글이 검색에 나올 수 있다고 알린다.</summary>
+    public int LastHiddenTextCount { get; private set; }
+
     public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default)
     {
+        LastHiddenTextCount = 0;
         string dir = Path.GetDirectoryName(Path.GetFullPath(targetPath))!;
         string tmp = Path.Combine(dir, "~" + Path.GetFileName(targetPath) + ".tmp");
         var stage = SaveStage.Write;
@@ -21,8 +25,9 @@ public sealed class SaveService(
             // ① 쓰기(주석 Flush + SaveCopy) ② 객체 편집 확정 + 패치(PDFsharp) — 모두 임시 파일에만 (OutputCopyBuilder, M4)
             var output = new Output.OutputCopyBuilder(appearance, patcher, assets);
             // 사본을 쓴 뒤(내용 확정·패치)의 실패는 PostProcess 단계로 알린다.
-            int[] expected = (await output.BuildAsync(s, tmp, ct, onCopied: () => stage = SaveStage.PostProcess)
-                .ConfigureAwait(false)).ExpectedAnnotCounts;
+            var built = await output.BuildAsync(s, tmp, ct, onCopied: () => stage = SaveStage.PostProcess).ConfigureAwait(false);
+            int[] expected = built.ExpectedAnnotCounts;
+            LastHiddenTextCount = built.HiddenTextCount;
 
             stage = SaveStage.PostProcess;
             foreach (var pp in postProcessors)

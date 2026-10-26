@@ -106,8 +106,10 @@ public sealed record ParagraphStyle(string FontKey, float SizePt, PdfColor Color
 /// (없으면 <see cref="float.NegativeInfinity"/>) — C6(겹침 허용)이므로 막지 않고 알림에만 쓴다. 0° 글이면 쪽 y와 같다.
 /// </summary>
 public sealed record ParagraphModel(ImmutableArray<TextLine> Lines, PdfRectF Box, ParagraphStyle Style, Alignment Align,
-    float FirstLineIndent, float Leading, float MaxBottom, double Confidence, string? LowConfidenceReason)
+    float FirstLineIndent, float Leading, float MaxBottom, double Confidence, string? LowConfidenceReason, double? ColumnWidthOverride = null)
 {
+    // ColumnWidthOverride: 사용자가 상자 가장자리를 끌어 정한 열 폭(pt, M5 Task 8 C13). 있으면 원래 줄 폭과 상관없이 모든 줄을 이 폭으로 다시 맞춘다.
+
     /// <summary>두 줄 이상이고 문턱을 넘은(또는 사용자가 줄을 더해 만든) 진짜 문단인가.</summary>
     public bool IsParagraph => Lines.Length >= 2 && LowConfidenceReason is null;
 

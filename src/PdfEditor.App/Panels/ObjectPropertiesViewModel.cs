@@ -23,8 +23,16 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
     {
         _tab = tab;
         tab.Objects.Changed += Refresh;
+        tab.ParagraphBox.Changed += Refresh;
         Refresh();
     }
+
+    /// <summary>문단 편집 창이 열려 있다 — 상자 폭(mm) 칸을 보인다(M5 C13).</summary>
+    public bool HasParagraph => _tab.ParagraphBox.Active;
+    public double ParagraphWidthMm => _tab.ParagraphBox.WidthPt * PtToMm;
+
+    /// <summary>상자 폭을 mm로 바꾼다(편집 창이 줄바꿈을 다시 맞춘다).</summary>
+    public Task SetParagraphWidthAsync(double widthMm) => _tab.ParagraphBox.RequestWidthAsync(widthMm / PtToMm);
 
     public IReadOnlyList<PdfColor> Swatches => PdfEditor.App.Viewer.Annotations.ToolDefaults.Swatches;
 

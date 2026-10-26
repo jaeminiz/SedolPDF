@@ -28,6 +28,7 @@ public static class TestPdfFactory
             ["arial|i"] = "ariali.ttf", ["arial|bi"] = "arialbi.ttf",
             ["malgun gothic|r"] = "malgun.ttf", ["malgun gothic|b"] = "malgunbd.ttf",
             ["malgun gothic|i"] = "malgun.ttf", ["malgun gothic|bi"] = "malgunbd.ttf",
+            ["georgia|r"] = "georgia.ttf", ["georgia|b"] = "georgiab.ttf", ["georgia|i"] = "georgiai.ttf", ["georgia|bi"] = "georgiaz.ttf",   // 명조 계열 원본 시험(M5 Task 8)
         };
 
         public FontResolverInfo? ResolveTypeface(string familyName, bool isBold, bool isItalic)

@@ -23,6 +23,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly List<IRelayCommand> _docCommands = [];
     private bool _syncingDocZoom;
     private readonly List<RibbonButtonVm> _toolButtons = [];
+    private RibbonButtonVm? _oneLineButton;
+    private bool _oneLineOnly;
+
+    /// <summary>"한 줄만"(편집 탭, M5 C1): 켜면 텍스트 편집 도구가 문단으로 묶지 않고 눌러 고른 한 줄만 고친다. 모든 문서에 적용된다.</summary>
+    public bool OneLineOnly
+    {
+        get => _oneLineOnly;
+        set
+        {
+            if (_oneLineOnly == value) return;
+            _oneLineOnly = value;
+            foreach (var d in Documents) d.OneLineOnly = value;
+            if (_oneLineButton is not null) _oneLineButton.IsChecked = value;
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>활성 문서(세션 있는)에만 실행되는 명령. 활성 문서가 바뀌면 CanExecute를 다시 알린다.</summary>
     private RelayCommand NavCmd(Action<DocumentTabViewModel> a) => DocCmd(a);
@@ -221,6 +237,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (oldValue is not null) oldValue.PropertyChanged -= OnDocumentPropertyChanged;
         if (newValue is not null) newValue.PropertyChanged += OnDocumentPropertyChanged;
+        if (newValue is not null) newValue.OneLineOnly = OneLineOnly;
         RefreshDocumentStatus();
         RefreshToolButtons();
         OnPropertyChanged(nameof(FileName));
@@ -629,6 +646,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var more = i.MoreItems?.Select(m => MakeButton(m, large: false)).ToList();
         var b = new RibbonButtonVm(Commands.Find(i.CommandId)!, i.Label, large, i.DisabledTip ?? (iconOnly ? i.Label : null), i.Tool, more) { IconOnly = iconOnly };
         b.IsChecked = i.Tool is { } t && ActiveDocument?.Tool == t;
+        if (i.CommandId == "edit.oneLineOnly") { b.IsChecked = OneLineOnly; _oneLineButton = b; }
         if (i.Tool is not null) { _toolButtons.Add(b); ApplyPatchTip(b); }
         return b;
     }
@@ -712,6 +730,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("edit.text", Strings.Cmd_EditText, "textedit", null, ToolCmd(ToolKind.EditText));
         Reg("edit.object", Strings.Cmd_EditObject, "objedit", null, ToolCmd(ToolKind.EditObject));
         Reg("edit.addText", Strings.Cmd_AddText, "type", null, ToolCmd(ToolKind.AddText));
+        Reg("edit.oneLineOnly", Strings.Cmd_OneLineOnly, "textedit", null, DocCmd(_ => OneLineOnly = !OneLineOnly));
         _addImageCommand = new AsyncRelayCommand(AddImageAsync, () => ActiveDocument is { Session: not null, CanEditContent: true });
         _docCommands.Add(_addImageCommand);
         Reg("edit.addImage", Strings.Cmd_AddImage, "image", null, _addImageCommand);
@@ -794,6 +813,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ["Edit"] =
             [
                 Gr(Strings.Group_EditTools, false, T("edit.text", Strings.Cmd_EditText, ToolKind.EditText), T("edit.object", Strings.Cmd_EditObject, ToolKind.EditObject),
+                    I("edit.oneLineOnly", Strings.Cmd_OneLineOnly, Strings.Tip_OneLineOnly),
                     T("edit.addText", Strings.Cmd_AddText, ToolKind.AddText), I("edit.addImage", Strings.Cmd_AddImage, Strings.Tip_AddImage)),
                 Gr(Strings.Group_AddShapes, false, T("edit.shapeRect", Strings.Cmd_ShapeRect, ToolKind.AddShape), T("edit.shapeEllipse", Strings.Cmd_ShapeEllipse, ToolKind.AddEllipse),
                     T("edit.shapeLine", Strings.Cmd_ShapeLine, ToolKind.AddLine)),

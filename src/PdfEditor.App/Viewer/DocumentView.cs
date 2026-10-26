@@ -145,6 +145,7 @@ public sealed partial class DocumentView : Control
         CloseStickyEditor(commit: true);
         CloseFreeTextEditor(commit: true);
         CloseLineEditor(commit: true);
+        CloseParagraphEditor();
         if (_state is not null)
         {
             if (_sv is not null) _state.Offset = _sv.Offset;
@@ -208,6 +209,7 @@ public sealed partial class DocumentView : Control
         if (_editState is not null && ReferenceEquals(_editState, st)) CloseStickyEditor(commit: false);
         if (_ftState is not null && ReferenceEquals(_ftState, st)) CloseFreeTextEditor(commit: false);
         CloseLineEditor(commit: false, onlyFor: st);
+        if (ReferenceEquals(_paraSt, st)) CloseParagraphEditor();
         if (ReferenceEquals(_state, st))
         {
             st.Tab.PropertyChanged -= OnTabPropertyChanged;
@@ -247,13 +249,13 @@ public sealed partial class DocumentView : Control
         if (_state is null || _sv is null) return;
         switch (e.PropertyName)
         {
-            case nameof(DocumentTabViewModel.Scale): OnScaleChanged(); break;
+            case nameof(DocumentTabViewModel.Scale): OnScaleChanged(); Dispatcher.UIThread.Post(OnParagraphViewChanged, DispatcherPriority.Loaded); break;
             case nameof(DocumentTabViewModel.ViewMode): OnViewModeChanged(); break;
             case nameof(DocumentTabViewModel.CurrentPageIndex):
                 if (!_fromScroll) GoToPage(_state.Tab.CurrentPageIndex);
                 break;
             case nameof(DocumentTabViewModel.PageCount): OnPagesInvalidated(_state); break;
-            case nameof(DocumentTabViewModel.Tool): Cursor = CursorFor(_state.Tab.Tool); CancelGesture(); _hover = null; InvalidateVisual(); break;
+            case nameof(DocumentTabViewModel.Tool): Cursor = CursorFor(_state.Tab.Tool); CancelGesture(); _hover = null; if (_state.Tab.Tool != ToolKind.EditText) CloseParagraphEditor(); InvalidateVisual(); break;
         }
     }
 

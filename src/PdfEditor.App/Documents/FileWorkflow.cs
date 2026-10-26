@@ -170,6 +170,11 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         }
         try { settings.AddRecent(path); } catch (Exception) { }
         Saved?.Invoke(s);
+        // 문단 편집으로 지운 옛 글을 연산자째 지우지 못한 경우(C12): 검색·복사로 나올 수 있음을 알린다.
+        if (save.LastHiddenTextCount > 0)
+        {
+            try { await prompts.ShowInfoAsync(Strings.Msg_ParagraphHiddenText).ConfigureAwait(true); } catch (Exception) { }
+        }
         return true;
     }
 

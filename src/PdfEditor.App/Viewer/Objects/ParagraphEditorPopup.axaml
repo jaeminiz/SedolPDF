@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PdfEditor.App.Viewer.Objects.ParagraphEditorPopup">
+  <!-- 문단 위에 겹치는 여러 줄 편집 창(M5 C17). 위: 줄 포함/제외 단추, 가운데: 글 입력칸 + 좌우 폭 손잡이, 아래: 줄 수·알림과 확정/취소. -->
+  <Border Background="White" BorderBrush="#005FB8" BorderThickness="1" Padding="0">
+    <StackPanel>
+      <StackPanel Name="ExtendRow" Orientation="Horizontal" Spacing="4" Margin="2">
+        <Button Name="AddTopBtn" Focusable="False" Padding="6,1" FontSize="11" />
+        <Button Name="RemoveTopBtn" Focusable="False" Padding="6,1" FontSize="11" />
+        <Button Name="AddBottomBtn" Focusable="False" Padding="6,1" FontSize="11" />
+        <Button Name="RemoveBottomBtn" Focusable="False" Padding="6,1" FontSize="11" />
+      </StackPanel>
+      <Grid Name="BoxHost">
+        <TextBox Name="Box" AcceptsReturn="True" TextWrapping="Wrap" Background="White" BorderThickness="0"
+                 Padding="2" CornerRadius="0" VerticalContentAlignment="Top" />
+        <Thumb Name="LeftGrip" Width="7" HorizontalAlignment="Left" Cursor="SizeWestEast" Background="#55005FB8" />
+        <Thumb Name="RightGrip" Width="7" HorizontalAlignment="Right" Cursor="SizeWestEast" Background="#55005FB8" />
+      </Grid>
+      <Grid ColumnDefinitions="*,Auto,Auto" Margin="2">
+        <TextBlock Name="Status" Grid.Column="0" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="360" />
+        <Button Name="CommitBtn" Grid.Column="1" Focusable="False" Padding="8,1" Margin="4,0,0,0" FontSize="11" />
+        <Button Name="CancelBtn" Grid.Column="2" Focusable="False" Padding="8,1" Margin="4,0,0,0" FontSize="11" />
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

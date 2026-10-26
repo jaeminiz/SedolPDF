@@ -30,12 +30,19 @@ public sealed class AppearanceServices
     /// <summary>그림 스탬프 이미지·첨부 파일 보관소. 모양 만들기(가로세로 비율), 화면(비트맵), 저장·복구·인쇄(패치)가 모두 이 하나를 쓴다.</summary>
     public AnnotationAssets Assets { get; }
 
-    private AppearanceServices(Lazy<AppFont?> font, AnnotationAssets assets)
+    private readonly string _baseDirectory;
+    private AppFontCatalog? _catalog;
+
+    /// <summary>대체 글꼴 카탈로그(고딕+명조, M5 C11). 처음 쓸 때 만들고 명조 파일은 그보다 더 늦게(명조가 필요할 때) 읽는다. 고딕이 없으면 null.</summary>
+    public AppFontCatalog? Catalog => Font is { } f ? (_catalog ??= AppFontCatalog.ForBaseDirectory(f, _baseDirectory)) : null;
+
+    private AppearanceServices(Lazy<AppFont?> font, AnnotationAssets assets, string baseDirectory)
     {
         _font = font;
+        _baseDirectory = baseDirectory;
         Assets = assets;
         Appearance = PdfAppearanceSource.WithFontProvider(() => font.Value, assets);
-        Patcher = PdfSharpAnnotationPatcher.Shared(() => font.Value);
+        Patcher = PdfSharpAnnotationPatcher.Shared(() => font.Value, () => Catalog?.Serif);
     }
 
     /// <summary>baseDirectory/assets/fonts/NotoSansKR-Regular.otf를 (처음 필요할 때) 읽도록 준비하고 AppearanceGeometry의 정적 설정을 채운다.</summary>
@@ -57,7 +64,7 @@ public sealed class AppearanceServices
         var assets = new AnnotationAssets(PdfEditor.Appearance.Patching.ImageEmbedder.Validate);
         AppearanceGeometry.Assets = assets;
         AppearanceGeometry.ImageResolver = new ImageCache(assets).Resolve;
-        return new AppearanceServices(font, assets);
+        return new AppearanceServices(font, assets, baseDirectory);
     }
 
     /// <summary>화면용 비트맵 폭 상한(px). 아주 큰 이미지도 이 폭으로 줄여 풀어 UI 스레드 메모리를 지킨다.</summary>

@@ -491,4 +491,31 @@ Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value
   <data name="Dlg_ColorOld" xml:space="preserve"><value>지금 색</value></data>
   <data name="Dlg_ColorNew" xml:space="preserve"><value>새 색</value></data>
   <data name="Tip_MoreColors" xml:space="preserve"><value>다른 색 고르기…</value></data>
+  <data name="Para_Lines" xml:space="preserve"><value>줄 {0}/최대 {1}</value></data>
+  <data name="Para_Overflow" xml:space="preserve"><value>줄 {0}/최대 {1} — 쪽 아래를 넘어 확정할 수 없습니다. 글을 줄이거나 상자 폭을 넓히세요.</value></data>
+  <data name="Para_Overlap" xml:space="preserve"><value>아래로 늘어나 다른 글·그림과 겹칩니다(확정할 수 있습니다).</value></data>
+  <data name="Para_AppFont" xml:space="preserve"><value>고친 줄은 원래 글꼴 대신 기본 글꼴로 바뀝니다.</value></data>
+  <data name="Para_FontsMixed" xml:space="preserve"><value>고친 줄과 안 고친 줄의 글꼴이 달라 보일 수 있습니다.</value></data>
+  <data name="Para_Missing" xml:space="preserve"><value>쓸 수 없는 글자가 있습니다: {0}</value></data>
+  <data name="Para_Encrypted" xml:space="preserve"><value>암호 문서에서는 문단 편집을 쓸 수 없습니다.</value></data>
+  <data name="Para_Planning" xml:space="preserve"><value>줄 배치를 계산하는 중…</value></data>
+  <data name="Para_Commit" xml:space="preserve"><value>확정</value></data>
+  <data name="Para_Cancel" xml:space="preserve"><value>취소</value></data>
+  <data name="Para_AddTop" xml:space="preserve"><value>위 줄 포함</value></data>
+  <data name="Para_RemoveTop" xml:space="preserve"><value>위 줄 제외</value></data>
+  <data name="Para_AddBottom" xml:space="preserve"><value>아래 줄 포함</value></data>
+  <data name="Para_RemoveBottom" xml:space="preserve"><value>아래 줄 제외</value></data>
+  <data name="Para_ExtendTip" xml:space="preserve"><value>묶음이 틀렸을 때 연속한 줄을 더하거나 뺍니다. 글을 고치기 전에만 쓸 수 있습니다. (Shift+↑/↓ 포함, Alt+Shift+↑/↓ 제외)</value></data>
+  <data name="Para_ReasonTable" xml:space="preserve"><value>표 안의 글처럼 보여 한 줄만 편집합니다.</value></data>
+  <data name="Para_ReasonMixed" xml:space="preserve"><value>한 줄에 글꼴·크기·색이 섞여 있어 한 줄만 편집합니다.</value></data>
+  <data name="Para_ReasonLow" xml:space="preserve"><value>문단인지 확신하기 어려워 한 줄만 편집합니다.</value></data>
+  <data name="Para_ReasonSingle" xml:space="preserve"><value>이웃한 줄이 없어 한 줄만 편집합니다.</value></data>
+  <data name="Para_ReasonOneLineOnly" xml:space="preserve"><value>'한 줄만' 설정이 켜져 있습니다.</value></data>
+  <data name="Para_ReasonFailed" xml:space="preserve"><value>문단을 읽지 못해 한 줄만 편집합니다.</value></data>
+  <data name="Cmd_OneLineOnly" xml:space="preserve"><value>한 줄만</value></data>
+  <data name="Tip_OneLineOnly" xml:space="preserve"><value>켜면 글을 눌러도 문단으로 묶지 않고 눌러 선택한 한 줄만 고칩니다</value></data>
+  <data name="Prop_Para_Title" xml:space="preserve"><value>문단 상자</value></data>
+  <data name="Prop_Para_Width" xml:space="preserve"><value>상자 폭 (mm)</value></data>
+  <data name="Msg_ParagraphHiddenText" xml:space="preserve"><value>고친 문단의 옛 글 일부를 파일에서 완전히 지우지 못하고 보이지 않는 글자로 남겼습니다. 검색이나 복사를 하면 옛 글이 나올 수 있습니다.</value></data>
+  <data name="Msg_ParagraphCommitFailed" xml:space="preserve"><value>문단을 고치지 못했습니다. 문서는 바뀌지 않았습니다.</value></data>
 </root>

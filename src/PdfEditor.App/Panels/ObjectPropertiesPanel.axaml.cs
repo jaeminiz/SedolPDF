@@ -17,7 +17,8 @@ public sealed partial class ObjectPropertiesPanel : UserControl
     private readonly NumericUpDown _strokeWidth = Box(0.25m, 50, 0.25m, 2);
     private readonly NumericUpDown _textSize = Box(4, 200, 1, 1);
     private readonly WrapPanel _stroke = new(), _fill = new(), _textColor = new();
-    private readonly StackPanel _shapeSection = new(), _textSection = new();
+    private readonly StackPanel _shapeSection = new(), _textSection = new(), _paraSection = new();
+    private readonly NumericUpDown _paraWidth = Box(1, 100000, 1, 1);
 
     public ObjectPropertiesPanel()
     {
@@ -34,6 +35,14 @@ public sealed partial class ObjectPropertiesPanel : UserControl
         _shapeSection.Children.Add(Label(Strings.Prop_Obj_Fill)); _shapeSection.Children.Add(_fill);
         _strokeWidth.ValueChanged += (_, e) => { if (!_syncing && _vm is not null && e.NewValue is { } v) _ = _vm.SetShapeStyleAsync(_vm.Stroke, (float)v, _vm.Fill); };
         Root.Children.Add(_shapeSection);
+
+        _paraSection.Children.Add(new TextBlock { Text = Strings.Prop_Para_Title, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
+        _paraSection.Children.Add(Row(Strings.Prop_Para_Width, _paraWidth));
+        _paraWidth.ValueChanged += (_, e) =>
+        {
+            if (!_syncing && _vm is not null && e.NewValue is { } v) _ = _vm.SetParagraphWidthAsync((double)v);
+        };
+        Root.Children.Add(_paraSection);
 
         _textSection.Children.Add(Row(Strings.Prop_Obj_TextSize, _textSize));
         _textSection.Children.Add(Label(Strings.Prop_Annot_Color)); _textSection.Children.Add(_textColor);
@@ -81,6 +90,8 @@ public sealed partial class ObjectPropertiesPanel : UserControl
         {
             _x.Value = (decimal)Math.Round(_vm.XMm, 1); _y.Value = (decimal)Math.Round(_vm.YMm, 1);
             _w.Value = (decimal)Math.Round(_vm.WidthMm, 1); _h.Value = (decimal)Math.Round(_vm.HeightMm, 1);
+            _paraSection.IsVisible = _vm.HasParagraph;
+            if (_vm.HasParagraph) _paraWidth.Value = (decimal)Math.Round(_vm.ParagraphWidthMm, 1);
             _shapeSection.IsVisible = _vm.IsShape;
             _textSection.IsVisible = _vm.IsAppText;
             if (_vm.IsShape)

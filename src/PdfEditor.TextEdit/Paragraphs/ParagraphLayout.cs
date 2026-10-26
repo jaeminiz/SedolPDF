@@ -88,7 +88,7 @@ public static class ParagraphLayout
         string orig = OriginalText(p, opt);
         int n = p.Lines.Length;
 
-        if (text == orig) return new ParagraphLayoutResult(OriginalLines(p, 0, n), 0, -1, MaxLinesOf(p, opt), false, FontChoice.Original, [], false, false, n, p.Lines[0].Angle);
+        if (text == orig && p.ColumnWidthOverride is null) return new ParagraphLayoutResult(OriginalLines(p, 0, n), 0, -1, MaxLinesOf(p, opt), false, FontChoice.Original, [], false, false, n, p.Lines[0].Angle);
         if (text.Trim().Length == 0)
             return new ParagraphLayoutResult([], 0, -1, MaxLinesOf(p, opt), false, FontChoice.Original, [], false, true, n, p.Lines[0].Angle);
 
@@ -115,7 +115,9 @@ public static class ParagraphLayout
         double indent = p.Align is Alignment.Left or Alignment.Justified ? p.FirstLineIndent : 0;
         // 열 폭: 상자(글자 잉크) 폭과, 같은 측정으로 잰 원래 줄 중 가장 긴 폭 중 큰 값 — 원래 줄이 모두 들어가야 하고, 잉크 폭은 글자 여백만큼 이동량보다 작다.
         double colW = uRight - uLeft;
-        for (int i = 0; i < p.Lines.Length; i++) colW = Math.Max(colW, W(p.Lines[i].Text) + (i == 0 ? indent : 0));
+        bool forceAll = p.ColumnWidthOverride is not null;   // 사용자가 끌어 정한 폭: 모든 줄을 이 폭으로 다시 맞춘다(원래 줄 폭은 무시)
+        if (forceAll) colW = Math.Max(p.ColumnWidthOverride!.Value, 2 * size);
+        else for (int i = 0; i < p.Lines.Length; i++) colW = Math.Max(colW, W(p.Lines[i].Text) + (i == 0 ? indent : 0));
         double Avail(int lineIndex) => colW - (lineIndex == 0 ? indent : 0) + opt.WidthSlackEm * size;
 
         // 원래 줄 시작 오프셋
@@ -140,7 +142,8 @@ public static class ParagraphLayout
         // 처음 다시 쓸 줄: 바뀐 곳이 들어 있는 줄(줄 맨 앞에서 바뀌면 앞 줄이 받아 줄일 수 있으므로 앞 줄부터)
         int k = 0;
         for (int i = 0; i < n; i++) if (starts[i] <= pre) k = i;
-        if (k > 0 && pre <= starts[k])
+        if (forceAll) k = 0;
+        else if (k > 0 && pre <= starts[k])
         {
             // 줄 맨 앞이 바뀌었을 때만: 앞 줄이 새로 시작하는 첫 낱말을 받을 수 있으면 앞 줄부터 다시 맞춘다
             int e = pre;
@@ -182,7 +185,7 @@ public static class ParagraphLayout
             if (lastOfPara) break;
             // 원래 줄 끝과 다시 맞는가: 줄 번호가 같고, 바뀐 구간 뒤이며, 다음 줄 시작이 원래 줄 시작(바뀐 글자 수만큼 이동)과 같다
             int j = idx + 1;
-            if (j < n && br.Next >= newChangedEnd && br.Next - delta == starts[j] && br.Next - delta >= origChangedEnd)
+            if (!forceAll && j < n && br.Next >= newChangedEnd && br.Next - delta == starts[j] && br.Next - delta >= origChangedEnd)
             {
                 synced = true;
                 break;

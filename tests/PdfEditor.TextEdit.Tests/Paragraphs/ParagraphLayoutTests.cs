@@ -381,4 +381,34 @@ public class ParagraphLayoutTests
         var r = Lay(p, FourText.Replace("zeta-long-word ", ""));
         Assert.Equal(1, r.FirstRewritten);
     }
+
+    // ---- M5 Task 8: 사용자가 끌어 정한 열 폭(ColumnWidthOverride, C13) ----
+
+    [Fact]
+    public void ColumnWidthOverride_Narrower_RewrapsAllLines_EvenWithSameText()
+    {
+        var p = FourLines() with { ColumnWidthOverride = 8 * 5 };   // 8자(40 pt) 폭
+        var r = Lay(p, FourText);
+        Assert.False(r.NoChange);
+        Assert.Equal(0, r.FirstRewritten);
+        Assert.True(r.Lines.Length > Four.Length);
+        Assert.All(r.Lines, l => Assert.True(l.Width <= 40.5, l.Text));
+        Assert.All(r.Lines, l => Assert.False(l.IsOriginal));
+    }
+
+    [Fact]
+    public void ColumnWidthOverride_Wider_ShortensParagraph()
+    {
+        var p = FourLines() with { ColumnWidthOverride = 60 * 5 };
+        var r = Lay(p, FourText);
+        Assert.False(r.NoChange);
+        Assert.True(r.Lines.Length < Four.Length);
+        Assert.Equal(FourText, string.Join(" ", r.Lines.Select(l => l.Text)));
+    }
+
+    [Fact]
+    public void NoColumnWidthOverride_SameText_StillNoChange()
+    {
+        Assert.True(Lay(FourLines(), FourText).NoChange);
+    }
 }

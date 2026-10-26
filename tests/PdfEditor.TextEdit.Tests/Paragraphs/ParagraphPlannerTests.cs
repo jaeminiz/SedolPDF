@@ -357,4 +357,65 @@ public sealed class ParagraphPlannerTests : IDisposable
             Assert.Equal(expect, got);
         }
     }
+
+    // ---- M5 Task 8: 대체 글꼴 카탈로그(고딕/명조) 연결 ----
+
+    private static AppFontCatalog Catalog()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "assets", "fonts", "NotoSansKR-Regular.otf"))) dir = dir.Parent;
+        return AppFontCatalog.ForBaseDirectory(Font.Value, dir!.FullName);
+    }
+
+    private string MakeFontParagraph(string family, bool bold = false)
+    {
+        _ = ParagraphTestData.Sample("doc-en-left");   // 글꼴 해석기 준비(공용 샘플 생성기가 설정한다)
+        string path = Path.Combine(_dir, family.Replace(' ', '_') + (bold ? "-b" : "") + ".pdf");
+        using var doc = new PdfSharp.Pdf.PdfDocument();
+        var page = doc.AddPage();
+        page.Width = PdfSharp.Drawing.XUnit.FromPoint(595);
+        page.Height = PdfSharp.Drawing.XUnit.FromPoint(842);
+        using (var g = PdfSharp.Drawing.XGraphics.FromPdfPage(page))
+        {
+            var f = new PdfSharp.Drawing.XFont(family, 11, bold ? PdfSharp.Drawing.XFontStyleEx.Bold : PdfSharp.Drawing.XFontStyleEx.Regular,
+                new PdfSharp.Drawing.XPdfFontOptions(PdfSharp.Pdf.PdfFontEncoding.Unicode));
+            string[] lines =
+            [
+                "The commissioning of the system shall be witnessed by the owner",
+                "representative and the classification surveyor before the final",
+                "acceptance test, and the records shall be kept on board for the",
+                "whole service life of the vessel.",
+            ];
+            for (int i = 0; i < lines.Length; i++) g.DrawString(lines[i], f, PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(60, 90 + i * 15), PdfSharp.Drawing.XStringFormats.BaseLineLeft);
+        }
+        doc.Save(path);
+        return path;
+    }
+
+    [Fact]
+    public async Task SerifOriginal_AppFontFallback_UsesMyeongjo()
+    {
+        var (s, page, m) = await OpenParagraph("", 3, MakeFontParagraph("Georgia"));
+        var catalog = Catalog();
+        Assert.NotNull(catalog.Serif);
+        string edited = ParagraphLayout.OriginalText(m) + " 한글 추가";   // 서브셋에 없는 글자 → 앱 글꼴로 내려감
+        var plan = await _t.InvokeAsync(() => ParagraphEditPlanner.Plan(s, page, m, edited, Font.Value, catalog: catalog));
+        Assert.True(plan.Ok, plan.Refusal.ToString());
+        Assert.True(plan.UsedAppFont);
+        Assert.NotEmpty(plan.Edit!.AppLines);
+        Assert.All(plan.Edit.AppLines, l => Assert.Equal(PdfEditor.Document.Annotations.Patching.FontUse.SerifFamily, l.Font.Family));
+    }
+
+    [Fact]
+    public async Task SansOriginal_AppFontFallback_UsesGothic_BoldIsSynthetic()
+    {
+        var (s, page, m) = await OpenParagraph("", 3, MakeFontParagraph("Arial", bold: true));
+        var catalog = Catalog();
+        string edited = ParagraphLayout.OriginalText(m) + " 한글 추가";
+        var plan = await _t.InvokeAsync(() => ParagraphEditPlanner.Plan(s, page, m, edited, Font.Value, catalog: catalog));
+        Assert.True(plan.Ok, plan.Refusal.ToString());
+        Assert.NotEmpty(plan.Edit!.AppLines);
+        Assert.All(plan.Edit.AppLines, l => Assert.Equal("", l.Font.Family));
+        Assert.All(plan.Edit.AppLines, l => Assert.Contains("2 Tr", l.Content));   // 굵은 원본 → 가짜 굵게(렌더 모드 2)
+    }
 }

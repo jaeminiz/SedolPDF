@@ -108,7 +108,7 @@ public sealed partial class DocumentView
         if (tab.Tool == ToolKind.EditText)
         {
             // 텍스트 편집 도구: 글자 객체와, 앱 글꼴로 넣어 화면에서는 경로인 줄만 고른다
-            var appIds = st.Session.Content.For(info.Id).OfType<InsertAppTextEdit>().Select(a => a.Id).ToHashSet();
+            var appIds = AppTextIds(st, info.Id);
             filter = x => x.Type == PdfPageObjectType.Text || (x.Ref.IsInserted && appIds.Contains(x.Ref.InsertedId));
         }
         var pick = ctl.Pick(idx, pt, 4 * ptPerDip, cycle, filter);
@@ -135,7 +135,7 @@ public sealed partial class DocumentView
         if (toggle && tab.Tool == ToolKind.EditObject) { ctl.Toggle(chosen); InvalidateVisual(); return true; }
         ctl.Select(chosen);
         InvalidateVisual();
-        if (tab.Tool == ToolKind.EditText) { _ = BeginTextEditAsync(st, e.PageIndex, g, info, pick); return true; }
+        if (tab.Tool == ToolKind.EditText) { _ = BeginTextOrParagraphEditAsync(st, e.PageIndex, g, info, pick, idx); return true; }
         if (!cycle) StartObjectDrag(e.Pointer, ObjectHandle.Body, pt, e.PageIndex, g);   // 고르자마자 끌 수 있게
         return true;
     }
@@ -218,6 +218,7 @@ public sealed partial class DocumentView
     private void DrawObjectSelection(DrawingContext ctx, ViewState st, PageInfo info, Rect pr, double scale)
     {
         DrawShapePreview(ctx, info, pr, scale);
+        DrawParagraphBox(ctx, st, info, pr, scale);
         var ctl = st.Tab.Objects;
         if (ctl.Selected is not { } first || first.Page != info.Id) return;
         if (!TryGetGeom(st, info, out var g)) return;

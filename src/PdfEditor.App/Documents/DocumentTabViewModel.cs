@@ -256,6 +256,19 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         if (Session is null || !CanEditContent) return;
         await Session.Commands.ExecuteAsync(c);
     }
+    /// <summary>문단 편집 명령(M5)을 실행한다. 권한이 없으면 아무것도 하지 않는다.</summary>
+    public async Task RunParagraphCommandAsync(PdfEditor.Document.Content.ParagraphEditCommand c)
+    {
+        if (Session is null || !CanEditContent) return;
+        await Session.Commands.ExecuteAsync(c);
+    }
+
+    /// <summary>"한 줄만" 설정(편집 탭, M5 C1): 켜면 텍스트 편집 도구가 문단으로 묶지 않고 눌러 고른 한 줄만 고친다(M4 동작). 메인 창이 활성 문서에 맞춰 준다.</summary>
+    public bool OneLineOnly { get; set; }
+
+    /// <summary>열려 있는 문단 편집 창의 상자 정보(속성 패널의 폭 칸과 주고받는다, UI 스레드 전용).</summary>
+    public PdfEditor.App.Viewer.Objects.ParagraphBoxBridge ParagraphBox { get; } = new();
+
     /// <summary>
     /// 이미지 추가(편집 탭): 지금 보는 쪽 가운데에 넣고 바로 객체 편집 도구로 선택한다.
     /// 실패하면 안내(NoticeRequested)만 하고 아무것도 바꾸지 않는다.
