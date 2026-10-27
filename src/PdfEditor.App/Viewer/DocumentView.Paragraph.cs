@@ -115,7 +115,8 @@ public sealed partial class DocumentView
         var at = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(v.W, 1), Math.Max(v.H, 1));
         _paraPopup.PlacementRect = at;
         _paraPopup.VerticalOffset = ps.CanExtend ? -26 : 0;
-        _paraEditor.SetWidth(Math.Max(v.W + 6, 60));
+        // 쪽이 돌아 있어 상자가 화면에서 좁고 길쭉하면(예: 60 DIP) 글이 몇 글자씩 끊겨 읽을 수 없으므로 읽을 수 있는 폭을 보장한다
+        _paraEditor.SetWidth(v.W + 6 < ParagraphEditorPopup.ReadableMinWidth ? ParagraphEditorPopup.ReadableMinWidth : v.W + 6);
     }
 
     private bool TryParagraphGeom(out PageGeom g)

@@ -336,8 +336,12 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         var placement = new Mat(tm.A, tm.B, tm.C, tm.D, line.Placement.E, line.Placement.F);
         string fill = string.Join(' ', snap.ReplayOps.Select(k => Encoding.Latin1.GetString(parsed.Data, parsed.Ops[k].Start, parsed.Ops[k].End - parsed.Ops[k].Start)));
         var style = new PdfEditor.ContentStream.Fonts.TextLineStyle((float)size, line.Tc, line.Tz, 0, snap.Tr, fill.Length > 0 ? fill : null);
+        // 늘임(JustifyExtra)은 쪽에서 본 이동량(pt)이다. 글 크기가 Tf가 아니라 글 행렬·CTM의 배율로 주어진 PDF("/F0 1 Tf 11 0 0 11 x y Tm")에서는
+        // TJ 숫자가 그 배율만큼 커지므로, 글 공간 이동량으로 바꿔 넘긴다(2026-10-27 실제 PDF에서 낱말 사이가 11배 벌어진 결함).
+        double textScale = Math.Sqrt(tm.A * tm.A + tm.B * tm.B);
+        float justify = Math.Abs(line.JustifyExtra) > 1e-6f ? (float)(line.JustifyExtra / (textScale > 1e-6 ? textScale : 1)) : 0;
         var bytes = PdfEditor.ContentStream.Fonts.TextLineWriter.Write(line.TwoByte, name, new PdfEditor.ContentStream.Fonts.EncodedText(line.Text, line.Encoded, default),
-            style, placement, Math.Abs(line.JustifyExtra) > 1e-6f ? line.JustifyExtra : null);
+            style, placement, justify != 0 ? justify : null);
         return Encoding.Latin1.GetString(bytes);
     }
 

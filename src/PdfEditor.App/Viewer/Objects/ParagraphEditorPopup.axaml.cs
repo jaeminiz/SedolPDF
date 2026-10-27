@@ -14,6 +14,9 @@ namespace PdfEditor.App.Viewer.Objects;
 /// </summary>
 public partial class ParagraphEditorPopup : UserControl
 {
+    /// <summary>편집 창 폭이 이보다 좁으면(돌아간 쪽의 가는 상자 등) 이 폭으로 넓힌다(DIP).</summary>
+    public const double ReadableMinWidth = 240;
+
     private double _dragTotal;
     private bool _loading;
     private bool _canExtend;
