@@ -34,7 +34,7 @@ public sealed class ParagraphBoxBridge
 
 /// <summary>문단 편집을 계획만 해 본 결과(화면 표시용). 문서는 바뀌지 않는다.</summary>
 public sealed record ParagraphPreview(int LineCount, int MaxLines, bool Overflow, bool Overlap, bool UsedAppFont, bool FontsMixed,
-    ParagraphRefusal Refusal, IReadOnlyList<int> Missing, bool NoChange, PdfRectF? DisplayBox)
+    ParagraphRefusal Refusal, IReadOnlyList<int> Missing, bool NoChange, PdfRectF? DisplayBox, IReadOnlyList<string>? PlannedLines = null)
 {
     public static ParagraphPreview Empty { get; } = new(0, int.MaxValue, false, false, false, false, ParagraphRefusal.None, [], true, null);
 
@@ -63,7 +63,7 @@ public sealed record ParagraphPreview(int LineCount, int MaxLines, bool Overflow
             if (UsedAppFont) parts.Add(Strings.Para_AppFont);
             if (FontsMixed) parts.Add(Strings.Para_FontsMixed);
             if (Overlap) parts.Add(Strings.Para_Overlap);
-            return string.Join("  ·  ", parts);
+            return string.Join('\n', parts);   // 안내는 문장마다 한 줄(2026-10-27: 한 줄에 이어 붙이면 좁은 창에서 접혀 읽기 어려웠다)
         }
     }
 }
@@ -283,7 +283,7 @@ public static class ParagraphController
             foreach (var line in l.Lines)
                 box = ParagraphGeometry.Union(box.Value, ParagraphGeometry.LineRect(line.BaselineOrigin, line.Width, ps.SizePt, ps.Angle));
         return new ParagraphPreview(l?.Lines.Length ?? 0, l?.MaxLines ?? int.MaxValue, plan.Refusal == ParagraphRefusal.Overflow, plan.Overlap,
-            plan.UsedAppFont, plan.FontsMixed, plan.Refusal, plan.Missing, plan.NoChange, box);
+            plan.UsedAppFont, plan.FontsMixed, plan.Refusal, plan.Missing, plan.NoChange, box, l?.Lines.Select(x => x.Text).ToArray());
     }
 
     /// <summary>입력 중 미리 계획(문서는 바뀌지 않음): 줄 수·넘침·겹침·글꼴 알림.</summary>

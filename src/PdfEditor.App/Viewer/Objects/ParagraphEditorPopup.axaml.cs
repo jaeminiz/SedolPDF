@@ -30,6 +30,7 @@ public partial class ParagraphEditorPopup : UserControl
         AddBottomBtn.Content = Strings.Para_AddBottom;
         RemoveBottomBtn.Content = Strings.Para_RemoveBottom;
         CommitBtn.Content = Strings.Para_Commit;
+        LinePreviewLabel.Text = Strings.Para_LinePreview;
         CancelBtn.Content = Strings.Para_Cancel;
         foreach (var b in new[] { AddTopBtn, RemoveTopBtn, AddBottomBtn, RemoveBottomBtn }) ToolTip.SetTip(b, Strings.Para_ExtendTip);
         AddTopBtn.Click += (_, _) => RequestExtend(1, 0);
@@ -69,6 +70,8 @@ public partial class ParagraphEditorPopup : UserControl
     public double EditorFontSize => Box.FontSize;
     public double BoxWidth => Box.Width;
     public string StatusText => Status.Text ?? "";
+    public string LinePreviewText => LinePreview.Text ?? "";
+    public bool LinePreviewVisible => LinePreviewHost.IsVisible;
     public bool CommitEnabled => CommitBtn.IsEnabled;
 
     /// <summary>화면 글자 크기(DIP) = 글자 크기(pt) × 화면 배율. widthDip는 문단 상자 폭.</summary>
@@ -95,11 +98,14 @@ public partial class ParagraphEditorPopup : UserControl
     /// <summary>폭만 바꾼다(손잡이를 놓은 뒤 / 속성 패널의 숫자 칸).</summary>
     public void SetWidth(double widthDip) => Box.Width = Math.Max(widthDip, 60);
 
-    public void SetStatus(string text, ParagraphBoxState state, bool canCommit)
+    public void SetStatus(string text, ParagraphBoxState state, bool canCommit, IReadOnlyList<string>? plannedLines = null)
     {
         Status.Text = text;
         Status.Foreground = new SolidColorBrush(Color.Parse(state switch { ParagraphBoxState.Blocked => "#C42B1C", ParagraphBoxState.Overlap => "#B45F06", _ => "#5C5C5C" }));
         CommitBtn.IsEnabled = canCommit;
+        // 입력칸은 테마 글꼴 폭으로 줄바꿈하므로 실제 결과(PDF 글꼴 폭 기준 계획)의 줄바꿈을 따로 보여 준다.
+        LinePreview.Text = plannedLines is { Count: > 0 } ? string.Join('\n', plannedLines) : "";
+        LinePreviewHost.IsVisible = LinePreview.Text.Length > 0;
     }
 
     public void SetText(string text) { Box.Text = text; Box.CaretIndex = text.Length; }

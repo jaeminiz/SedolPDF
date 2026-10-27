@@ -499,6 +499,7 @@ Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value
   <data name="Para_Missing" xml:space="preserve"><value>쓸 수 없는 글자가 있습니다: {0}</value></data>
   <data name="Para_Encrypted" xml:space="preserve"><value>암호 문서에서는 문단 편집을 쓸 수 없습니다.</value></data>
   <data name="Para_Planning" xml:space="preserve"><value>줄 배치를 계산하는 중…</value></data>
+  <data name="Para_LinePreview" xml:space="preserve"><value>실제 줄바꿈 미리보기 (PDF 기준)</value></data>
   <data name="Para_Commit" xml:space="preserve"><value>확정</value></data>
   <data name="Para_Cancel" xml:space="preserve"><value>취소</value></data>
   <data name="Para_AddTop" xml:space="preserve"><value>위 줄 포함</value></data>

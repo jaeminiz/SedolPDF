@@ -498,6 +498,7 @@ public static class Strings
     public static string Para_Missing => Get(nameof(Para_Missing));
     public static string Para_Encrypted => Get(nameof(Para_Encrypted));
     public static string Para_Planning => Get(nameof(Para_Planning));
+    public static string Para_LinePreview => Get(nameof(Para_LinePreview));
     public static string Para_Commit => Get(nameof(Para_Commit));
     public static string Para_Cancel => Get(nameof(Para_Cancel));
     public static string Para_AddTop => Get(nameof(Para_AddTop));

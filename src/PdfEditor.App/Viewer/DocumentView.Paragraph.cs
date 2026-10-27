@@ -150,7 +150,7 @@ public sealed partial class DocumentView
         finally { if (version == _paraVersion) _paraBusy = false; }
         if (version != _paraVersion || !ReferenceEquals(ps, _para) || st.Disposed) return;
         _paraPreview = p;
-        _paraEditor.SetStatus(p.StatusText, p.State, p.CanCommit);
+        _paraEditor.SetStatus(p.StatusText, p.State, p.CanCommit, p.PlannedLines);
         InvalidateVisual();
     }
 
@@ -169,7 +169,7 @@ public sealed partial class DocumentView
             {
                 _paraVersion++;   // 늦게 오는 미리 계획이 이 결과를 덮지 않게
                 _paraPreview = r.Preview;
-                _paraEditor.SetStatus(r.Preview.StatusText, r.Preview.State, r.Preview.CanCommit);
+                _paraEditor.SetStatus(r.Preview.StatusText, r.Preview.State, r.Preview.CanCommit, r.Preview.PlannedLines);
                 InvalidateVisual();
                 return false;
             }

@@ -599,7 +599,7 @@ public class UserScenarioTests(ITestOutputHelper log) : ObjectUiTestBase
 
     /// <summary>② 편집 창 안의 줄바꿈(Avalonia 기본 글꼴·UAX#14: 한글은 음절 사이에서도 끊김)이 PDF 계획(공백에서 끊기)과 다르다. 헤드리스에서는 글꼴 폭이 달라 실제 화면의 줄 수 차이는 못 재고, 원인이 되는 구조를 고정한다.</summary>
     [Fact]
-    public async Task KnownIssue2_EditorWrapDiffersFromPlan()
+    public async Task EditorWrap_InputBoxDiffers_PlannedLinesPreviewShown()
     {
         if (await OpenUser("01-ime") is not { } h) return;
         await OpenPara(h, Para1Start);
@@ -618,16 +618,20 @@ public class UserScenarioTests(ITestOutputHelper log) : ObjectUiTestBase
             return (pres.TextLayout.TextLines.Count, mid);
         });
         log.WriteLine($"편집 창(폭 180) 줄 수 {visualLines}, 낱말 중간 끊김 {midWordBreaks}곳 | 계획은 항상 공백에서 끊음(KoreanLineBreak.{Ui(() => h.View.ParagraphSessionForTest!.Korean)}) | 글꼴 {Ui(() => box.FontFamily)}");
-        Assert.True(midWordBreaks > 0, "편집 창이 한글 낱말 중간에서 끊지 않게 되면 문제 ②가 고쳐진 것 — 기대를 뒤집는다");
+        Assert.True(midWordBreaks > 0, "입력칸 자체는 여전히 테마 글꼴 폭으로 줄바꿈한다(입력칸을 PDF 글꼴에 맞추는 것은 불가능에 가깝다)");
         Assert.Equal(KoreanLineBreak.Word, Ui(() => h.View.ParagraphSessionForTest!.Korean));
-        // 구조적 원인: 편집 창은 PDF 글꼴이 아니라 기본 글꼴을 쓴다
-        Assert.DoesNotContain("Malgun", Ui(() => box.FontFamily.ToString()));
-        Assert.False(Ui(() => box.IsSet(TemplatedControl.FontFamilyProperty)));
+        // 고침(2026-10-27): 입력칸 아래에 계획된 줄(PDF 글꼴 폭 기준)을 한 줄씩 보여 주는 읽기 전용 미리보기가 있다
+        SetText(h, EditorText(h) + " ");
+        PumpUi(() => Ui(() => h.View.ParagraphPreviewIdleForTest) && Ui(() => Editor(h).LinePreviewVisible), 6000);
+        Assert.True(Ui(() => Editor(h).LinePreviewVisible));
+        var planned = Ui(() => Editor(h).LinePreviewText.Split('\n'));
+        Assert.Equal(Preview(h).LineCount, planned.Length);
+        Assert.All(planned, l => Assert.False(string.IsNullOrWhiteSpace(l)));
     }
 
     /// <summary>③ 편집 창 아래 안내 글씨가 작고 폭이 좁아 여러 줄로 접힌다.</summary>
     [Fact]
-    public async Task KnownIssue3_StatusText_SmallAndFolded()
+    public async Task StatusText_Larger_OneSentencePerLine()
     {
         if (await OpenUser("04-subset") is not { } h) return;
         await OpenPara(h, "The review procedure");
@@ -641,8 +645,8 @@ public class UserScenarioTests(ITestOutputHelper log) : ObjectUiTestBase
         });
         double lineH = size * 1.35;
         log.WriteLine($"안내 글씨 {size}pt(편집 글 {boxSize:0.0}) 폭 {width:0}/{maxWidth:0} 높이 {height:0.0} ≈ {height / lineH:0.0}줄 | {text}");
-        Assert.True(size <= 11);                       // 작다
-        Assert.True(maxWidth <= 360);                  // 좁다
-        Assert.True(height > lineH * 1.5, "여러 줄로 접힌다");
+        Assert.True(size >= 12.5);                     // 고침(2026-10-27): 11 → 12.5 pt
+        Assert.True(double.IsPositiveInfinity(maxWidth), "편집 창 폭을 따라간다(최대 폭 제한 없음)");
+        Assert.Contains('\n', text);                   // 안내는 문장마다 한 줄
     }
 }
