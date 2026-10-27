@@ -14,7 +14,7 @@ pwsh build/package.ps1 -SkipInstaller
 ```
 
 - `-SkipInstaller`를 빼면 Inno Setup이 있을 때 설치 파일도 만듭니다.
-- 버전을 바꾸려면 `-Version 0.2.0`처럼 씁니다. 안 쓰면 `Directory.Build.props`의 `<Version>` 값을 씁니다.
+- 버전을 바꾸려면 `-Version 0.3.0`처럼 씁니다. 안 쓰면 `Directory.Build.props`의 `<Version>` 값을 씁니다.
 - 몇 분 걸립니다.
 
 ## 결과물

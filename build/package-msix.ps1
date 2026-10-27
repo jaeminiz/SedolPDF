@@ -1,6 +1,6 @@
 #requires -Version 7
 # SedolPDF MSIX 패키지 만들기 (Microsoft Store 제출용). 기존 package.ps1(zip·설치 파일)과 별개로 병행한다.
-#   pwsh build/package-msix.ps1 [-Version 0.2.0] [-IdentityFile build/msix/store-identity.json] [-TestSign]
+#   pwsh build/package-msix.ps1 [-Version 0.3.0] [-IdentityFile build/msix/store-identity.json] [-TestSign]
 # 결과: artifacts\SedolPDF-<버전>-win-x64.msix
 #   -TestSign : 내 PC 시험 설치용 자체 서명(스토어 제출용 아님, 인증서 신뢰 등록에 관리자 권한 필요)
 # 필요: .NET SDK 10, Windows SDK 의 makeappx.exe (없으면 안내만 하고 멈춤 — build/README.md 참고)
@@ -28,7 +28,7 @@ if (-not $Version) {
     $props = Get-Content -Raw -Encoding UTF8 (Join-Path $root 'Directory.Build.props')
     if ($props -match '<Version>([^<]+)</Version>') { $Version = $Matches[1] } else { Fail 'Directory.Build.props 에서 <Version>을 찾지 못했습니다.' }
 }
-if ($Version -notmatch '^\d+\.\d+\.\d+$') { Fail "버전은 0.2.0 처럼 숫자 3개여야 합니다: $Version" }
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { Fail "버전은 0.3.0 처럼 숫자 3개여야 합니다: $Version" }
 $version4 = "$Version.0"
 
 # 신원 값: 파일이 있으면 그 값(Partner Center 가 준 값), 없으면 자리표시자(제출 불가, 시험용)
