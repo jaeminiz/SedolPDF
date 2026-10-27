@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\tests\TestFixtures\TestFixtures.csproj" />
+    <ProjectReference Include="..\..\src\Pdf.Native\Pdf.Native.csproj" />
+    <ProjectReference Include="..\..\src\PdfEditor.Document\PdfEditor.Document.csproj" />
+    <ProjectReference Include="..\..\src\PdfEditor.TextEdit\PdfEditor.TextEdit.csproj" />
+  </ItemGroup>
+
+</Project>
