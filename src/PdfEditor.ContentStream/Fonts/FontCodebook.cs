@@ -113,6 +113,12 @@ public sealed class FontCodebook
 
     private double WidthOf(int code) => _widths.TryGetValue(code, out var w) ? w : _defaultWidth;
 
+    /// <summary>글 코드의 폭(1000 단위, 폭 표에 없으면 기본 폭). 찾기 엔진이 글자 위치를 계산할 때 쓴다.</summary>
+    public double WidthOfCode(int code) => WidthOf(code);
+
+    /// <summary>글 코드가 풀리는 글자(코드북이 아는 코드만, 모르면 null).</summary>
+    public string? TextOfCode(int code) => _codeToText.TryGetValue(code, out var t) ? t : null;
+
     /// <summary>모든 글자가 코드북에 있으면 인코딩한다.</summary>
     public bool TryEncode(string text, out EncodedText enc)
     {
