@@ -10,7 +10,7 @@ using PdfSharp.Pdf.IO;
 namespace PdfEditor.TextEdit.Tests;
 
 /// <summary>V22/V23 표본이 도면 번호를 어떻게 쓰는가.</summary>
-internal enum IdCase
+public enum IdCase
 {
     /// <summary>① 한 글 연산에 번호 통째(CID 서브셋, ToUnicode 있음).</summary>
     Whole,
@@ -36,7 +36,7 @@ internal enum IdCase
 /// 범례(0~9, H, -, 영문)는 같은 글꼴로 한 줄 쓴다(legend). 없으면 새 번호에 쓸 글자가 서브셋에 없을 수 있다.
 /// 정답: (대소문자 구분+완전일치) 3 / (무시+부분일치) 5 / (무시+완전일치) 4.
 /// </summary>
-internal static class DrawingIdPdfFactory
+public static class DrawingIdPdfFactory
 {
     static DrawingIdPdfFactory() => System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(TestPdfFactory).TypeHandle);
 
