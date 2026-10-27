@@ -58,6 +58,23 @@ public sealed class DocumentSession : IAsyncDisposable
 
     public Guid Id { get; } = Guid.NewGuid();
     public string? FilePath { get; private set; }
+
+    /// <summary>
+    /// 글꼴 사전을 읽을 "편집 전" 파일(M5 마무리 검토). 저장하면 <see cref="FilePath"/>가 편집이 반영된 저장 파일로 바뀌어 PDFium 문서의 원본 객체와 어긋나므로,
+    /// 편집이 있는 첫 저장 직전에 그때의 파일을 임시 복사해 둔다. 없으면 FilePath를 쓴다. 세션을 닫을 때 지운다.
+    /// </summary>
+    public string? FontSourcePath { get; private set; }
+
+    /// <summary>편집이 있으면 지금 디스크의 파일(저장으로 덮어쓰기 전)을 글꼴 출처로 한 번 복사해 둔다. 암호 문서·파일 없음·이미 있음이면 아무것도 안 한다. 어느 스레드에서나(파일 입출력).</summary>
+    public void RetainFontSource()
+    {
+        if (FontSourcePath is not null || IsEncrypted || FilePath is not { } src || !File.Exists(src)) return;
+        string copy = Path.Combine(Path.GetTempPath(), "SedolPDF-fontsrc-" + Id.ToString("N") + ".pdf");
+        try { File.Copy(src, copy, true); FontSourcePath = copy; }
+        catch (IOException) { /* 못 복사하면 FilePath를 쓴다(저장 뒤 같은 쪽 재편집은 대체 글꼴로 내려갈 수 있음) */ }
+        catch (UnauthorizedAccessException) { }
+    }
+
     /// <summary>파일 이름, 또는 호출자가 정한 이름(새 문서). 화면 문구는 호출자가 리소스에서 가져와 넣는다.</summary>
     public string DisplayName { get; set; }
     public string? Password { get; }
@@ -548,6 +565,7 @@ public sealed class DocumentSession : IAsyncDisposable
                 _stash?.Dispose();
                 _doc.Dispose();
             }).ConfigureAwait(false);
+            if (FontSourcePath is { } fs) try { File.Delete(fs); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
         catch (ObjectDisposedException) { }   // PDFium 스레드가 먼저 닫힌 경우
         catch (TaskCanceledException) { }

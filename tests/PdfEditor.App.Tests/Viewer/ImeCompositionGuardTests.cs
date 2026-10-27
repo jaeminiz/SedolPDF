@@ -17,6 +17,9 @@ public class ImeCompositionGuardTests
 {
     private static TextBox ShowBox(out Window w, out long[] now)
     {
+        // 테마가 없으면 TextBox에 템플릿(TextPresenter)이 없다 — 다른 시험이 먼저 올려 주는 순서에 기대지 않는다(M5 마무리 검토).
+        if (!Avalonia.Application.Current!.Styles.OfType<Avalonia.Themes.Fluent.FluentTheme>().Any())
+            Avalonia.Application.Current.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
         var t = new long[] { 1_000_000 };
         now = t;
         var box = new TextBox { AcceptsReturn = true, Text = "가나" };
@@ -173,6 +176,8 @@ public class ImeCompositionGuardTests
     {
         HeadlessUi.Run(() =>
         {
+            if (!Avalonia.Application.Current!.Styles.OfType<Avalonia.Themes.Fluent.FluentTheme>().Any())
+                Avalonia.Application.Current.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
             var ed = new FreeTextEditor();
             var w = new Window { Width = 400, Height = 200, Content = ed };
             w.Show();

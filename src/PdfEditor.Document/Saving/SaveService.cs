@@ -52,6 +52,8 @@ public sealed class SaveService(
 
             // ④ 교체
             stage = SaveStage.Replace;
+            // 편집이 있으면 덮어쓰기 전의 파일을 글꼴 출처로 보관한다(저장 뒤에도 같은 쪽의 문단을 원래 글꼴로 다시 고칠 수 있게).
+            if (s.Content.HasEdits) await Task.Run(s.RetainFontSource, ct).ConfigureAwait(false);
             if (File.Exists(targetPath)) File.Replace(tmp, targetPath, null);
             else File.Move(tmp, targetPath);
         }

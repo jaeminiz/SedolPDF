@@ -60,13 +60,14 @@ public sealed class SessionFileFontSource : IParagraphFontSource
     public FontCodebook? Build(DocumentSession s, PageId page, ParagraphModel p, out double tc, out double tz, out string? reason)
     {
         tc = 0; tz = 100; reason = null;
-        if (s.FilePath is null || !File.Exists(s.FilePath) || s.IsEncrypted) { reason = "no-file"; return null; }
+        string? source = s.FontSourcePath is { } fsp && File.Exists(fsp) ? fsp : s.FilePath;
+        if (source is null || !File.Exists(source) || s.IsEncrypted) { reason = "no-file"; return null; }
         int index = s.IndexOf(page);
         var r = s.GetReplay(page);
         var kinds = r.Originals.Select(o => (ObjectKind)(int)o.Type).ToList();
         try
         {
-            using var doc = PdfReader.Open(s.FilePath, PdfDocumentOpenMode.Import);
+            using var doc = PdfReader.Open(source, PdfDocumentOpenMode.Import);
             if (index < 0 || index >= doc.PageCount) { reason = "page-mismatch"; return null; }
             var map = PageTextFonts.Build(doc.Pages[index], kinds, out var failure);
             if (map is null) { reason = failure ?? "object-map"; return null; }

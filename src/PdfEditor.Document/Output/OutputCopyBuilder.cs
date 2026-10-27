@@ -271,10 +271,12 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             foreach (var ln in pe.OriginalFontLines)
             {
                 if (Math.Abs(ln.JustifyExtra) < 1e-6f && Math.Abs(ln.Tc) < 1e-6f && Math.Abs(ln.Tz - 100) < 1e-3f) continue;
-                double reach = Math.Max(pe.Meta.Box.Width, pe.Meta.Box.Height) + ln.SizePt, band = 1.5 * ln.SizePt;
+                // 가로로는 문단 상자 폭 안만(M5 마무리 검토: 예전에는 줄 시작점에서 양쪽으로 상자 폭만큼이라 옆 단·옆 칸의 같은 높이 글 변화까지 가렸다)
+                var box = pe.Meta.Box;
+                double pad = 2 * ln.SizePt, band = 1.5 * ln.SizePt;
                 bool horizontal = Math.Abs(ln.Placement.A) >= Math.Abs(ln.Placement.B);
                 double e = ln.Placement.E, f = ln.Placement.F;
-                list.Add(horizontal ? (e - reach, f - band, e + reach, f + band) : (e - band, f - reach, e + band, f + reach));
+                list.Add(horizontal ? (box.Left - pad, f - band, box.Right + pad, f + band) : (e - band, box.Bottom - pad, e + band, box.Top + pad));
             }
         return list;
     }

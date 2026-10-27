@@ -378,6 +378,25 @@ public sealed class ParagraphFidelityTests(ITestOutputHelper log) : IDisposable
         Assert.Equal(0, await OutsideDiff(saved1, saved2, [Region(m2, planB)]));
     }
 
+    /// <summary>M5 마무리 검토: 저장하면 세션의 FilePath가 저장한 파일로 바뀐다. 같은 세션에서 같은 문단을 다시 고쳐도 원래 글꼴을 계속 써야 한다(대체 글꼴로 내려가면 안 됨).</summary>
+    [Fact]
+    public async Task EditSaveThenEditAgainSameSession_KeepsOriginalFont()
+    {
+        string src = ParagraphTestData.Sample("doc-en-left").Path;
+        var s = await Open(src);
+        var page = s.Pages[0].Id;
+        var m = (await Paragraphs(s, page, 3)).First();
+        string first = ReverseWord(m);
+        var plan1 = await Edit(s, page, m, first);
+        Assert.False(plan1.UsedAppFont);
+        await Svc(s).SaveAsync(s, Out("again1.pdf"));
+
+        string w0 = m.Lines[0].Text.Split(' ')[0];
+        string second = first.Replace(w0, w0.Length > 2 ? new string(w0.Reverse().ToArray()) : "Zeta");
+        var plan2 = await Edit(s, page, m, second, plan1.Edit);
+        Assert.False(plan2.UsedAppFont, "after Save the session file path points at the saved file; re-editing must still use the original font");
+    }
+
     private static int CountOf(string hay, string needle)
     {
         int n = 0, i = 0;
