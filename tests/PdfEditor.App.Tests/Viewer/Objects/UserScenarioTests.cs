@@ -535,9 +535,35 @@ public class UserScenarioTests(ITestOutputHelper log) : ObjectUiTestBase
 
     // ---------------------------------------------------------------- 사용자가 스크린샷으로 알려 온 3건 (현재 상태 고정 — 고치면 이 시험의 기대를 뒤집는다)
 
-    /// <summary>① 글꼴이 바뀌면(원래 글꼴에 없는 글자 하나만 넣어도) 다시 쓰는 줄이 대체 글꼴로 바뀌어 줄 끊는 자리가 원본과 많이 달라진다.</summary>
+    /// <summary>① (고침: C5b) 글꼴이 바뀌어도(서브셋에 없는 글자 하나) 안 고친 줄의 줄 끝은 원본 그대로다. 04-subset(영문 서브셋 문단에 한글)로 줄 끝 일치도 잰다.</summary>
     [Fact]
-    public async Task KnownIssue1_FontSubstitution_ReflowsMostOfTheParagraph()
+    public async Task FontSubstitution_Subset04_KeepsLineBreaks()
+    {
+        if (await OpenUser("04-subset") is not { } h) return;
+        SetTool(h, ToolKind.EditText);
+        var page = h.Session.Pages[0].Id;
+        var (pick, _, _) = await FindLine(h, "The review procedure");
+        var idx = await Thread.InvokeAsync(() => h.Session.GetObjectIndex(page));
+        var start = await ParagraphController.StartAsync(h.Tab, page, pick, idx);
+        var ps = Assert.IsType<ParagraphSession>(start.Session);
+        var orig = ps.Model.Lines.Select(l => l.Text.Length).ToList();
+        string t0 = ps.InitialText;
+        int at = t0.IndexOf(' ') + 1;
+        string text = t0[..at] + '한' + t0[(at + 1)..];
+        var plan = await Thread.InvokeAsync(() => ParagraphEditPlanner.Plan(h.Session, page, ps.Model, text, Services.Font, null, ps.Korean, null, Services.Catalog));
+        Assert.True(plan.Ok);
+        Assert.True(plan.UsedAppFont);
+        var now = plan.Layout!.Lines.Select(l => l.Text.Length).ToList();
+        int same = Enumerable.Range(0, Math.Min(now.Count, orig.Count)).Count(i => now[i] == orig[i]);
+        int rewritten = plan.Layout.LastRewritten - plan.Layout.FirstRewritten + 1;
+        log.WriteLine($"[04-subset] 원본 줄 길이 [{string.Join(",", orig)}] | 대체 글꼴 [{string.Join(",", now)}] 줄 끝 일치 {same}/{orig.Count}, 다시 쓴 줄 {rewritten}");
+        Assert.True(now.Count <= orig.Count + 1);
+        Assert.True(rewritten <= 2, $"다시 쓴 줄 {rewritten}");
+        Assert.True(same >= orig.Count - 2, $"줄 끝 일치 {same}/{orig.Count}");
+    }
+
+    [Fact]
+    public async Task FontSubstitution_Ime01_KeepsLineBreaks()
     {
         if (await OpenUser("01-ime") is not { } h) return;
         SetTool(h, ToolKind.EditText);
@@ -564,11 +590,11 @@ public class UserScenarioTests(ITestOutputHelper log) : ObjectUiTestBase
         log.WriteLine($"원본 줄 길이 [{string.Join(",", orig)}] | 같은 글꼴 글자: [{string.Join(",", same.Lens)}] 끊는 자리 다른 줄 {same.Diff}, 다시 쓴 줄 {same.Rewritten} | 서브셋에 없는 글자: [{string.Join(",", sub.Lens)}] 다른 줄 {sub.Diff}, 다시 쓴 줄 {sub.Rewritten}");
         Assert.False(same.App);
         Assert.True(sub.App);
-        // 현재 동작(문제 ①): 기준은 끊는 자리가 그대로(0), 대체 글꼴은 문단 전체가 다시 쓰이고 모든 줄의 끊는 자리가 달라진다
+        // 수정 후(C5b): 대체 글꼴이어도 끊는 자리가 그대로(수정 전: 다시 쓴 줄 3, 다른 줄 3)
         Assert.Equal(0, same.Diff);
         Assert.Equal(1, same.Rewritten);
-        Assert.Equal(orig.Count, sub.Rewritten);
-        Assert.Equal(orig.Count, sub.Diff);
+        Assert.Equal(1, sub.Rewritten);
+        Assert.Equal(0, sub.Diff);
     }
 
     /// <summary>② 편집 창 안의 줄바꿈(Avalonia 기본 글꼴·UAX#14: 한글은 음절 사이에서도 끊김)이 PDF 계획(공백에서 끊기)과 다르다. 헤드리스에서는 글꼴 폭이 달라 실제 화면의 줄 수 차이는 못 재고, 원인이 되는 구조를 고정한다.</summary>

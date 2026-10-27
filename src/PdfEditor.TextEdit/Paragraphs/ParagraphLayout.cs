@@ -142,8 +142,10 @@ public static class ParagraphLayout
         // 처음 다시 쓸 줄: 바뀐 곳이 들어 있는 줄(줄 맨 앞에서 바뀌면 앞 줄이 받아 줄일 수 있으므로 앞 줄부터)
         int k = 0;
         for (int i = 0; i < n; i++) if (starts[i] <= pre) k = i;
+        // 대체 글꼴: 글자 폭이 달라 C5 동기화가 안 되므로 원래 줄 경계(글자 위치)를 줄바꿈 후보로 삼는다(C5b)
+        bool keepBreaks = choice == FontChoice.App && !forceAll;
         if (forceAll) k = 0;
-        else if (k > 0 && pre <= starts[k])
+        else if (!keepBreaks && k > 0 && pre <= starts[k])
         {
             // 줄 맨 앞이 바뀌었을 때만: 앞 줄이 새로 시작하는 첫 낱말을 받을 수 있으면 앞 줄부터 다시 맞춘다
             int e = pre;
@@ -161,12 +163,11 @@ public static class ParagraphLayout
 
         int first = k, idx = k, st = starts[k];
         bool synced = false;
-        while (true)
+
+        void Emit(Break br, bool lastOfPara)
         {
-            var br = NextBreak(text, st, Avail(idx), W, opt);
             string lineText = text[st..br.End].TrimEnd(' ');
             double width = W(lineText);
-            bool lastOfPara = br.Next >= text.Length;
             float extra = 0;
             double u = p.Align switch
             {
@@ -181,17 +182,89 @@ public static class ParagraphLayout
                 if (spaces > 0 && room > 0) { extra = (float)(room / spaces); }
             }
             lines.Add(new LaidLine(lineText, Page(u, Baseline(idx)), (float)width, false, -1, extra));
+        }
 
-            if (lastOfPara) break;
-            // 원래 줄 끝과 다시 맞는가: 줄 번호가 같고, 바뀐 구간 뒤이며, 다음 줄 시작이 원래 줄 시작(바뀐 글자 수만큼 이동)과 같다
-            int j = idx + 1;
-            if (!forceAll && j < n && br.Next >= newChangedEnd && br.Next - delta == starts[j] && br.Next - delta >= origChangedEnd)
+        if (!keepBreaks)
+        {
+            while (true)
             {
-                synced = true;
-                break;
+                var br = NextBreak(text, st, Avail(idx), W, opt);
+                bool lastOfPara = br.Next >= text.Length;
+                Emit(br, lastOfPara);
+
+                if (lastOfPara) break;
+                // 원래 줄 끝과 다시 맞는가: 줄 번호가 같고, 바뀐 구간 뒤이며, 다음 줄 시작이 원래 줄 시작(바뀐 글자 수만큼 이동)과 같다
+                int j = idx + 1;
+                if (!forceAll && j < n && br.Next >= newChangedEnd && br.Next - delta == starts[j] && br.Next - delta >= origChangedEnd)
+                {
+                    synced = true;
+                    break;
+                }
+                idx++;
+                st = br.Next;
             }
-            idx++;
-            st = br.Next;
+        }
+        else
+        {
+            // 원래 줄 경계를 새 글 위치로 옮긴 후보. 바뀐 구간 안의 경계와 줄 사이 글이 공백이 아닌 경계는 버린다.
+            var bounds = new List<(int End, int Next, int Line, bool Mapped)>();
+            int prevNext = starts[k];
+            for (int i = k; i < n - 1; i++)
+            {
+                int e = starts[i] + p.Lines[i].Text.Length, nx = starts[i + 1];
+                int ne, nn;
+                bool mapped;
+                if (e >= origChangedEnd) { ne = e + delta; nn = nx + delta; mapped = true; }
+                else if (nx <= pre) { ne = e; nn = nx; mapped = false; }
+                else continue;
+                if (ne <= prevNext || nn > text.Length || ne > nn) continue;
+                bool blank = true;
+                for (int c = ne; c < nn; c++) if (text[c] != ' ') { blank = false; break; }
+                if (!blank) continue;
+                bounds.Add((ne, nn, i, mapped));
+                prevNext = nn;
+            }
+
+            int bi = 0, segEnd = 0;
+            string sub = text;
+            void Segment()
+            {
+                segEnd = bi < bounds.Count ? bounds[bi].End : text.Length;
+                sub = segEnd == text.Length ? text : text[..segEnd];
+            }
+            Segment();
+
+            // 줄이 넘쳐 남은 조각이 한 줄에 들어가고 다음 구간과 합쳐도 한 줄에 들어가면 합친다(줄 수가 늘지 않게)
+            bool RemainderMerges()
+            {
+                if (bi >= bounds.Count) return false;
+                if (NextBreak(sub, st, Avail(idx), W, opt).Next < segEnd) return false;
+                int e2 = bi + 1 < bounds.Count ? bounds[bi + 1].End : text.Length;
+                return NextBreak(text[..e2], st, Avail(idx), W, opt).Next >= e2;
+            }
+
+            while (true)
+            {
+                var br = NextBreak(sub, st, Avail(idx), W, opt);
+                bool lastOfPara = br.Next >= text.Length;
+                Emit(br, lastOfPara);
+                if (lastOfPara) break;
+
+                if (br.Next >= segEnd)
+                {
+                    // 원래 줄 하나를 다 썼다. 줄 번호까지 같으면 이 뒤는 원본 줄 그대로.
+                    var b = bounds[bi];
+                    if (b.Mapped && b.Line == idx) { synced = true; break; }
+                    st = b.Next;
+                    idx++;
+                    bi++;
+                    Segment();
+                    continue;
+                }
+                st = br.Next;
+                idx++;
+                if (RemainderMerges()) { bi++; Segment(); }
+            }
         }
 
         int last = lines.Count - 1;

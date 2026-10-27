@@ -411,4 +411,120 @@ public class ParagraphLayoutTests
     {
         Assert.True(Lay(FourLines(), FourText).NoChange);
     }
+
+    // ---- 대체 글꼴로 내려갈 때 원래 줄 끝(글자 위치)을 유지한다 (사용자 검수: 글꼴이 바뀌면 안 고친 줄의 줄바꿈까지 달라짐) ----
+
+    private static readonly FixedMeasure OrigNoZ = new(unsupported: "Z");
+
+    private static ParagraphLayoutResult LayApp(ParagraphModel p, string text, double appEm, LayoutOptions? opt = null) =>
+        ParagraphLayout.Layout(p, text, OrigNoZ, new FixedMeasure(em: appEm), opt);
+
+    /// <summary>줄마다 끝 위치(공백을 뺀 글자 수의 누적).</summary>
+    private static int[] EndOffsets(ParagraphLayoutResult r)
+    {
+        var o = new int[r.Lines.Length];
+        int acc = 0;
+        for (int i = 0; i < o.Length; i++) { acc += r.Lines[i].Text.Count(c => c != ' '); o[i] = acc; }
+        return o;
+    }
+
+    [Fact]
+    public void AppFont_NarrowerGlyphs_KeepsUnchangedLineBreaks()
+    {
+        // 글꼴이 좁아져 위 줄로 낱말이 끌려 올라갈 수 있어도(원래 같으면 줄바꿈이 문단 끝까지 달라짐), 안 고친 줄은 그대로다.
+        var r = LayApp(FourLines(), FourText.Replace("alpha", "alphaZ"), 0.4);
+        Assert.Equal(FontChoice.App, r.Choice);
+        Assert.Equal(["alphaZ beta gamma", "delta eps", "zeta-long-word eta", "theta iota"], Texts(r));
+        Assert.Equal(0, r.FirstRewritten);
+        Assert.Equal(0, r.LastRewritten);
+        Assert.True(r.Lines[1].IsOriginal && r.Lines[2].IsOriginal && r.Lines[3].IsOriginal);
+    }
+
+    [Fact]
+    public void AppFont_EditedMiddleLine_OnlyThatLineChanges_LineCountNotGrown()
+    {
+        var r = LayApp(FourLines(), FourText.Replace("delta", "deltaZ"), 0.4);
+        Assert.Equal(["alpha beta gamma", "deltaZ eps", "zeta-long-word eta", "theta iota"], Texts(r));
+        Assert.Equal(1, r.FirstRewritten);
+        Assert.Equal(1, r.LastRewritten);
+        Assert.Equal(4, r.Lines.Length);
+    }
+
+    [Fact]
+    public void AppFont_WiderGlyphs_OnlyOverflowingLineIsSplit_RestFollowsOriginalBreaks()
+    {
+        // 앱 글꼴 em 0.6: 열 폭 = 원래 줄 중 가장 긴 것(108). 둘째 줄이 길어져 넘치면 그 줄만 나뉘고, 뒤 줄은 원래 줄 경계를 따른다.
+        var r = LayApp(FourLines(), FourText.Replace("delta eps", "deltaZ epsilon-long-words"), 0.6);
+        Assert.Equal(FontChoice.App, r.Choice);
+        Assert.Equal(["alpha beta gamma", "deltaZ", "epsilon-long-words", "zeta-long-word eta", "theta iota"], Texts(r));
+        Assert.True(r.Lines[0].IsOriginal);
+        Assert.All(r.Lines.Skip(1), l => Assert.True(l.Width <= 108.2));
+    }
+
+    [Fact]
+    public void AppFont_OverflowRemainder_MergesIntoNextLineWhenItFits()
+    {
+        // 셋째 줄이 넘쳐 "eta"가 남으면 다음 줄 "theta iota"와 합쳐진다(줄 수가 늘지 않음). 앞 두 줄은 원본 그대로.
+        var r = LayApp(FourLines(), FourText.Replace("word", "wordZ"), 0.6);
+        Assert.Equal(["alpha beta gamma", "delta eps", "zeta-long-wordZ", "eta theta iota"], Texts(r));
+        Assert.Equal(2, r.FirstRewritten);
+        Assert.Equal(3, r.LastRewritten);
+        Assert.True(r.Lines[0].IsOriginal && r.Lines[1].IsOriginal);
+    }
+
+    [Fact]
+    public void AppFont_LineEndOffsetsMatchOriginalForUnchangedLines()
+    {
+        var orig = EndOffsets(Lay(FourLines(), FourText));
+        var r = LayApp(FourLines(), FourText.Replace("beta", "betaZ"), 0.4);
+        var e = EndOffsets(r);
+        Assert.Equal(4, e.Length);
+        for (int i = 1; i < 4; i++) Assert.Equal(orig[i] + 1, e[i]);   // 바뀐 글자(Z) 1개만큼 이동, 줄 끝은 그대로
+    }
+
+    [Fact]
+    public void AppFont_Justified_RewrittenLineStillFillsWidth()
+    {
+        var p = FourLines(Alignment.Justified);
+        var r = LayApp(p, FourText.Replace("alpha", "alphaZ"), 0.4);
+        Assert.Equal(0, r.LastRewritten);
+        var l = r.Lines[0];
+        int spaces = l.Text.Count(c => c == ' ');
+        Assert.Equal(100.0, l.Width + l.JustifyExtra * spaces, 2);
+        Assert.True(r.Lines[1].IsOriginal);
+    }
+
+    [Theory]
+    [InlineData(Alignment.Center)]
+    [InlineData(Alignment.Right)]
+    public void AppFont_CenterAndRight_KeepBreaksAndAlign(Alignment a)
+    {
+        var p = Model(Four, 20, a);
+        var r = LayApp(p, FourText.Replace("alpha", "alphaZ"), 0.4);
+        Assert.Equal(["alphaZ beta gamma", "delta eps", "zeta-long-word eta", "theta iota"], Texts(r));
+        var l = r.Lines[0];
+        double expected = a == Alignment.Center ? ULeft + 50 - l.Width / 2.0 : ULeft + 100 - l.Width;
+        Assert.Equal(expected, l.BaselineOrigin.X, 2);
+        Assert.True(r.Lines[1].IsOriginal);
+    }
+
+    [Fact]
+    public void AppFont_Rotated90_SameBreaksAsUnrotated()
+    {
+        string text = FourText.Replace("delta eps", "deltaZ epsilon-long-words");
+        var r0 = LayApp(Model(Four, 20, angle: 0), text, 0.6);
+        var r90 = LayApp(Model(Four, 20, angle: 90), text, 0.6);
+        Assert.Equal(Texts(r0), Texts(r90));
+        Assert.Equal(r0.FirstRewritten, r90.FirstRewritten);
+        Assert.Equal(r0.LastRewritten, r90.LastRewritten);
+    }
+
+    [Fact]
+    public void AppFont_ColumnWidthOverride_StillRewrapsEverything()
+    {
+        var p = FourLines() with { ColumnWidthOverride = 8 * 4 };
+        var r = LayApp(p, FourText.Replace("alpha", "alphaZ"), 0.4);
+        Assert.Equal(0, r.FirstRewritten);
+        Assert.All(r.Lines, l => Assert.False(l.IsOriginal));
+    }
 }
