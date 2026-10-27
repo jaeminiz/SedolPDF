@@ -163,11 +163,12 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         {
             // 문단 편집(M5 C7): 문단 편집이 있는 쪽은 내용 스트림 직접 쓰기를 먼저 해 본다(파일을 바꾸지 않는 시험 적용).
             // 객체 번호 대응·글꼴·상태 문제로 거절된 쪽만 PDFium 경로(줄마다 글 객체 + 충실도 보호)로 내려간다. 거절 이유는 둘 다 안 될 때 저장 거절 문구에 쓴다.
+            var refCache = new Dictionary<int, ImmutableArray<ReferenceObj>>();   // 문단 편집 쪽은 시험 적용과 실제 고쳐 쓰기 사이에 객체 경계 목록을 두 번 읽지 않는다
             var rejected = new Dictionary<int, string>();
             var paraPages = edited.Where(x => x.Edits.OfType<ReplaceParagraphEdit>().Any()).Select(x => x.Index).Except(rewritePages).OrderBy(i => i).ToList();
             if (paraPages.Count > 0 && canRewrite)
             {
-                var candidates = ReadRewrites(s, path, pw, edited.Where(x => paraPages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out _);
+                var candidates = ReadRewrites(s, path, pw, edited.Where(x => paraPages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out _, null, refCache);
                 var bad = probe?.CheckContentRewrites(path, pw, candidates, assets) ?? paraPages.ToDictionary(i => i, _ => "no content-rewrite probe");
                 foreach (var i in paraPages)
                     if (bad.TryGetValue(i, out var why)) rejected[i] = why; else rewritePages.Add(i);
@@ -209,7 +210,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
 
             // 고쳐 쓸 쪽: 사본(그 쪽은 PDFium이 건드리지 않은 원본 내용)에서 PDFium 객체 목록을 읽고, 화면에 보이는 모양(앱 글꼴 줄 포함)을 기억한다.
             var screenLook = new Dictionary<int, (byte[] Pixels, int W, int H)>();
-            var rewrites = ReadRewrites(s, path, pw, edited.Where(x => rewritePages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out var masks, screenLook);
+            var rewrites = ReadRewrites(s, path, pw, edited.Where(x => rewritePages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out var masks, screenLook, refCache);
             return new RewriteWork(rewrites, screenLook, masks.Count > 0 ? masks : null);
         }
         finally { try { File.Delete(gen); } catch { } }
@@ -221,7 +222,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
     /// </summary>
     private static ImmutableArray<PageContentRewrite> ReadRewrites(DocumentSession s, string path, string? pw,
         IReadOnlyList<(int Index, ImmutableArray<ContentEdit> Edits)> pages, out Dictionary<int, MaskInfo> masks,
-        Dictionary<int, (byte[] Pixels, int W, int H)>? screenLook = null)
+        Dictionary<int, (byte[] Pixels, int W, int H)>? screenLook = null, Dictionary<int, ImmutableArray<ReferenceObj>>? refCache = null)
     {
         masks = [];
         var rewrites = ImmutableArray.CreateBuilder<PageContentRewrite>();
@@ -229,12 +230,19 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         foreach (var (index, edits) in pages)
         {
             using var page = copy.LoadPage(index);
-            var refs = ImmutableArray.CreateBuilder<ReferenceObj>(page.ObjectCount);
-            for (int i = 0; i < page.ObjectCount; i++)
+            ImmutableArray<ReferenceObj> refList;
+            if (refCache is not null && refCache.TryGetValue(index, out var cachedRefs)) refList = cachedRefs;
+            else
             {
-                var o = page.GetObject(i);
-                var b = o.Bounds;
-                refs.Add(new ReferenceObj((int)o.Type, b.Left, b.Bottom, b.Right, b.Top));
+                var refs = ImmutableArray.CreateBuilder<ReferenceObj>(page.ObjectCount);
+                for (int i = 0; i < page.ObjectCount; i++)
+                {
+                    var o = page.GetObject(i);
+                    var b = o.Bounds;
+                    refs.Add(new ReferenceObj((int)o.Type, b.Left, b.Bottom, b.Right, b.Top));
+                }
+                refList = refs.MoveToImmutable();
+                if (refCache is not null) refCache[index] = refList;
             }
             if (screenLook is not null)
             {
@@ -250,7 +258,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                         Math.Min(1.0, GuardMaxSide / Math.Max(1, Math.Max(size.Width, size.Height))));
                 }
             }
-            rewrites.Add(new PageContentRewrite(index, edits, refs.MoveToImmutable()));
+            rewrites.Add(new PageContentRewrite(index, edits, refList));
         }
         return rewrites.ToImmutable();
     }

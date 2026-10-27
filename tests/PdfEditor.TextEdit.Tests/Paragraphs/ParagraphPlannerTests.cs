@@ -292,8 +292,8 @@ public sealed class ParagraphPlannerTests : IDisposable
             return ParagraphReader.Read(s, page, mid, idx);
         });
         Assert.Equal(ParagraphReadRefusal.None, input.Refusal);
-        Assert.InRange(input.ObjectsRead, 1, ParagraphReader.MaxObjects + 10);
-        Assert.True(input.Runs.Length <= ParagraphReader.MaxObjects + 10);
+        Assert.InRange(input.ObjectsRead, 1, ParagraphReader.MaxObjectsDense + ParagraphReader.LineFinishExtra / 2 + 10);   // 글 5,000개 쪽 = 글이 많은 쪽 → 줄인 상한(M5 Task 10)
+        Assert.True(input.Runs.Length <= ParagraphReader.MaxObjectsDense + ParagraphReader.LineFinishExtra / 2 + 10);
     }
 
     [Fact]

@@ -89,6 +89,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     public void Apply(string pdfPath, string? password, PatchPlan plan, AnnotationAssets assets)
     {
         HiddenTextCount = 0;
+        using var dryClear = new DryClear(_dry);   // 시험 적용 결과는 이 Apply가 쓰든 못 쓰든 여기서 비운다(큰 쪽의 해석 결과를 붙들고 있지 않게)
         if (plan.IsEmpty) return;
 
         // 같은 경로로 다시 저장하므로 먼저 전부 읽어 파일을 놓는다.
@@ -245,6 +246,15 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         return bad;
     }
 
+    private sealed class DryClear(System.Collections.Concurrent.ConcurrentDictionary<int, DryRunResult> d) : IDisposable
+    {
+        public void Dispose() => d.Clear();
+    }
+
+    private sealed record DryRunResult(ImmutableArray<PdfEditor.Document.Content.ContentEdit> Edits, byte[] Data, ParsedContent Parsed, Segmentation Seg, RewriteResult Res);
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, DryRunResult> _dry = new();   // 공유 패처라 동시 저장·복구가 섞여도 안전(섞이면 맞지 않아 쓰이지 않을 뿐)
+
     private void RewritePage(PdfDocument doc, PageContentRewrite rw, AnnotationAssets assets, bool dryRun)
     {
         int number = rw.PageIndex + 1;
@@ -255,14 +265,26 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
 
         var loaded = PageContent.Load(page);
         if (loaded.Data is null) throw new ContentRegenerationException(number, loaded.Failure);
-        var parsed = ContentLexer.Parse(loaded.Data);
-        var resolver = PageContent.XObjectResolver(page);
-        var seg = ContentSegmenter.Segment(parsed, resolver);
-        var map = ObjectMap.Verify(seg, rw.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
-        if (!map.Ok) throw new ContentRegenerationException(number, map.Reason);
+        ParsedContent parsed;
+        Segmentation seg;
+        RewriteResult res;
+        // 시험 적용(dryRun)이 이미 해석·분할·번호 대응·고쳐 쓰기를 한 쪽은, 쪽 내용 바이트와 편집이 같을 때만 그 결과를 다시 쓴다(20만 객체 쪽에서 약 1 s, M5 Task 10 측정).
+        if (!dryRun && _dry.TryRemove(rw.PageIndex, out var cached) && cached.Edits == rw.Edits && cached.Data.AsSpan().SequenceEqual(loaded.Data))
+        {
+            (parsed, seg, res) = (cached.Parsed, cached.Seg, cached.Res);
+        }
+        else
+        {
+            parsed = ContentLexer.Parse(loaded.Data);
+            var resolver = PageContent.XObjectResolver(page);
+            seg = ContentSegmenter.Segment(parsed, resolver);
+            var map = ObjectMap.Verify(seg, rw.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
+            if (!map.Ok) throw new ContentRegenerationException(number, map.Reason);
 
-        var res = ContentRewriter.Rewrite(parsed, seg, plan.ObjectEdits, null, resolver);
-        if (!res.Ok) throw new ContentRegenerationException(number, res.Failure);
+            res = ContentRewriter.Rewrite(parsed, seg, plan.ObjectEdits, null, resolver);
+            if (!res.Ok) throw new ContentRegenerationException(number, res.Failure);
+            if (dryRun) _dry[rw.PageIndex] = new DryRunResult(rw.Edits, loaded.Data, parsed, seg, res);
+        }
         if (!dryRun) HiddenTextCount += res.HiddenTextCount;
         byte[] data = res.Data!;
 

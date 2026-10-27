@@ -38,6 +38,17 @@ public static class ParagraphReader
     /// <summary>후보 글 객체 상한(시작 줄에서 가까운 순). 5,000줄 도면(M5 V21)에서 읽기 비용을 일정하게 한다.</summary>
     public const int MaxObjects = 240;
 
+    /// <summary>상한에 닿은 뒤 마지막 줄을 마저 채우려고 더 읽는 객체의 최대 수. 5,000개 글이 쪽에 흩어진 도면에서 후보가 2,300개까지 늘어 클릭이 1.2 s 걸린 것(M5 Task 10 측정)을 막는다.</summary>
+    public const int LineFinishExtra = 48;
+
+    /// <summary>글 객체가 이 수 이상인 쪽은 <see cref="MaxObjectsDense"/>를 후보 상한으로 쓴다.</summary>
+    public const int DenseTextObjects = 1000;
+
+    public const int MaxObjectsDense = 120;
+
+    /// <summary>시작 줄과 같은 기준선대에서 표 판정용으로 먼저 읽는 이웃 칸의 최대 수(가로로 가까운 순).</summary>
+    public const int RowNeighborMax = 40;
+
     /// <summary>세로 후보 창: 시작 줄에서 이 줄 수(글자 크기 × 1.5)만큼 위·아래.</summary>
     public const int MaxLines = 60;
 
@@ -78,12 +89,32 @@ public static class ParagraphReader
             if (t.Dv <= 0.5 * size) { rowMin = Math.Min(rowMin, t.U0); rowMax = Math.Max(rowMax, t.U1); }
         if (rowMin > rowMax) { var (u0, u1, _, _) = Geo.Project(seedEntry.Bounds, angle); rowMin = u0; rowMax = u1; }
         double reach = 1.0 * size, maxDv = MaxLines * 1.5 * size;
-        var cands = texts.Where(t => t.U1 >= rowMin - reach && t.U0 <= rowMax + reach && t.Dv <= maxDv).OrderBy(t => t.Dv).ToList();
+        var windowCands = texts.Where(t => t.U1 >= rowMin - reach && t.U0 <= rowMax + reach && t.Dv <= maxDv).ToList();
+        // 시작 줄과 이어진 글(틈 3 em 이내)의 가로 범위: 그 범위와 겹치는 글(= 같은 열의 윗·아랫줄)을 먼저 읽는다. 글이 쪽에 흩어진 도면에서는
+        // 같은 기준선대의 먼 칸이 가로 범위를 쪽 전체로 넓혀, 세로 거리순만으로는 후보 상한(MaxObjects)이 문단 줄을 밀어낸다(M5 Task 10 측정).
+        var (su0, su1, _, _) = Geo.Project(seedEntry.Bounds, angle);
+        double cu0 = su0, cu1 = su1;
+        var rowTexts = windowCands.Where(t => t.Dv <= 0.5 * size).ToList();
+        for (bool grew = true; grew;)
+        {
+            grew = false;
+            foreach (var t in rowTexts)
+            {
+                if (t.U0 < cu0 && t.U1 >= cu0 - 3 * size) { cu0 = t.U0; grew = true; }
+                if (t.U1 > cu1 && t.U0 <= cu1 + 3 * size) { cu1 = t.U1; grew = true; }
+            }
+        }
+        var nearRow = rowTexts.OrderBy(t => Math.Max(0, Math.Max(cu0 - t.U1, t.U0 - cu1))).Take(RowNeighborMax).Select(t => t.E.Ref).ToHashSet();
+        bool InColumn((PageObjectEntry E, double U0, double U1, double Dv) t) => (t.U1 >= cu0 - reach && t.U0 <= cu1 + reach) || nearRow.Contains(t.E.Ref);
+        var cands = windowCands.Where(InColumn).OrderBy(t => t.Dv).Concat(windowCands.Where(t => !InColumn(t)).OrderBy(t => t.Dv)).ToList();
+        // 글 객체가 많은 쪽(큰 도면)은 후보 상한을 줄인다: 글 읽기가 객체마다 쪽 전체 글자 수에 비례(약 0.33 ms)하고, 후보가 넓게 퍼질수록 장애물 검사도 늘어 클릭이 100 ms를 넘는다(M5 Task 10 측정, A1 5,000줄: 240개 → 약 160 ms).
+        bool dense = texts.Count >= DenseTextObjects;
+        int maxObjects = dense ? MaxObjectsDense : MaxObjects, finishExtra = dense ? LineFinishExtra / 2 : LineFinishExtra;
         var picked = new List<PageObjectEntry>();
         double lastDv = 0;
         foreach (var t in cands)
         {
-            if (picked.Count >= MaxObjects && t.Dv - lastDv > 0.35 * size) break;   // 마지막 줄은 끝까지 채운다
+            if (picked.Count >= maxObjects + finishExtra || (picked.Count >= maxObjects && t.Dv - lastDv > 0.35 * size)) break;   // 마지막 줄은 끝까지 채우되, 글이 흩어진 도면(줄 사이 틈이 없음)에서도 상한을 넘지 않는다
             picked.Add(t.E);
             lastDv = t.Dv;
         }
