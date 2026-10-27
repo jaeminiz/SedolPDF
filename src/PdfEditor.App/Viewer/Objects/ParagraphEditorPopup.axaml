@@ -13,8 +13,9 @@
       <Grid Name="BoxHost">
         <TextBox Name="Box" AcceptsReturn="True" TextWrapping="Wrap" Background="White" BorderThickness="0"
                  Padding="2" CornerRadius="0" VerticalContentAlignment="Top" />
-        <Thumb Name="LeftGrip" Width="7" HorizontalAlignment="Left" Cursor="SizeWestEast" Background="#55005FB8" />
-        <Thumb Name="RightGrip" Width="7" HorizontalAlignment="Right" Cursor="SizeWestEast" Background="#55005FB8" />
+        <!-- 폭 손잡이: 평범한 Border(Thumb은 기본 모양이 없고 DragDelta가 손잡이 기준이라 폭이 무너졌다 — 포인터 처리는 코드에서) -->
+        <Border Name="LeftGrip" Width="8" HorizontalAlignment="Left" Cursor="SizeWestEast" Background="#55005FB8" />
+        <Border Name="RightGrip" Width="8" HorizontalAlignment="Right" Cursor="SizeWestEast" Background="#55005FB8" />
       </Grid>
       <!-- 실제 줄바꿈 미리보기: 계획된 줄을 한 줄씩 보여 준다(입력칸의 줄바꿈은 테마 글꼴 폭이라 PDF 결과와 다를 수 있음) -->
       <StackPanel Name="LinePreviewHost" IsVisible="False" Margin="4,2,4,0">

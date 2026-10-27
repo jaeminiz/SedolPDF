@@ -17,7 +17,6 @@ public partial class ParagraphEditorPopup : UserControl
     /// <summary>편집 창 폭이 이보다 좁으면(돌아간 쪽의 가는 상자 등) 이 폭으로 넓힌다(DIP).</summary>
     public const double ReadableMinWidth = 240;
 
-    private double _dragTotal;
     private bool _loading;
     private bool _canExtend;
     private string _initial = "";
@@ -43,13 +42,28 @@ public partial class ParagraphEditorPopup : UserControl
         Box.TextChanged += (_, _) => { if (!_loading) TextEdited?.Invoke(); UpdateExtendButtons(); };
         foreach (var (g, leading) in new[] { (LeftGrip, true), (RightGrip, false) })
         {
-            g.DragStarted += (_, _) => _dragTotal = 0;
-            g.DragDelta += (_, e) =>
+            // Thumb의 DragDelta는 손잡이 기준 좌표라 손잡이가 움직이면(폭이 바뀌면) 같은 움직임이 되먹임으로 더해져 폭이 무너졌다(2026-10-27 실제 마우스).
+            // 그래서 평범한 Border를 쓰고 포인터를 잡은 뒤 최상위 창 기준의 절대 위치 차이만 쓴다. 끄는 동안은 폭을 바꾸지 않고 놓을 때 한 번에 적용한다(C13).
+            double startX = 0;
+            bool dragging = false;
+            double XOf(PointerEventArgs e) => e.GetPosition(TopLevel.GetTopLevel(this)).X;
+            g.PointerPressed += (_, e) =>
             {
-                _dragTotal += e.Vector.X;
-                Box.Width = Math.Max(40, Box.Width + (leading ? -e.Vector.X : e.Vector.X));   // 끄는 동안은 모양만(놓을 때 줄바꿈을 다시 맞춘다, C13)
+                if (!e.GetCurrentPoint(g).Properties.IsLeftButtonPressed) return;
+                startX = XOf(e);
+                dragging = true;
+                e.Pointer.Capture(g);
+                e.Handled = true;
             };
-            g.DragCompleted += (_, _) => { double d = _dragTotal; _dragTotal = 0; WidthDragged?.Invoke(d, leading); };
+            g.PointerReleased += (_, e) =>
+            {
+                if (!dragging) return;
+                dragging = false;
+                e.Pointer.Capture(null);
+                e.Handled = true;
+                WidthDragged?.Invoke(XOf(e) - startX, leading);
+            };
+            g.PointerCaptureLost += (_, _) => dragging = false;
         }
     }
 

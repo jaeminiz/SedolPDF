@@ -1,3 +1,4 @@
+using Avalonia.Headless;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
@@ -267,6 +268,51 @@ public class ParagraphEditInputTests : ObjectUiTestBase
         Assert.True(e.OriginalFontLines.Length + e.AppLines.Length > before);
         await h.Session.Commands.UndoAsync();
         Assert.Empty(ParaEdits(h));
+    }
+
+    /// <summary>폭 손잡이가 마우스로 집을 수 있는가(템플릿 없는 Thumb은 모양도 클릭 영역도 없었다)(2026-10-27 실제 화면 시험에서 손잡이를 끌 수 없었음).</summary>
+    [Fact]
+    public async Task WidthGrips_HaveVisualAndAreHitTestable()
+    {
+        var h = await OpenParagraph();
+        var hit = Ui(() =>
+        {
+            var pop = Editor(h);
+            pop.UpdateLayout();
+            var r = pop.FindControl<Avalonia.Controls.Border>("RightGrip")!;
+            var pt = Avalonia.VisualExtensions.TranslatePoint(r, new Avalonia.Point(r.Bounds.Width / 2, r.Bounds.Height / 2), pop) ?? default;
+            var top = pop.InputHitTest(pt) as Avalonia.Visual;
+            bool onGrip = top is not null && (ReferenceEquals(top, r) || top.GetVisualAncestors().Contains(r));
+            return onGrip;
+        });
+        Assert.True(hit, "손잡이 가운데를 마우스로 누르면 손잡이가 받아야 한다");
+    }
+
+    /// <summary>진짜 마우스 입력(눌러서 끌고 놓기)으로 오른쪽 폭 손잡이를 100 DIP 끌면 폭이 그만큼만 줄어야 한다(2026-10-27 실제 화면에서 폭이 7.8 mm로 무너졌음).</summary>
+    [Fact]
+    public async Task WidthGrip_RealMouseDrag_ShrinksByDraggedAmount()
+    {
+        var h = await OpenParagraph();
+        double w0 = Ui(() => h.View.ParagraphSessionForTest!.WidthPt);
+        double scale = Ui(() => Editor(h).EditorFontSize) / Ui(() => h.View.ParagraphSessionForTest!.SizePt);
+        var start = Ui(() =>
+        {
+            var pop = Editor(h);
+            pop.UpdateLayout();
+            var r = pop.FindControl<Avalonia.Controls.Border>("RightGrip")!;
+            return Avalonia.VisualExtensions.TranslatePoint(r, new Avalonia.Point(r.Bounds.Width / 2, r.Bounds.Height / 2), h.Window) ?? default;
+        });
+        HeadlessUi.Run(() =>
+        {
+            h.Window.MouseDown(start, MouseButton.Left);
+            h.Window.MouseMove(start + new Avalonia.Point(-30, 0));
+            h.Window.MouseMove(start + new Avalonia.Point(-100, 0));
+            h.Window.MouseUp(start + new Avalonia.Point(-100, 0), MouseButton.Left);
+            return 0;
+        });
+        PumpUi(() => Ui(() => h.View.ParagraphSessionForTest!.WidthPt) < w0 - 1);
+        double w1 = Ui(() => h.View.ParagraphSessionForTest!.WidthPt);
+        Assert.InRange(w0 - w1, 100 / scale * 0.8, 100 / scale * 1.2);
     }
 
     [Fact]
