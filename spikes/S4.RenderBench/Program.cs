@@ -13,6 +13,14 @@ if (!File.Exists(drawing)) { Console.WriteLine("A1 도면 샘플 생성 중...")
 if (!File.Exists(many)) { Console.WriteLine("300쪽 샘플 생성 중..."); BenchPdfFactory.CreateManyPages(many); }
 Console.WriteLine($"샘플: {new FileInfo(drawing).Length / 1024} KB, {new FileInfo(many).Length / 1024} KB");
 
+if (args.Contains("--paragraph-sample"))   // M5 Task 10: 문단 측정용 A1 도면 (선 20만 + 글 5천 + 6줄 문단)
+{
+    string p = Path.Combine(outDir, "bench-a1-paragraph.pdf");
+    BenchPdfFactory.CreateDrawing(p, paragraph: true);
+    Console.WriteLine($"만듦: {p}");
+    return;
+}
+
 if (args.Contains("--ui")) { UiViewer.Run(drawing); return; }
 
 var report = new StringBuilder();

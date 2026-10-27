@@ -10,7 +10,7 @@ public static class BenchPdfFactory
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     /// <summary>(a) A1 1쪽, 선 20만 개 + 텍스트 5천 개 (도면 모사)</summary>
-    public static void CreateDrawing(string path, int lines = 200_000, int texts = 5_000)
+    public static void CreateDrawing(string path, int lines = 200_000, int texts = 5_000, bool paragraph = false)
     {
         const double W = 1683.78, H = 2383.94;
         var rnd = new Random(1);
@@ -20,12 +20,28 @@ public static class BenchPdfFactory
         {
             double x = rnd.NextDouble() * (W - 40), y = rnd.NextDouble() * (H - 40);
             double dx = (rnd.NextDouble() - 0.5) * 40, dy = (rnd.NextDouble() - 0.5) * 40;
+            if (paragraph && x < 600 && y > 2150 && y < 2360) continue;   // 문단 자리는 선도 비워 둔다
             sb.Append(Inv, $"{x:0.##} {y:0.##} m {x + dx:0.##} {y + dy:0.##} l S\n");
         }
         for (int i = 0; i < texts; i++)
         {
             double x = rnd.NextDouble() * (W - 80), y = rnd.NextDouble() * (H - 20);
+            if (paragraph && x < 560 && y > 2180 && y < 2340) continue;   // 문단 자리는 비워 둔다
             sb.Append(Inv, $"BT /F1 8 Tf {x:0.##} {y:0.##} Td (DWG-{i:D5} REV A) Tj ET\n");
+        }
+        if (paragraph)   // M5 Task 10: 한쪽 구석(왼쪽 위)에 6줄 주기 문단 (Helvetica 12 pt, 줄 간격 15 pt)
+        {
+            string[] note =
+            [
+                "General note: all piping shall be installed according",
+                "to the approved drawings and the applicable class rules",
+                "before the pressure test is carried out by the yard and",
+                "the surveyor. Any deviation from the drawings must be",
+                "reported to the design office in writing and approved",
+                "before the work continues on board the vessel.",
+            ];
+            for (int i = 0; i < note.Length; i++)
+                sb.Append(Inv, $"BT /F1 12 Tf 60 {2300 - i * 15} Td ({note[i]}) Tj ET\n");
         }
         var w = new MiniPdf();
         int font = w.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");

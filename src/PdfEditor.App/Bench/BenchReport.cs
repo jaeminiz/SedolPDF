@@ -91,6 +91,27 @@ public sealed class BenchReport
     public double EditOutputCopyMs { get; init; }      // 저장과 같은 출력 사본 만들기(주석 Flush + 내용 단계 + 패치)
     public double EditOutputMb { get; init; }
 
+    /// <summary>M5: `--paragraph`로 잰 문단 편집 비용. 잴 문단을 못 찾았으면 Found=false.</summary>
+    public ParagraphBench? Paragraph { get; init; }
+
     private static readonly JsonSerializerOptions Opt = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     public string ToJson() => JsonSerializer.Serialize(this, Opt);
+}
+
+/// <summary>`--bench &lt;pdf&gt; --paragraph [--para-at x,y]`: 첫 쪽의 문단 하나로 클릭 → 미리 계획 → 확정 → 화면 갱신 → 출력 사본 비용을 잰다(M5 Task 10).</summary>
+public sealed class ParagraphBench
+{
+    public bool Found { get; init; }
+    public int Lines { get; init; }
+    public bool UsedAppFont { get; init; }
+    public string Note { get; init; } = "";
+    public double IndexMs { get; init; }               // 객체 목록(쪽 열기 포함)
+    public double ClickColdMs { get; init; }           // 클릭 → 문단 상자(처음, ParagraphController.StartAsync)
+    public double ClickWarmMs { get; init; }           // 같은 클릭 두 번째·세 번째 중 작은 값
+    public double PreviewColdMs { get; init; }         // 첫 글자를 고친 뒤 미리 계획(코드북 만들기 포함)
+    public double PreviewWarmMs { get; init; }         // 이어지는 미리 계획
+    public double CommitMs { get; init; }              // 확정(다시 계획 + 명령)
+    public double RefreshMs { get; init; }             // 명령 직후 화면이 새 버전으로 다시 다 덮일 때까지
+    public double OutputBaseMs { get; init; }          // 편집 전 출력 사본 만들기
+    public double OutputEditedMs { get; init; }        // 문단 편집 뒤 출력 사본 만들기
 }

@@ -12,7 +12,7 @@ using PdfEditor.App.Viewer;
 
 namespace PdfEditor.App.Bench;
 
-public sealed record BenchOptions(string Pdf, string Out, int Annots = 0, int TextBoxes = 0, int Edits = 0);
+public sealed record BenchOptions(string Pdf, string Out, int Annots = 0, int TextBoxes = 0, int Edits = 0, bool Paragraph = false, float ParaX = float.NaN, float ParaY = float.NaN);
 
 /// <summary>
 /// `--bench &lt;pdf&gt; --out &lt;json&gt;`: 창을 띄워 문서를 열고 첫 화면 시간·스크롤 중 회색 비율·타일 렌더 시간·최대 작업 집합을 JSON으로 쓰고 종료한다.
@@ -26,6 +26,7 @@ public static class BenchRunner
     {
         string? pdf = null, outPath = null;
         int annots = 0, textBoxes = 0, edits = 0;
+        bool paragraph = false; float paraX = float.NaN, paraY = float.NaN;
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--bench" && i + 1 < args.Length) pdf = args[++i];
@@ -33,8 +34,18 @@ public static class BenchRunner
             else if (args[i] == "--annots" && i + 1 < args.Length) int.TryParse(args[++i], out annots);
             else if (args[i] == "--textboxes" && i + 1 < args.Length) int.TryParse(args[++i], out textBoxes);
             else if (args[i] == "--edits" && i + 1 < args.Length) int.TryParse(args[++i], out edits);
+            else if (args[i] == "--paragraph") paragraph = true;
+            else if (args[i] == "--para-at" && i + 1 < args.Length)
+            {
+                var xy = args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries);
+                if (xy.Length == 2)
+                {
+                    float.TryParse(xy[0], System.Globalization.CultureInfo.InvariantCulture, out paraX);
+                    float.TryParse(xy[1], System.Globalization.CultureInfo.InvariantCulture, out paraY);
+                }
+            }
         }
-        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath), annots, textBoxes, edits);
+        return pdf is null || outPath is null ? null : new BenchOptions(Path.GetFullPath(pdf), Path.GetFullPath(outPath), annots, textBoxes, edits, paragraph, paraX, paraY);
     }
 
     public static async Task RunAsync(MainWindow window, BenchOptions o)
@@ -114,8 +125,10 @@ public static class BenchRunner
         var overlay = o.Annots > 0 ? await MeasureOverlayAsync(view, tab, o.Annots, textBoxes: false)
             : o.TextBoxes > 0 ? await MeasureOverlayAsync(view, tab, o.TextBoxes, textBoxes: true) : [];
         var ed = o.Edits > 0 ? await MeasureEditsAsync(view, tab, o.Edits) : default;
+        var para = o.Paragraph ? await MeasureParagraphAsync(view, tab, o) : null;
         return new BenchReport
         {
+            Paragraph = para,
             EditCount = ed.Count, EditReplayMs = ed.ReplayMs, EditIndexMs = ed.IndexMs, EditFirstRenderMs = ed.RenderMs, EditOutputCopyMs = ed.OutputMs, EditOutputMb = ed.OutputMb,
             Pdf = Path.GetFileName(o.Pdf),
             PageCount = tab.PageCount,
@@ -276,6 +289,103 @@ public static class BenchRunner
         double mb = new FileInfo(tmp).Length / 1048576.0;
         try { File.Delete(tmp); } catch (IOException) { }
         return (edits.Count, replayOnly, replay - replayOnly, render, outMs, mb);
+    }
+
+    /// <summary>
+    /// 첫 쪽의 문단 하나(--para-at로 짚은 자리 가장 가까운 글, 없으면 앞쪽 글 객체 30개 중 처음 문단)로 클릭 → 미리 계획 → 확정 → 화면 갱신 → 출력 사본 시간을 잰다(M5 Task 10).
+    /// 편집은 첫 번째 'e'를 'a'로 바꾸는 같은 길이 낱말 고치기다.
+    /// </summary>
+    private static async Task<ParagraphBench> MeasureParagraphAsync(DocumentView view, DocumentTabViewModel tab, BenchOptions o)
+    {
+        var s = tab.Session!;
+        var page = s.Pages[0].Id;
+        var sw = Stopwatch.StartNew();
+        var idx = await s.Thread.InvokeAsync(() => s.GetObjectIndex(page));
+        double indexMs = sw.Elapsed.TotalMilliseconds;
+
+        var texts = idx.Entries.Where(e => e.Type == PdfPageObjectType.Text && !e.IsFrame).ToList();
+        IEnumerable<PdfEditor.Document.Content.PageObjectEntry> candidates = texts.Take(30);
+        if (!float.IsNaN(o.ParaX))
+        {
+            var p = new PdfPointF(o.ParaX, o.ParaY);
+            candidates = texts.OrderBy(e => Math.Abs((e.Bounds.Left + e.Bounds.Right) / 2 - p.X) + Math.Abs((e.Bounds.Bottom + e.Bounds.Top) / 2 - p.Y)).Take(3);
+        }
+
+        PdfEditor.App.Viewer.Objects.ParagraphSession? ps = null;
+        PdfEditor.Document.Content.PageObjectEntry? pick = null;
+        double cold = 0, warm = 0;
+        string note = "";
+        foreach (var c in candidates)
+        {
+            sw.Restart();
+            var st = await PdfEditor.App.Viewer.Objects.ParagraphController.StartAsync(tab, page, c, idx);
+            double ms = sw.Elapsed.TotalMilliseconds;
+            if (st.Session is null)
+            {
+                var det = await s.Thread.InvokeAsync(() => PdfEditor.TextEdit.Paragraphs.ParagraphReader.Detect(s, page, c.Ref, idx));
+                note += $"[{c.Bounds} {st.Reason ?? "-"} | refusal={det.Input.Refusal} runs={det.Input.Runs.Length} lines={det.Lines.Length} model={(det.Model is null ? "null" : $"lines={det.Model.Lines.Length} conf={det.Model.Confidence:F2} why={det.Model.LowConfidenceReason}")}] ";
+                continue;
+            }
+            ps = st.Session; pick = c; cold = ms;
+            break;
+        }
+        if (ps is null || pick is null) return new ParagraphBench { Found = false, Note = "no paragraph found: " + note, IndexMs = indexMs };
+
+        warm = double.MaxValue;
+        for (int i = 0; i < 2; i++)
+        {
+            sw.Restart();
+            await PdfEditor.App.Viewer.Objects.ParagraphController.StartAsync(tab, page, pick, idx);
+            warm = Math.Min(warm, sw.Elapsed.TotalMilliseconds);
+        }
+
+        // 편집 전 출력 사본 시간(비교 기준)
+        var svc = DocumentTabViewModel.Appearance;
+        string tmp = Path.Combine(Path.GetTempPath(), "pdfeditor-bench-para-" + Environment.ProcessId + ".pdf");
+        sw.Restart();
+        await new PdfEditor.Document.Output.OutputCopyBuilder(svc?.Appearance, svc?.Patcher, svc?.Assets).BuildAsync(s, tmp);
+        double outBase = sw.Elapsed.TotalMilliseconds;
+
+        string rep = Environment.GetEnvironmentVariable("SEDOL_BENCH_PARA_CHAR") is { Length: 1 } rc ? rc : "a";   // 서브셋에 없는 글자(예: 가)를 넣어 앱 글꼴 경로를 재려면 설정
+        int at = ps.InitialText.IndexOf('e');
+        string edited = at < 0 ? ps.InitialText + "x" : ps.InitialText.Remove(at, 1).Insert(at, rep);
+        sw.Restart();
+        var pv = await PdfEditor.App.Viewer.Objects.ParagraphController.PreviewAsync(tab, ps, edited);
+        double previewCold = sw.Elapsed.TotalMilliseconds;
+        double previewWarm = double.MaxValue;
+        for (int i = 0; i < 2; i++)
+        {
+            sw.Restart();
+            await PdfEditor.App.Viewer.Objects.ParagraphController.PreviewAsync(tab, ps, edited);
+            previewWarm = Math.Min(previewWarm, sw.Elapsed.TotalMilliseconds);
+        }
+
+        view.Scroller!.Offset = new Vector(view.Scroller.Offset.X, 0);
+        sw.Restart();
+        var res = await PdfEditor.App.Viewer.Objects.ParagraphController.CommitAsync(tab, ps, edited);
+        double commitMs = sw.Elapsed.TotalMilliseconds;
+        double renderStart = sw.Elapsed.TotalMilliseconds;
+        while (true)
+        {
+            await Frame(view);
+            if (view.LastVisiblePageCount > 0 && view.LastExactCoverage >= Full) break;
+            if (sw.Elapsed.TotalSeconds > 60) throw new TimeoutException("edited paragraph page not redrawn within 60 s");
+        }
+        double refresh = sw.Elapsed.TotalMilliseconds - renderStart;
+
+        sw.Restart();
+        await new PdfEditor.Document.Output.OutputCopyBuilder(svc?.Appearance, svc?.Patcher, svc?.Assets).BuildAsync(s, tmp);
+        double outEdited = sw.Elapsed.TotalMilliseconds;
+        try { File.Delete(tmp); } catch (IOException) { }
+
+        return new ParagraphBench
+        {
+            Found = true, Lines = ps.Model.Lines.Length, UsedAppFont = pv.UsedAppFont,
+            Note = res.Committed ? "committed" : "commit refused: " + pv.Refusal,
+            IndexMs = indexMs, ClickColdMs = cold, ClickWarmMs = warm,
+            PreviewColdMs = previewCold, PreviewWarmMs = previewWarm,
+            CommitMs = commitMs, RefreshMs = refresh, OutputBaseMs = outBase, OutputEditedMs = outEdited,
+        };
     }
 
     private static async Task SettleAsync(TopLevel top, DocumentView view)
