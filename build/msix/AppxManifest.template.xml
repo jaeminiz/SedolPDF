@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SedolPDF MSIX 매니페스트 틀. {{...}} 자리는 build/package-msix.ps1 이 채운다.
+     Identity 의 Name·Publisher 는 Partner Center 에서 앱 이름을 예약한 뒤 나오는 값으로
+     build/msix/store-identity.json 에 적는다 (그 전에는 자리표시자 값으로 로컬 시험만 가능). -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity Name="{{IdentityName}}" Publisher="{{Publisher}}" Version="{{Version4}}" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>SedolPDF</DisplayName>
+    <PublisherDisplayName>{{PublisherDisplayName}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="ko-KR" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="SedolPDF" Executable="SedolPDF.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="SedolPDF"
+        Description="SedolPDF - PDF viewer and editor"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square310x310Logo="Assets\LargeTile.png" Square71x71Logo="Assets\SmallTile.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- .pdf "연결 프로그램" 목록에 추가 (기본 프로그램은 사용자가 Windows 설정에서 고른다) -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="pdf">
+            <uap:SupportedFileTypes>
+              <uap:FileType>.pdf</uap:FileType>
+            </uap:SupportedFileTypes>
+            <uap:DisplayName>PDF (SedolPDF)</uap:DisplayName>
+            <uap:Logo>Assets\Square44x44Logo.png</uap:Logo>
+            <uap:InfoTip>SedolPDF</uap:InfoTip>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- 데스크톱 앱(.NET)을 MSIX 로 올리려면 필수. 제한된 기능이라 제출 때 사유를 적는다 (계획서 2.4절). -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

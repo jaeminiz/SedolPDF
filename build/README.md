@@ -47,3 +47,8 @@ pwsh build/package.ps1 -SkipInstaller
 
 ## 포터블 사용법
 zip을 원하는 폴더에 풀고 `SedolPDF.exe`를 실행합니다. 설치도 관리자 권한도 필요 없습니다. 지우려면 폴더를 통째로 지우면 됩니다. `portable.txt`를 지우면 일반(설치판) 방식으로 `%APPDATA%`를 씁니다.
+
+## Microsoft Store용 MSIX (준비 중)
+- 계획: docs/superpowers/plans/2026-10-27-microsoft-store-msix.md. 스크립트: pwsh build/package-msix.ps1 (아직 실행 검증 전).
+- Windows SDK(makeappx)가 필요합니다: winget install Microsoft.WindowsSDK.10.0.26100 (정확한 패키지 이름은 검증 필요).
+- Partner Center에서 받은 값을 uild/msix/store-identity.json에 적어야 제출용이 됩니다(견본: store-identity.sample.json, 실제 파일은 git에 올리지 않음).
