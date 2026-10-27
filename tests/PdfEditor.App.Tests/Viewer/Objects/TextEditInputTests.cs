@@ -83,6 +83,7 @@ public class TextEditInputTests : ObjectUiTestBase
         {
             var box = h.View.LineEditorForTest!.FindControl<TextBox>("Box")!;
             box.GetVisualDescendants().OfType<TextPresenter>().First().PreeditText = null;
+            h.View.LineEditorForTest!.ImeGuard.ForgetRecentEnd();   // 시간이 충분히 흘렀다
             return 0;
         });
         EditorKey(h, Key.Enter);   // 조합이 끝난 뒤의 Enter가 확정

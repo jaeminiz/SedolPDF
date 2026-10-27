@@ -125,13 +125,12 @@ public partial class ParagraphEditorPopup : UserControl
         WidthDragged?.Invoke(deltaDip, leading);
     }
 
-    /// <summary>입력칸이 IME 조합 중인 글자(밑줄 표시 중인 글)를 갖고 있는가. 조합 중의 Enter·Esc는 조합을 끝내는 키다.</summary>
-    private bool IsComposing()
-        => Box.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Any(p => !string.IsNullOrEmpty(p.PreeditText));
+    /// <summary>시험용: 입력칸의 IME 조합 판정 도우미.</summary>
+    public ImeCompositionGuard ImeGuard => ImeCompositionGuard.For(Box);
 
     private void OnBoxKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.ImeProcessed || IsComposing()) return;   // 조합 중: Enter/Esc는 조합만 끝낸다
+        if (ImeGuard.Consume(e)) return;   // 조합 중이거나 방금 끝남: Enter/Esc는 조합만 끝낸다(삼킴)
         if (e is { Key: Key.Enter, KeyModifiers: KeyModifiers.Control }) { e.Handled = true; AcceptRequested?.Invoke(); return; }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { e.Handled = true; CancelRequested?.Invoke(); return; }
         if (e.Key is Key.Up or Key.Down && (e.KeyModifiers & KeyModifiers.Shift) != 0 && (e.KeyModifiers & ~(KeyModifiers.Shift | KeyModifiers.Alt)) == 0

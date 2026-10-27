@@ -199,7 +199,8 @@ public class UserScenarioTests(ITestOutputHelper log) : ObjectUiTestBase
         Assert.True(ParaOpen(h));
         Assert.Empty(Edits(h));
         SetPreedit(h, null);                                  // 조합이 끝났다
-        Press(h, Key.Enter);                                  // 그냥 Enter = 줄바꿈 입력(확정 아님)
+        HeadlessUi.Run(() => { Editor(h).ImeGuard.ForgetRecentEnd(); return 0; });   // 시간이 충분히 흘렀다
+        Press(h, Key.Enter);                                 // 그냥 Enter = 줄바꿈 입력(확정 아님)
         Assert.True(ParaOpen(h));
         Assert.Empty(Edits(h));
         Press(h, Key.Escape);                                 // 조합이 끝난 뒤 Esc = 취소

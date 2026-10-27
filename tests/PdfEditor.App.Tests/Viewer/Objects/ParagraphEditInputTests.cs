@@ -154,6 +154,7 @@ public class ParagraphEditInputTests : ObjectUiTestBase
         Assert.True(ParaOpen(h));
         Assert.Empty(Edits(h));
         SetPreedit(h, null);
+        HeadlessUi.Run(() => { Editor(h).ImeGuard.ForgetRecentEnd(); return 0; });   // 시간이 충분히 흘렀다
         Press(h, Avalonia.Input.Key.Enter, KeyModifiers.Control);   // 조합이 끝난 뒤의 Ctrl+Enter가 확정
         PumpUi(() => ParaEdits(h).Count == 1);
     }
