@@ -14,6 +14,19 @@ public sealed record DisableObject(int ObjectIndex, bool RemoveText = false) : O
 /// <summary>객체를 쪽 공간 변환 <see cref="Then"/>(원래 모양에 이어서 적용)만큼 옮기거나 키운다.</summary>
 public sealed record TransformObject(int ObjectIndex, Mat Then) : ObjectEdit(ObjectIndex);
 
+/// <summary>글 보이기 연산자 안의 연속한 글 코드 범위(Str번째 문자열의 FromCode번째부터 Count개). AdvanceText = 그 글자들이 차지하던 글 공간 이동량(자간·낱말 간격 포함, Tz 적용 전).</summary>
+public sealed record TextCut(int Str, int FromCode, int Count, double AdvanceText);
+
+/// <summary>빼낸 글 범위 하나와 그 자리에 쓸 새 글. NewText가 null이면 새 글은 다른 경로(앱 글꼴 줄)가 쓴다. Tm = 새 글을 놓을 글 행렬(글 공간, CTM 제외).</summary>
+public sealed record TextSpanReplace(IReadOnlyList<TextCut> Cuts, byte[]? NewText, Mat Tm);
+
+/// <summary>
+/// 글 객체 하나에서 찾은 글 범위를 제자리에서 바꾼다(0.4.0 찾아 바꾸기). 글 보이기 연산자를 `[… ] TJ`로 다시 써서 범위의 글 코드를 빼고(그 폭만큼 TJ 간격으로 메워 뒤 글의 위치는 그대로),
+/// 새 글은 원래 글 객체의 `ET` 바로 뒤에 같은 글 상태로 덧붙인다(겹침 순서·클립 유지). 글이 비게 돼도 연산자는 남아(간격만) 객체 수는 그대로다.
+/// Unit = 한 글 코드의 바이트 수(1 또는 2). `'`·`"` 연산자는 지원하지 않는다.
+/// </summary>
+public sealed record ReplaceTextSpans(int ObjectIndex, int Unit, IReadOnlyList<TextSpanReplace> Spans) : ObjectEdit(ObjectIndex);
+
 public sealed class RewriteResult
 {
     public bool Ok => Failure is null;
@@ -124,6 +137,31 @@ public static class ContentRewriter
                     }
                     break;
                 }
+                case ReplaceTextSpans rs:
+                {
+                    if (obj.Kind != ObjectKind.Text || obj.Text is not { } snap) return Fail($"object {edit.ObjectIndex}: not a text object");
+                    if (main.Name is not ("Tj" or "TJ")) return Fail($"object {edit.ObjectIndex}: text operator {main.Name} is not supported for span replace");
+                    if (snap.Tr >= 4) return Fail($"object {edit.ObjectIndex}: text render mode {snap.Tr} clips");
+                    if (rs.Unit is not (1 or 2)) return Fail("bad code unit");
+                    double fs = snap.FontOp >= 0 ? ops[snap.FontOp].Operands.LastOrDefault(o => o.Kind == OperandKind.Number)?.Number ?? 0 : 0;
+                    if (fs <= 0) return Fail($"object {edit.ObjectIndex}: font size unknown");
+                    string? spliced = SpliceTextOp(main, rs, fs, out bool glyphsLeft);
+                    if (spliced is null) return Fail($"object {edit.ObjectIndex}: text cut out of range");
+                    Replace(main.Start, main.End, spliced);
+                    if (!glyphsLeft) Bump(removedKinds, ObjectKind.Text);   // 글자가 하나도 안 남은 글 보이기는 객체가 아니다(V16 규칙)
+                    if (rs.Spans.Any(sp => sp.NewText is not null))
+                    {
+                        if (snap.EtOp < 0 || snap.FontOp < 0) return Fail($"object {edit.ObjectIndex}: no ET or font for the new text");
+                        for (int k = snap.BtOp + 1; k < snap.EtOp; k++)
+                            if (ops[k].Name is "q" or "Q" or "cm") return Fail($"object {edit.ObjectIndex}: q/Q/cm inside the text object");
+                        foreach (var sp in rs.Spans.Where(x => x.NewText is not null))
+                        {
+                            Insert(ops[snap.EtOp].End, NewTextBlock(data, ops, snap, sp), OrderOpen);
+                            textCopies++;
+                        }
+                    }
+                    break;
+                }
                 default: return Fail("unknown edit");
             }
         }
@@ -227,6 +265,58 @@ public static class ContentRewriter
         }
         else sb.Append(Slice(data, show));
         sb.Append(" ET Q\n");
+        return sb.ToString();
+    }
+
+    /// <summary>글 보이기 연산자를 잘라낼 범위를 뺀 `[… ] TJ`로 다시 쓴다. 범위가 문자열 밖이면 null.</summary>
+    private static string? SpliceTextOp(ContentOp show, ReplaceTextSpans rs, double fontSize, out bool glyphsLeft)
+    {
+        glyphsLeft = false;
+        var items = new List<Operand>();
+        if (show.Name == "TJ") { foreach (var o in show.Operands) if (o.Kind == OperandKind.Array) items.AddRange(o.Items); }
+        else if (show.Operands.Count > 0) items.Add(show.Operands[^1]);
+        var cuts = rs.Spans.SelectMany(s => s.Cuts).GroupBy(c => c.Str).ToDictionary(g => g.Key, g => g.OrderBy(c => c.FromCode).ToList());
+        int stringCount = items.Count(i => i.Kind == OperandKind.String);
+        if (cuts.Keys.Any(k => k < 0 || k >= stringCount)) return null;
+        var sb = new StringBuilder("["); int left = 0; glyphsLeft = false;
+        int str = -1;
+        foreach (var it in items)
+        {
+            if (it.Kind == OperandKind.Number) { sb.Append(Mat.Fmt(it.Number)).Append(' '); continue; }
+            if (it.Kind != OperandKind.String) continue;
+            str++;
+            int n = it.Bytes.Length / rs.Unit;
+            if (!cuts.TryGetValue(str, out var list)) { left += AppendHex(sb, it.Bytes, 0, it.Bytes.Length); continue; }
+            int pos = 0;
+            foreach (var c in list)
+            {
+                if (c.FromCode < pos || c.Count <= 0 || c.FromCode + c.Count > n) return null;
+                left += AppendHex(sb, it.Bytes, pos * rs.Unit, (c.FromCode - pos) * rs.Unit);
+                sb.Append(Mat.Fmt(-c.AdvanceText * 1000.0 / fontSize)).Append(' ');
+                pos = c.FromCode + c.Count;
+            }
+            left += AppendHex(sb, it.Bytes, pos * rs.Unit, (n - pos) * rs.Unit + (it.Bytes.Length - n * rs.Unit));
+        }
+        sb.Append("] TJ"); glyphsLeft = left > 0;
+        return sb.ToString();
+    }
+
+    private static int AppendHex(StringBuilder sb, byte[] bytes, int offset, int count)
+    {
+        if (count <= 0) return 0;
+        sb.Append('<').Append(Convert.ToHexString(bytes, offset, count)).Append("> ");
+        return count;
+    }
+
+    /// <summary>바꾼 새 글: 원래 글 객체와 같은 글 상태(색·gs·글꼴·자간·가로 비율·렌더 모드)로 `q … Q` 안에 쓴다. ET 바로 뒤에 넣는다.</summary>
+    private static string NewTextBlock(byte[] data, List<ContentOp> ops, TextSnapshot s, TextSpanReplace sp)
+    {
+        var sb = new StringBuilder();
+        sb.Append("\nq ");
+        foreach (int k in s.ReplayOps) sb.Append(Slice(data, ops[k])).Append(' ');
+        sb.Append(Slice(data, ops[s.FontOp])).Append(' ');
+        sb.Append($"{Mat.Fmt(s.Tc)} Tc {Mat.Fmt(s.Tw)} Tw {Mat.Fmt(s.Tz)} Tz {Mat.Fmt(s.TL)} TL {Mat.Fmt(s.Ts)} Ts {s.Tr} Tr ");
+        sb.Append($"BT {sp.Tm.ToOperands()} Tm <{Convert.ToHexString(sp.NewText!)}> Tj ET Q\n");
         return sb.ToString();
     }
 

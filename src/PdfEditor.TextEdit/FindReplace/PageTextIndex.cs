@@ -24,7 +24,8 @@ public sealed class PageTextIndex
         return new PageTextIndex(page, pageIndex, walk, walk.Ok ? LogicalLineBuilder.Build(walk.Glyphs) : []);
     }
 
-    public IReadOnlyList<TextMatch> Find(FindOptions opts, PageId id = default) => TextMatcher.Find(Lines, opts, id, PageIndex);
+    public IReadOnlyList<TextMatch> Find(FindOptions opts, PageId id = default) =>
+        [.. TextMatcher.Find(Lines, opts, id, PageIndex).Select(m => m with { Source = this })];
 }
 
 /// <summary>쪽 하나를 찾은 결과. 글꼴을 풀 수 없어 못 읽은 글 연산은 조용히 건너뛰지 않고 집계한다(Review Focus 1).</summary>

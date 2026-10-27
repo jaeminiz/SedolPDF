@@ -47,6 +47,7 @@ public static class ContentRewritePlanner
         var origThen = new Dictionary<int, Mat>();
         var textRemoved = new HashSet<int>();   // 문단 편집이 끄는 원본 객체: 글이면 완전 제거를 시도
         var ins = new Dictionary<long, Ins>();
+        var spanEdits = new Dictionary<int, (int Unit, List<TextSpanReplace> Spans)>();   // 찾아 바꾸기: 원본 글 객체마다 낱말 바꾸기를 합친다
         int order = 0;
         foreach (var e in edits)
         {
@@ -74,6 +75,18 @@ public static class ContentRewritePlanner
                     for (int i = 0; i < pe.AppLines.Length; i++)
                         ins[pe.AppLineIds[i]] = new Ins { Order = order++, Kind = 'T', Text = new InsertAppTextEdit(pe.AppLineIds[i], pe.AppLines[i]) };
                     break;
+                case ReplaceTextSpanEdit rt:
+                {
+                    if (rt.Original.IsInserted || rt.Original.OriginalIndex < 0) return Fail("text span replace of an inserted object");
+                    if (!spanEdits.TryGetValue(rt.Original.OriginalIndex, out var acc)) spanEdits[rt.Original.OriginalIndex] = acc = (rt.Unit, []);
+                    else if (acc.Unit != rt.Unit) return Fail("text span replace with different code units on one object");
+                    foreach (var sp in rt.Spans)
+                        acc.Spans.Add(new TextSpanReplace([.. sp.Cuts.Select(c => new TextCut(c.Str, c.FromCode, c.Count, c.AdvanceText))], sp.NewBytes,
+                            new Mat(sp.Tm.A, sp.Tm.B, sp.Tm.C, sp.Tm.D, sp.Tm.E, sp.Tm.F)));
+                    for (int i = 0; i < rt.AppLines.Length; i++)
+                        ins[rt.AppLineIds[i]] = new Ins { Order = order++, Kind = 'T', Text = new InsertAppTextEdit(rt.AppLineIds[i], rt.AppLines[i]) };
+                    break;
+                }
                 case InsertTextLikeEdit: return Fail("inserting text in the original font needs the PDFium path (app font only here)");
                 case DeactivateEdit d:
                     if (d.Target.IsInserted)
@@ -108,6 +121,12 @@ public static class ContentRewritePlanner
         {
             if (origDisabled.Contains(i)) objEdits.Add(new DisableObject(i, textRemoved.Contains(i)));
             else if (origThen[i] != Mat.Identity) objEdits.Add(new TransformObject(i, origThen[i]));
+        }
+
+        foreach (var (idx, (unit, spans)) in spanEdits.OrderBy(kv => kv.Key))
+        {
+            if (origDisabled.Contains(idx) || origThen.ContainsKey(idx)) return Fail("a replaced text object was also deleted or moved (needs the PDFium path)");
+            objEdits.Add(new ReplaceTextSpans(idx, unit, spans));
         }
 
         var snippets = new List<NewSnippet>();

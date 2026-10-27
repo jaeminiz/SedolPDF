@@ -64,9 +64,20 @@ public static class OriginalFontReplacer
     {
         const double scale = 4;
         var sz = page.SizePt;
-        var b = probe.Bounds;
-        int x0 = Math.Max(0, (int)(b.Left * scale) - 2), x1 = (int)Math.Ceiling(b.Right * scale) + 2;
-        int y0 = Math.Max(0, (int)((sz.Height - b.Top) * scale) - 2), y1 = (int)Math.Ceiling((sz.Height - b.Bottom) * scale) + 2;
+        // 쪽 회전(0.4.0): 객체·글자 사각형은 회전 전 쪽 좌표, 타일은 회전된 화면 좌표다. 쪽 좌표 → 화면 좌표(위가 y=0)로 옮긴다.
+        int rot = page.Rotation & 3;
+        bool odd = rot % 2 != 0;
+        double w0 = odd ? sz.Height : sz.Width, h0 = odd ? sz.Width : sz.Height;
+        (double X, double Y) Dev(double x, double y) => rot switch { 1 => (y, x), 2 => (w0 - x, y), 3 => (h0 - y, w0 - x), _ => (x, h0 - y) };
+        (double L, double T, double R, double B) DevBox(double l, double b, double r, double t)
+        {
+            var c = new[] { Dev(l, b), Dev(l, t), Dev(r, b), Dev(r, t) };
+            return (c.Min(p => p.X), c.Min(p => p.Y), c.Max(p => p.X), c.Max(p => p.Y));
+        }
+        var b0 = probe.Bounds;
+        var pb = DevBox(b0.Left, b0.Bottom, b0.Right, b0.Top);
+        int x0 = Math.Max(0, (int)(pb.L * scale) - 2), x1 = (int)Math.Ceiling(pb.R * scale) + 2;
+        int y0 = Math.Max(0, (int)(pb.T * scale) - 2), y1 = (int)Math.Ceiling(pb.B * scale) + 2;
         int bw = Math.Max(1, x1 - x0), bh = Math.Max(1, y1 - y0);
         if ((long)bw * bh > 40_000_000) return false;   // 비정상적으로 큰 객체: 확인하지 못하면 원래 글꼴을 쓰지 않는다
         var bmp = page.RenderTile(scale, x0, y0, bw, bh, withAnnotations: false);
@@ -79,8 +90,9 @@ public static class OriginalFontReplacer
             foreach (var r in tp.GetRects(c, 1))
             {
                 float lo = Math.Min(r.Top, r.Bottom), hi = Math.Max(r.Top, r.Bottom);
-                int cx0 = (int)(r.Left * scale) - x0, cx1 = (int)Math.Ceiling(r.Right * scale) - x0;
-                int cy0 = (int)((sz.Height - hi) * scale) - y0, cy1 = (int)Math.Ceiling((sz.Height - lo) * scale) - y0;
+                var d = DevBox(r.Left, lo, r.Right, hi);
+                int cx0 = (int)(d.L * scale) - x0, cx1 = (int)Math.Ceiling(d.R * scale) - x0;
+                int cy0 = (int)(d.T * scale) - y0, cy1 = (int)Math.Ceiling(d.B * scale) - y0;
                 if (HasInk(bmp, bw, bh, cx0, cy0, cx1, cy1)) { inked++; break; }
             }
         }

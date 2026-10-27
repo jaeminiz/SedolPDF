@@ -159,7 +159,8 @@ public static class PatchPlanBuilder
             var edits = s.Content.For(pageId);
             // 문단 편집(M5)의 앱 글꼴 줄도 같은 방식(PDFium 경로로 저장하는 쪽; 내용 스트림 직접 쓰기 쪽은 OutputCopyBuilder가 빼 준다).
             var lines = edits.OfType<Content.InsertAppTextEdit>().Select(a => (a.Id, a.Line))
-                .Concat(edits.OfType<Content.ReplaceParagraphEdit>().SelectMany(pe => pe.AppLines.Select((l, i) => (Id: pe.AppLineIds[i], Line: l))));
+                .Concat(edits.OfType<Content.ReplaceParagraphEdit>().SelectMany(pe => pe.AppLines.Select((l, i) => (Id: pe.AppLineIds[i], Line: l))))
+                .Concat(edits.OfType<Content.ReplaceTextSpanEdit>().SelectMany(te => te.AppLines.Select((l, i) => (Id: te.AppLineIds[i], Line: l))));
             foreach (var (id, line) in lines)
             {
                 var a = new { Id = id, Line = line };

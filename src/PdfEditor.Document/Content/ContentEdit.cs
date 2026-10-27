@@ -86,3 +86,50 @@ public sealed record ReplaceParagraphEdit(long Id, System.Collections.Immutable.
     System.Collections.Immutable.ImmutableArray<ParagraphTextLine> OriginalFontLines,
     System.Collections.Immutable.ImmutableArray<AppTextSpec> AppLines, System.Collections.Immutable.ImmutableArray<long> AppLineIds,
     ParagraphMeta Meta) : ContentEdit(Id);
+
+/// <summary>내용 스트림의 글 행렬(글 공간, CTM 제외). 배정밀도로 보관한다(쪽 좌표 float보다 정확).</summary>
+public readonly record struct TextMatrix(double A, double B, double C, double D, double E, double F);
+
+/// <summary>글 보이기 연산자 안에서 빼낼 글 코드 범위(Str번째 문자열의 FromCode부터 Count개). AdvanceText = 그 글자들이 차지하던 글 공간 이동량.</summary>
+public readonly record struct TextCutRef(int Str, int FromCode, int Count, double AdvanceText);
+
+/// <summary>
+/// 찾아 바꾸기(0.4.0)의 낱말 하나. Cuts를 글 연산에서 빼고 그 자리(Tm)에 새 글을 쓴다. 새 글은 셋 중 하나:
+/// ① NewBytes(원래 글꼴로 인코딩한 글 코드 — 원래 글 객체 ET 바로 뒤에 같은 글 상태로) ② AppLineIndex ≥ 0(앱 글꼴 줄, N1) ③ 둘 다 아님(여러 글 연산에 걸친 낱말의 뒷부분 — 빼기만).
+/// ScreenLineId는 ①일 때 화면 replay가 만드는 새 글 객체를 가리키는 Id.
+/// </summary>
+public sealed record TextSpanReplacement(System.Collections.Immutable.ImmutableArray<TextCutRef> Cuts, byte[]? NewBytes, TextMatrix Tm, int AppLineIndex = -1, long ScreenLineId = 0);
+
+/// <summary>화면 replay가 PDFium 글 객체로 다시 만들 글 조각(앞부분·새 글·뒷부분). Placement = 쪽 좌표 글 객체 행렬(원본 글 객체 행렬에서 이동량만 이 조각의 기준선 원점으로).</summary>
+public sealed record ScreenTextPiece(long LineId, string Text, PdfMatrix Placement);
+
+/// <summary>
+/// 찾아 바꾸기(0.4.0 D8): 글 객체 하나(<see cref="Original"/>) 안의 낱말들을 제자리에서 바꾼다. 한 글 객체에 한 편집(여러 낱말이면 Spans가 여럿).
+/// 저장은 내용 스트림 직접 고쳐 쓰기(옛 글 코드는 파일에서 빠진다 — M5 C12와 같은 원칙), 화면은 원래 객체를 끄고 Screen 조각을 PDFium 글 객체로 넣는다.
+/// MaskRect = 화면 모양과 저장 모양을 비교할 때 뺄 영역(쪽 좌표 — 화면의 PDFium 글 객체는 글자별 간격 조정을 그리지 못한다).
+/// </summary>
+public sealed record ReplaceTextSpanEdit(long Id, ObjectRef Original, int Unit, System.Collections.Immutable.ImmutableArray<TextSpanReplacement> Spans,
+    System.Collections.Immutable.ImmutableArray<ScreenTextPiece> Screen, System.Collections.Immutable.ImmutableArray<AppTextSpec> AppLines,
+    System.Collections.Immutable.ImmutableArray<long> AppLineIds, PdfRectF MaskRect) : ContentEdit(Id);
+
+/// <summary>여러 쪽의 편집을 한 번에 덧붙이는 명령("모두 바꾸기" — 실행 취소 한 번에 모두 되돌린다).</summary>
+public sealed class ContentEditBatchCommand(IReadOnlyList<(PageId Page, ContentEdit Edit)> edits) : PdfEditor.Document.Commands.IUndoableCommand
+{
+    private readonly (PageId Page, ContentEdit Edit)[] _edits = edits.Count == 0 ? throw new ArgumentException("No edits.", nameof(edits)) : [.. edits];
+
+    public IReadOnlyList<(PageId Page, ContentEdit Edit)> Edits => _edits;
+    public IEnumerable<PageId> Pages => _edits.Select(e => e.Page).Distinct();
+
+    public void Execute(DocumentSession s)
+    {
+        foreach (var p in Pages) if (s.IndexOf(p) < 0) throw new InvalidOperationException("The page is not in the document.");
+        foreach (var (page, edit) in _edits) s.Content.Append(page, edit);
+        foreach (var p in Pages) s.BumpVersion(p);
+    }
+
+    public void Undo(DocumentSession s)
+    {
+        for (int i = _edits.Length - 1; i >= 0; i--) s.Content.RemoveLast(_edits[i].Page, _edits[i].Edit);
+        foreach (var p in Pages) s.BumpVersion(p);
+    }
+}

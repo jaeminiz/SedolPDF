@@ -28,6 +28,8 @@ public sealed class GlyphInfo
     /// <summary>글자를 보인 시점의 글 행렬(글 공간, CTM·올림 제외)과 CTM.</summary>
     public Mat Tm, Ctm;
     public double FontSize, Tz = 100, Tc, Tw, Ts;
+    /// <summary>글자 렌더 모드(Tr).</summary>
+    public int Tr;
     public string FontRes = "";
     public FontInfo? Font;
     public bool InForm => StreamId != 0;
@@ -145,6 +147,17 @@ public static class PageGlyphWalker
         int nextStream = 1;
         WalkStream(res, pc, scope, 0, ref nextStream, new GState(Mat.Identity, 0, 0, 100, 0, 0, 0, null, "", 0), fonts, 0, []);
         return res;
+    }
+
+    /// <summary>쪽(폼 포함)에서 글꼴 사전마다 보인 글 문자열을 모은다 — 문서 단위 코드북 재료.</summary>
+    public static Dictionary<PdfDictionary, List<ReadOnlyMemory<byte>>> CollectShownStrings(SharpPage page)
+    {
+        var shown = new Dictionary<PdfDictionary, List<ReadOnlyMemory<byte>>>(ReferenceEqualityComparer.Instance);
+        var loaded = PageContent.Load(page);
+        if (loaded.Data is null) return shown;
+        var pc = ContentLexer.Parse(loaded.Data);
+        if (pc.Ok) CollectShown(pc, ScopeOf(page.Resources), shown, 0, []);
+        return shown;
     }
 
     private static Scope ScopeOf(PdfDictionary? resources) =>
@@ -308,7 +321,7 @@ public static class PageGlyphWalker
                                 X0 = sx, Y0 = sy, X1 = ex, Y1 = ey,
                                 Size = g.Fs * Math.Sqrt(full.C * full.C + full.D * full.D),
                                 Angle = (int)Math.Round(((ang % 360) + 360) % 360) % 360,
-                                Hidden = g.Tr is 3 or 7,
+                                Hidden = g.Tr is 3 or 7, Tr = g.Tr,
                                 Place = new Mat(full.A, full.B, full.C, full.D, sx, sy),
                                 Tm = tm, Ctm = g.Ctm,
                                 FontSize = g.Fs, Tz = g.Tz, Tc = g.Tc, Tw = g.Tw, Ts = g.Ts, FontRes = g.FontRes, Font = font, QuoteOp = quote,

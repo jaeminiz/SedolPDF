@@ -43,7 +43,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                 .Where(x => x.Index >= 0 && x.Edits.Length > 0).ToList();
             bool patch = !p.IsEmpty && SavePolicy.CanPatch(s);
             // 앱 글꼴 줄은 패치 단계만 쓸 수 있다. 패치를 못 하는(암호) 문서에서 조용히 버리지 않는다(M3a A2와 같은 원칙).
-            if (!SavePolicy.CanPatch(s) && e.Any(x => x.Edits.OfType<InsertAppTextEdit>().Any() || x.Edits.OfType<ReplaceParagraphEdit>().Any(pe => !pe.AppLines.IsDefaultOrEmpty)))
+            if (!SavePolicy.CanPatch(s) && e.Any(x => x.Edits.OfType<InsertAppTextEdit>().Any() || x.Edits.OfType<ReplaceParagraphEdit>().Any(pe => !pe.AppLines.IsDefaultOrEmpty)
+                    || x.Edits.OfType<ReplaceTextSpanEdit>().Any(te => !te.AppLines.IsDefaultOrEmpty)))
                 throw new InvalidOperationException("App-font text lines need the patch stage, which is not available for encrypted documents.");
             if (!always && e.Count == 0 && !patch) return ((int[]?)null, p, e);
             s.Document.SaveCopy(path);
@@ -165,7 +166,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             // 객체 번호 대응·글꼴·상태 문제로 거절된 쪽만 PDFium 경로(줄마다 글 객체 + 충실도 보호)로 내려간다. 거절 이유는 둘 다 안 될 때 저장 거절 문구에 쓴다.
             var refCache = new Dictionary<int, ImmutableArray<ReferenceObj>>();   // 문단 편집 쪽은 시험 적용과 실제 고쳐 쓰기 사이에 객체 경계 목록을 두 번 읽지 않는다
             var rejected = new Dictionary<int, string>();
-            var paraPages = edited.Where(x => x.Edits.OfType<ReplaceParagraphEdit>().Any()).Select(x => x.Index).Except(rewritePages).OrderBy(i => i).ToList();
+            var paraPages = edited.Where(x => x.Edits.OfType<ReplaceParagraphEdit>().Any() || x.Edits.OfType<ReplaceTextSpanEdit>().Any()).Select(x => x.Index).Except(rewritePages).OrderBy(i => i).ToList();
             if (paraPages.Count > 0 && canRewrite)
             {
                 var candidates = ReadRewrites(s, path, pw, edited.Where(x => paraPages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out _, null, refCache);
@@ -267,6 +268,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
     private static List<(double L, double B, double R, double T)> ParagraphMasks(ImmutableArray<ContentEdit> edits)
     {
         var list = new List<(double, double, double, double)>();
+        foreach (var te in edits.OfType<ReplaceTextSpanEdit>())   // 찾아 바꾸기: 화면의 PDFium 글 객체는 글자별 간격 조정(TJ)을 그리지 못한다 → 바꾼 낱말 주변은 비교에서 뺀다
+            list.Add((te.MaskRect.Left, te.MaskRect.Bottom, te.MaskRect.Right, te.MaskRect.Top));
         foreach (var pe in edits.OfType<ReplaceParagraphEdit>())
             foreach (var ln in pe.OriginalFontLines)
             {

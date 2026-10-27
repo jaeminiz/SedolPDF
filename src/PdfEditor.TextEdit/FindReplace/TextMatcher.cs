@@ -28,6 +28,9 @@ public readonly record struct GlyphSpanRef(int StreamId, int Op, int Str, int Fr
 public sealed record TextMatch(PageId Page, int PageIndex, ImmutableArray<GlyphSpanRef> Spans, IReadOnlyList<GlyphInfo> Glyphs,
     string Text, string BeforeContext, string AfterContext, (double L, double B, double R, double T) Bounds, int RotationDeg, int LineIndex)
 {
+    /// <summary>찾은 쪽의 글자 위치·논리 글줄(바꾸기 계획이 쓴다).</summary>
+    public PageTextIndex? Source { get; init; }
+
     /// <summary>폼 XObject 안의 글자가 있다 — 바꿀 수 없다(V15).</summary>
     public bool InForm => Glyphs.Any(g => g.InForm);
 

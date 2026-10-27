@@ -72,7 +72,8 @@ public static class ContentReplayer
         // 앱 글꼴 줄(C7)은 화면에서는 다른 편집을 다 적용한 뒤 맨 위에 넣는다. 그 줄을 가리키는 편집(옮기기·끄기)은
         // 줄을 넣은 뒤에 적용해야 하므로 함께 미룬다. 출력 모드에서는 넣지 않는다(패치 단계가 진짜 글자로 씀).
         var appText = edits.OfType<InsertAppTextEdit>().Select(a => a.Id).ToHashSet();
-        foreach (var pe in edits.OfType<ReplaceParagraphEdit>()) foreach (var id in pe.AppLineIds) appText.Add(id);   // 문단의 앱 글꼴 줄도 같은 방식으로 미룬다(M5)
+        foreach (var pe in edits.OfType<ReplaceParagraphEdit>()) foreach (var id in pe.AppLineIds) appText.Add(id);
+        foreach (var te in edits.OfType<ReplaceTextSpanEdit>()) foreach (var id in te.AppLineIds) appText.Add(id);   // 찾아 바꾸기의 앱 글꼴 줄도 같은 방식   // 문단의 앱 글꼴 줄도 같은 방식으로 미룬다(M5)
         bool TargetsAppText(ObjectRef r) => r.IsInserted && appText.Contains(r.InsertedId);
         var deferred = new List<ContentEdit>();
         foreach (var e in edits)
@@ -109,6 +110,10 @@ public static class ContentReplayer
                     skipped += ApplyParagraphOriginalPart(page, rp, result, inserted, InsertPosAfter, afterCounts, mode);
                     if (mode == ReplayMode.Screen && !rp.AppLines.IsDefaultOrEmpty) deferred.Add(rp);
                     break;
+                case ReplaceTextSpanEdit rt:
+                    skipped += ApplyTextSpanPart(page, rt, result, inserted, InsertPosAfter, afterCounts, mode);
+                    if (mode == ReplayMode.Screen && !rt.AppLines.IsDefaultOrEmpty) deferred.Add(rt);
+                    break;
                 case InsertShapeEdit sh:
                     var so = CreateShape(page, sh.Shape);
                     page.InsertObject(so);
@@ -133,6 +138,15 @@ public static class ContentReplayer
                         if (ap is null) { skipped++; continue; }
                         page.InsertObject(ap);
                         inserted[rp.AppLineIds[i]] = ap;
+                    }
+                    break;
+                case ReplaceTextSpanEdit rt:
+                    for (int i = 0; i < rt.AppLines.Length; i++)
+                    {
+                        var ap = BuildOutlinePath(page, rt.AppLines[i]);
+                        if (ap is null) { skipped++; continue; }
+                        page.InsertObject(ap);
+                        inserted[rt.AppLineIds[i]] = ap;
                     }
                     break;
                 case InsertAppTextEdit a:
@@ -176,6 +190,29 @@ public static class ContentReplayer
             page.InsertObject(nt, insertPosAfter(orig));
             afterCounts[orig] = afterCounts.GetValueOrDefault(orig) + 1;
             inserted[line.LineId] = nt;
+        }
+        return skipped;
+    }
+
+    /// <summary>
+    /// 찾아 바꾸기(0.4.0)의 화면 모양: 원본 글 객체를 끄고 앞부분·새 글·뒷부분을 PDFium 글 객체로 원본 바로 뒤에 넣는다(글자별 간격 조정은 못 그림 — 저장 모양과 비교할 때 MaskRect를 뺀다).
+    /// 출력(Output) 모드에서는 아무것도 하지 않는다 — 저장은 내용 스트림 직접 쓰기가 한다. 건너뛴 수를 돌려준다.
+    /// </summary>
+    private static int ApplyTextSpanPart(PdfPage page, ReplaceTextSpanEdit rt, ReplayResult result, Dictionary<long, PdfPageObject> inserted,
+        Func<int, int> insertPosAfter, SortedList<int, int> afterCounts, ReplayMode mode)
+    {
+        if (mode == ReplayMode.Output) return 0;
+        if (rt.Original.IsInserted || result.Resolve(rt.Original) is not { } orig) return 1;
+        int skipped = 0;
+        orig.IsActive = false;
+        foreach (var piece in rt.Screen)
+        {
+            if (page.CreateTextLike(orig, piece.Text) is not { } nt) { skipped++; continue; }
+            nt.Matrix = piece.Placement;
+            int at = rt.Original.OriginalIndex;
+            page.InsertObject(nt, insertPosAfter(at));
+            afterCounts[at] = afterCounts.GetValueOrDefault(at) + 1;
+            inserted[piece.LineId] = nt;
         }
         return skipped;
     }
