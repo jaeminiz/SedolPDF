@@ -84,12 +84,12 @@ public abstract class ObjectUiTestBase : IAsyncLifetime
 
     protected static void PumpUi(Func<bool> done, int ms = 8000) => HeadlessUi.Run(() => { Pump(done, ms); return 0; });
 
-    protected Host Show(DocumentSession s) => HeadlessUi.Run(() =>
+    protected Host Show(DocumentSession s, double width = 900) => HeadlessUi.Run(() =>
     {
         if (!_themed) { Application.Current!.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme()); _themed = true; }
         var tab = new DocumentTabViewModel(s, "a.pdf", a => Dispatcher.UIThread.Post(a));
         var view = new DocumentView { Tab = tab };
-        var w = new Window { Width = 900, Height = 1100, Content = new ScrollViewer { Content = view } };
+        var w = new Window { Width = width, Height = 1100, Content = new ScrollViewer { Content = view } };
         w.Show();
         var f = typeof(DocumentView).GetField("_layout", BindingFlags.NonPublic | BindingFlags.Instance)!;
         Pump(() => { w.UpdateLayout(); return f.GetValue(view) is not null; });
