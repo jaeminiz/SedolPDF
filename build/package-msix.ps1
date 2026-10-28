@@ -106,6 +106,16 @@ $xml = $xml.Replace('{{IdentityName}}', $id.IdentityName).Replace('{{Publisher}}
 if ($xml -match '\{\{') { Fail '매니페스트에 채우지 못한 {{자리}}가 남았습니다.' }
 [System.IO.File]::WriteAllText((Join-Path $stage 'AppxManifest.xml'), $xml, [System.Text.UTF8Encoding]::new($false))
 
+# 4b. 리소스 색인(resources.pri): 없으면 Windows가 파일 이름의 크기·altform 규칙을 못 읽어 작업 표시줄에서 아이콘 뒤에 색 판이 깔린다
+$makepri = Find-SdkTool 'makepri.exe'
+if (-not $makepri) { Fail 'makepri.exe 를 찾지 못했습니다 (Windows SDK).' }
+$priCfg = Join-Path $artifacts 'priconfig.xml'
+& $makepri createconfig /cf $priCfg /dq 'en-US' /o | Out-Null
+if ($LASTEXITCODE -ne 0) { Fail "makepri createconfig 실패 (종료 코드 $LASTEXITCODE)." }
+& $makepri new /pr $stage /cf $priCfg /mn (Join-Path $stage 'AppxManifest.xml') /of (Join-Path $stage 'resources.pri') /o | Out-Null
+if ($LASTEXITCODE -ne 0) { Fail "makepri new 실패 (종료 코드 $LASTEXITCODE)." }
+if (-not (Test-Path (Join-Path $stage 'resources.pri'))) { Fail 'resources.pri 가 만들어지지 않았습니다.' }
+
 # 5. 묶기
 $msix = Join-Path $artifacts "SedolPDF-$Version-win-x64.msix"
 if (Test-Path $msix) { Remove-Item -Force $msix }
@@ -116,9 +126,11 @@ if ($LASTEXITCODE -ne 0) { Fail "makeappx 실패 (종료 코드 $LASTEXITCODE)."
 if ($TestSign) {
     $signtool = Find-SdkTool 'signtool.exe'
     if (-not $signtool) { Fail 'signtool.exe 를 찾지 못했습니다 (Windows SDK).' }
-    $cert = New-SelfSignedCertificate -Type Custom -Subject $id.Publisher -KeyUsage DigitalSignature -FriendlyName 'SedolPDF test' `
-        -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
-    $cer = Join-Path $artifacts 'SedolPDF-test.cer'
+    # 이미 만든 시험 인증서가 있으면 재사용(이미 신뢰 등록했다면 다시 등록할 필요 없음)
+    $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.FriendlyName -eq 'SedolPDF test' -and $_.Subject -eq $id.Publisher } | Sort-Object NotBefore -Descending | Select-Object -First 1
+    if (-not $cert) { $cert = New-SelfSignedCertificate -Type Custom -Subject $id.Publisher -KeyUsage DigitalSignature -FriendlyName 'SedolPDF test' `
+        -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}') }
+    $cer =Join-Path $artifacts 'SedolPDF-test.cer'
     Export-Certificate -Cert $cert -FilePath $cer | Out-Null
     & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint $msix
     if ($LASTEXITCODE -ne 0) { Fail "signtool 실패 (종료 코드 $LASTEXITCODE)." }
