@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace PdfEditor.App.Shell;
 
-public enum PanelKind { Thumbnails, Bookmarks, Comments, Attachments, Layers, Search }
+public enum PanelKind { Thumbnails, Bookmarks, Comments, Attachments, Layers, Search, Replace }
 
 /// <summary>리본 탭 머리글. 선택되면 아래에 강조색 줄이 생긴다.</summary>
 public sealed partial class RibbonTabVm(string id, string label) : ObservableObject

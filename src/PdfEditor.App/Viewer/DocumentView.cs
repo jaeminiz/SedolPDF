@@ -46,6 +46,7 @@ public sealed partial class DocumentView : Control
         public readonly Dictionary<(PageId, int), PdfEditor.Document.Content.PageObjectIndex> ObjIndex = new();
         public readonly HashSet<(PageId, int)> ObjIndexPending = new();
         public Dictionary<PageId, List<SearchHit>>? HitsByPage;   // null = 다시 만들어야 함
+        public Dictionary<PageId, List<PdfEditor.App.Panels.ReplaceRow>>? ReplaceByPage;   // 찾아 바꾸기 미리보기의 쪽별 묶음(null = 다시 만들어야 함)
         public (PageId Page, IReadOnlyList<System.Drawing.RectangleF> Rects)? SelRects;
         public bool SelBusy, SelDirty;
         public Action<PdfEditor.Document.Annotations.AnnotationsChangedEventArgs>? AnnotChangedHandler;
@@ -462,6 +463,10 @@ public sealed partial class DocumentView : Control
 
     private static readonly IBrush HitBrush = new SolidColorBrush(Color.FromArgb(0x78, 0xFF, 0xE0, 0x30));
     private static readonly IBrush CurrentHitBrush = new SolidColorBrush(Color.FromArgb(0xA0, 0xFF, 0x8C, 0x00));
+    private static readonly IBrush ReplaceBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x2E, 0xB8, 0x4A));
+    private static readonly IBrush ReplaceCurrentBrush = new SolidColorBrush(Color.FromArgb(0xA0, 0xFF, 0x8C, 0x00));
+    private static readonly IBrush ReplaceSkippedBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x80, 0x80, 0x80));
+    private static readonly IBrush ReplaceRefusedBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xE0, 0x30, 0x30));
     private static readonly IBrush SelectionBrush = new SolidColorBrush(Color.FromArgb(0x55, 0x00, 0x5F, 0xB8));
 
     private SearchHit? _revealPending;
@@ -480,6 +485,11 @@ public sealed partial class DocumentView : Control
             if (on) { s.PropertyChanged += OnSearchPropertyChanged; s.Results.CollectionChanged += OnSearchResultsChanged; }
             else { s.PropertyChanged -= OnSearchPropertyChanged; s.Results.CollectionChanged -= OnSearchResultsChanged; }
         }
+        if (st.Tab.Replace is { } rep)
+        {
+            if (on) rep.HighlightsChanged += OnReplaceHighlightsChanged;
+            else rep.HighlightsChanged -= OnReplaceHighlightsChanged;
+        }
         if (on) { st.Tab.TextSelection.Changed += OnSelectionChanged; st.Tab.Selection.Changed += OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested += SetAnnotationPreview; st.Tab.RevealRequested += OnRevealRequested; }
         else { st.Tab.TextSelection.Changed -= OnSelectionChanged; st.Tab.Selection.Changed -= OnAnnotSelectionChanged; st.Tab.AnnotationPreviewRequested -= SetAnnotationPreview; st.Tab.RevealRequested -= OnRevealRequested; }
         if (on) { st.HitsByPage = null; RefreshSelection(st); }
@@ -489,6 +499,13 @@ public sealed partial class DocumentView : Control
     {
         if (_state is null) return;
         _state.HitsByPage = null;
+        InvalidateVisual();
+    }
+
+    private void OnReplaceHighlightsChanged()
+    {
+        if (_state is null) return;
+        _state.ReplaceByPage = null;
         InvalidateVisual();
     }
 
@@ -574,12 +591,18 @@ public sealed partial class DocumentView : Control
         bool hasSel = st.SelRects is { } sr && sr.Page == info.Id;
         var tsel = st.Tab.TextSelection;
         bool hasMarquee = _rectSelecting && tsel.RectPt is not null && tsel.Page == info.Id;   // 끄는 동안만 점선 테두리를 보인다
-        if (!hasHits && !hasSel && !hasMarquee) return;
+        var replace = st.Tab.Replace;
+        bool hasRep = replace is { Rows.Count: > 0 };
+        if (!hasHits && !hasSel && !hasMarquee && !hasRep) return;
         if (hasHits && st.HitsByPage is null)
             st.HitsByPage = search!.Results.GroupBy(h => h.Page).ToDictionary(g => g.Key, g => g.ToList());
+        if (hasRep && st.ReplaceByPage is null)
+            st.ReplaceByPage = replace!.Rows.GroupBy(r => r.Hit.Page).ToDictionary(g => g.Key, g => g.ToList());
         List<SearchHit>? hits = null;
         bool pageHasHits = hasHits && st.HitsByPage!.TryGetValue(info.Id, out hits);
-        if (!pageHasHits && !hasSel && !hasMarquee) return;
+        List<PdfEditor.App.Panels.ReplaceRow>? repRows = null;
+        bool pageHasRep = hasRep && st.ReplaceByPage!.TryGetValue(info.Id, out repRows);
+        if (!pageHasHits && !hasSel && !hasMarquee && !pageHasRep) return;
         if (!TryGetGeom(st, info, out var g)) return;   // 도착하면 다시 그린다
 
         var tr = new Pdf.Native.PageTransform(g.Bounds, g.Rotation, scale);
@@ -590,6 +613,14 @@ public sealed partial class DocumentView : Control
                 {
                     var brush = ReferenceEquals(h, search!.CurrentHit) ? CurrentHitBrush : HitBrush;
                     foreach (var r in h.RectsPt) ctx.FillRectangle(brush, ToDoc(tr, r, pr));
+                }
+            if (pageHasRep)
+                foreach (var row in repRows!)
+                {
+                    // 현재 줄 = 주황, 바뀔 곳(체크) = 초록, 체크 뺀 곳 = 회색, 못 바꾸는 곳 = 빨강
+                    var brush = ReferenceEquals(row, replace!.SelectedRow) ? ReplaceCurrentBrush
+                        : !row.Ok ? ReplaceRefusedBrush : row.IsChecked ? ReplaceBrush : ReplaceSkippedBrush;
+                    foreach (var r in row.Hit.RectsPt) ctx.FillRectangle(brush, ToDoc(tr, r, pr));
                 }
             if (hasSel)
                 foreach (var r in st.SelRects!.Value.Rects) ctx.FillRectangle(SelectionBrush, ToDoc(tr, r, pr));

@@ -56,6 +56,10 @@ public sealed partial class SearchViewModel : ObservableObject
     public IRelayCommand CancelCommand { get; }
     public IRelayCommand NextCommand { get; }
     public IRelayCommand PrevCommand { get; }
+    /// <summary>검색 패널의 "찾아 바꾸기…" 단추: 찾던 글을 가지고 바꾸기 패널을 연다(창이 처리).</summary>
+    public event Action? OpenReplaceRequested;
+    public IRelayCommand OpenReplaceCommand => _openReplace ??= new RelayCommand(() => OpenReplaceRequested?.Invoke());
+    private IRelayCommand? _openReplace;
 
     /// <summary>결과와 강조를 지운다(진행 중이면 먼저 취소한다).</summary>
     public void Clear()

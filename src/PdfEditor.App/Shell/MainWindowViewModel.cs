@@ -129,6 +129,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>찾기 명령이 검색 패널을 열었다. 창이 검색어 입력칸에 초점을 준다.</summary>
     public event EventHandler? FocusSearchRequested;
 
+    /// <summary>찾아 바꾸기 명령이 바꾸기 패널을 열었다. 창이 찾을 글 입력칸에 초점을 준다.</summary>
+    public event EventHandler? FocusReplaceRequested;
+
+    /// <summary>바꾸기 패널을 연다. query가 있으면 찾을 글에 채운다(이미 입력한 글은 query가 비었을 때만 남긴다).</summary>
+    public void OpenReplacePanel(DocumentTabViewModel? tab = null, string? query = null)
+    {
+        tab ??= ActiveDocument;
+        if (tab is null || !ReferenceEquals(tab, ActiveDocument)) return;
+        if (!string.IsNullOrEmpty(query) && tab.Replace is { } r) r.FindText = query;
+        ActiveLeftPanel = PanelKind.Replace;
+        IsLeftPanelVisible = true;
+        FocusReplaceRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     [ObservableProperty] private DocumentTabViewModel? _activeDocument;
     [ObservableProperty] private string _selectedRibbonTab = "Home";
     [ObservableProperty] private PanelKind _activeLeftPanel = PanelKind.Thumbnails;
@@ -163,6 +177,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             new(PanelKind.Thumbnails, Strings.Panel_Thumbnails, "thumbs"), new(PanelKind.Bookmarks, Strings.Panel_Bookmarks, "bookmark"),
             new(PanelKind.Comments, Strings.Panel_Comments, "comments"), new(PanelKind.Attachments, Strings.Panel_Attachments, "clip"),
             new(PanelKind.Layers, Strings.Panel_Layers, "layers"), new(PanelKind.Search, Strings.Panel_Search, "search"),
+            new(PanelKind.Replace, Strings.Panel_Replace, "findreplace"),
         ];
         PanelButtons[0].IsSelected = true;
     }
@@ -179,13 +194,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool ShowLayers => ActiveLeftPanel == PanelKind.Layers;
     public bool ShowComments => ActiveLeftPanel == PanelKind.Comments;
     public bool ShowSearch => ActiveLeftPanel == PanelKind.Search;
+    public bool ShowReplace => ActiveLeftPanel == PanelKind.Replace;
+    public FindReplaceViewModel? ActiveReplace => ActiveDocument?.Replace;
     public SearchViewModel? ActiveSearch => ActiveDocument?.Search;
     public BookmarksViewModel? ActiveBookmarks => ActiveDocument?.Bookmarks;
     public AttachmentsViewModel? ActiveAttachments => ActiveDocument?.Attachments;
     public CommentsViewModel? ActiveComments => ActiveDocument?.Comments;
 
     /// <summary>왼쪽 패널 폭: 코멘트 목록은 글이 길어 더 넓게.</summary>
-    public double LeftPanelWidth => ActiveLeftPanel == PanelKind.Comments ? 320 : 200;
+    public double LeftPanelWidth => ActiveLeftPanel is PanelKind.Comments ? 320 : ActiveLeftPanel is PanelKind.Replace ? 340 : 200;
     public LayersViewModel? ActiveLayers => ActiveDocument?.Layers;
     public PropertiesViewModel? ActiveProperties => ActiveDocument?.Properties;
     public PdfEditor.App.Panels.ObjectPropertiesViewModel? ActiveObjectProps => ActiveDocument?.ObjectProps;
@@ -255,6 +272,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveStyles));
         OnPropertyChanged(nameof(ActiveAnnotationProperties));
         OnPropertyChanged(nameof(ActiveSearch));
+        OnPropertyChanged(nameof(ActiveReplace));
         NotifyFormatTab();
         if (newValue is not null) SetZoomFromDocument(newValue.Scale);
         LoadVisiblePanels();
@@ -381,7 +399,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
             FocusSearchRequested?.Invoke(this, EventArgs.Empty);
             if (search.SearchCommand.CanExecute(null)) _ = search.SearchCommand.ExecuteAsync(null);
         };
-        tab.Detached += () => { search.Clear(); thumbs.Dispose(); cmds.Dispose(); tab.Comments?.Dispose(); tab.Comments = null; };
+        var replace = tab.Replace = new FindReplaceViewModel(tab);
+        replace.CloseRequested += () => { if (ReferenceEquals(ActiveDocument, tab)) IsLeftPanelVisible = false; };
+        // 검색 패널의 "찾아 바꾸기…" 단추: 찾던 글을 가지고 바꾸기 패널로 간다.
+        search.OpenReplaceRequested += () => OpenReplacePanel(tab, search.Query);
+        tab.Detached += () => { search.Clear(); replace.Dispose(); thumbs.Dispose(); cmds.Dispose(); tab.Comments?.Dispose(); tab.Comments = null; };
     }
 
     private void NotifyDocCommands()
@@ -576,6 +598,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowComments));
         OnPropertyChanged(nameof(LeftPanelWidth));
         OnPropertyChanged(nameof(ShowSearch));
+        OnPropertyChanged(nameof(ShowReplace));
         LoadVisiblePanels();
     }
 
@@ -682,6 +705,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("edit.redo", Strings.Cmd_Redo, "redo", G(Key.Y), PageCmd(p => p.RedoCommand));
         Reg("doc.close", Strings.Cmd_CloseDoc, null, G(Key.W), _closeActiveCommand);
         Reg("find", Strings.Cmd_Find, "search", G(Key.F), DocCmd(d => { ActiveLeftPanel = PanelKind.Search; IsLeftPanelVisible = true; FocusSearchRequested?.Invoke(this, EventArgs.Empty); }));
+        Reg("find.replace", Strings.Cmd_FindReplace, "findreplace", G(Key.H), DocCmd(d => OpenReplacePanel(d)));
         Reg("find.next", Strings.Cmd_FindNext, null, new KeyGesture(Key.F3, KeyModifiers.None), DocCmd(d => d.Search?.NextCommand.Execute(null)));
         Reg("find.prev", Strings.Cmd_FindPrev, null, new KeyGesture(Key.F3, KeyModifiers.Shift), DocCmd(d => d.Search?.PrevCommand.Execute(null)));
 
@@ -778,7 +802,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Gr(Strings.Group_Zoom, true, I("zoom.in", Strings.Cmd_ZoomIn), I("zoom.out", Strings.Cmd_ZoomOut), I("zoom.actual", Strings.Cmd_ActualSize),
                     I("zoom.fitWidth", Strings.Cmd_FitWidth), I("zoom.fitPage", Strings.Cmd_FitPage)),
                 Gr(Strings.Group_Rotate, true, I("page.rotateLeft", Strings.Cmd_RotateLeft), I("page.rotateRight", Strings.Cmd_RotateRight)),
-                Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find)),
+                Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find), I("find.replace", Strings.Cmd_FindReplace, Strings.Tip_FindReplace)),
                 Gr(Strings.Group_EditTools, true, L(T("edit.text", Strings.Cmd_EditText, ToolKind.EditText)), T("edit.object", Strings.Cmd_EditObject, ToolKind.EditObject),
                     T("edit.addText", Strings.Cmd_AddText, ToolKind.AddText), I("edit.addImage", Strings.Cmd_AddImage, Strings.Tip_AddImage)),
                 Gr(Strings.Group_QuickAnnot, true, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),

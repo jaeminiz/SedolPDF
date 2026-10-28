@@ -104,6 +104,8 @@ public sealed partial class MainWindow : Window
         // 패널이 막 보이게 된 직후라서 레이아웃 뒤에 초점을 준다.
         _vm.FocusSearchRequested += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(SearchPanelView.FocusQuery,
             Avalonia.Threading.DispatcherPriority.Input);
+        _vm.FocusReplaceRequested += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(ReplacePanelView.FocusFind,
+            Avalonia.Threading.DispatcherPriority.Input);
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainWindowViewModel.IsFullScreen))

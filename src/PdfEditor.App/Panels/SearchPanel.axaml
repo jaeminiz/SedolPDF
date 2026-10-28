@@ -19,6 +19,7 @@
         <Button Grid.Column="3" Content="{x:Static res:Strings.Search_Next}" Command="{Binding NextCommand}"
                 Padding="4,3" Margin="3,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
       </Grid>
+      <Button Content="{x:Static res:Strings.Replace_OpenFromSearch}" Command="{Binding OpenReplaceCommand}" Padding="4,3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
       <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="12" Foreground="#5C5C5C" />
     </StackPanel>
     <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding CurrentHit, Mode=TwoWay}" Background="Transparent" Margin="0,4,0,0">

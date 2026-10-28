@@ -340,6 +340,8 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     /// <summary>검색 패널 모델. 문서 화면이 현재 결과(CurrentHit)를 읽어 강조한다.</summary>
     public PdfEditor.App.Panels.SearchViewModel? Search { get; set; }
+    /// <summary>찾아 바꾸기 패널 모델(0.4.0, UI 스레드 전용). 탭을 닫을 때 해제한다.</summary>
+    public PdfEditor.App.Panels.FindReplaceViewModel? Replace { get; set; }
 
     /// <summary>텍스트 선택 도구의 선택 상태(한 쪽 안에서만).</summary>
     public TextSelectionModel TextSelection { get; } = new();

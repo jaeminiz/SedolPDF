@@ -253,6 +253,7 @@
           <Panel IsVisible="{Binding ShowLayers}"><panels:LayersPanel DataContext="{Binding ActiveLayers}" /></Panel>
           <Panel IsVisible="{Binding ShowComments}"><panels:CommentsPanel DataContext="{Binding ActiveComments}" /></Panel>
           <Panel IsVisible="{Binding ShowSearch}"><panels:SearchPanel x:Name="SearchPanelView" DataContext="{Binding ActiveSearch}" /></Panel>
+          <Panel IsVisible="{Binding ShowReplace}"><panels:FindReplacePanel x:Name="ReplacePanelView" DataContext="{Binding ActiveReplace}" /></Panel>
           </Grid>
         </DockPanel>
       </Border>

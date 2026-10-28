@@ -18,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PdfEditor.App\PdfEditor.App.csproj" />
     <ProjectReference Include="..\TestFixtures\TestFixtures.csproj" />
+    <!-- 찾아 바꾸기 화면 시험이 TextEdit 시험과 같은 합성 도면 번호 표본을 쓴다 -->
+    <Compile Include="..\PdfEditor.TextEdit.Tests\DrawingIdPdfFactory.cs" Link="Shared\DrawingIdPdfFactory.cs" />
   </ItemGroup>
 
 </Project>
