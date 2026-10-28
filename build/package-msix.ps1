@@ -86,8 +86,12 @@ function New-Logo([string]$name, [int]$w, [int]$h, [double]$fill = 0.8) {
 }
 # 타일은 여백을 두고(0.8), 작은 아이콘·스토어 로고는 꽉 채운다(1.0)
 New-Logo 'Square44x44Logo.png' 44 44 1.0
-New-Logo 'Square44x44Logo.targetsize-44.png' 44 44 1.0
-New-Logo 'Square44x44Logo.targetsize-256.png' 256 256 1.0
+# 작업 표시줄·시작 메뉴: 크기별 + "판 없음"(unplated) 변형. 없으면 Windows가 투명 모서리 뒤에 회색·강조색 판을 깔아 테두리처럼 보인다
+foreach ($s in 16, 20, 24, 30, 32, 36, 40, 44, 48, 60, 64, 72, 80, 96, 256) {
+    New-Logo "Square44x44Logo.targetsize-$s.png" $s $s 1.0
+    New-Logo "Square44x44Logo.targetsize-${s}_altform-unplated.png" $s $s 1.0
+    New-Logo "Square44x44Logo.targetsize-${s}_altform-lightunplated.png" $s $s 1.0
+}
 New-Logo 'Square150x150Logo.png' 150 150
 New-Logo 'SmallTile.png' 71 71
 New-Logo 'Wide310x150Logo.png' 310 150
