@@ -237,14 +237,45 @@ public class FindReplaceViewModelTests(ITestOutputHelper log) : ObjectUiTestBase
     }
 
     [Fact]
-    public async Task PageStructureChanged_ShowsSaveFirst()
+    public async Task UnsavedPageDelete_StillFindsAndReplaces_NoSaveFirst()
     {
-        var (s, _, vm) = await Open(pages: 2);
+        // 실제 도면 결함: 쪽을 지운 뒤(저장 전)에도 "먼저 저장하세요" 없이 찾고 바꿀 수 있어야 한다
+        var (s, _, vm) = await Open(pages: 3);
         await s.Commands.ExecuteAsync(new DeletePagesCommand([s.Pages[1].Id]));
         await vm.FindCommand.ExecuteAsync(null);
+        Assert.Equal(6, vm.Rows.Count);
+        await vm.ReplaceAllCommand.ExecuteAsync(null);
+        Assert.Equal(string.Format(Strings.Replace_Done, 6), vm.SummaryText);
+        string saved = Path.Combine(Dir, "pd.pdf");
+        await Svc.SaveAsync(s, saved);
+        var s2 = await DocumentSession.OpenAsync(Thread, saved, null);
+        try { Assert.Equal(0, await Count(s2, Old)); Assert.Equal(6, await Count(s2, "H-1052")); }
+        finally { await s2.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task OriginalFileGone_StillFindsAndReplaces()
+    {
+        var (s, _, vm) = await Open(pages: 2);
+        File.Delete(s.FilePath!);   // 메일 첨부·임시 폴더에서 연 뒤 원본이 사라진 경우
+        await vm.FindCommand.ExecuteAsync(null);
+        Assert.Equal(6, vm.Rows.Count);
+        await vm.ReplaceAllCommand.ExecuteAsync(null);
+        Assert.Equal(string.Format(Strings.Replace_Done, 6), vm.SummaryText);
+    }
+
+
+    [Fact]
+    public async Task Encrypted_FileGone_ShowsSpecificMessage()
+    {
+        var (s, _, vm) = await Open(password: "pw1234");
+        File.Delete(s.FilePath!);
+        await vm.FindCommand.ExecuteAsync(null);
         Assert.Equal(Strings.Replace_NeedSave, vm.StatusText);
+        Assert.Contains("암호", vm.StatusText);
         Assert.Empty(vm.Rows);
     }
+
 
     // ------------------------------------------------------------------ 범위
 

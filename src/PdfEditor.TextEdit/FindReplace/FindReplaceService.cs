@@ -18,7 +18,8 @@ public sealed class FindOutcome(FindReport report, PdfSharp.Pdf.PdfDocument doc)
     internal PdfSharp.Pdf.PdfDocument Document { get; } = doc;
     internal DocumentFontBooks Books { get; } = new(doc);
     public IEnumerable<TextMatch> Matches => Report.Pages.SelectMany(p => p.Matches);
-    public void Dispose() => Document.Dispose();
+    internal string? TempPath { get; init; }
+    public void Dispose() { Document.Dispose(); if (TempPath is not null) FindReplaceService.TryDelete(TempPath); }
 }
 
 /// <summary>바꿀 후보 하나(미리보기 한 줄). Ok가 아니면 Refusal이 이유다("못 바꾼 N"로 센다).</summary>
@@ -66,22 +67,46 @@ public static class FindReplaceService
     /// <summary>찾는다(백그라운드, 쪽 단위 진행률·취소). 파일이 없는 새 문서는 InvalidOperationException, 쪽 수가 파일과 다르면(쪽을 지우거나 넣은 뒤) InvalidOperationException("page-structure-changed").</summary>
     public static Task<FindOutcome> FindAsync(DocumentSession s, FindOptions opts, IReadOnlyList<PageId>? onlyPages = null, IProgress<int>? progress = null, CancellationToken ct = default)
     {
-        string source = SourceOf(s) ?? throw new InvalidOperationException("no-file");
+        return FindCoreAsync(s, opts, onlyPages, progress, ct);
+    }
+
+    private static async Task<FindOutcome> FindCoreAsync(DocumentSession s, FindOptions opts, IReadOnlyList<PageId>? onlyPages, IProgress<int>? progress, CancellationToken ct)
+    {
         var ids = s.Pages.Select(p => p.Id).ToList();
         var edits = ids.Select(id => s.Content.For(id)).ToList();
         var indexes = onlyPages?.Select(p => ids.IndexOf(p)).Where(i => i >= 0).ToList();
         string? pw = s.Password;
-        return Task.Run(() =>
+        // 지금 화면의 문서와 어긋나지 않는 파일: 암호가 없으면 편집 중인 PDFium 문서를 그대로 임시 사본으로 떠서 읽는다(저장 길 OutputCopyBuilder의 첫 단계와 같은 SaveCopy —
+        // 원본 내용·쪽 구성이 지금 문서와 같고 객체 번호가 PDFium 객체 번호와 맞는다). 원본 파일이 없거나 옮겨졌거나 쪽을 넣고 지운 뒤에도 찾아진다(0.4.0 실제 도면 결함).
+        // 암호 문서는 사본을 풀어 둘 수 없어 열 때의 파일을 읽는다.
+        string source;
+        string? temp = null;
+        if (!s.IsEncrypted)
         {
-            var doc = pw is null ? PdfReader.Open(source, PdfDocumentOpenMode.Import) : PdfReader.Open(source, pw, PdfDocumentOpenMode.Import);
+            temp = Path.Combine(Path.GetTempPath(), "SedolPDF-find-" + Guid.NewGuid().ToString("N") + ".pdf");
+            string t = temp;
+            try { await s.Thread.InvokeAsync(() => s.Document.SaveCopy(t), ct).ConfigureAwait(false); }
+            catch { TryDelete(t); throw; }
+            source = temp;
+        }
+        else source = SourceOf(s) ?? throw new InvalidOperationException("no-file");
+        return await Task.Run(() =>
+        {
+            PdfSharp.Pdf.PdfDocument? doc = null;
             try
             {
+                doc = pw is null ? PdfReader.Open(source, PdfDocumentOpenMode.Import) : PdfReader.Open(source, pw, PdfDocumentOpenMode.Import);
                 if (doc.PageCount != ids.Count) throw new InvalidOperationException("page-structure-changed");
                 var report = DocumentTextFinder.FindAll(doc, opts, ids, indexes, progress, ct);
-                return new FindOutcome(DropEdited(report, edits), doc);
+                return new FindOutcome(DropEdited(report, edits), doc) { TempPath = temp };
             }
-            catch { doc.Dispose(); throw; }
-        }, ct);
+            catch { doc?.Dispose(); if (temp is not null) TryDelete(temp); throw; }
+        }, ct).ConfigureAwait(false);
+    }
+
+    internal static void TryDelete(string path)
+    {
+        try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     /// <summary>이미 바꾼 낱말·지운 글 객체에 걸친 후보를 뺀다(같은 글을 두 번 바꾸지 않게).</summary>
