@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- SedolPDF MSIX 매니페스트 틀. {{...}} 자리는 build/package-msix.ps1 이 채운다.
+<!-- SedolPDF MSIX 매니페스트 틀. 이중 중괄호로 감싼 자리는 build/package-msix.ps1 이 채운다.
      Identity 의 Name·Publisher 는 Partner Center 에서 앱 이름을 예약한 뒤 나오는 값으로
      build/msix/store-identity.json 에 적는다 (그 전에는 자리표시자 값으로 로컬 시험만 가능). -->
 <Package
