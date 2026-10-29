@@ -67,6 +67,7 @@ public sealed partial class DocumentView
         _paraEditor = new ParagraphEditorPopup();
         _paraPopup = new Popup
         {
+            ShouldUseOverlayLayer = true,   // 별도 창이 아니라 앱 창 안에 그린다 (일부 환경에서 팝업 창이 안 보이거나 입력을 못 받는 문제 방지)
             PlacementTarget = this,
             Placement = PlacementMode.AnchorAndGravity,
             PlacementAnchor = PopupAnchor.TopLeft,
