@@ -2,9 +2,13 @@
 
 **English** · [한국어](README.md)
 
+💖 Free, with no ads and no paid features. If it is useful to you, you can optionally support it via [GitHub Sponsors](https://github.com/sponsors/jaeminiz).
+
 A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit text, images and shapes directly in one app. Free for personal and commercial use (MIT License).
 
 > **This is an early public release (v0.3.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **From v0.4.0 the interface is available in Korean and English.**
+
+![About window](docs/screenshots/about.png)
 
 ![Viewing and annotating](docs/screenshots/viewer.png)
 
@@ -33,8 +37,6 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 - The application code makes no network connections.
 
 ![Edit tab](docs/screenshots/edit.png)
-
-![About window](docs/screenshots/about.png)
 
 ## Install
 
@@ -72,10 +74,6 @@ C# / .NET 10, [Avalonia](https://avaloniaui.net) 12 (Fluent), [PDFium](https://p
 ## License
 
 [MIT](LICENSE). Notices for the open-source components used (PDFium BSD-3-Clause; PDFsharp, Avalonia, HarfBuzzSharp MIT; Noto Sans KR OFL 1.1) are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
-## Support
-
-SedolPDF has no ads and no paid features. If it is useful to you, you can optionally support it through [GitHub Sponsors](https://github.com/sponsors/jaeminiz).
 
 ## Authors
 

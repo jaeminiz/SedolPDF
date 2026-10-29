@@ -2,9 +2,13 @@
 
 [English](README.en.md) · **한국어**
 
+💖 광고도 유료 기능도 없는 무료 프로그램입니다. 도움이 되셨다면 [GitHub Sponsors](https://github.com/sponsors/jaeminiz)로 응원해 주세요(선택).
+
 Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편집, 텍스트·이미지·도형 직접 편집을 한 프로그램에서 하고, 개인과 기업 모두 무료로 쓸 수 있습니다(MIT 라이선스).
 
 > **초기 공개 버전(v0.3.0)입니다.** 기본 기능은 쓸 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요. 문제나 제안은 [Issues](https://github.com/jaeminiz/SedolPDF/issues)에 남겨 주세요.
+
+![정보 창](docs/screenshots/about.png)
 
 ![보기와 주석](docs/screenshots/viewer.png)
 
@@ -33,8 +37,6 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 - 앱 코드에는 네트워크 통신이 없습니다.
 
 ![편집 탭](docs/screenshots/edit.png)
-
-![정보 창](docs/screenshots/about.png)
 
 ## 설치
 
@@ -72,10 +74,6 @@ C# / .NET 10, [Avalonia](https://avaloniaui.net) 12(Fluent), [PDFium](https://pd
 ## 라이선스
 
 [MIT](LICENSE). 사용한 오픈소스(PDFium BSD-3-Clause, PDFsharp·Avalonia·HarfBuzzSharp MIT, Noto Sans KR OFL 1.1)의 고지는 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)에 있습니다.
-
-## 후원
-
-SedolPDF는 광고도 유료 기능도 없습니다. 도움이 되셨다면 [GitHub Sponsors](https://github.com/sponsors/jaeminiz)로 응원해 주실 수 있습니다(선택 사항).
 
 ## 만든 사람
 
