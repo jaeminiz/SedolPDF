@@ -82,6 +82,7 @@ public class XfdfRoundTripTests : IDisposable
         P("quads", string.Join(";", a.Quads.Select(q => Pts([q.P1, q.P2, q.P3, q.P4]))));
         P("ink", string.Join("/", a.InkStrokes.Select(s => Pts(s))));
         P("verts", Pts(a.Vertices)); P("le", $"{a.StartEnding}/{a.EndEnding}"); P("cloud", a.CloudIntensity);
+        P("ls", a.LineStyle); P("l2", Pts(a.Leader2.IsDefault ? [] : a.Leader2));
         P("intent", a.Intent); P("tb", a.TextBox); P("fs", a.FontSizePt); P("tc", a.TextColor); P("align", a.Align);
         P("parent", a.InReplyTo is { } p ? nm(p) : null); P("state", a.State); P("rk", a.ReplyKind);
         P("stamp", a.Stamp is { } s ? $"{s.Kind}/{s.BuiltinName}/{s.Text}" : null);
@@ -117,11 +118,12 @@ public class XfdfRoundTripTests : IDisposable
             strike, caret, note, reply, state,
             Make(src, AnnotKind.Square, "sq", a => a with { FillColor = new PdfColor(0, 255, 0), CloudIntensity = 1.5f, BorderWidth = 2 }),
             Make(src, AnnotKind.Circle, "ci", a => a with { FillColor = new PdfColor(0, 0, 255) }),
-            Make(src, AnnotKind.Line, "ln", a => a with { Vertices = pts.RemoveAt(2), StartEnding = LineEnding.OpenArrow, EndEnding = LineEnding.Circle }));
+            Make(src, AnnotKind.Line, "ln", a => a with { Vertices = pts.RemoveAt(2), StartEnding = LineEnding.OpenArrow, EndEnding = LineEnding.Circle }),
+            Make(src, AnnotKind.Line, "ln2", a => a with { Vertices = pts.RemoveAt(2), StartEnding = LineEnding.ClosedArrow, EndEnding = LineEnding.ClosedArrow, LineStyle = LineStyle.DashDot, BorderWidth = 2.5f }));
         await Add(src, 1,
-            Make(src, AnnotKind.PolyLine, "pl", a => a with { Vertices = pts, StartEnding = LineEnding.Diamond, EndEnding = LineEnding.ClosedArrow }),
+            Make(src, AnnotKind.PolyLine, "pl", a => a with { Vertices = pts, LineStyle = LineStyle.Dotted, BorderWidth = 3, StartEnding = LineEnding.Diamond, EndEnding = LineEnding.ClosedArrow }),
             Make(src, AnnotKind.Polygon, "pg", a => a with { Vertices = pts, FillColor = new PdfColor(1, 2, 3), CloudIntensity = 1 }),
-            Make(src, AnnotKind.FreeText, "ft", a => a with { TextColor = new PdfColor(0, 0, 255), FontSizePt = 14, Align = TextAlign.Center, Intent = FreeTextIntent.Callout, Vertices = pts.RemoveAt(2), TextBox = new PdfRectF(12, 22, 100, 60), EndEnding = LineEnding.OpenArrow }),
+            Make(src, AnnotKind.FreeText, "ft", a => a with { TextColor = new PdfColor(0, 0, 255), FontSizePt = 14, Align = TextAlign.Center, Intent = FreeTextIntent.Callout, Vertices = pts.RemoveAt(2), TextBox = new PdfRectF(12, 22, 100, 60), EndEnding = LineEnding.OpenArrow, Leader2 = ImmutableArray.Create(new PdfPointF(200, 50), new PdfPointF(150, 45), new PdfPointF(100, 41)) }),
             Make(src, AnnotKind.FreeText, "ft2", a => a with { TextColor = new PdfColor(10, 20, 30), FontSizePt = 9.5f, Intent = FreeTextIntent.Typewriter }),
             Make(src, AnnotKind.Stamp, "st", a => a with { Contents = null, Stamp = new StampSpec(StampKind.Builtin, "Approved", null, null) }),
             Make(src, AnnotKind.Stamp, "st2", a => a with { Contents = null, Stamp = new StampSpec(StampKind.Text, "", "한글 스탬프", null) }),
