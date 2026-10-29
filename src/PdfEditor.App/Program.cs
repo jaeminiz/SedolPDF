@@ -20,7 +20,17 @@ internal static class Program
             Environment.SetEnvironmentVariable("PDFEDITOR_RECOVERY_DIR", Path.Combine(tmp, "recovery"));
             Environment.SetEnvironmentVariable("PDFEDITOR_SETTINGS_PATH", Path.Combine(tmp, "settings.json"));
         }
+        ApplyLanguage();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    /// <summary>창을 만들기 전에 화면 언어를 정한다(설정이 없거나 읽지 못하면 자동). 바뀐 언어는 다시 시작한 뒤부터 적용된다.</summary>
+    private static void ApplyLanguage()
+    {
+        string? setting = null;
+        try { setting = new Settings.SettingsStore(Settings.AppPaths.Resolve(AppContext.BaseDirectory, Settings.AppPaths.CanWriteFolder).SettingsPath).Load().Language; }
+        catch (Exception) { /* 읽지 못하면 자동 */ }
+        Resources.AppLanguage.Apply(setting);
     }
 
     public static AppBuilder BuildAvaloniaApp() =>

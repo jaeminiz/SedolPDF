@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Pdf.Native;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
@@ -30,7 +30,7 @@ public sealed record CommentItem(
     public bool IsReadOnly => !Editable;
     public bool HasState => State != ReviewState.None;
     public string StateText => CommentsViewModel.StateName(State);
-    public string? TimeText => When?.LocalDateTime.ToString("g");
+    public string? TimeText => When?.LocalDateTime.ToString("g", PdfEditor.App.Resources.AppLanguage.FormatCulture);
     public string PageText => PageNumber.ToString();
     public Avalonia.Thickness Indent => new(Depth * 16, 0, 0, 0);
     public double RowOpacity => Editable ? 1.0 : 0.6;

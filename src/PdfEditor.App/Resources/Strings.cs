@@ -586,4 +586,14 @@ public static class Strings
     public static string Replace_Refuse_MissingGlyphs => Get(nameof(Replace_Refuse_MissingGlyphs));
     public static string Replace_Refuse_NoAppFont => Get(nameof(Replace_Refuse_NoAppFont));
     public static string Replace_OpenFromSearch => Get(nameof(Replace_OpenFromSearch));
+    public static string About_LinkRepo => Get(nameof(About_LinkRepo));
+    public static string About_LinkStar => Get(nameof(About_LinkStar));
+    public static string About_LinkSponsor => Get(nameof(About_LinkSponsor));
+    public static string About_StarHint => Get(nameof(About_StarHint));
+    public static string Dlg_SettingsLanguage => Get(nameof(Dlg_SettingsLanguage));
+    public static string Dlg_SettingsLanguageAuto => Get(nameof(Dlg_SettingsLanguageAuto));
+    public static string Dlg_SettingsLanguageKo => Get(nameof(Dlg_SettingsLanguageKo));
+    public static string Dlg_SettingsLanguageEn => Get(nameof(Dlg_SettingsLanguageEn));
+    public static string Dlg_SettingsLanguageHint => Get(nameof(Dlg_SettingsLanguageHint));
+    public static string Msg_LanguageRestart => Get(nameof(Msg_LanguageRestart));
 }

@@ -26,10 +26,28 @@ public sealed partial class AboutDialog : Window
         Contact2Text.Text = Strings.About_Contact2;
         NoticesButton.Content = Strings.Dlg_AboutNotices;
         CloseButton.Content = Strings.Dlg_AboutClose;
+        BuildLinks();
         NoticesButton.Click += (_, _) => OpenNotices();
         CloseButton.Click += (_, _) => Close();
     }
 
+    /// <summary>링크 한 줄: GitHub에서 보기 · ★ 별 누르기 · 후원하기. 스토어 설치본은 별·후원을 숨기고, 후원 주소가 비면 후원도 숨긴다.</summary>
+    private void BuildLinks()
+    {
+        var set = AppLinks.Current;
+        var items = new List<Control>();
+        if (set.ShowRepository) items.Add(AppLinks.CreateLink(Strings.About_LinkRepo, AppLinks.Repository));
+        if (set.ShowStar) items.Add(AppLinks.CreateLink(Strings.About_LinkStar, AppLinks.Repository));
+        if (set.ShowSponsor) items.Add(AppLinks.CreateLink(Strings.About_LinkSponsor, AppLinks.Sponsor));
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (i > 0) LinksPanel.Children.Add(new TextBlock { Text = "·", Foreground = Avalonia.Media.Brushes.Gray, Margin = new Avalonia.Thickness(8, 2), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            LinksPanel.Children.Add(items[i]);
+        }
+        LinksPanel.IsVisible = items.Count > 0;
+        StarHint.Text = Strings.About_StarHint;
+        StarHint.IsVisible = set.ShowStar;
+    }
     /// <summary>실행 파일의 빌드 날짜(파일 수정 시각).</summary>
     public static string BuildDate()
     {

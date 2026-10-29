@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
@@ -210,7 +210,7 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             if (item.Id is { } rid && item.Ui.IsReplying) _drafts[rid] = item.Ui.Draft;
-            _tab.RaiseNotice(ex.Message);
+            _tab.RaiseNotice(PdfEditor.App.Documents.ErrorMessages.For(ex));
             return;
         }
         item.Ui.Draft = "";
@@ -260,14 +260,14 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
     private async Task DeleteSafeAsync(CommentItem item)
     {
         try { await DeleteAsync(item); }
-        catch (Exception ex) { _tab.RaiseNotice(ex.Message); }
+        catch (Exception ex) { _tab.RaiseNotice(PdfEditor.App.Documents.ErrorMessages.For(ex)); }
     }
 
     /// <summary>상태 바꾸기를 화면에서 부를 때 (오류는 안내로).</summary>
     public async Task SetStateSafeAsync(CommentItem item, ReviewState state)
     {
         try { await SetStateAsync(item, state); }
-        catch (Exception ex) { _tab.RaiseNotice(ex.Message); }
+        catch (Exception ex) { _tab.RaiseNotice(PdfEditor.App.Documents.ErrorMessages.For(ex)); }
     }
 
     private bool Find(CommentItem item, out PdfEditor.Document.DocumentSession s, out PageAnnotations snap, out Annotation target)

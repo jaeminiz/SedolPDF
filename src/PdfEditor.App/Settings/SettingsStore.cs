@@ -61,6 +61,7 @@ public sealed class SettingsStore(string filePath)
                 RecentFiles = s.RecentFiles ?? [],
                 RecoveryIntervalMinutes = minutes,
                 AuthorName = string.IsNullOrWhiteSpace(s.AuthorName) ? null : s.AuthorName.Trim(),
+                Language = PdfEditor.App.Resources.AppLanguage.Normalize(s.Language),
                 Styles = s.Styles?.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Name) && x.ColorHex is not null).ToList(),
             };
         }

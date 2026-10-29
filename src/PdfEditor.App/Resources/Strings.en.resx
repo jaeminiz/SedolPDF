@@ -1,0 +1,600 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="App_Name" xml:space="preserve"><value>SedolPDF</value></data>
+  <data name="About_Authors" xml:space="preserve"><value>Park Jaemin · Park Sehyeon</value></data>
+  <data name="About_Contact1" xml:space="preserve"><value>jaemini@gmail.com</value></data>
+  <data name="About_Contact2" xml:space="preserve"><value>sedolisehyun@gmail.com</value></data>
+  <data name="Tab_File" xml:space="preserve"><value>File</value></data>
+  <data name="Tab_Home" xml:space="preserve"><value>Home</value></data>
+  <data name="Tab_Annotate" xml:space="preserve"><value>Comment</value></data>
+  <data name="Tab_Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Tab_Page" xml:space="preserve"><value>Pages</value></data>
+  <data name="Tab_View" xml:space="preserve"><value>View</value></data>
+  <data name="Doc_NoneOpen" xml:space="preserve"><value>No document open</value></data>
+  <data name="Msg_NoDocument" xml:space="preserve"><value>No document is open. Press Ctrl+O to open a PDF file.</value></data>
+  <data name="Msg_ComingInM4M5" xml:space="preserve"><value>Editing features will be available in a later version.</value></data>
+  <data name="Msg_NotYetConnected" xml:space="preserve"><value>This feature is not available yet.</value></data>
+  <data name="Cmd_QuickCommandPlaceholder" xml:space="preserve"><value>Quick command (Ctrl+.)</value></data>
+  <data name="Cmd_New" xml:space="preserve"><value>New</value></data>
+  <data name="Cmd_Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Cmd_RecentDocs" xml:space="preserve"><value>Recent documents</value></data>
+  <data name="Cmd_NoRecent" xml:space="preserve"><value>No recent documents</value></data>
+  <data name="Cmd_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Cmd_SaveAs" xml:space="preserve"><value>Save As</value></data>
+  <data name="Cmd_Print" xml:space="preserve"><value>Print</value></data>
+  <data name="Cmd_Preferences" xml:space="preserve"><value>Preferences</value></data>
+  <data name="Cmd_About" xml:space="preserve"><value>About</value></data>
+  <data name="Cmd_Exit" xml:space="preserve"><value>Exit</value></data>
+  <data name="Cmd_Undo" xml:space="preserve"><value>Undo</value></data>
+  <data name="Cmd_Redo" xml:space="preserve"><value>Redo</value></data>
+  <data name="Cmd_CloseDoc" xml:space="preserve"><value>Close document</value></data>
+  <data name="Cmd_Find" xml:space="preserve"><value>Find</value></data>
+  <data name="Cmd_Hand" xml:space="preserve"><value>Hand</value></data>
+  <data name="Cmd_TextSelect" xml:space="preserve"><value>Select Text</value></data>
+  <data name="Cmd_AnnotSelect" xml:space="preserve"><value>Select Annotation</value></data>
+  <data name="Cmd_ZoomIn" xml:space="preserve"><value>Zoom In</value></data>
+  <data name="Cmd_ZoomOut" xml:space="preserve"><value>Zoom Out</value></data>
+  <data name="Cmd_ActualSize" xml:space="preserve"><value>Actual Size</value></data>
+  <data name="Cmd_FitWidth" xml:space="preserve"><value>Fit Width</value></data>
+  <data name="Cmd_FitPage" xml:space="preserve"><value>Fit Page</value></data>
+  <data name="Cmd_RotateLeft" xml:space="preserve"><value>Rotate Left</value></data>
+  <data name="Cmd_RotateRight" xml:space="preserve"><value>Rotate Right</value></data>
+  <data name="Cmd_PageRotateLeft" xml:space="preserve"><value>Rotate page left</value></data>
+  <data name="Cmd_PageRotateRight" xml:space="preserve"><value>Rotate page right</value></data>
+  <data name="Cmd_Typewriter" xml:space="preserve"><value>Typewriter</value></data>
+  <data name="Cmd_TextBox" xml:space="preserve"><value>Text Box</value></data>
+  <data name="Cmd_Callout" xml:space="preserve"><value>Callout</value></data>
+  <data name="Cmd_StickyNote" xml:space="preserve"><value>Sticky Note</value></data>
+  <data name="Cmd_FileAttach" xml:space="preserve"><value>Attach File</value></data>
+  <data name="Cmd_HighlightText" xml:space="preserve"><value>Highlight Text</value></data>
+  <data name="Cmd_HighlightArea" xml:space="preserve"><value>Highlight Area</value></data>
+  <data name="Cmd_Underline" xml:space="preserve"><value>Underline</value></data>
+  <data name="Cmd_Strikeout" xml:space="preserve"><value>Strikeout</value></data>
+  <data name="Cmd_InsertText" xml:space="preserve"><value>Insert Text</value></data>
+  <data name="Cmd_ReplaceText" xml:space="preserve"><value>Replace Text</value></data>
+  <data name="Cmd_Line" xml:space="preserve"><value>Line</value></data>
+  <data name="Cmd_Arrow" xml:space="preserve"><value>Arrow</value></data>
+  <data name="Cmd_Rectangle" xml:space="preserve"><value>Rectangle</value></data>
+  <data name="Cmd_Ellipse" xml:space="preserve"><value>Ellipse</value></data>
+  <data name="Cmd_Polygon" xml:space="preserve"><value>Polygon</value></data>
+  <data name="Cmd_Polyline" xml:space="preserve"><value>Polyline</value></data>
+  <data name="Cmd_Cloud" xml:space="preserve"><value>Cloud</value></data>
+  <data name="Cmd_Pencil" xml:space="preserve"><value>Pencil</value></data>
+  <data name="Cmd_Eraser" xml:space="preserve"><value>Eraser</value></data>
+  <data name="Cmd_Stamp" xml:space="preserve"><value>Stamp ▾</value></data>
+  <data name="Cmd_CommentList" xml:space="preserve"><value>Comment List</value></data>
+  <data name="Cmd_AnnotSummary" xml:space="preserve"><value>Summarize</value></data>
+  <data name="Cmd_ImportExport" xml:space="preserve"><value>Import/Export</value></data>
+  <data name="Cmd_ExportXfdf" xml:space="preserve"><value>Export Comments (XFDF)</value></data>
+  <data name="Dlg_XfdfFiles" xml:space="preserve"><value>XFDF files</value></data>
+  <data name="Dlg_ExportXfdfTitle" xml:space="preserve"><value>Export Comments to XFDF</value></data>
+  <data name="Msg_XfdfExported" xml:space="preserve"><value>Exported {0} annotations.</value></data>
+  <data name="Cmd_ImportXfdf" xml:space="preserve"><value>Import Comments (XFDF)</value></data>
+  <data name="Dlg_ImportXfdfTitle" xml:space="preserve"><value>Import Comments from XFDF</value></data>
+  <data name="Dlg_Details" xml:space="preserve"><value>Details</value></data>
+  <data name="Dlg_XfdfDetailsTitle" xml:space="preserve"><value>Import Details</value></data>
+  <data name="Msg_XfdfImported" xml:space="preserve"><value>Imported {0} annotations. Skipped {1}.</value></data>
+  <data name="Err_XfdfInvalid" xml:space="preserve"><value>This is not a valid XFDF file, so it cannot be imported.</value></data>
+  <data name="Err_XfdfTooLarge" xml:space="preserve"><value>The XFDF file is too large to import.</value></data>
+  <data name="Dlg_SummaryTitle" xml:space="preserve"><value>Create Comment Summary PDF</value></data>
+  <data name="Dlg_SummaryProgressTitle" xml:space="preserve"><value>Creating summary</value></data>
+  <data name="Dlg_SummaryProgress" xml:space="preserve"><value>Processing page {0} of {1}</value></data>
+  <data name="Msg_SummaryDone" xml:space="preserve"><value>Summary created. {0} annotations, {1} summary pages.</value></data>
+  <data name="Msg_SummaryMissingGlyphs" xml:space="preserve"><value>{0} characters missing from the font could not be included in the summary. (They are listed at the end of the summary.)</value></data>
+  <data name="Msg_SummaryNoAnnotations" xml:space="preserve"><value>There are no annotations to summarize.</value></data>
+  <data name="Err_SummaryNoFont" xml:space="preserve"><value>The font file could not be found, so the summary cannot be created.</value></data>
+  <data name="Summary_CreatedFormat" xml:space="preserve"><value>Created: {0}</value></data>
+  <data name="Summary_CountFormat" xml:space="preserve"><value>{0} annotations</value></data>
+  <data name="Summary_PageHeadingFormat" xml:space="preserve"><value>Page {0}</value></data>
+  <data name="Summary_PageHeadingContinuedFormat" xml:space="preserve"><value>Page {0} (continued)</value></data>
+  <data name="Summary_MissingGlyphsNotice" xml:space="preserve"><value>{0} characters missing from the font: {1}</value></data>
+  <data name="Cmd_AnnotStyle" xml:space="preserve"><value>Annotation Style</value></data>
+  <data name="Cmd_EditText" xml:space="preserve"><value>Edit Text</value></data>
+  <data name="Cmd_EditObject" xml:space="preserve"><value>Edit Object</value></data>
+  <data name="Cmd_AddText" xml:space="preserve"><value>Add Text</value></data>
+  <data name="Cmd_AddImage" xml:space="preserve"><value>Add Image</value></data>
+  <data name="Cmd_AddShape" xml:space="preserve"><value>Add Shape</value></data>
+  <data name="Cmd_InsertBlank" xml:space="preserve"><value>Blank Page</value></data>
+  <data name="Cmd_InsertFromFile" xml:space="preserve"><value>From File</value></data>
+  <data name="Cmd_DeletePage" xml:space="preserve"><value>Delete</value></data>
+  <data name="Cmd_PageDelete" xml:space="preserve"><value>Delete page</value></data>
+  <data name="Cmd_MoveForward" xml:space="preserve"><value>Forward</value></data>
+  <data name="Cmd_MoveBack" xml:space="preserve"><value>Back</value></data>
+  <data name="Cmd_MoveTo" xml:space="preserve"><value>Move To…</value></data>
+  <data name="Cmd_PageInsertBlank" xml:space="preserve"><value>Insert blank page</value></data>
+  <data name="Cmd_PageInsertFromFile" xml:space="preserve"><value>Insert pages from file</value></data>
+  <data name="Cmd_PageExtract" xml:space="preserve"><value>Extract Pages…</value></data>
+  <data name="Doc_ExtractSuggestedName" xml:space="preserve"><value>{0}_p{1}.pdf</value></data>
+  <data name="Msg_ExtractDone" xml:space="preserve"><value>Saved {0} page(s) as a new PDF.
+{1}</value></data>
+  <data name="Cmd_PageMoveForward" xml:space="preserve"><value>Move page forward</value></data>
+  <data name="Cmd_PageMoveBack" xml:space="preserve"><value>Move page back</value></data>
+  <data name="Cmd_PageMoveTo" xml:space="preserve"><value>Move page to position</value></data>
+  <data name="Cmd_Merge" xml:space="preserve"><value>Merge</value></data>
+  <data name="Cmd_MergeDocuments" xml:space="preserve"><value>Merge documents</value></data>
+  <data name="Cmd_Continuous" xml:space="preserve"><value>Continuous</value></data>
+  <data name="Cmd_SinglePage" xml:space="preserve"><value>Single Page</value></data>
+  <data name="Cmd_LeftPanel" xml:space="preserve"><value>Left Panel</value></data>
+  <data name="Cmd_PropertiesPanel" xml:space="preserve"><value>Properties Panel</value></data>
+  <data name="Cmd_FullScreen" xml:space="preserve"><value>Full Screen</value></data>
+  <data name="Group_Tools" xml:space="preserve"><value>Tools</value></data>
+  <data name="Group_Zoom" xml:space="preserve"><value>Zoom</value></data>
+  <data name="Group_Rotate" xml:space="preserve"><value>Rotate</value></data>
+  <data name="Group_Find" xml:space="preserve"><value>Find</value></data>
+  <data name="Group_Text" xml:space="preserve"><value>Text</value></data>
+  <data name="Group_Note" xml:space="preserve"><value>Notes</value></data>
+  <data name="Group_TextMarkup" xml:space="preserve"><value>Text Markup</value></data>
+  <data name="Group_Draw" xml:space="preserve"><value>Draw</value></data>
+  <data name="Group_Stamp" xml:space="preserve"><value>Stamp</value></data>
+  <data name="Group_Shapes" xml:space="preserve"><value>Shapes</value></data>
+  <data name="Group_AnnotManage" xml:space="preserve"><value>Manage Comments</value></data>
+  <data name="Group_EditTools" xml:space="preserve"><value>Edit</value></data>
+  <data name="Group_Insert" xml:space="preserve"><value>Insert</value></data>
+  <data name="Group_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Group_Order" xml:space="preserve"><value>Order</value></data>
+  <data name="Group_Document" xml:space="preserve"><value>Document</value></data>
+  <data name="Group_PageView" xml:space="preserve"><value>Page Display</value></data>
+  <data name="Group_Panels" xml:space="preserve"><value>Panels</value></data>
+  <data name="Group_Screen" xml:space="preserve"><value>Screen</value></data>
+  <data name="Panel_Thumbnails" xml:space="preserve"><value>Thumbnails</value></data>
+  <data name="Panel_Bookmarks" xml:space="preserve"><value>Bookmarks</value></data>
+  <data name="Panel_Comments" xml:space="preserve"><value>Comments</value></data>
+  <data name="Panel_Attachments" xml:space="preserve"><value>Attachments</value></data>
+  <data name="Panel_Layers" xml:space="preserve"><value>Layers</value></data>
+  <data name="Panel_Search" xml:space="preserve"><value>Search</value></data>
+  <data name="Panel_Properties" xml:space="preserve"><value>Properties</value></data>
+  <data name="Panel_PropertiesEmpty" xml:space="preserve"><value>Nothing is selected.</value></data>
+  <data name="Status_PageSize" xml:space="preserve"><value>W {0:0.0} mm  H {1:0.0} mm</value></data>
+  <data name="Status_Cursor" xml:space="preserve"><value>X {0:0.0}  Y {1:0.0}</value></data>
+  <data name="Status_PageCount" xml:space="preserve"><value>/ {0}</value></data>
+  <data name="Tip_CloseTab" xml:space="preserve"><value>Close tab</value></data>
+  <data name="Tip_NewTab" xml:space="preserve"><value>Open document</value></data>
+  <data name="Tip_FirstPage" xml:space="preserve"><value>First page</value></data>
+  <data name="Tip_PrevPage" xml:space="preserve"><value>Previous page</value></data>
+  <data name="Tip_NextPage" xml:space="preserve"><value>Next page</value></data>
+  <data name="Tip_LastPage" xml:space="preserve"><value>Last page</value></data>
+  <data name="Tip_Zoom" xml:space="preserve"><value>Zoom</value></data>
+  <data name="Doc_Untitled" xml:space="preserve"><value>Untitled {0}</value></data>
+  <data name="Msg_OpenedRepaired" xml:space="preserve"><value>The file was damaged and has been opened in a repaired state. Please use Save As.</value></data>
+  <data name="Msg_EncryptionWillBeRemoved" xml:space="preserve"><value>Saving this file will remove its encryption. It will be saved with Save As.</value></data>
+  <data name="Err_PasswordWrong" xml:space="preserve"><value>A password is required, or the password is wrong.</value></data>
+  <data name="Err_Pdfium_1" xml:space="preserve"><value>An unknown error occurred.</value></data>
+  <data name="Err_Pdfium_2" xml:space="preserve"><value>The file could not be found or opened.</value></data>
+  <data name="Err_Pdfium_3" xml:space="preserve"><value>The PDF format is invalid, so it cannot be opened.</value></data>
+  <data name="Err_Pdfium_4" xml:space="preserve"><value>A password is required, or the password is wrong.</value></data>
+  <data name="Err_Pdfium_5" xml:space="preserve"><value>The file is protected with an unsupported security method.</value></data>
+  <data name="Err_Pdfium_6" xml:space="preserve"><value>The page could not be found or its content is invalid.</value></data>
+  <data name="Err_Pdfium_Unknown" xml:space="preserve"><value>An error occurred while processing the PDF. (Error code {0})</value></data>
+  <data name="Err_Save_Write" xml:space="preserve"><value>The file could not be written, so it was not saved. Your original file is unchanged.</value></data>
+  <data name="Err_Save_ContentRegeneration" xml:space="preserve"><value>Page {0} contains content (gradients, pattern fills, image masks, etc.) that would look different if the object edits were saved, so it was not saved. Your original file is unchanged. Undo the object edits on this page, then save.</value></data>
+  <data name="Err_Save_PostProcess" xml:space="preserve"><value>An error occurred while finishing the save, so it was not saved. Your original file is unchanged.</value></data>
+  <data name="Err_Save_Verify" xml:space="preserve"><value>The saved file could not be verified, so it was not saved. Your original file is unchanged.</value></data>
+  <data name="Err_Save_Replace" xml:space="preserve"><value>The original file could not be replaced, so it was not saved. Your original file is unchanged.</value></data>
+  <data name="Err_Save_ReplaceLocked" xml:space="preserve"><value>Another program is using the file, so it was not saved. Your original file is unchanged.</value></data>
+  <data name="Err_AccessDenied" xml:space="preserve"><value>You do not have permission to access the file.</value></data>
+  <data name="Err_Unexpected" xml:space="preserve"><value>An unexpected error occurred.</value></data>
+  <data name="Dlg_PasswordTitle" xml:space="preserve"><value>Enter Password</value></data>
+  <data name="Dlg_PasswordPrompt" xml:space="preserve"><value>A password is required to open {0}.</value></data>
+  <data name="Dlg_PasswordRetry" xml:space="preserve"><value>Wrong password. Please try again.</value></data>
+  <data name="Dlg_Ok" xml:space="preserve"><value>OK</value></data>
+  <data name="Dlg_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Dlg_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Dlg_Discard" xml:space="preserve"><value>Don&apos;t Save</value></data>
+  <data name="Dlg_UnsavedTitle" xml:space="preserve"><value>Save Changes</value></data>
+  <data name="Dlg_UnsavedMessage" xml:space="preserve"><value>Do you want to save the changes to {0}?</value></data>
+  <data name="Dlg_ErrorTitle" xml:space="preserve"><value>Error</value></data>
+  <data name="Dlg_InfoTitle" xml:space="preserve"><value>Notice</value></data>
+  <data name="Dlg_OpenTitle" xml:space="preserve"><value>Open PDF File</value></data>
+  <data name="Dlg_SaveTitle" xml:space="preserve"><value>Save As</value></data>
+  <data name="Dlg_PdfFiles" xml:space="preserve"><value>PDF files</value></data>
+  <data name="Err_PageRangeInvalid" xml:space="preserve"><value>The page range is not valid. Example: 1-3, 5</value></data>
+  <data name="Msg_EditRestricted" xml:space="preserve"><value>Page changes are restricted in this document.</value></data>
+  <data name="Dlg_InsertTitle" xml:space="preserve"><value>Insert Pages from File</value></data>
+  <data name="Dlg_InsertSource" xml:space="preserve"><value>{0} ({1} pages)</value></data>
+  <data name="Dlg_InsertPosition" xml:space="preserve"><value>Insert position</value></data>
+  <data name="Dlg_PosAfterCurrent" xml:space="preserve"><value>After current page</value></data>
+  <data name="Dlg_PosFirst" xml:space="preserve"><value>At the beginning</value></data>
+  <data name="Dlg_PosLast" xml:space="preserve"><value>At the end</value></data>
+  <data name="Dlg_InsertRange" xml:space="preserve"><value>Pages to import (leave blank for all, e.g. 1-3, 5)</value></data>
+  <data name="Dlg_MoveTitle" xml:space="preserve"><value>Move Pages</value></data>
+  <data name="Dlg_MoveDescription" xml:space="preserve"><value>Where to move the {0} selected page(s)</value></data>
+  <data name="Dlg_MoveBefore" xml:space="preserve"><value>Before page</value></data>
+  <data name="Dlg_MergeTitle" xml:space="preserve"><value>Merge Documents</value></data>
+  <data name="Dlg_MergeHint" xml:space="preserve"><value>The documents are combined from top to bottom into a new document.</value></data>
+  <data name="Dlg_MoveItemUp" xml:space="preserve"><value>Up</value></data>
+  <data name="Dlg_MoveItemDown" xml:space="preserve"><value>Down</value></data>
+  <data name="Dlg_RemoveItem" xml:space="preserve"><value>Remove</value></data>
+  <data name="Panel_NoBookmarks" xml:space="preserve"><value>This document has no bookmarks.</value></data>
+  <data name="Panel_NoAttachments" xml:space="preserve"><value>This document has no attachments.</value></data>
+  <data name="Panel_NoLayers" xml:space="preserve"><value>This document has no layers.</value></data>
+  <data name="Panel_LayersUnreadable" xml:space="preserve"><value>The layer list could not be read.</value></data>
+  <data name="Panel_LayerToggleUnavailable" xml:space="preserve"><value>Showing and hiding layers will be supported in a later version.</value></data>
+  <data name="Panel_CommentsComingInM3" xml:space="preserve"><value>The comment list will be available with annotations in a later version.</value></data>
+  <data name="Panel_AttachmentSave" xml:space="preserve"><value>Save</value></data>
+  <data name="Panel_AttachmentSize" xml:space="preserve"><value>{0:0.#} KB</value></data>
+  <data name="Prop_FileName" xml:space="preserve"><value>File name</value></data>
+  <data name="Prop_PageCount" xml:space="preserve"><value>Pages</value></data>
+  <data name="Prop_PageSize" xml:space="preserve"><value>Current page size</value></data>
+  <data name="Prop_PageSizeValue" xml:space="preserve"><value>{0:0.0} × {1:0.0} mm</value></data>
+  <data name="Prop_PdfVersion" xml:space="preserve"><value>PDF version</value></data>
+  <data name="Prop_Title" xml:space="preserve"><value>Title</value></data>
+  <data name="Prop_Author" xml:space="preserve"><value>Author</value></data>
+  <data name="Prop_Creator" xml:space="preserve"><value>Created with</value></data>
+  <data name="Prop_Producer" xml:space="preserve"><value>PDF producer</value></data>
+  <data name="Prop_Encrypted" xml:space="preserve"><value>Encrypted</value></data>
+  <data name="Prop_PermPrint" xml:space="preserve"><value>Printing</value></data>
+  <data name="Prop_PermEditPages" xml:space="preserve"><value>Page changes</value></data>
+  <data name="Prop_PermCopy" xml:space="preserve"><value>Copying content</value></data>
+  <data name="Prop_Repaired" xml:space="preserve"><value>Opened after repair</value></data>
+  <data name="Prop_Yes" xml:space="preserve"><value>Yes</value></data>
+  <data name="Prop_No" xml:space="preserve"><value>No</value></data>
+  <data name="Prop_Allowed" xml:space="preserve"><value>Allowed</value></data>
+  <data name="Prop_Denied" xml:space="preserve"><value>Not allowed</value></data>
+  <data name="Prop_Unknown" xml:space="preserve"><value>-</value></data>
+  <data name="Msg_NoTextLayer" xml:space="preserve"><value>This document has no searchable text (it may be a scanned image).</value></data>
+  <data name="Msg_CopyRestricted" xml:space="preserve"><value>Copying is restricted in this document.</value></data>
+  <data name="Search_Progress" xml:space="preserve"><value>{0} found · searched {2} of {1} pages</value></data>
+  <data name="Search_NoResults" xml:space="preserve"><value>No results found.</value></data>
+  <data name="Search_Placeholder" xml:space="preserve"><value>Search for</value></data>
+  <data name="Search_Start" xml:space="preserve"><value>Search</value></data>
+  <data name="Search_Cancel" xml:space="preserve"><value>Stop</value></data>
+  <data name="Search_MatchCase" xml:space="preserve"><value>Match case</value></data>
+  <data name="Search_WholeWord" xml:space="preserve"><value>Whole word</value></data>
+  <data name="Search_Prev" xml:space="preserve"><value>Previous</value></data>
+  <data name="Search_Next" xml:space="preserve"><value>Next</value></data>
+  <data name="Search_PageLabel" xml:space="preserve"><value>Page {0}</value></data>
+  <data name="Cmd_FindNext" xml:space="preserve"><value>Next Result</value></data>
+  <data name="Cmd_FindPrev" xml:space="preserve"><value>Previous Result</value></data>
+  <data name="Dlg_PrintTitle" xml:space="preserve"><value>Print Options</value></data>
+  <data name="Dlg_PrintAnnotations" xml:space="preserve"><value>Include annotations</value></data>
+  <data name="Dlg_PrintNoAnnotations" xml:space="preserve"><value>Exclude annotations</value></data>
+  <data name="Dlg_PrintFit" xml:space="preserve"><value>Fit to paper</value></data>
+  <data name="Dlg_PrintActualSize" xml:space="preserve"><value>Actual size</value></data>
+  <data name="Dlg_PrintAutoRotate" xml:space="preserve"><value>Rotate automatically to match paper orientation</value></data>
+  <data name="Dlg_PrintButton" xml:space="preserve"><value>Print…</value></data>
+  <data name="Dlg_PrintProgressTitle" xml:space="preserve"><value>Printing</value></data>
+  <data name="Dlg_PrintProgress" xml:space="preserve"><value>Printing page {0} of {1}</value></data>
+  <data name="Msg_PrintRestricted" xml:space="preserve"><value>Printing is restricted in this document.</value></data>
+  <data name="Msg_PrintDone" xml:space="preserve"><value>The print job has been sent.</value></data>
+  <data name="Doc_Recovered" xml:space="preserve"><value>{0} (recovered)</value></data>
+  <data name="Dlg_RecoveryTitle" xml:space="preserve"><value>Recover Work</value></data>
+  <data name="Dlg_RecoveryMessage" xml:space="preserve"><value>Some documents were not closed properly last time. Choose whether to recover or discard each one.</value></data>
+  <data name="Dlg_RecoveryItem" xml:space="preserve"><value>{0}  (saved {1:yyyy-MM-dd HH:mm})</value></data>
+  <data name="Dlg_RecoveryRestore" xml:space="preserve"><value>Recover</value></data>
+  <data name="Dlg_RecoveryDiscard" xml:space="preserve"><value>Discard</value></data>
+  <data name="Dlg_RecoveryLater" xml:space="preserve"><value>Later</value></data>
+  <data name="Msg_PortableFolderReadOnly" xml:space="preserve"><value>The portable data folder (data) cannot be written to, so settings and recovery files are saved in the default location (%APPDATA%\SedolPDF).</value></data>
+  <data name="Msg_RecoveryOriginalChanged" xml:space="preserve"><value>The original file has changed or no longer exists, so the recovered copy was opened as an untitled document. Please use Save As.</value></data>
+  <data name="Dlg_SettingsTitle" xml:space="preserve"><value>Preferences</value></data>
+  <data name="Dlg_SettingsRecoveryInterval" xml:space="preserve"><value>Auto-recovery save interval (minutes)</value></data>
+  <data name="Dlg_SettingsRecoveryHint" xml:space="preserve"><value>1 to 60 minutes. Only documents with changes are written to recovery files at this interval.</value></data>
+  <data name="Msg_PrintFailed" xml:space="preserve"><value>Could not print. Check the printer status.</value></data>
+  <data name="Dlg_AboutTitle" xml:space="preserve"><value>About</value></data>
+  <data name="Dlg_AboutVersion" xml:space="preserve"><value>Version {0}</value></data>
+  <data name="Dlg_AboutNotices" xml:space="preserve"><value>View Third-Party Notices</value></data>
+  <data name="Dlg_AboutNoticesMissing" xml:space="preserve"><value>The third-party notices file (THIRD-PARTY-NOTICES.md) could not be found.</value></data>
+  <data name="Dlg_AboutClose" xml:space="preserve"><value>Close</value></data>
+  <data name="Group_Annotate" xml:space="preserve"><value>Comment</value></data>
+  <data name="Msg_AnnotationsRestricted" xml:space="preserve"><value>Adding or changing annotations is restricted in this document.</value></data>
+  <data name="Msg_OriginalAnnotationsReadOnly" xml:space="preserve"><value>The existing annotations cannot be read, so they cannot be edited. You can still add new annotations.</value></data>
+  <data name="Msg_PatchFeaturesUnavailableEncrypted" xml:space="preserve"><value>This document is password-protected, so some annotations such as lines, text boxes and stamps cannot be added. Pencil, highlight, note, rectangle and ellipse are available.</value></data>
+  <data name="Msg_ComingInM3" xml:space="preserve"><value>This annotation tool will be available in a later version.</value></data>
+  <data name="AnnotKind_Ink" xml:space="preserve"><value>Pencil</value></data>
+  <data name="AnnotKind_Highlight" xml:space="preserve"><value>Highlight</value></data>
+  <data name="AnnotKind_Underline" xml:space="preserve"><value>Underline</value></data>
+  <data name="AnnotKind_StrikeOut" xml:space="preserve"><value>Strikeout</value></data>
+  <data name="AnnotKind_Text" xml:space="preserve"><value>Note</value></data>
+  <data name="AnnotKind_Square" xml:space="preserve"><value>Rectangle</value></data>
+  <data name="AnnotKind_Circle" xml:space="preserve"><value>Ellipse</value></data>
+  <data name="Sticky_Header" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="Sticky_Hint" xml:space="preserve"><value>Ctrl+Enter: OK, Esc: Cancel</value></data>
+  <data name="Sticky_Placeholder" xml:space="preserve"><value>Type a note</value></data>
+  <data name="Msg_AnnotationFailed" xml:space="preserve"><value>The annotation could not be applied.</value></data>
+  <data name="Prop_Annot_Color" xml:space="preserve"><value>Line color</value></data>
+  <data name="Prop_Annot_Fill" xml:space="preserve"><value>Fill</value></data>
+  <data name="Prop_Annot_NoFill" xml:space="preserve"><value>No fill</value></data>
+  <data name="Prop_Annot_Width" xml:space="preserve"><value>Line width · {0:0.#} pt</value></data>
+  <data name="Prop_Annot_Opacity" xml:space="preserve"><value>Opacity · {0}%</value></data>
+  <data name="Prop_Annot_Author" xml:space="preserve"><value>Author</value></data>
+  <data name="Prop_Annot_Created" xml:space="preserve"><value>Created</value></data>
+  <data name="Prop_Annot_Modified" xml:space="preserve"><value>Modified</value></data>
+  <data name="Prop_Annot_Mixed" xml:space="preserve"><value>Multiple values</value></data>
+  <data name="Prop_Annot_Multiple" xml:space="preserve"><value>{0} annotations</value></data>
+  <data name="Prop_Annot_DefaultsHint" xml:space="preserve"><value>Default look for new annotations</value></data>
+  <data name="Dlg_SettingsAuthor" xml:space="preserve"><value>Author name</value></data>
+  <data name="Dlg_SettingsAuthorHint" xml:space="preserve"><value>The name recorded in annotations. If left blank, your Windows user name is used.</value></data>
+  <data name="Msg_PropertyEditFailed" xml:space="preserve"><value>The annotation properties could not be changed.</value></data>
+  <data name="Cmd_More" xml:space="preserve"><value>More ▾</value></data>
+  <data name="Stamp_Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="Stamp_Reviewed" xml:space="preserve"><value>Reviewed</value></data>
+  <data name="Stamp_Rejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="Stamp_Confidential" xml:space="preserve"><value>Confidential</value></data>
+  <data name="Stamp_Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Stamp_Done" xml:space="preserve"><value>Done</value></data>
+  <data name="Msg_GlyphMissing" xml:space="preserve"><value>Some characters are not in this font and will not be displayed: {0}</value></data>
+  <data name="Msg_ImageAddFailed" xml:space="preserve"><value>This picture cannot be used as a stamp. Check that it is a PNG or JPEG file and is not too large.</value></data>
+  <data name="Msg_AttachFailed" xml:space="preserve"><value>This file cannot be attached. It cannot be read or is too large.</value></data>
+  <data name="Msg_AttachmentSaveFailed" xml:space="preserve"><value>The attachment could not be saved.</value></data>
+  <data name="AnnotKind_Line" xml:space="preserve"><value>Line</value></data>
+  <data name="AnnotKind_Arrow" xml:space="preserve"><value>Arrow</value></data>
+  <data name="AnnotKind_PolyLine" xml:space="preserve"><value>Polyline</value></data>
+  <data name="AnnotKind_Polygon" xml:space="preserve"><value>Polygon</value></data>
+  <data name="AnnotKind_Cloud" xml:space="preserve"><value>Cloud</value></data>
+  <data name="AnnotKind_FreeText" xml:space="preserve"><value>Text Box</value></data>
+  <data name="AnnotKind_Typewriter" xml:space="preserve"><value>Typewriter</value></data>
+  <data name="AnnotKind_Callout" xml:space="preserve"><value>Callout</value></data>
+  <data name="AnnotKind_Caret" xml:space="preserve"><value>Insert Text</value></data>
+  <data name="AnnotKind_Stamp" xml:space="preserve"><value>Stamp</value></data>
+  <data name="AnnotKind_FileAttachment" xml:space="preserve"><value>File Attachment</value></data>
+  <data name="AnnotKind_Reply" xml:space="preserve"><value>Reply</value></data>
+  <data name="AnnotKind_ReplaceText" xml:space="preserve"><value>Replace Text</value></data>
+  <data name="AnnotKind_Link" xml:space="preserve"><value>Link</value></data>
+  <data name="AnnotKind_Widget" xml:space="preserve"><value>Form Field</value></data>
+  <data name="AnnotKind_Squiggly" xml:space="preserve"><value>Squiggly Underline</value></data>
+  <data name="AnnotKind_Other" xml:space="preserve"><value>Other Annotation</value></data>
+  <data name="FreeText_Hint" xml:space="preserve"><value>Ctrl+Enter: OK, Esc: Cancel, click outside to confirm</value></data>
+  <data name="Prop_Annot_LineStart" xml:space="preserve"><value>Start style</value></data>
+  <data name="Prop_Annot_LineEnd" xml:space="preserve"><value>End style</value></data>
+  <data name="Prop_Annot_LineStyle" xml:space="preserve"><value>Line style</value></data>
+  <data name="LineStyle_Solid" xml:space="preserve"><value>Solid</value></data>
+  <data name="LineStyle_Dotted" xml:space="preserve"><value>Dotted</value></data>
+  <data name="LineStyle_Dashed" xml:space="preserve"><value>Dashed</value></data>
+  <data name="LineStyle_DashDot" xml:space="preserve"><value>Dash-dot</value></data>
+  <data name="Prop_Annot_BothArrows" xml:space="preserve"><value>Arrows on both ends</value></data>
+  <data name="Prop_Annot_BothArrowsTip" xml:space="preserve"><value>Makes both the start and the end an arrow.</value></data>
+  <data name="Prop_Annot_Leaders" xml:space="preserve"><value>Leader lines</value></data>
+  <data name="Prop_Annot_LeaderAdd" xml:space="preserve"><value>Add leader line</value></data>
+  <data name="Prop_Annot_LeaderAddTip" xml:space="preserve"><value>Adds a second leader line on the opposite side of the text box (up to 2).</value></data>
+  <data name="Prop_Annot_LeaderRemove" xml:space="preserve"><value>Remove second leader line</value></data>
+  <data name="LineEnding_None" xml:space="preserve"><value>None</value></data>
+  <data name="LineEnding_Square" xml:space="preserve"><value>Square</value></data>
+  <data name="LineEnding_Circle" xml:space="preserve"><value>Circle</value></data>
+  <data name="LineEnding_Diamond" xml:space="preserve"><value>Diamond</value></data>
+  <data name="LineEnding_OpenArrow" xml:space="preserve"><value>Open arrow</value></data>
+  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>Closed arrow</value></data>
+  <data name="LineEnding_Butt" xml:space="preserve"><value>Bar</value></data>
+  <data name="LineEnding_Slash" xml:space="preserve"><value>Slash</value></data>
+  <data name="Prop_Annot_Cloud" xml:space="preserve"><value>Cloud border</value></data>
+  <data name="Prop_Annot_CloudIntensity" xml:space="preserve"><value>Cloud intensity · {0:0.#}</value></data>
+  <data name="Prop_Annot_FontSize" xml:space="preserve"><value>Font size · {0:0.#} pt</value></data>
+  <data name="Prop_Annot_TextColor" xml:space="preserve"><value>Text color</value></data>
+  <data name="Prop_Annot_Align" xml:space="preserve"><value>Alignment</value></data>
+  <data name="Align_Left" xml:space="preserve"><value>Left</value></data>
+  <data name="Align_Center" xml:space="preserve"><value>Center</value></data>
+  <data name="Align_Right" xml:space="preserve"><value>Right</value></data>
+  <data name="Prop_Annot_Stamp" xml:space="preserve"><value>Choose a stamp</value></data>
+  <data name="Prop_Annot_StampTextPlaceholder" xml:space="preserve"><value>Text for a text stamp</value></data>
+  <data name="Prop_Annot_StampTextApply" xml:space="preserve"><value>Text stamp</value></data>
+  <data name="Prop_Annot_StampImage" xml:space="preserve"><value>Picture stamp…</value></data>
+  <data name="Prop_Annot_AttachName" xml:space="preserve"><value>Attached file</value></data>
+  <data name="Prop_Annot_AttachSave" xml:space="preserve"><value>Save…</value></data>
+  <data name="Dlg_PickImageTitle" xml:space="preserve"><value>Choose a Stamp Picture</value></data>
+  <data name="Dlg_PickAttachTitle" xml:space="preserve"><value>Choose a File to Attach</value></data>
+  <data name="Dlg_FilterImages" xml:space="preserve"><value>Picture files (PNG, JPEG)</value></data>
+  <data name="Dlg_FilterAll" xml:space="preserve"><value>All files</value></data>
+  <data name="Comment_Reply" xml:space="preserve"><value>Reply</value></data>
+  <data name="Comment_ReplyPlaceholder" xml:space="preserve"><value>Type a reply (Enter to confirm, Shift+Enter for a new line)</value></data>
+  <data name="Comment_Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Comment_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Comment_GoTo" xml:space="preserve"><value>Go to location</value></data>
+  <data name="Comment_Menu" xml:space="preserve"><value>Menu</value></data>
+  <data name="Comment_Search" xml:space="preserve"><value>Search comments</value></data>
+  <data name="Comment_Filter" xml:space="preserve"><value>Filter</value></data>
+  <data name="Comment_Sort" xml:space="preserve"><value>Sort</value></data>
+  <data name="Comment_SortPage" xml:space="preserve"><value>Page</value></data>
+  <data name="Comment_SortDate" xml:space="preserve"><value>Date created</value></data>
+  <data name="Comment_SortAuthor" xml:space="preserve"><value>Author</value></data>
+  <data name="Comment_SortKind" xml:space="preserve"><value>Type</value></data>
+  <data name="Comment_AllKinds" xml:space="preserve"><value>All types</value></data>
+  <data name="Comment_AllAuthors" xml:space="preserve"><value>All authors</value></data>
+  <data name="Comment_AllStates" xml:space="preserve"><value>All statuses</value></data>
+  <data name="Comment_PageRange" xml:space="preserve"><value>Page range (e.g. 1-3,5)</value></data>
+  <data name="Comment_Descending" xml:space="preserve"><value>Descending</value></data>
+  <data name="Comment_Count" xml:space="preserve"><value>{0} of {1}</value></data>
+  <data name="Comment_Empty" xml:space="preserve"><value>There are no comments to show.</value></data>
+  <data name="Comment_ReadOnlyTip" xml:space="preserve"><value>This annotation was made by another program and cannot be changed.</value></data>
+  <data name="Comment_StateTemplate" xml:space="preserve"><value>{0} · Status: {1}</value></data>
+  <data name="State_None" xml:space="preserve"><value>None</value></data>
+  <data name="State_Accepted" xml:space="preserve"><value>Accepted</value></data>
+  <data name="State_Rejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="State_Cancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="State_Completed" xml:space="preserve"><value>Completed</value></data>
+  <data name="Msg_RepliesUnavailableEncrypted" xml:space="preserve"><value>This document is password-protected, so replies and statuses cannot be added. You can still view the comment list.</value></data>
+  <data name="Tab_Format" xml:space="preserve"><value>Format</value></data>
+  <data name="Style_ReviewRed" xml:space="preserve"><value>Review red</value></data>
+  <data name="Style_HighlightYellow" xml:space="preserve"><value>Highlight yellow</value></data>
+  <data name="Style_ApprovedGreen" xml:space="preserve"><value>Approved green</value></data>
+  <data name="Format_TargetTool" xml:space="preserve"><value>{0} tool</value></data>
+  <data name="Format_TargetSelection" xml:space="preserve"><value>{0}: {1} selected</value></data>
+  <data name="Format_TargetMixed" xml:space="preserve"><value>{0} annotations selected</value></data>
+  <data name="Format_GroupStyle" xml:space="preserve"><value>Style</value></data>
+  <data name="Format_GroupColor" xml:space="preserve"><value>Color</value></data>
+  <data name="Format_GroupLine" xml:space="preserve"><value>Line</value></data>
+  <data name="Format_GroupText" xml:space="preserve"><value>Text</value></data>
+  <data name="Format_SaveCurrent" xml:space="preserve"><value>Save current look</value></data>
+  <data name="Format_StyleName" xml:space="preserve"><value>Style name</value></data>
+  <data name="Format_DeleteStyle" xml:space="preserve"><value>Delete style</value></data>
+  <data name="Format_NoStyles" xml:space="preserve"><value>There are no styles for this selection.</value></data>
+  <data name="Msg_StyleNameInvalid" xml:space="preserve"><value>The style name is empty or already in use.</value></data>
+  <data name="Msg_StyleBroken" xml:space="preserve"><value>This style has invalid values and could not be applied.</value></data>
+  <data name="Group_Select" xml:space="preserve"><value>Select</value></data>
+  <data name="Group_Writing" xml:space="preserve"><value>Write</value></data>
+  <data name="Group_Emphasis" xml:space="preserve"><value>Highlight</value></data>
+  <data name="Group_Marks" xml:space="preserve"><value>Notes and Stamps</value></data>
+  <data name="Group_QuickAnnot" xml:space="preserve"><value>Quick Comments</value></data>
+  <data name="Group_Capture" xml:space="preserve"><value>Copy</value></data>
+  <data name="Cmd_Snapshot" xml:space="preserve"><value>Snapshot</value></data>
+  <data name="Tip_TextSelect" xml:space="preserve"><value>Drag along a line of text to select it in reading order. Hold Alt and drag to select only the text inside a rectangle.</value></data>
+  <data name="Status_RectSelectHint" xml:space="preserve"><value>Alt+drag: select text with a rectangle</value></data>
+  <data name="Ctx_Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="Ctx_SelectAll" xml:space="preserve"><value>Select All</value></data>
+  <data name="Ctx_Highlight" xml:space="preserve"><value>Highlight selected text</value></data>
+  <data name="Ctx_Underline" xml:space="preserve"><value>Underline selected text</value></data>
+  <data name="Ctx_Strikeout" xml:space="preserve"><value>Strike out selected text</value></data>
+  <data name="Ctx_FindSelected" xml:space="preserve"><value>Find selected text</value></data>
+  <data name="Ctx_HandTool" xml:space="preserve"><value>Switch to Hand tool</value></data>
+  <data name="Ctx_TextSelectTool" xml:space="preserve"><value>Switch to Select Text tool</value></data>
+  <data name="Tip_Snapshot" xml:space="preserve"><value>Copies the dragged area to the clipboard as a picture. A single click copies the whole page.</value></data>
+  <data name="Msg_SnapshotCopied" xml:space="preserve"><value>The selected area was copied to the clipboard as a picture.</value></data>
+  <data name="Msg_SnapshotFailed" xml:space="preserve"><value>The snapshot could not be copied to the clipboard.</value></data>
+  <data name="Msg_NoEditableText" xml:space="preserve"><value>There is no editable text. The characters may be outlines or a scanned image.</value></data>
+  <data name="Msg_FormChildNotice" xml:space="preserve"><value>This is inside a group and cannot be edited. You can move or delete the whole group with Edit Object.</value></data>
+  <data name="Msg_TextFallbackApp" xml:space="preserve"><value>Some characters are not in the original font, so the default font was used.</value></data>
+  <data name="Msg_TextRefusedEncrypted" xml:space="preserve"><value>This document is password-protected, so characters missing from the original font cannot be used.</value></data>
+  <data name="Msg_TextRefusedNoFont" xml:space="preserve"><value>The default font file could not be found, so this text cannot be used.</value></data>
+  <data name="Msg_TextRefusedMissingGlyphs" xml:space="preserve"><value>Some characters are not in the default font either, so this cannot be applied: {0}</value></data>
+  <data name="Msg_TextRefusedNotText" xml:space="preserve"><value>This object is not text, so it cannot be replaced.</value></data>
+  <data name="Msg_ContentEditFailed" xml:space="preserve"><value>The object could not be edited.</value></data>
+  <data name="Msg_AddTextDisabledEncrypted" xml:space="preserve"><value>New text cannot be added to a password-protected document. You can add images and shapes.</value></data>
+  <data name="Cmd_ShapeRect" xml:space="preserve"><value>Rectangle</value></data>
+  <data name="Cmd_ShapeEllipse" xml:space="preserve"><value>Ellipse</value></data>
+  <data name="Cmd_ShapeLine" xml:space="preserve"><value>Line</value></data>
+  <data name="Group_AddShapes" xml:space="preserve"><value>Add Shapes</value></data>
+  <data name="Prop_Obj_Title" xml:space="preserve"><value>Object</value></data>
+  <data name="Prop_Obj_X" xml:space="preserve"><value>Left (mm)</value></data>
+  <data name="Prop_Obj_Y" xml:space="preserve"><value>Bottom (mm)</value></data>
+  <data name="Prop_Obj_W" xml:space="preserve"><value>Width (mm)</value></data>
+  <data name="Prop_Obj_H" xml:space="preserve"><value>Height (mm)</value></data>
+  <data name="Prop_Obj_Stroke" xml:space="preserve"><value>Line color</value></data>
+  <data name="Prop_Obj_StrokeWidth" xml:space="preserve"><value>Line width (pt)</value></data>
+  <data name="Prop_Obj_Fill" xml:space="preserve"><value>Fill</value></data>
+  <data name="Prop_Obj_NoFill" xml:space="preserve"><value>No fill</value></data>
+  <data name="Prop_Obj_TextSize" xml:space="preserve"><value>Font size (pt)</value></data>
+  <data name="Msg_ImageInsertFailed" xml:space="preserve"><value>This image cannot be inserted. Check that it is a PNG or JPEG file and is not too large.</value></data>
+  <data name="Tip_AddImage" xml:space="preserve"><value>Inserts a PNG or JPEG image in the center of the page you are viewing</value></data>
+  <data name="Tab_Help" xml:space="preserve"><value>Help</value></data>
+  <data name="Group_HelpInfo" xml:space="preserve"><value>Help</value></data>
+  <data name="Cmd_Help" xml:space="preserve"><value>Help</value></data>
+  <data name="Tip_Help" xml:space="preserve"><value>Shows basic usage and keyboard shortcuts</value></data>
+  <data name="Tip_About" xml:space="preserve"><value>Shows the version, authors and license information</value></data>
+  <data name="Tip_ImportXfdf" xml:space="preserve"><value>Imports annotations from an annotation file (XFDF) exported by another program such as Acrobat. This does not open a PDF; it only imports the annotations.</value></data>
+  <data name="Tip_ExportXfdf" xml:space="preserve"><value>Exports only this document&apos;s annotations to an XFDF file (an XML format for exchanging annotations). Other programs can import the same annotations.</value></data>
+  <data name="Dlg_HelpTitle" xml:space="preserve"><value>Help</value></data>
+  <data name="Help_Basics" xml:space="preserve"><value>Basic usage</value></data>
+  <data name="Help_BasicsText" xml:space="preserve"><value>• Open: File &gt; Open, or drag a PDF into the window
+• Drag with the Hand tool to pan; Ctrl+mouse wheel to zoom
+• Comment tab: add text, highlights, drawings, shapes, stamps and more
+• Edit tab: edit text, edit objects (move or delete images and shapes), add text, images and shapes
+• Pages tab or the thumbnails on the left: insert, delete, rotate, reorder and extract pages
+• Snapshot on the Home tab: copies the dragged area as a picture; a single click copies the whole page
+• Save with Ctrl+S; undo/redo with Ctrl+Z / Ctrl+Y</value></data>
+  <data name="Help_Shortcuts" xml:space="preserve"><value>Keyboard shortcuts</value></data>
+  <data name="Help_ShortcutsText" xml:space="preserve"><value>Ctrl+O Open · Ctrl+S Save · Ctrl+Shift+S Save As · Ctrl+P Print
+Ctrl+Z Undo · Ctrl+Y Redo · Ctrl+F Find · F3 Find next
+Ctrl+1 Actual size · Ctrl+2 Fit width · Ctrl+0 Fit page · Ctrl+L or F11 Full screen
+Esc: cancel the current action · Delete: delete the selected object or annotation</value></data>
+  <data name="Help_Note" xml:space="preserve"><value>A detailed manual will be provided in a later version.</value></data>
+  <data name="About_Description" xml:space="preserve"><value>An open-source PDF editor for Windows</value></data>
+  <data name="About_Copyright" xml:space="preserve"><value>Copyright © 2026 Park Jaemin · Park Sehyeon. MIT License</value></data>
+  <data name="Msg_SnapshotWorking" xml:space="preserve"><value>Creating the snapshot…</value></data>
+  <data name="About_BuildDate" xml:space="preserve"><value>Build date: {0}</value></data>
+  <data name="About_License" xml:space="preserve"><value>This program is open-source software released under the MIT License. It is free for both individuals and companies.</value></data>
+  <data name="About_ThirdTitle" xml:space="preserve"><value>Open-source software used</value></data>
+  <data name="About_ThirdList" xml:space="preserve"><value>PDFium (BSD-3-Clause) · PDFsharp (MIT) · Avalonia (MIT) · HarfBuzzSharp (MIT) · CommunityToolkit.Mvvm (MIT) · Noto Sans KR font (SIL OFL 1.1). Full notices are available under &quot;View Third-Party Notices&quot; below.</value></data>
+  <data name="Tip_TabScrollLeft" xml:space="preserve"><value>Show tabs to the left</value></data>
+  <data name="Tip_TabScrollRight" xml:space="preserve"><value>Show tabs to the right</value></data>
+  <data name="Dlg_ColorTitle" xml:space="preserve"><value>Choose a Color</value></data>
+  <data name="Dlg_ColorHex" xml:space="preserve"><value>Hex</value></data>
+  <data name="Dlg_ColorOld" xml:space="preserve"><value>Current</value></data>
+  <data name="Dlg_ColorNew" xml:space="preserve"><value>New</value></data>
+  <data name="Tip_MoreColors" xml:space="preserve"><value>More colors…</value></data>
+  <data name="Para_Lines" xml:space="preserve"><value>Line {0} of max {1}</value></data>
+  <data name="Para_Overflow" xml:space="preserve"><value>Line {0} of max {1} — this runs past the bottom of the page and cannot be applied. Shorten the text or widen the box.</value></data>
+  <data name="Para_Overlap" xml:space="preserve"><value>This grows downward and overlaps other text or images (you can still apply it).</value></data>
+  <data name="Para_AppFont" xml:space="preserve"><value>The edited lines will use the default font instead of the original font.</value></data>
+  <data name="Para_FontsMixed" xml:space="preserve"><value>Edited and unedited lines may look like different fonts.</value></data>
+  <data name="Para_Missing" xml:space="preserve"><value>Some characters cannot be used: {0}</value></data>
+  <data name="Para_Encrypted" xml:space="preserve"><value>Paragraph editing is not available in password-protected documents.</value></data>
+  <data name="Para_Planning" xml:space="preserve"><value>Calculating the line layout…</value></data>
+  <data name="Para_LinePreview" xml:space="preserve"><value>Actual line-break preview (as in the PDF)</value></data>
+  <data name="Para_Commit" xml:space="preserve"><value>Apply</value></data>
+  <data name="Para_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Para_AddTop" xml:space="preserve"><value>Include line above</value></data>
+  <data name="Para_RemoveTop" xml:space="preserve"><value>Exclude top line</value></data>
+  <data name="Para_AddBottom" xml:space="preserve"><value>Include line below</value></data>
+  <data name="Para_RemoveBottom" xml:space="preserve"><value>Exclude bottom line</value></data>
+  <data name="Para_ExtendTip" xml:space="preserve"><value>If the grouping is wrong, add or remove consecutive lines. Only available before you change the text. (Shift+↑/↓ to include, Alt+Shift+↑/↓ to exclude)</value></data>
+  <data name="Para_ReasonTable" xml:space="preserve"><value>This looks like text in a table, so only one line is edited.</value></data>
+  <data name="Para_ReasonMixed" xml:space="preserve"><value>The line mixes fonts, sizes or colors, so only one line is edited.</value></data>
+  <data name="Para_ReasonLow" xml:space="preserve"><value>It is not clear this is a paragraph, so only one line is edited.</value></data>
+  <data name="Para_ReasonSingle" xml:space="preserve"><value>There are no neighboring lines, so only one line is edited.</value></data>
+  <data name="Para_ReasonOneLineOnly" xml:space="preserve"><value>&quot;One line only&quot; is turned on.</value></data>
+  <data name="Para_ReasonFailed" xml:space="preserve"><value>The paragraph could not be read, so only one line is edited.</value></data>
+  <data name="Cmd_OneLineOnly" xml:space="preserve"><value>One Line Only</value></data>
+  <data name="Tip_OneLineOnly" xml:space="preserve"><value>When on, clicking text edits only the line you clicked instead of grouping it into a paragraph</value></data>
+  <data name="Prop_Para_Title" xml:space="preserve"><value>Paragraph box</value></data>
+  <data name="Prop_Para_Width" xml:space="preserve"><value>Box width (mm)</value></data>
+  <data name="Msg_ParagraphHiddenText" xml:space="preserve"><value>Part of the old paragraph text could not be removed from the file completely and was left as invisible text. Searching or copying may still find the old text.</value></data>
+  <data name="Msg_ParagraphCommitFailed" xml:space="preserve"><value>The paragraph could not be changed. The document was not modified.</value></data>
+  <data name="Panel_Replace" xml:space="preserve"><value>Find and Replace</value></data>
+  <data name="Panel_Close" xml:space="preserve"><value>Close panel</value></data>
+  <data name="Cmd_FindReplace" xml:space="preserve"><value>Find and Replace</value></data>
+  <data name="Tip_FindReplace" xml:space="preserve"><value>Finds text and replaces it with other text. Use it to change text that appears in many places at once, such as a drawing number. (Ctrl+H)</value></data>
+  <data name="Replace_FindLabel" xml:space="preserve"><value>Find</value></data>
+  <data name="Replace_WithLabel" xml:space="preserve"><value>Replace with</value></data>
+  <data name="Replace_FindPlaceholder" xml:space="preserve"><value>e.g. H-2501</value></data>
+  <data name="Replace_WithPlaceholder" xml:space="preserve"><value>e.g. H-2502</value></data>
+  <data name="Replace_MatchCase" xml:space="preserve"><value>Match case</value></data>
+  <data name="Replace_WholeWord" xml:space="preserve"><value>Whole word</value></data>
+  <data name="Replace_IdChars" xml:space="preserve"><value>Treat - and . as word characters</value></data>
+  <data name="Replace_IncludeRotated" xml:space="preserve"><value>Include rotated text</value></data>
+  <data name="Replace_ScopeAll" xml:space="preserve"><value>Whole document</value></data>
+  <data name="Replace_ScopeCurrent" xml:space="preserve"><value>This page only</value></data>
+  <data name="Replace_ScopeRange" xml:space="preserve"><value>Page range</value></data>
+  <data name="Replace_RangePlaceholder" xml:space="preserve"><value>e.g. 1-3, 5</value></data>
+  <data name="Replace_Find" xml:space="preserve"><value>Find</value></data>
+  <data name="Replace_Next" xml:space="preserve"><value>Find Next</value></data>
+  <data name="Replace_ReplaceOne" xml:space="preserve"><value>Replace</value></data>
+  <data name="Replace_ReplaceAll" xml:space="preserve"><value>Replace All</value></data>
+  <data name="Replace_Cancel" xml:space="preserve"><value>Stop</value></data>
+  <data name="Replace_Progress" xml:space="preserve"><value>Searching page {1} of {0}</value></data>
+  <data name="Replace_Replacing" xml:space="preserve"><value>Replacing…</value></data>
+  <data name="Replace_Preview" xml:space="preserve"><value>Preview (only checked items are replaced)</value></data>
+  <data name="Replace_Found" xml:space="preserve"><value>{0} found · {1} selected to replace</value></data>
+  <data name="Replace_NoResults" xml:space="preserve"><value>No matching text was found.</value></data>
+  <data name="Replace_CheckAll" xml:space="preserve"><value>Select All</value></data>
+  <data name="Replace_UncheckAll" xml:space="preserve"><value>Clear All</value></data>
+  <data name="Replace_Done" xml:space="preserve"><value>Replaced {0}</value></data>
+  <data name="Replace_DoneAppFont" xml:space="preserve"><value> · {0} with the substitute font</value></data>
+  <data name="Replace_DoneRefused" xml:space="preserve"><value> · {0} could not be replaced (page {1})</value></data>
+  <data name="Replace_AppFontNotice" xml:space="preserve"><value>{0} with the substitute font: these words contain characters missing from the original font, so only these words use the app font. One Undo (Ctrl+Z) reverts them all.</value></data>
+  <data name="Replace_OverlapNotice" xml:space="preserve"><value>At {0} places the new text is longer and may overlap the text that follows. Check them in the preview.</value></data>
+  <data name="Replace_Unsearchable" xml:space="preserve"><value>{0} pieces of text could not be searched because their font information is missing (page {1}).</value></data>
+  <data name="Replace_FailedPages" xml:space="preserve"><value>Pages whose content could not be read: {0}</value></data>
+  <data name="Replace_NeedSave" xml:space="preserve"><value>For a password-protected document, the search uses the file as it was opened, but that file is gone or pages have been inserted or deleted since. Save and reopen the document, then try again.</value></data>
+  <data name="Replace_Encrypted" xml:space="preserve"><value>Password-protected documents can be searched but not replaced.</value></data>
+  <data name="Replace_NoPermission" xml:space="preserve"><value>This document does not allow content changes, so nothing can be replaced.</value></data>
+  <data name="Replace_Stale" xml:space="preserve"><value>The document has changed, so the results may no longer match. Please search again.</value></data>
+  <data name="Replace_InvalidRange" xml:space="preserve"><value>Check the page range. Example: 1-3, 5</value></data>
+  <data name="Replace_EmptyWith" xml:space="preserve"><value>Enter the replacement text.</value></data>
+  <data name="Replace_Failed" xml:space="preserve"><value>Find and replace failed. The document was not modified.</value></data>
+  <data name="Replace_FontOriginal" xml:space="preserve"><value>Original font</value></data>
+  <data name="Replace_FontApp" xml:space="preserve"><value>Substitute font</value></data>
+  <data name="Replace_Overlap" xml:space="preserve"><value>May overlap the text after it</value></data>
+  <data name="Replace_RotatedTag" xml:space="preserve"><value>Rotated {0}°</value></data>
+  <data name="Replace_Refuse_InForm" xml:space="preserve"><value>Inside a form, so it cannot be replaced</value></data>
+  <data name="Replace_Refuse_QuoteOperator" xml:space="preserve"><value>Unsupported way of writing text</value></data>
+  <data name="Replace_Refuse_ClipText" xml:space="preserve"><value>Text is used as a clip, so it cannot be replaced</value></data>
+  <data name="Replace_Refuse_NoFontSize" xml:space="preserve"><value>The font size is unknown</value></data>
+  <data name="Replace_Refuse_AlreadyEdited" xml:space="preserve"><value>Already replaced or deleted</value></data>
+  <data name="Replace_Refuse_Encrypted" xml:space="preserve"><value>Cannot be replaced in a password-protected document</value></data>
+  <data name="Replace_Refuse_PageMismatch" xml:space="preserve"><value>The page structure differs, so it cannot be replaced</value></data>
+  <data name="Replace_Refuse_ObjectNotFound" xml:space="preserve"><value>The text object was not found</value></data>
+  <data name="Replace_Refuse_MissingGlyphs" xml:space="preserve"><value>Contains characters that cannot be used</value></data>
+  <data name="Replace_Refuse_NoAppFont" xml:space="preserve"><value>The substitute font could not be read</value></data>
+  <data name="Replace_OpenFromSearch" xml:space="preserve"><value>Find and Replace…</value></data>
+  <data name="About_LinkRepo" xml:space="preserve"><value>View on GitHub</value></data>
+  <data name="About_LinkStar" xml:space="preserve"><value>★ Star on GitHub</value></data>
+  <data name="About_LinkSponsor" xml:space="preserve"><value>Sponsor</value></data>
+  <data name="About_StarHint" xml:space="preserve"><value>If SedolPDF has been useful, please give it a star on GitHub.</value></data>
+  <data name="Dlg_SettingsLanguage" xml:space="preserve"><value>Display language</value></data>
+  <data name="Dlg_SettingsLanguageAuto" xml:space="preserve"><value>Automatic (Windows language)</value></data>
+  <data name="Dlg_SettingsLanguageKo" xml:space="preserve"><value>한국어</value></data>
+  <data name="Dlg_SettingsLanguageEn" xml:space="preserve"><value>English</value></data>
+  <data name="Dlg_SettingsLanguageHint" xml:space="preserve"><value>A language change takes effect the next time you start SedolPDF.</value></data>
+  <data name="Msg_LanguageRestart" xml:space="preserve"><value>The display language will change when you restart SedolPDF.</value></data>
+</root>

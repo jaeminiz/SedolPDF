@@ -43,6 +43,9 @@
     <EmbeddedResource Update="Resources\Strings.resx">
       <LogicalName>PdfEditor.App.Resources.Strings.resources</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Strings.en.resx">
+      <LogicalName>PdfEditor.App.Resources.Strings.en.resources</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

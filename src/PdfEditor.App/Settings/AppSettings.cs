@@ -14,7 +14,7 @@ public sealed record AnnotationStyle(
 
 /// <summary>
 /// 사용자 설정. RecentFiles는 최근 것이 앞. AuthorName이 비면 Environment.UserName을 쓴다.
-/// Styles가 null이면 기본 스타일 3개를 보인다 (한 번이라도 저장·삭제·이름 바꾸면 전체 목록이 저장된다. 빈 목록 = 모두 지움).
+/// Language(0.4.0)는 "ko"·"en"이고 null이면 자동(Windows 표시 언어를 따름). Styles가 null이면 기본 스타일 3개를 보인다 (한 번이라도 저장·삭제·이름 바꾸면 전체 목록이 저장된다. 빈 목록 = 모두 지움).
 /// </summary>
 public sealed record AppSettings(
     IReadOnlyList<string> RecentFiles,
@@ -24,7 +24,8 @@ public sealed record AppSettings(
     IReadOnlyList<AnnotationStyle>? Styles = null,
     bool? LeftPanelVisible = null,
     string? LeftPanelKind = null,
-    bool? PropertiesPanelVisible = null)
+    bool? PropertiesPanelVisible = null,
+    string? Language = null)
 {
     public static AppSettings Default { get; } = new([], 5);
 

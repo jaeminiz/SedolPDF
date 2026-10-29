@@ -42,11 +42,12 @@ public sealed partial class MainWindow : Window
     private async Task ShowPreferencesAsync()
     {
         var cur = _settings.Load();
-        var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName).ShowDialog<SettingsResult?>(this);
+        var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName, cur.Language).ShowDialog<SettingsResult?>(this);
         if (result is null) return;
-        try { _settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName }); }
+        try { _settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName, Language = result.Language }); }
         catch (Exception) { return; }
         _recovery.Reschedule();
+        if (result.Language != cur.Language) await new MessageDialog(Strings.Dlg_InfoTitle, Strings.Msg_LanguageRestart, [Strings.Dlg_Ok]).ShowDialog(this);
     }
 
     public MainWindow() : this([]) { }
