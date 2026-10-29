@@ -30,7 +30,7 @@
 • 직접 편집: 글자 고치기, 문단 편집, 이미지·도형 넣기와 옮기기
 • 주석 요약 PDF 만들기, 주석 가져오기/내보내기(XFDF)
 • 인쇄, 자동 복구
-• Windows 11 디자인(Fluent), 한국어 화면
+• Windows 11 디자인(Fluent), 한국어·영어 화면
 
 제작: Park Jaemin, Park Sehyeon. MIT 라이선스 오픈소스 — https://github.com/jaeminiz/SedolPDF
 
@@ -54,7 +54,7 @@ Features
 • Direct editing: fix text, edit paragraphs, add and move images and shapes
 • Annotation summary PDF, annotation import/export (XFDF)
 • Printing and auto-recovery
-• Windows 11 Fluent design (Korean interface)
+• Windows 11 Fluent design, Korean and English interface
 
 By Park Jaemin and Park Sehyeon. MIT-licensed open source — https://github.com/jaeminiz/SedolPDF
 
@@ -62,7 +62,7 @@ By Park Jaemin and Park Sehyeon. MIT-licensed open source — https://github.com
 
 **Keywords:** PDF, PDF editor, PDF viewer, annotate, highlight, free PDF, open source
 
-> 주의: 화면은 한국어만 있습니다. 영어 목록에도 "Korean interface"를 분명히 적어 오해를 막습니다(위 문구 반영).
+> 참고: 이 파일의 화면 언어 문구(한국어·영어)는 0.4.0 제출용입니다. 현재 심사 중인 0.3.0 제출본은 한국어 화면뿐이라 "Korean interface"로 이미 입력했습니다(화면 언어는 환경 설정 > 화면 언어, 다시 시작 후 적용).
 
 ## 스크린샷 규격
 - 형식: PNG, 장당 50 MB 이하, 최소 1~최대 10장. 데스크톱: 가로 1366×768 이상 권장(검증 필요: 현재 Partner Center 규격).

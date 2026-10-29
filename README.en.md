@@ -4,7 +4,7 @@
 
 A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit text, images and shapes directly in one app. Free for personal and commercial use (MIT License).
 
-> **This is an early public release (v0.3.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The user interface is in Korean only for now.**
+> **This is an early public release (v0.3.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **From v0.4.0 the interface is available in Korean and English.**
 
 ![Viewing and annotating](docs/screenshots/viewer.png)
 
@@ -58,7 +58,7 @@ pwsh build/package.ps1             # build the portable zip and installer (see b
 
 ## Limitations and plans
 
-- The user interface is Korean only.
+- The user interface is available in Korean and English (from v0.4.0; change it in Preferences, applied after a restart). Long-form documentation and design documents are Korean only for now.
 - Not available yet: paragraph-level editing (reflowing several lines), digital signatures, form editing, OCR, measurement tools, dark mode.
 - Pictures and text inside a grouped drawing block (form XObject) can only be moved or deleted as a whole.
 - Rendering in other PDF viewers is still being verified. Please report odd files via Issues (do not attach personal or company documents).
