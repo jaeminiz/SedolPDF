@@ -384,11 +384,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             tab = new DocumentTabViewModel(session, session.DisplayName, _post);
             AttachPageEditing(tab);
+            RestoreViewState(tab);
             Documents.Add(tab);
         }
         ActiveDocument = tab;
     }
 
+    /// <summary>새 탭을 만들 때 그 파일의 마지막 보던 쪽·배율을 되살린다(설정을 읽지 못하거나 값이 맞지 않으면 처음 열 때처럼).</summary>
+    private static void RestoreViewState(DocumentTabViewModel tab)
+    {
+        try
+        {
+            if (DocumentTabViewModel.Settings is not { } store || tab.Session?.FilePath is not { Length: > 0 } path) return;
+            tab.ApplyViewState(PdfEditor.App.Settings.ViewStates.Find(store.Load().ViewStates, System.IO.Path.GetFullPath(path)));
+        }
+        catch (Exception) { /* 보기 상태를 못 읽어도 열기를 막지 않는다 */ }
+    }
+
+    /// <summary>탭을 닫을 때 보던 쪽·배율을 파일별로 기억한다(최대 50개). 저장하지 못해도 닫기를 막지 않는다.</summary>
+    private static void SaveViewState(DocumentTabViewModel tab)
+    {
+        try
+        {
+            if (DocumentTabViewModel.Settings is not { } store || tab.CaptureViewState() is not { } v) return;
+            store.Update(s => s with { ViewStates = PdfEditor.App.Settings.ViewStates.Upsert(s.ViewStates, v) });
+        }
+        catch (Exception) { }
+    }
     /// <summary>탭에 쪽 편집 명령과 썸네일 모델을 붙인다. 탭을 닫을 때(Detached) 함께 해제한다.</summary>
     private void AttachPageEditing(DocumentTabViewModel tab)
     {
@@ -492,6 +514,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Documents.RemoveAt(i);
         if (ActiveDocument == d)
             ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
+        SaveViewState(d);
         d.Detach();
         if (session is not null)
         {

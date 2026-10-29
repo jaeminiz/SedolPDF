@@ -62,6 +62,7 @@ public sealed class SettingsStore(string filePath)
                 RecoveryIntervalMinutes = minutes,
                 AuthorName = string.IsNullOrWhiteSpace(s.AuthorName) ? null : s.AuthorName.Trim(),
                 Language = PdfEditor.App.Resources.AppLanguage.Normalize(s.Language),
+                ViewStates = s.ViewStates?.Where(v => v is not null && !string.IsNullOrWhiteSpace(v.Path) && v.Mode is not null).Take(ViewStates.Max).ToList(),
                 Styles = s.Styles?.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Name) && x.ColorHex is not null).ToList(),
             };
         }

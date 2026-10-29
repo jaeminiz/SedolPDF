@@ -387,6 +387,25 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         CursorYmm = p.Y / scale * PtToMm;
     }
 
+    // ---- 보던 위치 기억 (0.4.0 Task 11) ----
+
+    /// <summary>지금 보는 쪽·배율·방식. 저장된 파일이 없는 탭(제목 없음·복구본)이거나 쪽이 없으면 null.</summary>
+    public PdfEditor.App.Settings.ViewStateEntry? CaptureViewState()
+    {
+        if (Session?.FilePath is not { Length: > 0 } path || PageCount <= 0) return null;
+        return new(System.IO.Path.GetFullPath(path), CurrentPageIndex, Scale, ViewMode.ToString(), PageCount);
+    }
+
+    /// <summary>저장된 보기 상태를 적용한다(쪽 수가 같고 값이 범위 안일 때만). 적용했으면 true.</summary>
+    public bool ApplyViewState(PdfEditor.App.Settings.ViewStateEntry? saved)
+    {
+        var v = PdfEditor.App.Settings.ViewStates.Validate(saved, PageCount);
+        if (v is null) return false;
+        ViewMode = Enum.Parse<ViewMode>(v.Mode);
+        Scale = v.Scale;
+        CurrentPageIndex = v.Page;
+        return true;
+    }
     public void ZoomIn() => Scale = ZoomMath.Step(Scale, 1);
     public void ZoomOut() => Scale = ZoomMath.Step(Scale, -1);
     public void ActualSize() => Scale = 1.0;
