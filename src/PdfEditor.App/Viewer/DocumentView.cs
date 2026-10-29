@@ -800,6 +800,7 @@ public sealed partial class DocumentView : Control
         if (_state.Tab.Tool == ToolKind.Hand && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _dragging = true;
+            Cursor = HandCursors.Grab;
             _dragStartPos = e.GetPosition(_sv);
             _dragStartOffset = _sv.Offset;
             e.Pointer.Capture(this);
@@ -868,7 +869,12 @@ public sealed partial class DocumentView : Control
         if (HandleSnapshotReleased(e)) return;
         if (HandleObjectPointerReleased(e)) return;
         if (HandleAnnotPointerReleased(e)) return;
-        if (_dragging) { _dragging = false; e.Pointer.Capture(null); }
+        if (_dragging)
+        {
+            _dragging = false;
+            e.Pointer.Capture(null);
+            if (_state is { } hs && hs.Tab.Tool == ToolKind.Hand) Cursor = HandCursors.Open;
+        }
         if (_rectSelecting)
         {
             _rectSelecting = false;
@@ -896,6 +902,7 @@ public sealed partial class DocumentView : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (HandleEscapeKey(e)) return;
         if (HandleObjectKey(e)) return;
         if (HandleAnnotKey(e)) return;
         if (e is { Key: Key.C, KeyModifiers: KeyModifiers.Control })

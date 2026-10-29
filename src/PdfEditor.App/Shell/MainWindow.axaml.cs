@@ -68,6 +68,21 @@ public sealed partial class MainWindow : Window
         var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
         _settings = new SettingsStore(paths.SettingsPath);
         PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
+        try { _vm.ApplyPanelState(_settings.Load()); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is not (nameof(MainWindowViewModel.IsLeftPanelVisible) or nameof(MainWindowViewModel.ActiveLeftPanel)
+                or nameof(MainWindowViewModel.IsPropertiesPanelVisible))) return;
+            try
+            {
+                _settings.Update(s => s with
+                {
+                    LeftPanelVisible = _vm.IsLeftPanelVisible, LeftPanelKind = _vm.ActiveLeftPanel.ToString(),
+                    PropertiesPanelVisible = _vm.IsPropertiesPanelVisible,
+                });
+            }
+            catch (Exception) { /* 저장 실패가 화면 조작을 막지 않는다 */ }
+        };
         var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance, patcher, services.Assets), _settings, prompts);
         _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher, services.Assets));
@@ -228,6 +243,10 @@ public sealed partial class MainWindow : Window
     {
         if ((sender as Control)?.DataContext is RibbonTabVm tab) _vm.SelectRibbonTabCommand.Execute(tab.Id);
     }
+
+    // 패널 머리 더블클릭 = 접기(0.4.0, 결정 D4). 왼쪽 패널은 활동 아이콘을 다시 누르면 펼쳐진다.
+    private void OnLeftPanelHeaderDoubleTapped(object? sender, TappedEventArgs e) => _vm.CloseLeftPanelCommand.Execute(null);
+    private void OnPropertiesPanelHeaderDoubleTapped(object? sender, TappedEventArgs e) => _vm.ClosePropertiesPanelCommand.Execute(null);
 
     private void OnPanelButtonClick(object? sender, RoutedEventArgs e)
     {

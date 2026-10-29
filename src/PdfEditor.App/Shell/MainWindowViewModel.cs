@@ -98,6 +98,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ["file.open", "file.save", "file.print", "edit.undo", "edit.redo"];
 
     public IRelayCommand<PanelKind> SetPanelCommand { get; }
+
+    /// <summary>패널 머리의 ✕ 단추와 머리 더블클릭(접기).</summary>
+    public IRelayCommand CloseLeftPanelCommand { get; }
+    public IRelayCommand ClosePropertiesPanelCommand { get; }
+
+    /// <summary>저장해 둔 패널 상태를 되살린다(창이 설정을 열고 난 직후 한 번). 알 수 없는 값은 무시한다.</summary>
+    public void ApplyPanelState(PdfEditor.App.Settings.AppSettings s)
+    {
+        if (s.LeftPanelVisible is { } lv) IsLeftPanelVisible = lv;
+        if (s.LeftPanelKind is { } k && Enum.TryParse<PanelKind>(k, out var kind) && Enum.IsDefined(kind)) ActiveLeftPanel = kind;
+        if (s.PropertiesPanelVisible is { } pv) IsPropertiesPanelVisible = pv;
+    }
     public IRelayCommand<DocumentTabViewModel> CloseDocumentCommand { get; }
     private FileWorkflow? _workflow;
     private IUserPrompts? _prompts;
@@ -156,7 +168,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel()
     {
-        SetPanelCommand = new RelayCommand<PanelKind>(k => { ActiveLeftPanel = k; IsLeftPanelVisible = true; });
+        // 활동 아이콘: 이미 열려 있는 패널의 아이콘을 다시 누르면 접는다(0.4.0, 결정 D4).
+        SetPanelCommand = new RelayCommand<PanelKind>(k =>
+        {
+            if (IsLeftPanelVisible && ActiveLeftPanel == k) { IsLeftPanelVisible = false; return; }
+            ActiveLeftPanel = k;
+            IsLeftPanelVisible = true;
+        });
+        CloseLeftPanelCommand = new RelayCommand(() => IsLeftPanelVisible = false);
+        ClosePropertiesPanelCommand = new RelayCommand(() => IsPropertiesPanelVisible = false);
         SelectRibbonTabCommand = new RelayCommand<string>(t => { if (t is not null && (t != FormatTabId || IsFormatTabVisible)) SelectedRibbonTab = t; });
         CloseDocumentCommand = new RelayCommand<DocumentTabViewModel>(d => { if (d is not null) _ = CloseDocumentAsync(d); });
 
@@ -773,9 +793,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         Reg("view.continuous", Strings.Cmd_Continuous, "continuous", null, DocCmd(d => d.ViewMode = ViewMode.Continuous));
         Reg("view.single", Strings.Cmd_SinglePage, "single", null, DocCmd(d => d.ViewMode = ViewMode.SinglePage));
-        Reg("view.leftPanel", Strings.Cmd_LeftPanel, "side", null,
+        Reg("view.leftPanel", Strings.Cmd_LeftPanel, "side", G(Key.B),
             new RelayCommand(() => IsLeftPanelVisible = !IsLeftPanelVisible));
-        Reg("view.properties", Strings.Cmd_PropertiesPanel, "insp", null,
+        Reg("view.properties", Strings.Cmd_PropertiesPanel, "insp", G(Key.B, KeyModifiers.Control | KeyModifiers.Shift),
             new RelayCommand(() => IsPropertiesPanelVisible = !IsPropertiesPanelVisible));
         Reg("view.fullscreen", Strings.Cmd_FullScreen, "fullscreen", new KeyGesture(Key.F11),
             new RelayCommand(() => IsFullScreen = !IsFullScreen));
@@ -805,10 +825,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Gr(Strings.Group_Find, false, I("find", Strings.Cmd_Find), I("find.replace", Strings.Cmd_FindReplace, Strings.Tip_FindReplace)),
                 Gr(Strings.Group_EditTools, true, L(T("edit.text", Strings.Cmd_EditText, ToolKind.EditText)), T("edit.object", Strings.Cmd_EditObject, ToolKind.EditObject),
                     T("edit.addText", Strings.Cmd_AddText, ToolKind.AddText), I("edit.addImage", Strings.Cmd_AddImage, Strings.Tip_AddImage)),
-                Gr(Strings.Group_QuickAnnot, true, T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter),
-                    T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText), T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline),
-                    T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote), T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
-                    T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), L(T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp))),
+                // 0.4.0 (결정 D7·U2): 연필·선·타원·영역 형광펜을 더했다. 명령은 주석 탭과 같은 것(같은 id)이다.
+                // 폭을 아끼려고 새 도구는 그림만 있는 격자(이름은 툴팁)로 둔다: 1100 DIP 창에서 가로 스크롤이 생기지 않게.
+                Gr(Strings.Group_QuickAnnot, true, L(T("annot.stamp", Strings.AnnotKind_Stamp, ToolKind.Stamp))),
+                new(Strings.Group_Draw,
+                [
+                    T("annot.typewriter", Strings.Cmd_Typewriter, ToolKind.Typewriter), T("annot.pencil", Strings.Cmd_Pencil, ToolKind.Pencil),
+                    T("annot.line", Strings.Cmd_Line, ToolKind.Line), T("annot.arrow", Strings.Cmd_Arrow, ToolKind.Arrow),
+                    T("annot.rect", Strings.Cmd_Rectangle, ToolKind.Rectangle), T("annot.ellipse", Strings.Cmd_Ellipse, ToolKind.Ellipse),
+                    T("annot.hlText", Strings.Cmd_HighlightText, ToolKind.HighlightText), T("annot.hlArea", Strings.Cmd_HighlightArea, ToolKind.HighlightArea),
+                    T("annot.underline", Strings.Cmd_Underline, ToolKind.Underline), T("annot.sticky", Strings.Cmd_StickyNote, ToolKind.StickyNote),
+                ], Compact: true, IconOnly: true),
             ],
             ["Annotate"] =
             [

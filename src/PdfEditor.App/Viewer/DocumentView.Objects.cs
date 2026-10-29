@@ -189,7 +189,6 @@ public sealed partial class DocumentView
         if (_state is not { } st || st.Tab.Objects.Selected is not { } sel) return false;
         bool annotMode = st.Tab.Tool == ToolKind.AnnotSelect;   // 주석 선택 도구에서도 고른 객체를 지우고 방향키로 옮긴다(주석 처리와 함께)
         if (!annotMode && !IsObjectTool(st.Tab.Tool)) return false;
-        if (e.Key == Key.Escape) { st.Tab.Objects.Clear(); InvalidateVisual(); if (annotMode) return false; e.Handled = true; return true; }
         if (!st.Tab.CanEditContent) return false;
         if (e.Key == Key.Delete && e.KeyModifiers == KeyModifiers.None)
         {

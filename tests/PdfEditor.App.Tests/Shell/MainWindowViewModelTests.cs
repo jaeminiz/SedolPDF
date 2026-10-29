@@ -102,11 +102,13 @@ public class MainWindowViewModelTests
         var vm = new MainWindowViewModel();
         var home = vm.Ribbon["Home"];
         Assert.Equal([Strings.Group_Select, Strings.Group_Capture, Strings.Group_Zoom, Strings.Group_Rotate, Strings.Group_Find,
-                      Strings.Group_EditTools, Strings.Group_QuickAnnot], home.Select(g => g.Name));
+                      Strings.Group_EditTools, Strings.Group_QuickAnnot, Strings.Group_Draw], home.Select(g => g.Name));
         var snap = home.Single(g => g.Name == Strings.Group_Capture).Items.Single();
         Assert.Equal(("tool.snapshot", (ToolKind?)ToolKind.Snapshot), (snap.CommandId, snap.Tool));
-        Assert.Equal(["annot.typewriter", "annot.hlText", "annot.underline", "annot.sticky", "annot.arrow", "annot.rect", "annot.stamp"],
+        Assert.Equal(["annot.stamp"],
             home.Single(g => g.Name == Strings.Group_QuickAnnot).Items.Select(i => i.CommandId));
+        Assert.Equal(["annot.typewriter", "annot.pencil", "annot.line", "annot.arrow", "annot.rect", "annot.ellipse", "annot.hlText", "annot.hlArea", "annot.underline", "annot.sticky"],
+            home.Single(g => g.Name == Strings.Group_Draw).Items.Select(i => i.CommandId));
 
         var d = new DocumentTabViewModel("a.pdf");
         vm.Documents.Add(d);

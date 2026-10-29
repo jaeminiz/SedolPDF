@@ -50,9 +50,8 @@ public sealed partial class DocumentView
     private static bool IsAnnotationTool(ToolKind t) => t is not (ToolKind.Hand or ToolKind.TextSelect
         or ToolKind.EditObject or ToolKind.EditText or ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape or ToolKind.Snapshot);
 
-    private static Cursor CursorFor(ToolKind t) => new(t switch
+    private static Cursor CursorFor(ToolKind t) => t == ToolKind.Hand ? HandCursors.Open : new(t switch
     {
-        ToolKind.Hand => StandardCursorType.Hand,
         ToolKind.AnnotSelect or ToolKind.EditObject => StandardCursorType.Arrow,
         ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape or ToolKind.Snapshot => StandardCursorType.Cross,
         ToolKind.Pencil or ToolKind.Eraser or ToolKind.Rectangle or ToolKind.Ellipse or ToolKind.HighlightArea or ToolKind.StickyNote
@@ -473,6 +472,21 @@ public sealed partial class DocumentView
 
     // ---- 키 ----
 
+    /// <summary>Esc 한 곳: 규칙은 <see cref="EscapePolicy"/>, 여기는 화면 쪽 상태를 모아 알리고 결과를 적용한다.</summary>
+    private bool HandleEscapeKey(KeyEventArgs e)
+    {
+        if (e is not { Key: Key.Escape, KeyModifiers: KeyModifiers.None } || _state is not { } st) return false;
+        bool viewDrawing = _gesture != Gesture.None || _polyActive || _pendingPress is not null || _selecting || _markupPending || _objDragging;
+        bool editorFocused = IsFreeTextEditorOpen || IsLineEditorOpen || IsParagraphEditorOpen
+            || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
+        var action = st.Tab.EscapePressed(viewDrawing, editorFocused);
+        if (action == EscapeAction.None) return false;
+        if (action == EscapeAction.CancelDrawing) { CancelGesture(); st.Tab.Objects.CancelDrag(); }
+        InvalidateVisual();
+        e.Handled = true;
+        return true;
+    }
+
     private bool HandleAnnotKey(KeyEventArgs e)
     {
         if (_state is not { } st) return false;
@@ -487,13 +501,6 @@ public sealed partial class DocumentView
                 e.Handled = true;
                 return true;
             }
-        }
-        if (e is { Key: Key.Escape, KeyModifiers: KeyModifiers.None } && IsAnnotationTool(st.Tab.Tool))
-        {
-            CancelGesture();
-            st.Tab.EscapePressed();
-            e.Handled = true;
-            return true;
         }
         if (e is { Key: Key.Delete, KeyModifiers: KeyModifiers.None } && st.Tab.Selection.Page is { } page && st.Tab.CanAnnotate)
         {

@@ -242,7 +242,13 @@
 
       <Border Grid.Column="1" Classes="card" Width="{Binding LeftPanelWidth}" IsVisible="{Binding IsLeftPanelVisible}" ClipToBounds="True">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="{Binding ActivePanelLabel}" FontWeight="SemiBold" Margin="10,8" />
+          <Grid DockPanel.Dock="Top" x:Name="LeftPanelHeader" ColumnDefinitions="*,Auto" Background="Transparent" DoubleTapped="OnLeftPanelHeaderDoubleTapped">
+            <TextBlock Text="{Binding ActivePanelLabel}" FontWeight="SemiBold" Margin="10,8" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="rail" Width="26" Height="26" Margin="0,0,6,0" Command="{Binding CloseLeftPanelCommand}"
+                    ToolTip.Tip="{x:Static res:Strings.Panel_Close}" AutomationProperties.Name="{x:Static res:Strings.Panel_Close}">
+              <res:IconView Key="close" Width="10" Height="10" />
+            </Button>
+          </Grid>
           <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
           <!-- 패널들은 한 칸(Grid)에 겹쳐 둔다: DockPanel의 마지막이 아닌 자식은 왼쪽에 붙어 내용 폭만 차지해서
                썸네일 목록이 가운데 정렬되지 않고 스크롤 막대가 썸네일 바로 옆에 붙었다(사용자 지적, 2026-10-20). -->
@@ -318,7 +324,13 @@
 
       <Border Grid.Column="3" Classes="card" Width="220" Margin="8,0,0,0" IsVisible="{Binding IsPropertiesPanelVisible}" ClipToBounds="True">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="{x:Static res:Strings.Panel_Properties}" FontWeight="SemiBold" Margin="10,8" />
+          <Grid DockPanel.Dock="Top" x:Name="PropertiesPanelHeader" ColumnDefinitions="*,Auto" Background="Transparent" DoubleTapped="OnPropertiesPanelHeaderDoubleTapped">
+            <TextBlock Text="{x:Static res:Strings.Panel_Properties}" FontWeight="SemiBold" Margin="10,8" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="rail" Width="26" Height="26" Margin="0,0,6,0" Command="{Binding ClosePropertiesPanelCommand}"
+                    ToolTip.Tip="{x:Static res:Strings.Panel_Close}" AutomationProperties.Name="{x:Static res:Strings.Panel_Close}">
+              <res:IconView Key="close" Width="10" Height="10" />
+            </Button>
+          </Grid>
           <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
           <Panel>
             <Panel IsVisible="{Binding !HasNoDocument}">

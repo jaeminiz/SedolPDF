@@ -316,18 +316,20 @@ public class AnnotationToolsTests : IAsyncLifetime
         Assert.NotNull(tab.Tools.Preview);
 
         tab.EscapePressed();
-        Assert.Equal(ToolKind.AnnotSelect, tab.Tool);
+        Assert.Equal(ToolKind.Rectangle, tab.Tool);          // 0.4.0 D6: 그리는 중 Esc는 취소만, 도구는 그대로
         Assert.Null(tab.Tools.Preview);
         Assert.Null(tab.Tools.End(new PdfPointF(90, 90)));   // 진행 중이던 끌기는 취소됨
+        tab.EscapePressed();                                 // 한 번 더 = 주석 선택 도구
+        Assert.Equal(ToolKind.AnnotSelect, tab.Tool);
 
-        // 주석 선택 도구에서 Esc = 선택 해제, 손 도구에서는 아무 일도 없다.
+        // 주석 선택 도구에서 Esc = 선택 해제, 손 도구에서는 주석 선택 도구로.
         tab.Selection.Set(page, [new AnnotId(1)]);
         tab.EscapePressed();
         Assert.Empty(tab.Selection.Ids);
         Assert.Equal(ToolKind.AnnotSelect, tab.Tool);
         tab.Tool = ToolKind.Hand;
         tab.EscapePressed();
-        Assert.Equal(ToolKind.Hand, tab.Tool);
+        Assert.Equal(ToolKind.AnnotSelect, tab.Tool);
         tab.Detach();
     }
 

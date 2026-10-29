@@ -178,7 +178,7 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Escape_DuringDrag_CreatesNothing_AndSwitchesToSelect()
+    public async Task Escape_DuringDrag_CreatesNothing_AndKeepsTool()
     {
         var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
         var h = Show(s);
@@ -192,7 +192,8 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
             h.Window.MouseUp(At(h, 220, 220), MouseButton.Left);
             return 0;
         });
-        HeadlessUi.Run(() => { Pump(() => h.Tab.Tool == ToolKind.AnnotSelect); Thread.Sleep(200); Dispatcher.UIThread.RunJobs(); return 0; });
+        HeadlessUi.Run(() => { Thread.Sleep(200); Dispatcher.UIThread.RunJobs(); return 0; });
+        Assert.Equal(ToolKind.Rectangle, h.Tab.Tool);   // 0.4.0 D6: 그리는 중 Esc는 취소만
         Assert.Empty(Items(h));
     }
 
@@ -336,7 +337,7 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
             return 0;
         });
         Assert.Empty(Items(h));
-        Assert.Equal(ToolKind.AnnotSelect, h.Tab.Tool);
+        Assert.Equal(ToolKind.HighlightText, h.Tab.Tool);   // 0.4.0 D6: 취소만, 도구는 그대로
     }
 
     private static void SetField(object o, string name, object v) =>

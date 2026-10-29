@@ -520,6 +520,7 @@ Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value
   <data name="Msg_ParagraphHiddenText" xml:space="preserve"><value>고친 문단의 옛 글 일부를 파일에서 완전히 지우지 못하고 보이지 않는 글자로 남겼습니다. 검색이나 복사를 하면 옛 글이 나올 수 있습니다.</value></data>
   <data name="Msg_ParagraphCommitFailed" xml:space="preserve"><value>문단을 고치지 못했습니다. 문서는 바뀌지 않았습니다.</value></data>
   <data name="Panel_Replace" xml:space="preserve"><value>찾아 바꾸기</value></data>
+  <data name="Panel_Close" xml:space="preserve"><value>패널 닫기</value></data>
   <data name="Cmd_FindReplace" xml:space="preserve"><value>찾아 바꾸기</value></data>
   <data name="Tip_FindReplace" xml:space="preserve"><value>글을 찾아 다른 글로 바꿉니다. 도면 번호처럼 여러 곳에 있는 글을 한꺼번에 바꿀 때 씁니다. (Ctrl+H)</value></data>
   <data name="Replace_FindLabel" xml:space="preserve"><value>찾을 글</value></data>

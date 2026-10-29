@@ -519,6 +519,7 @@ public static class Strings
     public static string Msg_ParagraphHiddenText => Get(nameof(Msg_ParagraphHiddenText));
     public static string Msg_ParagraphCommitFailed => Get(nameof(Msg_ParagraphCommitFailed));
     public static string Panel_Replace => Get(nameof(Panel_Replace));
+    public static string Panel_Close => Get(nameof(Panel_Close));
     public static string Cmd_FindReplace => Get(nameof(Cmd_FindReplace));
     public static string Tip_FindReplace => Get(nameof(Tip_FindReplace));
     public static string Replace_FindLabel => Get(nameof(Replace_FindLabel));

@@ -20,7 +20,10 @@ public sealed record AppSettings(
     int RecoveryIntervalMinutes = 5,
     string? AuthorName = null,
     IReadOnlyDictionary<string, ToolStyleSetting>? ToolStyles = null,
-    IReadOnlyList<AnnotationStyle>? Styles = null)
+    IReadOnlyList<AnnotationStyle>? Styles = null,
+    bool? LeftPanelVisible = null,
+    string? LeftPanelKind = null,
+    bool? PropertiesPanelVisible = null)
 {
     public static AppSettings Default { get; } = new([], 5);
 

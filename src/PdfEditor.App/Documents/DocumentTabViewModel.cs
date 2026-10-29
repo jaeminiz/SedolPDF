@@ -293,15 +293,31 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         await Session.Commands.ExecuteAsync(c);
     }
 
-    /// <summary>Esc: 진행 중인 동작을 취소하고, 주석 도구면 주석 선택 도구로 돌아간다 (이미 그 도구면 선택 해제).</summary>
-    public void EscapePressed()
+    /// <summary>
+    /// Esc (규칙은 <see cref="EscapePolicy"/> 한 곳): 그리는 중이면 그것만 취소 → 선택이 있으면 해제 → 다른 도구면 주석 선택 도구.
+    /// 문서 화면이 자기 쪽 끌기 상태(<paramref name="viewDrawing"/>)와 편집 창 포커스를 알려 준다.
+    /// </summary>
+    public EscapeAction EscapePressed(bool viewDrawing = false, bool textEditorFocused = false)
     {
-        Tools.Cancel();
-        Tools.CancelAttach();
-        Editing.Cancel();
-        if (Tool is ToolKind.Hand or ToolKind.TextSelect) return;
-        if (Tool == ToolKind.AnnotSelect) Selection.Clear();
-        else Tool = ToolKind.AnnotSelect;
+        bool drawing = viewDrawing || Tools.Preview is not null || Tools.IsCollectingPoints || Tools.PendingAttach is not null;
+        bool selected = Selection.Ids.Count > 0 || Objects.Selected is not null;
+        var action = EscapePolicy.Decide(Tool, drawing, selected, textEditorFocused);
+        switch (action)
+        {
+            case EscapeAction.CancelDrawing:
+                Tools.Cancel();
+                Tools.CancelAttach();
+                Editing.Cancel();
+                break;
+            case EscapeAction.ClearSelection:
+                Selection.Clear();
+                Objects.Clear();
+                break;
+            case EscapeAction.SwitchToAnnotSelect:
+                Tool = ToolKind.AnnotSelect;
+                break;
+        }
+        return action;
     }
 
     partial void OnToolChanged(ToolKind value)
