@@ -19,7 +19,7 @@ public static class AppLinks
     public const string Repository = "https://github.com/jaeminiz/SedolPDF";
 
     /// <summary>후원 페이지 주소(GitHub Sponsors 등). 비어 있으면 후원 링크를 숨긴다 — 후원 페이지를 만든 뒤 여기에 한 번만 채운다.</summary>
-    public const string Sponsor = "";
+    public const string Sponsor = "https://github.com/sponsors/jaeminiz";
 
     /// <summary>스토어(MSIX) 설치본인지: 실행 폴더 경로에 \WindowsApps\ 가 들어 있는지.</summary>
     public static bool IsStoreBuild(string baseDirectory) =>

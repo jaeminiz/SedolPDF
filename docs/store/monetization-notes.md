@@ -3,7 +3,7 @@
 ## 결정 요약
 - **광고와 유료 판매는 하지 않는다.** 스토어에는 **무료**로 올린다(앱 안 구매·광고 없음, 사용 정보 수집 없음).
 - 앱의 **정보 창**과 **환경 설정**에 외부 브라우저로 여는 링크만 둔다: `GitHub에서 보기 · ★ 별 누르기 · 후원하기`. 주소는 `src/PdfEditor.App/Dialogs/AppLinks.cs`의 상수 두 개(`Repository`, `Sponsor`)에만 있다.
-- **후원 주소(`AppLinks.Sponsor`)가 비어 있으면 후원 링크는 보이지 않는다.** 후원 페이지(GitHub Sponsors 등)를 만든 뒤 이 상수 한 곳에 주소를 넣고, 저장소에 `.github/FUNDING.yml`을 추가한다(`docs/store/github-sponsors-guide.md`).
+- **후원 주소(`AppLinks.Sponsor`)가 비어 있으면 후원 링크는 보이지 않는다.** 2026-10-29 GitHub Sponsors 프로필이 승인·공개되어 `https://github.com/sponsors/jaeminiz`를 넣었고 `.github/FUNDING.yml`(`github: jaeminiz`)을 추가했다(푸시 전 — 푸시하면 저장소에 Sponsor 단추가 생김). Stripe 계정은 확인 진행 중이라 지급은 확인 완료 뒤부터.
 - 팝업·실행 횟수 요청·기능 가림은 만들지 않는다(시험 `About_NoPopupOrNag`가 설정에 횟수 필드가 없는지 확인).
 - **스토어(MSIX) 설치본**은 첫 심사 동안 별·후원 링크를 숨기고 `GitHub에서 보기`만 둔다. 실행 경로에 `\WindowsApps\`가 있으면 스토어 설치본으로 본다(`AppLinks.IsStoreBuild`). 심사 통과 뒤 다시 넣을지 사용자 결정. 스토어 소개글·개인정보처리방침에는 별·후원 문구를 넣지 않는다. "스토어 평점을 눌러 주세요" 류 문구는 쓰지 않는다.
 - 이유: AdMob은 안드로이드/iOS 전용이라 Windows 데스크톱에 쓸 수 없고, 문서 편집기의 광고는 신뢰를 떨어뜨린다. 일반 시장은 경쟁이 치열하고 지금은 양식·서명·OCR·측정 등 유료 기대 기능이 비어 있다.
