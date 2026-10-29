@@ -494,7 +494,7 @@ Esc: cancel the current action · Delete: delete the selected object or annotati
   <data name="About_BuildDate" xml:space="preserve"><value>Build date: {0}</value></data>
   <data name="About_License" xml:space="preserve"><value>This program is open-source software released under the MIT License. It is free for both individuals and companies.</value></data>
   <data name="About_ThirdTitle" xml:space="preserve"><value>Open-source software used</value></data>
-  <data name="About_ThirdList" xml:space="preserve"><value>PDFium (BSD-3-Clause) · PDFsharp (MIT) · Avalonia (MIT) · HarfBuzzSharp (MIT) · CommunityToolkit.Mvvm (MIT) · Noto Sans KR font (SIL OFL 1.1). Full notices are available under &quot;View Third-Party Notices&quot; below.</value></data>
+  <data name="About_ThirdList" xml:space="preserve"><value>PDFium (BSD-3-Clause) · PDFsharp (MIT) · Avalonia (MIT) · HarfBuzzSharp (MIT) · CommunityToolkit.Mvvm (MIT) · Noto Sans KR and Noto Serif KR fonts (SIL OFL 1.1). Full notices are available under &quot;View Third-Party Notices&quot; below.</value></data>
   <data name="Tip_TabScrollLeft" xml:space="preserve"><value>Show tabs to the left</value></data>
   <data name="Tip_TabScrollRight" xml:space="preserve"><value>Show tabs to the right</value></data>
   <data name="Dlg_ColorTitle" xml:space="preserve"><value>Choose a Color</value></data>

@@ -17,11 +17,11 @@
       <CheckBox Content="{x:Static res:Strings.Replace_IdChars}" IsChecked="{Binding IdWordChars, Mode=TwoWay}" IsEnabled="{Binding WholeWord}" Margin="16,0,0,0" />
       <CheckBox Content="{x:Static res:Strings.Replace_IncludeRotated}" IsChecked="{Binding IncludeRotated, Mode=TwoWay}" />
 
-      <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
-        <RadioButton GroupName="ReplaceScope" Content="{x:Static res:Strings.Replace_ScopeAll}" IsChecked="{Binding IsScopeAll, Mode=TwoWay}" />
-        <RadioButton GroupName="ReplaceScope" Content="{x:Static res:Strings.Replace_ScopeCurrent}" IsChecked="{Binding IsScopeCurrent, Mode=TwoWay}" />
+      <WrapPanel Orientation="Horizontal" Margin="0,2,0,0">
+        <RadioButton GroupName="ReplaceScope" Margin="0,0,10,0" Content="{x:Static res:Strings.Replace_ScopeAll}" IsChecked="{Binding IsScopeAll, Mode=TwoWay}" />
+        <RadioButton GroupName="ReplaceScope" Margin="0,0,10,0" Content="{x:Static res:Strings.Replace_ScopeCurrent}" IsChecked="{Binding IsScopeCurrent, Mode=TwoWay}" />
         <RadioButton GroupName="ReplaceScope" Content="{x:Static res:Strings.Replace_ScopeRange}" IsChecked="{Binding IsScopeRange, Mode=TwoWay}" />
-      </StackPanel>
+      </WrapPanel>
       <TextBox x:Name="RangeBox" Text="{Binding RangeText, Mode=TwoWay}" PlaceholderText="{x:Static res:Strings.Replace_RangePlaceholder}" IsVisible="{Binding IsScopeRange}" />
 
       <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0" ColumnSpacing="4">
@@ -37,11 +37,11 @@
       <TextBlock Text="{Binding SummaryText}" IsVisible="{Binding HasSummary}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="#0F7B0F" />
       <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="12" Foreground="#5C5C5C" />
       <TextBlock Text="{Binding NoticeText}" IsVisible="{Binding HasNotice}" TextWrapping="Wrap" FontSize="11" Foreground="#8A5A00" />
-      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4" Margin="0,4,0,0">
-        <TextBlock Text="{x:Static res:Strings.Replace_Preview}" FontSize="11" Foreground="#5C5C5C" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-        <Button Grid.Column="1" Content="{x:Static res:Strings.Replace_CheckAll}" Command="{Binding CheckAllCommand}" Padding="4,1" FontSize="11" />
-        <Button Grid.Column="2" Content="{x:Static res:Strings.Replace_UncheckAll}" Command="{Binding UncheckAllCommand}" Padding="4,1" FontSize="11" />
-      </Grid>
+      <TextBlock Text="{x:Static res:Strings.Replace_Preview}" FontSize="11" Foreground="#5C5C5C" TextWrapping="Wrap" Margin="0,4,0,0" />
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <Button Content="{x:Static res:Strings.Replace_CheckAll}" Command="{Binding CheckAllCommand}" Padding="4,1" FontSize="11" />
+        <Button Content="{x:Static res:Strings.Replace_UncheckAll}" Command="{Binding UncheckAllCommand}" Padding="4,1" FontSize="11" />
+      </StackPanel>
     </StackPanel>
     <ListBox x:Name="ResultList" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}" Background="Transparent" Margin="0,4,0,0"
              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
