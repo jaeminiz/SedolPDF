@@ -20,12 +20,12 @@ public class EnglishLayoutTests(ITestOutputHelper output)
     private static string? OutDir => Environment.GetEnvironmentVariable("SEDOL_LAYOUT_DIR");
 
     /// <summary>글자 상자의 실제 너비가 글자 자체의 너비보다 좁으면 잘린 것(줄바꿈이 있는 상자는 높이로 판단).</summary>
-    private static List<string> Problems(Window w, string where)
+    internal static List<string> Problems(Window w, string where)
     {
         var list = new List<string>();
         foreach (var tb in w.GetVisualDescendants().OfType<TextBlock>())
         {
-            if (!tb.IsEffectivelyVisible || string.IsNullOrEmpty(tb.Text) || tb.Bounds.Width <= 0) continue;
+            if (!tb.IsEffectivelyVisible || string.IsNullOrEmpty(tb.Text) || tb.Text.Length <= 1 || tb.Bounds.Width <= 0) continue;   // 한 글자 기호(↕ 등)는 글꼴 대체 때문에 폭을 정확히 재지 못한다
             var ft = new FormattedText(tb.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
                 new Typeface(tb.FontFamily, tb.FontStyle, tb.FontWeight), tb.FontSize, Brushes.Black);
             bool clipped;
@@ -45,14 +45,14 @@ public class EnglishLayoutTests(ITestOutputHelper output)
         return list;
     }
 
-    private static void Save(Window w, string name)
+    internal static void Save(Window w, string name)
     {
         if (OutDir is not { Length: > 0 } dir) return;
         Directory.CreateDirectory(dir);
         if (w.CaptureRenderedFrame() is { } bmp) { using var fs = File.Create(Path.Combine(dir, name + ".png")); bmp.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions()); }
     }
 
-    private static void Pump(Window w)
+    internal static void Pump(Window w)
     {
         for (int i = 0; i < 4; i++)
         {
@@ -62,7 +62,7 @@ public class EnglishLayoutTests(ITestOutputHelper output)
     }
 
     /// <summary>헤드리스 앱에는 App.axaml의 테마·리본 스타일·아이콘이 없다. 이 시험 동안만 같은 것을 붙였다가 뗀다.</summary>
-    private sealed class AppStyles : IDisposable
+    internal sealed class AppStyles : IDisposable
     {
         private readonly Avalonia.Styling.IStyle[] _styles;
         private readonly Avalonia.Controls.IResourceProvider _icons;
