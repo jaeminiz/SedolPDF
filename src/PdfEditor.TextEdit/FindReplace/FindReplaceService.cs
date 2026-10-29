@@ -256,6 +256,12 @@ public static class FindReplaceService
             var appLines = ImmutableArray.CreateBuilder<AppTextSpec>();
             var appIds = ImmutableArray.CreateBuilder<long>();
             var removed = new HashSet<(int Str, int Code)>(members.SelectMany(m => m.Cuts.SelectMany(c => Enumerable.Range(c.FromCode, c.Count).Select(k => (c.Str, k)))));
+            // 같은 글 객체를 앞서(다른 번에) 고쳤으면 그 잘린 글자·새 글 조각을 합친다 — 화면 조각이 옛 글 위에 겹쳐 비치지 않게(실제 도면 결함: VIS→UTL 뒤 SENSOR→DETECTOR).
+            var priors = s.Content.For(page).OfType<ReplaceTextSpanEdit>().Where(e => !e.Original.IsInserted && e.Original.OriginalIndex == ctx.ObjectIndex).ToList();
+            foreach (var pe in priors)
+                foreach (var sp in pe.Spans)
+                    foreach (var c in sp.Cuts)
+                        for (int k = 0; k < c.Count; k++) removed.Add((c.Str, c.FromCode + k));
             // 새 글을 놓을 자리: 낱말의 첫 글자 → 새 글
             var newAt = new Dictionary<(int Str, int Code), ReplaceItem>();
             foreach (var (it, cuts) in members)
@@ -305,6 +311,9 @@ public static class FindReplaceService
                 run.Append(g.Text);
             }
             FlushRun();
+            foreach (var pe in priors)
+                foreach (var pc in pe.Screen)
+                    if (pe.Spans.Any(sp => sp.ScreenLineId == pc.LineId)) screen.Add(new ScreenTextPiece(s.Content.NewId(), pc.Text, pc.Placement));
 
             // 비교에서 뺄 영역: 이 글 객체 전체 + 새 글이 차지할 곳
             var b = TextMatcher.BoundsOf(glyphs);
@@ -316,6 +325,7 @@ public static class FindReplaceService
                 l = Math.Min(l, Math.Min(f.X0, ex) - pad); r = Math.Max(r, Math.Max(f.X0, ex) + pad);
                 bt = Math.Min(bt, Math.Min(f.Y0, ey) - pad); t = Math.Max(t, Math.Max(f.Y0, ey) + pad);
             }
+            foreach (var pe in priors) { l = Math.Min(l, pe.MaskRect.Left); bt = Math.Min(bt, pe.MaskRect.Bottom); r = Math.Max(r, pe.MaskRect.Right); t = Math.Max(t, pe.MaskRect.Top); }
             var mask = new PdfRectF((float)(l - 2), (float)(bt - 2), (float)(r + 2), (float)(t + 2));
             list.Add((page, new ReplaceTextSpanEdit(s.Content.NewId(), ObjectRef.Original(ctx.ObjectIndex), glyphs[0].Font!.Unit, spans.ToImmutable(), screen.ToImmutable(),
                 appLines.ToImmutable(), appIds.ToImmutable(), mask)));

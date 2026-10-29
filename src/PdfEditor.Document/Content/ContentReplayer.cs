@@ -60,6 +60,7 @@ public static class ContentReplayer
 
         // 원본 i번 바로 뒤에 넣은 객체 수(위치 계산용)
         var afterCounts = new SortedList<int, int>();
+        var spanPieces = new Dictionary<int, List<long>>();   // 찾아 바꾸기: 원본 글 객체마다 앞서 넣은 화면 조각(뒤 편집이 같은 글 객체를 또 고치면 다시 만든다)
         int InsertPosAfter(int orig)
         {
             int extra = 0;
@@ -111,7 +112,7 @@ public static class ContentReplayer
                     if (mode == ReplayMode.Screen && !rp.AppLines.IsDefaultOrEmpty) deferred.Add(rp);
                     break;
                 case ReplaceTextSpanEdit rt:
-                    skipped += ApplyTextSpanPart(page, rt, result, inserted, InsertPosAfter, afterCounts, mode);
+                    skipped += ApplyTextSpanPart(page, rt, result, inserted, InsertPosAfter, afterCounts, mode, spanPieces);
                     if (mode == ReplayMode.Screen && !rt.AppLines.IsDefaultOrEmpty) deferred.Add(rt);
                     break;
                 case InsertShapeEdit sh:
@@ -199,12 +200,17 @@ public static class ContentReplayer
     /// 출력(Output) 모드에서는 아무것도 하지 않는다 — 저장은 내용 스트림 직접 쓰기가 한다. 건너뛴 수를 돌려준다.
     /// </summary>
     private static int ApplyTextSpanPart(PdfPage page, ReplaceTextSpanEdit rt, ReplayResult result, Dictionary<long, PdfPageObject> inserted,
-        Func<int, int> insertPosAfter, SortedList<int, int> afterCounts, ReplayMode mode)
+        Func<int, int> insertPosAfter, SortedList<int, int> afterCounts, ReplayMode mode, Dictionary<int, List<long>> spanPieces)
     {
         if (mode == ReplayMode.Output) return 0;
         if (rt.Original.IsInserted || result.Resolve(rt.Original) is not { } orig) return 1;
         int skipped = 0;
         orig.IsActive = false;
+        int origAt = rt.Original.OriginalIndex;
+        // 같은 글 객체를 앞서 고친 편집의 화면 조각은 이 편집이 (합친 모양으로) 다시 만든다 — 그대로 두면 옛 글이 겹쳐 비친다.
+        if (spanPieces.TryGetValue(origAt, out var earlier))
+            foreach (var id in earlier) if (inserted.TryGetValue(id, out var old)) old.IsActive = false;
+        var mine = spanPieces[origAt] = [];
         foreach (var piece in rt.Screen)
         {
             if (page.CreateTextLike(orig, piece.Text) is not { } nt) { skipped++; continue; }
@@ -213,6 +219,7 @@ public static class ContentReplayer
             page.InsertObject(nt, insertPosAfter(at));
             afterCounts[at] = afterCounts.GetValueOrDefault(at) + 1;
             inserted[piece.LineId] = nt;
+            mine.Add(piece.LineId);
         }
         return skipped;
     }
