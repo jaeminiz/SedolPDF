@@ -26,6 +26,33 @@ public static class HandCursors
     /// <summary>비트맵 커서 두 개가 실제로 만들어졌는가(표준 커서로 되돌아갔으면 false).</summary>
     public static bool IsCustom => Open != StandardFallback && Grab != StandardFallback;
 
+    // ---- 화면에 처음 문서를 올리는 동안은 만들지 않는다 (0.4.0 Task 13 성능 점검) ----
+    // 비트맵 커서 두 개를 만드는 일(RenderTargetBitmap)이 첫 화면 경로에서 UI 스레드를 약 0.27 s 붙잡아(A1 첫 화면 0.36 → 0.63 s, 10번 중 6번)
+    // 목표 0.5 s를 넘겼다. 첫 요청 때는 표준 손 커서를 쓰고, 1.5초 뒤 한가할 때 만들어 둔 다음부터 자작 손 커서를 쓴다.
+
+    private static bool _scheduled;
+
+    /// <summary>이미 만들어졌으면 펼친 손, 아니면 표준 손(만들기는 나중에 예약). 첫 화면 경로에서 쓴다.</summary>
+    public static Cursor OpenOrFallback => Ready(ref _open) ?? StandardFallback;
+
+    /// <summary>이미 만들어졌으면 쥔 손, 아니면 표준 손.</summary>
+    public static Cursor GrabOrFallback => Ready(ref _grab) ?? StandardFallback;
+
+    private static Cursor? Ready(ref Cursor? field)
+    {
+        if (field is not null) return field;
+        if (!_scheduled)
+        {
+            _scheduled = true;
+            try
+            {
+                Avalonia.Threading.DispatcherTimer.RunOnce(() => { _ = Open; _ = Grab; }, TimeSpan.FromSeconds(1.5), Avalonia.Threading.DispatcherPriority.ApplicationIdle);
+            }
+            catch (Exception) { /* 예약하지 못하면 표준 손을 계속 쓴다 */ }
+        }
+        return null;
+    }
+
     private static readonly Cursor StandardFallback = new(StandardCursorType.Hand);
 
     private static Cursor Make(string path)

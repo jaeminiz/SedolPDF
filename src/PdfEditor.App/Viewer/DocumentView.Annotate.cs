@@ -50,7 +50,7 @@ public sealed partial class DocumentView
     private static bool IsAnnotationTool(ToolKind t) => t is not (ToolKind.Hand or ToolKind.TextSelect
         or ToolKind.EditObject or ToolKind.EditText or ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape or ToolKind.Snapshot);
 
-    private static Cursor CursorFor(ToolKind t) => t == ToolKind.Hand ? HandCursors.Open : new(t switch
+    private static Cursor CursorFor(ToolKind t) => t == ToolKind.Hand ? HandCursors.OpenOrFallback : new(t switch
     {
         ToolKind.AnnotSelect or ToolKind.EditObject => StandardCursorType.Arrow,
         ToolKind.AddText or ToolKind.AddImage or ToolKind.AddShape or ToolKind.Snapshot => StandardCursorType.Cross,

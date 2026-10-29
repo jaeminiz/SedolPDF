@@ -800,7 +800,7 @@ public sealed partial class DocumentView : Control
         if (_state.Tab.Tool == ToolKind.Hand && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _dragging = true;
-            Cursor = HandCursors.Grab;
+            Cursor = HandCursors.GrabOrFallback;
             _dragStartPos = e.GetPosition(_sv);
             _dragStartOffset = _sv.Offset;
             e.Pointer.Capture(this);
@@ -873,7 +873,7 @@ public sealed partial class DocumentView : Control
         {
             _dragging = false;
             e.Pointer.Capture(null);
-            if (_state is { } hs && hs.Tab.Tool == ToolKind.Hand) Cursor = HandCursors.Open;
+            if (_state is { } hs && hs.Tab.Tool == ToolKind.Hand) Cursor = HandCursors.OpenOrFallback;
         }
         if (_rectSelecting)
         {
