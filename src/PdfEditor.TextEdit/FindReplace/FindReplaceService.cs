@@ -264,14 +264,33 @@ public static class FindReplaceService
                         for (int k = 0; k < c.Count; k++) removed.Add((c.Str, c.FromCode + k));
             // 새 글을 놓을 자리: 낱말의 첫 글자 → 새 글
             var newAt = new Dictionary<(int Str, int Code), ReplaceItem>();
-            foreach (var (it, cuts) in members)
+            // 같은 글 연산 안의 뒤따르는 글자 밀기: 낱말을 바꾸면 그 폭 차이만큼 뒤 글자도 같이 민다(0.4.0 실제 도면: "UTL-200"의 하이픈이 L에 붙던 것).
+            // 낱말마다 (잘린 글자 끝 위치, 글 공간 이동량 차이). 앞서 고친 편집(priors)이 민 것도 들어 있다.
+            var shifts = new List<((int Str, int Code) Last, double Text)>();
+            foreach (var pe in priors)
+                foreach (var sp in pe.Spans.Where(x => x.AdvanceDeltaText != 0 && !x.Cuts.IsDefaultOrEmpty))
+                    shifts.Add(((sp.Cuts[^1].Str, sp.Cuts[^1].FromCode + sp.Cuts[^1].Count - 1), sp.AdvanceDeltaText));
+            static bool Before((int Str, int Code) a, (int Str, int Code) b) => a.Str < b.Str || a.Str == b.Str && a.Code < b.Code;
+            double ShiftTextBefore((int Str, int Code) pos) => shifts.Where(x => Before(x.Last, pos)).Sum(x => x.Text);
+            var ordered = members.OrderBy(m => m.Cuts[0].Str).ThenBy(m => m.Cuts[0].FromCode).ToList();
+            for (int mi = 0; mi < ordered.Count; mi++)
             {
+                var (it, cuts) = ordered[mi];
                 bool carries = it.FirstOp == op;
                 int appIndex = -1;
                 long screenId = 0;
                 byte[]? bytes = null;
+                double delta = 0;
+                var tm = it.Plan.Tm;
+                var cutsOut = cuts;
                 if (carries && it.Plan.NewText.Length > 0)
                 {
+                    var first = (cuts[0].Str, cuts[0].FromCode);
+                    var lastCut = cuts[^1];
+                    var last = (lastCut.Str, lastCut.FromCode + lastCut.Count - 1);
+                    var g0 = it.Plan.Match.Glyphs[0];
+                    double scale = Math.Sqrt(g0.Place.A * g0.Place.A + g0.Place.B * g0.Place.B), tz = g0.Tz == 0 ? 1 : g0.Tz / 100.0;
+                    double before = ShiftTextBefore(first);
                     if (it.Font == ReplaceFontKind.App && it.App is not null)
                     {
                         appIndex = appLines.Count;
@@ -282,16 +301,44 @@ public static class FindReplaceService
                     {
                         bytes = it.Plan.NewBytes;
                         screenId = s.Content.NewId();
-                        var c0 = cuts[0];
-                        newAt[(c0.Str, c0.FromCode)] = it;
+                        newAt[first] = it;
                         it.ScreenId = screenId;
+                        if (before != 0) tm = tm with { E = tm.E + before * tz * tm.A, F = tm.F + before * tz * tm.B };   // 앞 낱말이 민 만큼 새 글도 민다
+                    }
+                    // 이 낱말이 뒤 글자를 미는 것은: 낱말이 한 글 연산 안에 있고, 앞서 고친 편집이 뒤에 없고, 뒤에 앞 글자 밀림에 기댈 수 없는 앱 글꼴 낱말이 없을 때만.
+                    bool laterApp = ordered.Skip(mi + 1).Any(m => m.Item.Font == ReplaceFontKind.App && m.Item.Plan.NewText.Length > 0)
+                        || priors.Any(pe => pe.Spans.Any(sp => sp.AppLineIndex >= 0 && !sp.Cuts.IsDefaultOrEmpty && Before(last, (sp.Cuts[0].Str, sp.Cuts[0].FromCode))));
+                    bool priorAfter = priors.Any(pe => pe.Spans.Any(sp => !sp.Cuts.IsDefaultOrEmpty && Before(last, (sp.Cuts[0].Str, sp.Cuts[0].FromCode))));
+                    bool appNeedsShift = appIndex >= 0 && before != 0;   // 앱 글꼴 줄은 모양이 쪽 좌표로 구워져 있어 옮길 수 없다
+                    if (it.Plan.OpCuts.Length == 1 && !laterApp && !priorAfter && !appNeedsShift && scale > 1e-9 && it.Plan.NewLengthPt > 0)
+                    {
+                        double newAdv = it.Plan.NewLengthPt / (tz * scale);
+                        double oldAdv = cuts.Sum(c => c.AdvanceText);
+                        if (Math.Abs(newAdv - oldAdv) > 1e-6)
+                        {
+                            var b2 = cuts.ToBuilder();
+                            for (int ci = 0; ci < b2.Count; ci++) b2[ci] = b2[ci] with { AdvanceText = ci == 0 ? newAdv : 0 };
+                            cutsOut = b2.ToImmutable();
+                            delta = newAdv - oldAdv;
+                            shifts.Add((last, delta));
+                        }
                     }
                 }
-                spans.Add(new TextSpanReplacement(cuts, bytes, it.Plan.Tm, appIndex, screenId));
+                spans.Add(new TextSpanReplacement(cutsOut, bytes, tm, appIndex, screenId, delta));
             }
             // 화면 조각: 글자를 읽기 순서로 훑으며 남는 글자 덩어리와 새 글을 번갈아 만든다.
             var m0 = ctx.SrcMatrix;
-            PdfMatrix At(GlyphInfo g) => new(m0.A, m0.B, m0.C, m0.D, (float)g.Place.E, (float)g.Place.F);
+            PdfMatrix At(GlyphInfo g)
+            {
+                double sh = ShiftTextBefore((g.Str, g.Code));
+                double dx = 0, dy = 0;
+                if (sh != 0)
+                {
+                    double sc = Math.Sqrt(g.Place.A * g.Place.A + g.Place.B * g.Place.B), pt = sh * (g.Tz == 0 ? 1 : g.Tz / 100.0) * sc, th = g.Angle * Math.PI / 180;
+                    dx = Math.Cos(th) * pt; dy = Math.Sin(th) * pt;
+                }
+                return new(m0.A, m0.B, m0.C, m0.D, (float)(g.Place.E + dx), (float)(g.Place.F + dy));
+            }
             var run = new System.Text.StringBuilder(); GlyphInfo? runFirst = null;
             void FlushRun()
             {
@@ -325,6 +372,7 @@ public static class FindReplaceService
                 l = Math.Min(l, Math.Min(f.X0, ex) - pad); r = Math.Max(r, Math.Max(f.X0, ex) + pad);
                 bt = Math.Min(bt, Math.Min(f.Y0, ey) - pad); t = Math.Max(t, Math.Max(f.Y0, ey) + pad);
             }
+            if (shifts.Count > 0) { var g1 = glyphs[0]; double padS = shifts.Sum(x => Math.Abs(x.Text)) * (g1.Tz == 0 ? 1 : g1.Tz / 100.0) * Math.Sqrt(g1.Place.A * g1.Place.A + g1.Place.B * g1.Place.B); l -= padS; r += padS; bt -= padS; t += padS; }
             foreach (var pe in priors) { l = Math.Min(l, pe.MaskRect.Left); bt = Math.Min(bt, pe.MaskRect.Bottom); r = Math.Max(r, pe.MaskRect.Right); t = Math.Max(t, pe.MaskRect.Top); }
             var mask = new PdfRectF((float)(l - 2), (float)(bt - 2), (float)(r + 2), (float)(t + 2));
             list.Add((page, new ReplaceTextSpanEdit(s.Content.NewId(), ObjectRef.Original(ctx.ObjectIndex), glyphs[0].Font!.Unit, spans.ToImmutable(), screen.ToImmutable(),

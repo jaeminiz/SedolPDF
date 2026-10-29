@@ -98,7 +98,7 @@ public readonly record struct TextCutRef(int Str, int FromCode, int Count, doubl
 /// ① NewBytes(원래 글꼴로 인코딩한 글 코드 — 원래 글 객체 ET 바로 뒤에 같은 글 상태로) ② AppLineIndex ≥ 0(앱 글꼴 줄, N1) ③ 둘 다 아님(여러 글 연산에 걸친 낱말의 뒷부분 — 빼기만).
 /// ScreenLineId는 ①일 때 화면 replay가 만드는 새 글 객체를 가리키는 Id.
 /// </summary>
-public sealed record TextSpanReplacement(System.Collections.Immutable.ImmutableArray<TextCutRef> Cuts, byte[]? NewBytes, TextMatrix Tm, int AppLineIndex = -1, long ScreenLineId = 0);
+public sealed record TextSpanReplacement(System.Collections.Immutable.ImmutableArray<TextCutRef> Cuts, byte[]? NewBytes, TextMatrix Tm, int AppLineIndex = -1, long ScreenLineId = 0, double AdvanceDeltaText = 0);
 
 /// <summary>화면 replay가 PDFium 글 객체로 다시 만들 글 조각(앞부분·새 글·뒷부분). Placement = 쪽 좌표 글 객체 행렬(원본 글 객체 행렬에서 이동량만 이 조각의 기준선 원점으로).</summary>
 public sealed record ScreenTextPiece(long LineId, string Text, PdfMatrix Placement);

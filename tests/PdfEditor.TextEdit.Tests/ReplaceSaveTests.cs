@@ -88,6 +88,21 @@ public sealed class ReplaceSaveTests(ITestOutputHelper log) : IDisposable
         return (p.RenderTile(2, 0, 0, w, h, false), w, h);
     });
 
+
+    /// <summary>바꾼 낱말이 놓인 논리 글줄 전체(뒤 글이 새 글 폭만큼 밀리는 줄) 둘레.</summary>
+    private static List<(double L, double B, double R, double T)> LineRegions(ReplaceBatch batch)
+    {
+        var list = new List<(double, double, double, double)>();
+        foreach (var it in batch.Items.Where(i => i.Ok))
+        {
+            var m = it.Match;
+            if (m.Source is not { } src || m.LineIndex < 0) continue;
+            var b = TextMatcher.BoundsOf(src.Lines[m.LineIndex].Glyphs.Where(g => !g.Virtual));
+            double pad = m.Glyphs[0].Size * 1.5 + it.Plan.NewLengthPt;
+            list.Add((b.L - pad, b.B - pad, b.R + pad, b.T + pad));
+        }
+        return list;
+    }
     /// <summary>바꾼 곳 둘레(쪽 공간 AABB)</summary>
     private static List<(double L, double B, double R, double T)> Regions(ReplaceBatch batch, IEnumerable<ReplaceItem>? only = null)
     {
@@ -170,13 +185,13 @@ public sealed class ReplaceSaveTests(ITestOutputHelper log) : IDisposable
         using var _ = found;
         Assert.All(batch.Items, i => Assert.True(i.Ok));
         bool longer = newText.Length > DrawingIdPdfFactory.Id.Length;
-        Assert.Equal(longer ? 1 : 0, batch.Items.Count(i => i.Overlap) > 0 ? 1 : 0);   // 길어지면 문장 속 번호가 뒤 글을 덮는다(D8) → 경고
+        Assert.Equal(0, batch.Items.Count(i => i.Overlap));   // 같은 글 연산 안의 뒤 글(" REV A")은 새 글 폭만큼 같이 밀려 덮이지 않는다(0.4.0)
         await s.Commands.ExecuteAsync(FindReplaceService.BuildCommand(s, batch)!);
         string saved = P($"{c}-{newText}-out.pdf");
         await Svc(s).SaveAsync(s, saved);
 
         var (a, w, h) = await Render(src); var (b, _, _) = await Render(saved);
-        Assert.Equal(0, OutsideDiff(a, b, w, h, Regions(batch), Rot(c)));
+        Assert.Equal(0, OutsideDiff(a, b, w, h, [.. Regions(batch), .. LineRegions(batch)], Rot(c)));   // 뒤 글이 밀린 줄은 비교에서 뺀다
         int oldLeft = await CountIn(saved, DrawingIdPdfFactory.Id, true, true);
         Assert.True(oldLeft <= (longer ? 1 : 0), $"옛 번호 {oldLeft}건 남음");   // 길게 바꾸면 문장 속 새 글이 뒤 글과 겹쳐 읽는 순서가 섞일 수 있다(D8 경고 대상)
 
@@ -196,6 +211,39 @@ public sealed class ReplaceSaveTests(ITestOutputHelper log) : IDisposable
         }
     }
 
+
+    /// <summary>
+    /// 0.4.0 실제 도면 결함: 새 글이 더 길면 같은 글 연산 안의 뒤따르는 글(" REV A", "-200")이 새 글 폭만큼 같이 밀린다.
+    /// 기준본 = 처음부터 새 번호로 만든 같은 문서 — 번호가 든 문장 줄이 기준본과 같아야 한다(저장 파일).
+    /// </summary>
+    [Theory]
+    [InlineData("H-250123")]
+    [InlineData("H-26")]
+    public async Task Replace_DifferentLength_FollowingTextInTheSameOperatorMovesAlong(string newText)
+    {
+        string src = P($"shift-{newText}.pdf"); DrawingIdPdfFactory.Create(src, IdCase.Whole);
+        string refPath = P($"shift-{newText}-ref.pdf"); DrawingIdPdfFactory.Create(refPath, IdCase.Whole, newText);
+        var s = await Open(src);
+        var (found, batch) = await FindAndPlan(s, newText);
+        using var _ = found;
+        Assert.Equal(0, batch.OverlapCount);
+        await s.Commands.ExecuteAsync(FindReplaceService.BuildCommand(s, batch)!);
+        string saved = P($"shift-{newText}-out.pdf");
+        await Svc(s).SaveAsync(s, saved);
+        var (a, w, h) = await Render(refPath); var (b, _, _) = await Render(saved);
+        // 문장 줄 "REF {번호} REV A"(PDF y 약 280): 기준본과 같은 자리에 같은 모양
+        int y0 = (842 - 296) * 2, y1 = (842 - 268) * 2, bad = 0;
+        for (int y = y0; y < y1; y++)
+            for (int x = 90 * 2; x < 330 * 2; x++)
+            {
+                int i = (y * w + x) * 4;
+                if (Math.Abs(a[i] - b[i]) > 40 || Math.Abs(a[i + 1] - b[i + 1]) > 40 || Math.Abs(a[i + 2] - b[i + 2]) > 40) bad++;
+            }
+        log.WriteLine($"{newText}: 문장 줄 기준본과 다른 픽셀 {bad}");
+        Assert.True(bad < 40, $"문장 줄이 기준본과 다름: {bad} px");
+        // 뒤 글도 파일에서 그대로 읽힌다
+        Assert.Equal(1, await CountIn(saved, "REV A", true, false));
+    }
     [Fact]
     public async Task Replace_OldTextFullyRemoved_FromTheFile()
     {
@@ -233,7 +281,7 @@ public sealed class ReplaceSaveTests(ITestOutputHelper log) : IDisposable
         string saved = P("subset-out.pdf");
         await Svc(s).SaveAsync(s, saved);
         var (a, w, h) = await Render(src); var (b, _, _) = await Render(saved);
-        Assert.Equal(0, OutsideDiff(a, b, w, h, Regions(batch), false));
+        Assert.Equal(0, OutsideDiff(a, b, w, h, [.. Regions(batch), .. LineRegions(batch)], false));
         Assert.Equal(0, await CountIn(saved, DrawingIdPdfFactory.Id, true, true));
         // 새 글이 실제로 그려졌다(네모가 아니다): 바꾼 곳에 잉크가 있고 PDFium이 글자를 읽는다
         Assert.True(await PdfiumCount(saved, "2604") >= 1);

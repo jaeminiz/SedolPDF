@@ -117,7 +117,8 @@ public static class ReplacePlanner
         double th = Math.Atan2(first.Place.B, first.Place.A), dx = Math.Cos(th), dy = Math.Sin(th);
         double startU = first.X0 * dx + first.Y0 * dy, oldEndU = last.X1 * dx + last.Y1 * dy, newEndU = startU + lengthPt;
         if (newEndU <= oldEndU + 0.01) return false;
-        return src.Lines[m.LineIndex].Glyphs.Any(g => !g.Virtual && !m.Glyphs.Contains(g)
+        // 같은 글 연산 안의 뒤따르는 글자는 새 글 폭만큼 같이 밀리므로 덮지 않는다(0.4.0).
+        return src.Lines[m.LineIndex].Glyphs.Any(g => !g.Virtual && !m.Glyphs.Contains(g) && !(g.StreamId == last.StreamId && g.Op == last.Op)
             && g.X0 * dx + g.Y0 * dy >= oldEndU - 0.01 && g.X0 * dx + g.Y0 * dy < newEndU - 0.01);
     }
 }
