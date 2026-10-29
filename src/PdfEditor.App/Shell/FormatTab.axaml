@@ -76,6 +76,10 @@
             <TextBlock x:Name="WidthLabel" Classes="gh" Margin="0,0,0,2" />
             <NumericUpDown x:Name="WidthBox" Minimum="0.5" Maximum="12" Increment="0.5" FormatString="0.0" Width="110" />
           </StackPanel>
+          <StackPanel x:Name="LineStylePart">
+            <TextBlock Classes="gh" Margin="0,0,0,2" Text="{x:Static res:Strings.Prop_Annot_LineStyle}" />
+            <ComboBox x:Name="LineStyleBox" Width="110" />
+          </StackPanel>
           <StackPanel x:Name="EndingPart" Orientation="Horizontal" Spacing="6">
             <StackPanel>
               <TextBlock Classes="gh" Margin="0,0,0,2" Text="{x:Static res:Strings.Prop_Annot_LineStart}" />
@@ -85,9 +89,24 @@
               <TextBlock Classes="gh" Margin="0,0,0,2" Text="{x:Static res:Strings.Prop_Annot_LineEnd}" />
               <ComboBox x:Name="EndEndBox" Width="130" />
             </StackPanel>
+            <Button x:Name="BothArrowsBtn" VerticalAlignment="Bottom" Content="{x:Static res:Strings.Prop_Annot_BothArrows}"
+                    ToolTip.Tip="{x:Static res:Strings.Prop_Annot_BothArrowsTip}" />
           </StackPanel>
         </StackPanel>
         <TextBlock Classes="gh" Text="{x:Static res:Strings.Format_GroupLine}" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- 지시선(설명선) -->
+    <StackPanel x:Name="LeaderGroup" Orientation="Horizontal">
+      <Border Classes="gsep" />
+      <StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <Button x:Name="LeaderAddBtn" Content="{x:Static res:Strings.Prop_Annot_LeaderAdd}"
+                  ToolTip.Tip="{x:Static res:Strings.Prop_Annot_LeaderAddTip}" />
+          <Button x:Name="LeaderRemoveBtn" Content="{x:Static res:Strings.Prop_Annot_LeaderRemove}" />
+        </StackPanel>
+        <TextBlock Classes="gh" Text="{x:Static res:Strings.Prop_Annot_Leaders}" />
       </StackPanel>
     </StackPanel>
 

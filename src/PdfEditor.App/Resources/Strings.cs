@@ -367,6 +367,17 @@ public static class Strings
     public static string FreeText_Hint => Get(nameof(FreeText_Hint));
     public static string Prop_Annot_LineStart => Get(nameof(Prop_Annot_LineStart));
     public static string Prop_Annot_LineEnd => Get(nameof(Prop_Annot_LineEnd));
+    public static string Prop_Annot_LineStyle => Get(nameof(Prop_Annot_LineStyle));
+    public static string LineStyle_Solid => Get(nameof(LineStyle_Solid));
+    public static string LineStyle_Dotted => Get(nameof(LineStyle_Dotted));
+    public static string LineStyle_Dashed => Get(nameof(LineStyle_Dashed));
+    public static string LineStyle_DashDot => Get(nameof(LineStyle_DashDot));
+    public static string Prop_Annot_BothArrows => Get(nameof(Prop_Annot_BothArrows));
+    public static string Prop_Annot_BothArrowsTip => Get(nameof(Prop_Annot_BothArrowsTip));
+    public static string Prop_Annot_Leaders => Get(nameof(Prop_Annot_Leaders));
+    public static string Prop_Annot_LeaderAdd => Get(nameof(Prop_Annot_LeaderAdd));
+    public static string Prop_Annot_LeaderAddTip => Get(nameof(Prop_Annot_LeaderAddTip));
+    public static string Prop_Annot_LeaderRemove => Get(nameof(Prop_Annot_LeaderRemove));
     public static string LineEnding_None => Get(nameof(LineEnding_None));
     public static string LineEnding_Square => Get(nameof(LineEnding_Square));
     public static string LineEnding_Circle => Get(nameof(LineEnding_Circle));

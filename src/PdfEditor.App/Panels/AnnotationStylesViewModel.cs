@@ -137,7 +137,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
     // ---- 적용 ----
 
     private sealed record Resolved(AnnotKind? AppliesTo, PdfColor Color, PdfColor? Fill, float Opacity, float Width,
-        float? FontSize, LineEnding? Start, LineEnding? End, float? Cloud);
+        float? FontSize, LineEnding? Start, LineEnding? End, float? Cloud, LineStyle? Style = null);
 
     private static bool TryResolve(AnnotationStyle s, out Resolved r)
     {
@@ -156,7 +156,8 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 Math.Clamp(s.Opacity, 0.1f, 1f), Math.Clamp(s.Width, AnnotationPropertiesViewModel.MinWidth, AnnotationPropertiesViewModel.MaxWidth),
                 s.FontSizePt is { } fs ? Math.Clamp(fs, AnnotationPropertiesViewModel.MinFontSize, AnnotationPropertiesViewModel.MaxFontSize) : null,
                 Ending(s.StartEnding), Ending(s.EndEnding),
-                s.CloudIntensity is { } c ? (c <= 0f ? 0f : Math.Clamp(c, AnnotationPropertiesViewModel.MinCloud, AnnotationPropertiesViewModel.MaxCloud)) : null);
+                s.CloudIntensity is { } c ? (c <= 0f ? 0f : Math.Clamp(c, AnnotationPropertiesViewModel.MinCloud, AnnotationPropertiesViewModel.MaxCloud)) : null,
+                s.LineStyle is { } lsn ? (Enum.TryParse<LineStyle>(lsn, out var lst) ? lst : throw new FormatException(lsn)) : null);
             return true;
         }
         catch (Exception) { return false; }
@@ -216,6 +217,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 b = b with { StartEnding = r.Start ?? b.StartEnding, EndEnding = r.End ?? b.EndEnding };
             if (a.Kind is AnnotKind.Square or AnnotKind.Polygon && r.Cloud is { } c)
                 b = b with { CloudIntensity = c };
+            if (a.Kind.Applies() && r.Style is { } ls) b = b with { LineStyle = ls };
         }
         return b;
     }
@@ -266,7 +268,8 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 a.Kind == AnnotKind.FreeText ? Math.Clamp(a.FontSizePt, AnnotationPropertiesViewModel.MinFontSize, AnnotationPropertiesViewModel.MaxFontSize) : null,
                 a.Kind is AnnotKind.Line or AnnotKind.PolyLine ? a.StartEnding.ToString() : null,
                 a.Kind is AnnotKind.Line or AnnotKind.PolyLine ? a.EndEnding.ToString() : null,
-                a.Kind is AnnotKind.Square or AnnotKind.Polygon ? a.CloudIntensity : null);
+                a.Kind is AnnotKind.Square or AnnotKind.Polygon ? a.CloudIntensity : null,
+                a.Kind.Applies() ? a.LineStyle.ToString() : null);
         }
         if (AnnotationPropertiesViewModel.IsCreateTool(_tab.Tool))
         {

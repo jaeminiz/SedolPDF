@@ -383,8 +383,11 @@ public static class PatchPlanBuilder
         if (m.Kind != AnnotKind.Caret)
         {
             // 두께는 /Border에 쓰므로 낡은 /BS는 지운다(M2 한계 1과 같은 이유).
-            ops.Add(new RemoveKeys(["/BS"]));
+            // 점선·파선·일점쇄선(0.4.0)은 표준 /BS /S /D /D로 쓴다(/Border도 같이 둬 /BS를 모르는 뷰어에서 굵기가 맞게).
+            bool styled = m.Kind.Applies() && m.LineStyle != LineStyle.Solid && m.BorderWidth > 0;
+            if (!styled) ops.Add(new RemoveKeys(["/BS"]));   // 실선: 낡은 /BS를 지운다. 점선류는 아래 SetBorderStyle가 기존 /BS에 합쳐 모르는 키를 보존한다.
             ops.Add(new SetNumbers("/Border", [0f, 0f, m.BorderWidth]));
+            if (styled) ops.Add(new SetBorderStyle(m.BorderWidth, [.. LineStyleExtensions.DashArray(m.LineStyle, m.BorderWidth)]));
             // /IC: 선·폴리라인은 끝 모양의 채움색, 다각형은 안쪽 채움색.
             if (m.FillColor is { } f) ops.Add(new SetNumbers("/IC", [f.R / 255f, f.G / 255f, f.B / 255f]));
             else ops.Add(new RemoveKeys(["/IC"]));
@@ -433,13 +436,16 @@ public static class PatchPlanBuilder
         if (intent == FreeTextIntent.Callout)
         {
             ops.Add(new SetNumbers("/CL", [.. m.Vertices.SelectMany(v => new[] { v.X, v.Y })]));
+            // 둘째 지시선은 비표준 키(/SedolCL2)에 저장하고 AP가 둘 다 그린다. 다른 편집기가 모르는 키는 그대로 두므로 다시 열어도 남는다(V24).
+            if (m.Leader2.IsDefault || m.Leader2.Length is not (2 or 3)) ops.Add(new RemoveKeys(["/SedolCL2"]));
+            else ops.Add(new SetNumbers("/SedolCL2", [.. m.Leader2.SelectMany(v => new[] { v.X, v.Y })]));
             ops.Add(new SetName("/LE", m.EndEnding.ToPdfName()));
             var box = m.TextBox ?? m.Rect;
             ops.Add(new SetNumbers("/RD", [box.Left - m.Rect.Left, box.Bottom - m.Rect.Bottom, m.Rect.Right - box.Right, m.Rect.Top - box.Top]));
         }
         else
         {
-            ops.Add(new RemoveKeys(["/CL", "/LE"]));
+            ops.Add(new RemoveKeys(["/CL", "/LE", "/SedolCL2"]));
             ops.Add(new SetNumbers("/RD", [0f, 0f, 0f, 0f]));
         }
 

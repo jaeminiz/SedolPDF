@@ -434,6 +434,16 @@ public static partial class XfdfReader
             a = a with { CloudIntensity = inten };
         }
 
+        // 선 모양(0.4.0): style="dash"의 dashes가 우리 값이면 그 모양, 아니면 가까운 모양(4개 이상이면 일점쇄선, 아니면 파선)으로 가져온다.
+        if (kind.Applies() && at.TryGetValue("style", out var ds) && ds.Trim().Equals("dash", StringComparison.OrdinalIgnoreCase) && width > 0)
+        {
+            var dn = at.TryGetValue("dashes", out var dstr) ? Floats(dstr) : null;
+            var ls = dn is { Length: > 0 }
+                ? LineStyleExtensions.FromDash(dn.Select(v => (double)v).ToArray(), width) ?? (dn.Length >= 4 ? LineStyle.DashDot : LineStyle.Dashed)
+                : LineStyle.Dashed;
+            a = a with { LineStyle = ls };
+        }
+
         // 종류별 나머지
         switch (kind)
         {
@@ -536,7 +546,11 @@ public static partial class XfdfReader
         int rot = 0;
         if (at.TryGetValue("rotation", out var rs) && TryFloat(rs, out var rv)) rot = AnnotationRotation.Quarter((int)Math.Round(rv)) * 90;
         a = a with { Rotation = rot };
-        a = a with { FontSizePt = size, TextColor = tc, Align = align, Intent = intent, Vertices = callout, TextBox = box };
+        // 둘째 지시선(0.4.0, 비표준 속성): 모양이 맞지 않으면 없는 것으로 본다.
+        var callout2 = ImmutableArray<PdfPointF>.Empty;
+        if (intent == FreeTextIntent.Callout && at.TryGetValue("callout2", out var c2s) && Floats(c2s) is { } n2 && n2.Length is 4 or 6)
+            callout2 = [.. Enumerable.Range(0, n2.Length / 2).Select(i => new PdfPointF(n2[2 * i], n2[2 * i + 1]))];
+        a = a with { FontSizePt = size, TextColor = tc, Align = align, Intent = intent, Vertices = callout, Leader2 = callout2, TextBox = box };
         if (intent == FreeTextIntent.Callout) a = WithEndings(a, at, name, notes);
         return a;
     }

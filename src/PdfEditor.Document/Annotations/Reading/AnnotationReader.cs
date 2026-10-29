@@ -208,10 +208,15 @@ public static class AnnotationReader
                 return Fail(ReadOnlyReason.UnsupportedLineFeatures);
 
             var bs = e.GetDictionary("/BS");
+            var lineStyle = LineStyle.Solid;
             if (bs is not null)
             {
                 string? style = bs.Elements.GetName("/S");
-                if ((!string.IsNullOrEmpty(style) && style != "/S") || bs.Elements.ContainsKey("/D"))
+                // 선·폴리라인·다각형의 /S /D는 우리 대시(굵기 비례)와 같을 때만 선 모양으로 읽는다(0.4.0). 그 밖의 특수 테두리는 읽기 전용.
+                if (kind is { } lk && lk.Applies() && style == "/D" && Numbers(bs.Elements.GetArray("/D")) is { Length: > 0 } dash
+                    && LineStyleExtensions.FromDash(dash, ReadBorderWidth(e, bs)) is { } ls)
+                    lineStyle = ls;
+                else if ((!string.IsNullOrEmpty(style) && style != "/S") || bs.Elements.ContainsKey("/D"))
                     return Fail(ReadOnlyReason.StyledBorder);
             }
 
@@ -268,6 +273,7 @@ public static class AnnotationReader
                 FillColor = fill,
                 Opacity = (float)(Num(e, "/CA") ?? 1.0),
                 BorderWidth = ReadBorderWidth(e, bs),
+                LineStyle = lineStyle,
                 InkStrokes = strokes,
                 Quads = quads,
                 Contents = Str(e, "/Contents"),
@@ -280,6 +286,7 @@ public static class AnnotationReader
                 Intent = ft?.Intent,
                 TextBox = ft?.TextBox,
                 Vertices = ft?.Vertices ?? shape?.Vertices ?? [],
+                Leader2 = ft is { Leader2.IsDefault: false } ? ft.Leader2 : [],
                 EndEnding = ft?.EndEnding ?? shape?.End ?? LineEnding.None,
                 FontSizePt = ft?.FontSizePt ?? 12f,
                 TextColor = ft?.TextColor,
@@ -379,7 +386,8 @@ public static class AnnotationReader
 
     private sealed record FreeTextData(
         ReadOnlyReason Failure, PdfRectF Rect, FreeTextIntent Intent, PdfRectF? TextBox, ImmutableArray<PdfPointF> Vertices,
-        LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align, PdfColor? Stroke = null, int Rotation = 0);
+        LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align, PdfColor? Stroke = null, int Rotation = 0,
+        ImmutableArray<PdfPointF> Leader2 = default);
 
     /// <summary>FreeText 전용 값: /IT, /DA, /Q, /CL, /RD, /LE. 지원하지 않는 /IT·/LE는 UnsupportedType, 모양이 망가진 /CL은 Malformed.</summary>
     private static FreeTextData ReadFreeText(PdfDictionary.DictionaryElements e, PdfRectF rect)
@@ -412,6 +420,7 @@ public static class AnnotationReader
 
         var verts = ImmutableArray<PdfPointF>.Empty;
         var ending = LineEnding.None;
+        var leader2 = ImmutableArray<PdfPointF>.Empty;
         if (intent == FreeTextIntent.Callout)
         {
             var cl = Numbers(e.GetArray("/CL"));
@@ -419,6 +428,15 @@ public static class AnnotationReader
             var b = ImmutableArray.CreateBuilder<PdfPointF>(cl.Length / 2);
             for (int i = 0; i < cl.Length; i += 2) b.Add(new PdfPointF((float)cl[i], (float)cl[i + 1]));
             verts = b.ToImmutable();
+
+            // 둘째 지시선(비표준 /SedolCL2, 0.4.0 V24): 모양이 맞지 않으면 없는 것으로 본다.
+            var cl2 = Numbers(e.GetArray("/SedolCL2"));
+            if (cl2 is { } c2 && (c2.Length == 4 || c2.Length == 6))
+            {
+                var b2 = ImmutableArray.CreateBuilder<PdfPointF>(c2.Length / 2);
+                for (int i = 0; i < c2.Length; i += 2) b2.Add(new PdfPointF((float)c2[i], (float)c2[i + 1]));
+                leader2 = b2.ToImmutable();
+            }
 
             // /LE: ISO 32000은 이름 하나, 일부 프로그램은 배열로 쓴다(첫 항목이 지시선 시작점).
             string? le = Resolve(e["/LE"]) switch
@@ -436,7 +454,7 @@ public static class AnnotationReader
 
         // 설명선은 Rect 전체(지시선 포함)와 글 상자를 따로 갖는다. 나머지는 안쪽 상자가 곧 Rect다.
         return intent == FreeTextIntent.Callout
-            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation)
+            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, leader2)
             : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation);
     }
 

@@ -58,11 +58,23 @@
         <TextBlock Classes="k" Text="{Binding Annotation.WidthLabel}" />
         <Slider x:Name="WidthSlider" Minimum="0.5" Maximum="12" TickFrequency="0.5" IsSnapToTickEnabled="True" />
       </StackPanel>
+      <StackPanel x:Name="LineStyleSection">
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_LineStyle}" />
+        <ComboBox x:Name="LineStyleBox" HorizontalAlignment="Stretch" />
+      </StackPanel>
       <StackPanel x:Name="LineEndSection">
         <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_LineStart}" />
         <ComboBox x:Name="StartEndBox" HorizontalAlignment="Stretch" />
         <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_LineEnd}" />
         <ComboBox x:Name="EndEndBox" HorizontalAlignment="Stretch" />
+        <Button x:Name="BothArrowsBtn" Margin="0,6,0,0" Content="{x:Static res:Strings.Prop_Annot_BothArrows}"
+                ToolTip.Tip="{x:Static res:Strings.Prop_Annot_BothArrowsTip}" />
+      </StackPanel>
+      <StackPanel x:Name="LeaderSection">
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_Leaders}" />
+        <Button x:Name="LeaderAddBtn" Content="{x:Static res:Strings.Prop_Annot_LeaderAdd}"
+                ToolTip.Tip="{x:Static res:Strings.Prop_Annot_LeaderAddTip}" />
+        <Button x:Name="LeaderRemoveBtn" Margin="0,4,0,0" Content="{x:Static res:Strings.Prop_Annot_LeaderRemove}" />
       </StackPanel>
       <StackPanel x:Name="CloudSection">
         <CheckBox x:Name="CloudCheck" Margin="0,8,0,0" Content="{x:Static res:Strings.Prop_Annot_Cloud}" />

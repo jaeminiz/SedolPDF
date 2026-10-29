@@ -415,6 +415,16 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                     annot.Elements["/BE"] = be;
                     break;
                 }
+                case SetBorderStyle o:
+                {
+                    var bs = annot.Elements.GetDictionary("/BS") ?? new PdfDictionary(doc);   // 있으면 합쳐 모르는 키를 보존한다
+                    bs.Elements["/Type"] = new PdfName("/Border");
+                    bs.Elements["/W"] = new PdfReal(o.Width);
+                    bs.Elements["/S"] = new PdfName("/D");
+                    bs.Elements["/D"] = Numbers(doc, o.Dash.Select(v => (double)v).ToArray());
+                    annot.Elements["/BS"] = bs;
+                    break;
+                }
                 case RemoveKeys o:
                     foreach (var k in o.Keys) annot.Elements.Remove(k);
                     break;

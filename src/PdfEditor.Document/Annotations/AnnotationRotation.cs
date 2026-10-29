@@ -47,6 +47,7 @@ public static class AnnotationRotation
             Rect = Apply(inv, a.Rect),
             TextBox = a.TextBox is { } tb ? Apply(inv, tb) : null,
             Vertices = a.Vertices.IsDefaultOrEmpty ? a.Vertices : [.. a.Vertices.Select(inv.Apply)],
+            Leader2 = a.Leader2.IsDefaultOrEmpty ? a.Leader2 : [.. a.Leader2.Select(inv.Apply)],
         };
     }
 
@@ -60,6 +61,7 @@ public static class AnnotationRotation
             Rect = Apply(toPage, local.Rect),
             TextBox = local.TextBox is { } tb ? Apply(toPage, tb) : null,
             Vertices = local.Vertices.IsDefaultOrEmpty ? local.Vertices : [.. local.Vertices.Select(toPage.Apply)],
+            Leader2 = local.Leader2.IsDefaultOrEmpty ? local.Leader2 : [.. local.Leader2.Select(toPage.Apply)],
         };
     }
 }

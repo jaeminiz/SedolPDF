@@ -22,6 +22,12 @@ public static class AnnotationComparer
         if (va.Length != vb.Length) return false;
         for (int i = 0; i < va.Length; i++)
             if (!Near(va[i], vb[i], tol)) return false;
+        if (a.LineStyle != b.LineStyle) return false;
+        var la = a.Leader2.IsDefault ? [] : a.Leader2;
+        var lb = b.Leader2.IsDefault ? [] : b.Leader2;
+        if (la.Length != lb.Length) return false;
+        for (int i = 0; i < la.Length; i++)
+            if (!Near(la[i], lb[i], tol)) return false;
         if (!Near(a.Opacity, b.Opacity, tol) || !Near(a.BorderWidth, b.BorderWidth, tol)) return false;
         if (!Near(a.Rect, b.Rect, tol)) return false;
 

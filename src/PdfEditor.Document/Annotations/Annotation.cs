@@ -52,4 +52,12 @@ public sealed record Annotation
     /// 화면에서 글자가 바로 서 보이게 한다(2026-10-20 버그: 회전된 쪽에서 글자가 세로로 써짐). 쪽을 나중에 돌려도 주석은 그대로다(Acrobat과 같음).
     /// </summary>
     public int Rotation { get; init; }
+
+    // --- 0.4.0 ---
+    /// <summary>선 모양(선·폴리라인·다각형만 쓴다, <see cref="LineStyleExtensions.Applies"/>). 기본 Solid = 이전 파일과 같은 출력.</summary>
+    public LineStyle LineStyle { get; init; }
+    /// <summary>
+    /// 설명선의 둘째 지시선(2~3점, 끝이 가리키는 점부터; 없으면 기본값/빈 배열). PDF에는 비표준 키 /SedolCL2로 저장하고 AP에 둘 다 그린다(V24).
+    /// </summary>
+    public ImmutableArray<PdfPointF> Leader2 { get; init; } = [];
 }

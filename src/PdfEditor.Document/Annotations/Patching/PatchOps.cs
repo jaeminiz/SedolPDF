@@ -21,6 +21,9 @@ public sealed record AddApOpacity(float Opacity) : PatchOp;
 /// <summary>/BE &lt;&lt;/S /C /I n&gt;&gt; (클라우드 테두리)</summary>
 public sealed record SetBorderEffect(float Intensity) : PatchOp;
 
+/// <summary>/BS &lt;&lt;/Type /Border /W w /S /D /D [..]&gt;&gt; (선 모양, 0.4.0 D1). 실선은 이 Op를 쓰지 않고 /BS를 지운다.</summary>
+public sealed record SetBorderStyle(float Width, ImmutableArray<float> Dash) : PatchOp;
+
 public sealed record RemoveKeys(ImmutableArray<string> Keys) : PatchOp;
 
 /// <summary>이미 /Popup이 있으면 아무것도 하지 않는다. 없으면 Popup을 끝에 붙이고 서로 연결한다.</summary>

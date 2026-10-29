@@ -339,6 +339,17 @@
   <data name="FreeText_Hint" xml:space="preserve"><value>Ctrl+Enter: 확인, Esc: 취소, 바깥을 누르면 확인</value></data>
   <data name="Prop_Annot_LineStart" xml:space="preserve"><value>시작 모양</value></data>
   <data name="Prop_Annot_LineEnd" xml:space="preserve"><value>끝 모양</value></data>
+  <data name="Prop_Annot_LineStyle" xml:space="preserve"><value>선 모양</value></data>
+  <data name="LineStyle_Solid" xml:space="preserve"><value>실선</value></data>
+  <data name="LineStyle_Dotted" xml:space="preserve"><value>점선</value></data>
+  <data name="LineStyle_Dashed" xml:space="preserve"><value>파선</value></data>
+  <data name="LineStyle_DashDot" xml:space="preserve"><value>일점쇄선</value></data>
+  <data name="Prop_Annot_BothArrows" xml:space="preserve"><value>양쪽 화살표</value></data>
+  <data name="Prop_Annot_BothArrowsTip" xml:space="preserve"><value>시작과 끝 모양을 모두 화살표로 바꿉니다.</value></data>
+  <data name="Prop_Annot_Leaders" xml:space="preserve"><value>지시선</value></data>
+  <data name="Prop_Annot_LeaderAdd" xml:space="preserve"><value>지시선 추가</value></data>
+  <data name="Prop_Annot_LeaderAddTip" xml:space="preserve"><value>글 상자의 반대쪽에 둘째 지시선을 만듭니다(최대 2개).</value></data>
+  <data name="Prop_Annot_LeaderRemove" xml:space="preserve"><value>둘째 지시선 삭제</value></data>
   <data name="LineEnding_None" xml:space="preserve"><value>없음</value></data>
   <data name="LineEnding_Square" xml:space="preserve"><value>사각형</value></data>
   <data name="LineEnding_Circle" xml:space="preserve"><value>원</value></data>

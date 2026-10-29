@@ -101,7 +101,10 @@ public static class AppearanceGeometry
             if (op.Stroke is { } s)
             {
                 var sb = new ImmutableSolidColorBrush(Color.FromArgb(alpha, s.R, s.G, s.B));
-                stroke = new ImmutablePen(sb, op.StrokeWidth, null, ToCap(op.Cap), ToJoin(op.Join));
+                // Avalonia의 대시 길이는 선 굵기의 배수라 PDF 값(pt)을 굵기로 나눈다.
+                ImmutableDashStyle? dash = !op.Dash.IsDefaultOrEmpty && op.StrokeWidth > 0
+                    ? new ImmutableDashStyle(op.Dash.Select(v => (double)v / op.StrokeWidth).ToArray(), 0) : null;
+                stroke = new ImmutablePen(sb, op.StrokeWidth, dash, ToCap(op.Cap), ToJoin(op.Join));
             }
             items.Add((geo, fill, stroke));
         }

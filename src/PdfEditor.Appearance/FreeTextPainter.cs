@@ -66,6 +66,9 @@ internal static class FreeTextPainter
                 StartEnding = a.EndEnding, EndEnding = LineEnding.None,
             };
             AnnotationPainter.AddPolyline(leader, ops);
+            // 둘째 지시선(0.4.0): 같은 끝 모양·굵기·색으로 같은 Painter 코드를 거쳐 그린다(화면과 AP가 같다).
+            if (!a.Leader2.IsDefaultOrEmpty && a.Leader2.Length >= 2)
+                AnnotationPainter.AddPolyline(leader with { Vertices = a.Leader2, Leader2 = [] }, ops);
         }
 
         var topLeft = new PdfPointF(box.Left + Padding, box.Top - Padding);

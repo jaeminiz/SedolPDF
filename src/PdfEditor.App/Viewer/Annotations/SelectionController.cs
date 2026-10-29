@@ -53,6 +53,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
             case AnnotKind.FreeText:
                 if (a.Intent == FreeTextIntent.Callout && !a.Vertices.IsDefaultOrEmpty)
                     list.Add((HandleKind.LeaderTip, 0, a.Vertices[0]));
+                if (CalloutLeaders.Count(a) == 2) list.Add((HandleKind.LeaderTip, 1, a.Leader2[0]));   // 둘째 지시선 끝점
                 foreach (var (k, c) in HandleCenters(BoxOf(a))) list.Add((k, 0, c));
                 break;
             default:
@@ -156,7 +157,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         _grabX = _grabY = 0;
         if (_handle is HandleKind.Vertex or HandleKind.LeaderTip)
         {
-            var v = _targets[0].Vertices[_handle == HandleKind.LeaderTip ? 0 : _vertex];
+            var v = _handle == HandleKind.LeaderTip && _vertex == 1 ? _targets[0].Leader2[0] : _targets[0].Vertices[_handle == HandleKind.LeaderTip ? 0 : _vertex];
             _grabX = p.X - v.X; _grabY = p.Y - v.Y;
         }
         else if (_handle != HandleKind.Body)
@@ -187,11 +188,12 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
             // 끈 꼭짓점 하나만 옮긴다 (나머지 점은 그대로)
             var t = _targets[0];
             int idx = _handle == HandleKind.LeaderTip ? 0 : _vertex;
-            var old = t.Vertices[idx];
+            bool second = _handle == HandleKind.LeaderTip && _vertex == 1;   // 둘째 지시선 끝점
+            var old = second ? t.Leader2[0] : t.Vertices[idx];
             var np = new PdfPointF(
                 Math.Clamp(p.X - _grabX, _bounds.Left, _bounds.Right), Math.Clamp(p.Y - _grabY, _bounds.Bottom, _bounds.Top));
             _dx = np.X - old.X; _dy = np.Y - old.Y;
-            var moved = t with { Vertices = t.Vertices.SetItem(idx, np) };
+            var moved = second ? t with { Leader2 = t.Leader2.SetItem(0, np) } : t with { Vertices = t.Vertices.SetItem(idx, np) };
             moved = ReAnchorLeader(moved);
             map[t.Id] = moved with { Rect = AnnotationGeometry.ComputeRect(moved) };
         }
@@ -219,6 +221,8 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         if (a.Intent != FreeTextIntent.Callout || a.TextBox is not { } box || a.Vertices.IsDefaultOrEmpty || a.Vertices.Length < 2) return a;
         var verts = a.Vertices.SetItem(a.Vertices.Length - 1, AnnotationToolController.LeaderAttachPoint(box, a.Vertices[0]));
         var b = a with { Vertices = verts };
+        if (CalloutLeaders.Count(a) == 2)
+            b = b with { Leader2 = a.Leader2.SetItem(a.Leader2.Length - 1, AnnotationToolController.LeaderAttachPoint(box, a.Leader2[0])) };
         return b with { Rect = AnnotationGeometry.ComputeRect(b) };
     }
 

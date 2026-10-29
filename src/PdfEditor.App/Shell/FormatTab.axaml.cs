@@ -27,6 +27,15 @@ public sealed partial class FormatTab : UserControl
             StartEndBox.Items.Add(new ComboBoxItem { Content = text, Tag = e });
             EndEndBox.Items.Add(new ComboBoxItem { Content = text, Tag = e });
         }
+        foreach (var ls in AnnotationPropertiesViewModel.LineStyleChoices)
+            LineStyleBox.Items.Add(new ComboBoxItem { Content = AnnotationPropertiesViewModel.LineStyleName(ls), Tag = ls });
+        LineStyleBox.SelectionChanged += (_, _) =>
+        {
+            if (!_syncing && _props is not null && LineStyleBox.SelectedItem is ComboBoxItem { Tag: LineStyle s }) _ = Run(() => _props.SetLineStyleAsync(s));
+        };
+        BothArrowsBtn.Click += (_, _) => { if (_props is not null) _ = Run(() => _props.SetBothArrowsAsync()); };
+        LeaderAddBtn.Click += (_, _) => { if (_props is not null) _ = Run(() => _props.AddSecondLeaderAsync()); };
+        LeaderRemoveBtn.Click += (_, _) => { if (_props is not null) _ = Run(() => _props.RemoveSecondLeaderAsync()); };
         StartEndBox.SelectionChanged += (_, _) => OnEndingPicked(StartEndBox, start: true);
         EndEndBox.SelectionChanged += (_, _) => OnEndingPicked(EndEndBox, start: false);
         WidthBox.ValueChanged += (_, e) => { if (!_syncing && _props is not null && e.NewValue is { } v) _props.Width = (float)v; };
@@ -74,7 +83,7 @@ public sealed partial class FormatTab : UserControl
             StyleList.ItemsSource = s?.Available;
             NoStylesHint.IsVisible = s is not null && s.Available.Count == 0;
             if (s is not null && StyleNameBox.Text != s.NewStyleName) StyleNameBox.Text = s.NewStyleName;
-            if (p is null) { ColorGroup.IsVisible = LineGroup.IsVisible = TextGroup.IsVisible = false; return; }
+            if (p is null) { ColorGroup.IsVisible = LineGroup.IsVisible = TextGroup.IsVisible = LeaderGroup.IsVisible = false; return; }
 
             ColorGroup.IsVisible = p.IsActive;
             Rebuild(ColorSwatches, p.Color, c => _ = Run(() => p.SetColorAsync(c!.Value)));
@@ -82,7 +91,13 @@ public sealed partial class FormatTab : UserControl
             WidthPart.IsVisible = p.ShowWidth;
             EndingPart.IsVisible = p.ShowLineEndings;
             EndingPart.IsEnabled = s?.CanEditPatchProperties ?? false;   // 선 끝은 저장 때 패치가 필요하다
-            LineGroup.IsVisible = p.ShowWidth || p.ShowLineEndings;
+            LineStylePart.IsVisible = p.ShowLineStyle;
+            LineStylePart.IsEnabled = s?.CanEditPatchProperties ?? false;   // 선 모양은 저장 때 패치가 필요하다
+            LineGroup.IsVisible = p.ShowWidth || p.ShowLineEndings || p.ShowLineStyle;
+            if (p.ShowLineStyle) SelectLineStyle(LineStyleBox, p.LineStyle);
+            LeaderGroup.IsVisible = p.ShowLeaders;
+            LeaderAddBtn.IsEnabled = p.CanAddLeader;
+            LeaderRemoveBtn.IsEnabled = p.CanRemoveLeader;
             WidthLabel.Text = p.WidthLabel;
             WidthBox.Value = (decimal)p.Width;
             if (p.ShowLineEndings) { SelectEnding(StartEndBox, p.StartEnding); SelectEnding(EndEndBox, p.EndEnding); }
@@ -101,6 +116,12 @@ public sealed partial class FormatTab : UserControl
     private void Rebuild(WrapPanel host, PdfColor? current, Action<PdfColor?> onPick)
     {
         PropertiesPanel.FillColorChoices(host, _props!.Swatches, current, includeNone: false, noneSelected: false, onPick);
+    }
+
+    private static void SelectLineStyle(ComboBox box, LineStyle s)
+    {
+        foreach (var o in box.Items)
+            if (o is ComboBoxItem { Tag: LineStyle x } ci && x == s) { box.SelectedItem = ci; return; }
     }
 
     private static void SelectEnding(ComboBox box, LineEnding e)

@@ -47,7 +47,8 @@ public static class AnnotationHitTest
             case AnnotKind.FreeText:
                 {
                     if ((a.TextBox ?? a.Rect).Inflate(tolPt).Contains(p)) return true;
-                    return a.Vertices.Length > 1 && PolylineHit(a.Vertices, closed: false, p, half + tolPt, a.Rect, tolPt);
+                    return (a.Vertices.Length > 1 && PolylineHit(a.Vertices, closed: false, p, half + tolPt, a.Rect, tolPt))
+                        || (!a.Leader2.IsDefaultOrEmpty && a.Leader2.Length > 1 && PolylineHit(a.Leader2, closed: false, p, half + tolPt, a.Rect, tolPt));
                 }
             default:
                 return a.Rect.Inflate(tolPt).Contains(p);

@@ -177,7 +177,7 @@ public static class AnnotationPainter
             var path = ImmutableArray.CreateBuilder<PathSeg>();
             path.Add(new MoveTo(pts[0]));
             for (int i = 1; i < pts.Length; i++) path.Add(new LineTo(pts[i]));
-            ops.Add(new PaintOp(path.ToImmutable(), null, color, a.BorderWidth, LineCap.Butt, LineJoin.Round));
+            ops.Add(StyledOp(a, path.ToImmutable(), null, color));
         }
         LineEndings.Add(ops, a.StartEnding, v[0], dirS, size, color, a.FillColor, a.BorderWidth);
         LineEndings.Add(ops, a.EndEnding, v[n - 1], dirE, size, color, a.FillColor, a.BorderWidth);
@@ -207,7 +207,14 @@ public static class AnnotationPainter
             b.Add(new ClosePath());
             path = b.ToImmutable();
         }
-        ops.Add(new PaintOp(path, a.FillColor, stroke, a.BorderWidth, LineCap.Butt, LineJoin.Round));
+        ops.Add(StyledOp(a, path, a.FillColor, stroke));
+    }
+
+    /// <summary>선 모양(실선·점선·파선·일점쇄선)을 입힌 테두리 Op. 선·폴리라인·다각형이 같이 쓴다 — 화면과 AP가 같은 대시를 얻는다(D1).</summary>
+    private static PaintOp StyledOp(Annotation a, ImmutableArray<PathSeg> path, PdfColor? fill, PdfColor? stroke)
+    {
+        var style = a.Kind.Applies() ? a.LineStyle : LineStyle.Solid;
+        return new PaintOp(path, fill, stroke, a.BorderWidth, LineStyles.CapFor(style), LineJoin.Round) { Dash = LineStyles.Dash(style, a.BorderWidth) };
     }
 
     private static void PaintCaret(Annotation a, List<PaintOp> ops)

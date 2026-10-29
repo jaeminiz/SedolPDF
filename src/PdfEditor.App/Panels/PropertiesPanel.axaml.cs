@@ -27,6 +27,15 @@ public sealed partial class PropertiesPanel : UserControl
         WidthSlider.ValueChanged += (_, e) => { if (!_syncing && _vm is not null) _vm.Width = (float)e.NewValue; };
         OpacitySlider.ValueChanged += (_, e) => { if (!_syncing && _vm is not null) _vm.OpacityPercent = (int)Math.Round(e.NewValue); };
         BuildChoices();
+        foreach (var ls in AnnotationPropertiesViewModel.LineStyleChoices)
+            LineStyleBox.Items.Add(new ComboBoxItem { Content = AnnotationPropertiesViewModel.LineStyleName(ls), Tag = ls });
+        LineStyleBox.SelectionChanged += (_, _) =>
+        {
+            if (!_syncing && _vm is not null && LineStyleBox.SelectedItem is ComboBoxItem { Tag: LineStyle s }) _ = Run(() => _vm.SetLineStyleAsync(s));
+        };
+        BothArrowsBtn.Click += (_, _) => { if (_vm is not null) _ = Run(() => _vm.SetBothArrowsAsync()); };
+        LeaderAddBtn.Click += (_, _) => { if (_vm is not null) _ = Run(() => _vm.AddSecondLeaderAsync()); };
+        LeaderRemoveBtn.Click += (_, _) => { if (_vm is not null) _ = Run(() => _vm.RemoveSecondLeaderAsync()); };
         StartEndBox.SelectionChanged += (_, _) => OnEndingPicked(StartEndBox, start: true);
         EndEndBox.SelectionChanged += (_, _) => OnEndingPicked(EndEndBox, start: false);
         CloudCheck.IsCheckedChanged += (_, _) => { if (!_syncing && _vm is not null) _ = Run(() => _vm.SetCloudAsync(CloudCheck.IsChecked == true)); };
@@ -137,6 +146,11 @@ public sealed partial class PropertiesPanel : UserControl
             FillSection.IsVisible = _vm.ShowFill;
             WidthSection.IsVisible = _vm.ShowWidth;
             LineEndSection.IsVisible = _vm.ShowLineEndings;
+            LineStyleSection.IsVisible = _vm.ShowLineStyle;
+            LeaderSection.IsVisible = _vm.ShowLeaders;
+            LeaderAddBtn.IsEnabled = _vm.CanAddLeader;
+            LeaderRemoveBtn.IsEnabled = _vm.CanRemoveLeader;
+            if (_vm.ShowLineStyle) SelectLineStyle(LineStyleBox, _vm.LineStyle);
             CloudSection.IsVisible = _vm.ShowCloud;
             TextSection.IsVisible = _vm.ShowText;
             StampSection.IsVisible = _vm.ShowStamp;
@@ -158,6 +172,12 @@ public sealed partial class PropertiesPanel : UserControl
             if (_vm.ShowFill) Rebuild(FillSwatches, _vm.Fill, includeNone: true, noneSelected: _vm.Fill is null && !_vm.IsFillMixed, c => _ = Run(() => _vm.SetFillAsync(c)));
         }
         finally { _syncing = false; }
+    }
+
+    private static void SelectLineStyle(ComboBox box, LineStyle s)
+    {
+        foreach (var o in box.Items)
+            if (o is ComboBoxItem { Tag: LineStyle x } ci && x == s) { box.SelectedItem = ci; return; }
     }
 
     private static void SelectEnding(ComboBox box, PdfEditor.Document.Annotations.LineEnding e)

@@ -16,6 +16,7 @@ public static class PdfContentWriter
             sb.Append(Num(tm.A)).Append(' ').Append(Num(tm.B)).Append(' ').Append(Num(tm.C)).Append(' ').Append(Num(tm.D)).Append(' ')
               .Append(Num(tm.E)).Append(' ').Append(Num(tm.F)).Append(" cm\n");
         if (d.Opacity < 1f) sb.Append("/GS gs\n");
+        bool dashOn = false;
         foreach (var op in d.Ops)
         {
             if (op.Fill is null && op.Stroke is null) continue;
@@ -26,6 +27,11 @@ public static class PdfContentWriter
                 sb.Append(Num(op.StrokeWidth)).Append(" w\n");
                 sb.Append((int)op.Cap).Append(" J\n");
                 sb.Append((int)op.Join).Append(" j\n");
+                // 대시는 같은 q ... Q 안에서 이어지므로 실선 Op가 앞의 대시를 물려받지 않게 되돌린다(실선만 있는 그림의 출력은 그대로).
+                bool dashed = !op.Dash.IsDefaultOrEmpty;
+                if (dashed) sb.Append('[').Append(string.Join(' ', op.Dash.Select(Num))).Append("] 0 d\n");
+                else if (dashOn) sb.Append("[] 0 d\n");
+                dashOn = dashed;
             }
             foreach (var seg in op.Path)
             {

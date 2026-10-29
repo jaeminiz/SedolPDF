@@ -45,6 +45,11 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     [ObservableProperty] private bool _showLineEndings;
     [ObservableProperty] private LineEnding _startEnding;
     [ObservableProperty] private LineEnding _endEnding;
+    [ObservableProperty] private bool _showLineStyle;
+    [ObservableProperty] private LineStyle _lineStyle;
+    [ObservableProperty] private bool _showLeaders;
+    [ObservableProperty] private bool _canAddLeader;
+    [ObservableProperty] private bool _canRemoveLeader;
     [ObservableProperty] private bool _showCloud;
     [ObservableProperty] private bool _cloudOn;
     [ObservableProperty] private float _cloudIntensity = 1f;
@@ -63,6 +68,15 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
 
     /// <summary>선 끝 모양 8가지 (그림 목록 순서).</summary>
     public static IReadOnlyList<LineEnding> LineEndingChoices { get; } = Enum.GetValues<LineEnding>();
+    /// <summary>선 모양 4가지 (목록 순서).</summary>
+    public static IReadOnlyList<LineStyle> LineStyleChoices { get; } = Enum.GetValues<LineStyle>();
+    public static string LineStyleName(LineStyle s) => s switch
+    {
+        LineStyle.Solid => Strings.LineStyle_Solid,
+        LineStyle.Dotted => Strings.LineStyle_Dotted,
+        LineStyle.Dashed => Strings.LineStyle_Dashed,
+        _ => Strings.LineStyle_DashDot,
+    };
     public static string LineEndingName(LineEnding e) => e switch
     {
         LineEnding.None => Strings.LineEnding_None,
@@ -189,6 +203,13 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     {
         ShowLineEndings = sel.Count > 0 && sel.All(a => a.Kind is AnnotKind.Line or AnnotKind.PolyLine);
         if (ShowLineEndings) { StartEnding = sel[0].StartEnding; EndEnding = sel[0].EndEnding; }
+        // 선 모양(점선·파선·일점쇄선)은 선·폴리라인·다각형(LineStyleExtensions.Applies). 저장 때 패치로 쓰므로 패치 불가 문서에서는 UI가 끈다.
+        ShowLineStyle = sel.Count > 0 && sel.All(a => a.Kind.Applies());
+        if (ShowLineStyle) LineStyle = sel[0].LineStyle;
+        // 지시선 단추: 설명선 하나를 골랐을 때만.
+        ShowLeaders = sel.Count == 1 && CalloutLeaders.IsCallout(sel[0]);
+        CanAddLeader = ShowLeaders && CalloutLeaders.CanAdd(sel[0]);
+        CanRemoveLeader = ShowLeaders && CalloutLeaders.Count(sel[0]) == 2;
         // 클라우드 테두리(/BE)는 저장 때 패치로만 쓰므로 패치를 못 하는(암호) 문서에서는 켜고 끌 수 없다.
         ShowCloud = _tab.CanUsePatchFeatures && sel.Count > 0 && sel.All(a => a.Kind is AnnotKind.Square or AnnotKind.Polygon);
         CloudOn = ShowCloud && sel[0].CloudIntensity > 0f;
@@ -343,6 +364,23 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         EditAsync(a => a.Kind is not (AnnotKind.Line or AnnotKind.PolyLine) ? a
             : start ? a with { StartEnding = e, ModifiedAt = _clock() } : a with { EndEnding = e, ModifiedAt = _clock() },
             null);
+
+    /// <summary>선 모양(실선·점선·파선·일점쇄선). 선·폴리라인·다각형만 바뀐다. 굵기는 그대로(대시 간격이 굵기에 비례해 다시 계산된다).</summary>
+    public Task SetLineStyleAsync(LineStyle s) =>
+        EditAsync(a => !a.Kind.Applies() || a.LineStyle == s ? a : a with { LineStyle = s, ModifiedAt = _clock() }, null);
+
+    /// <summary>양쪽 화살표: 시작과 끝 모양을 e(기본 열린 화살표)로 한 번에 바꾼다. 선·폴리라인만.</summary>
+    public Task SetBothArrowsAsync(LineEnding e = LineEnding.OpenArrow) =>
+        EditAsync(a => a.Kind is not (AnnotKind.Line or AnnotKind.PolyLine) ? a
+            : a with { StartEnding = e, EndEnding = e, ModifiedAt = _clock() }, null);
+
+    /// <summary>설명선에 둘째 지시선을 더한다(실행 취소 한 번).</summary>
+    public Task AddSecondLeaderAsync() =>
+        EditAsync(a => CalloutLeaders.CanAdd(a) ? CalloutLeaders.AddSecond(a) with { ModifiedAt = _clock() } : a, null);
+
+    /// <summary>둘째 지시선을 지운다(실행 취소 한 번).</summary>
+    public Task RemoveSecondLeaderAsync() =>
+        EditAsync(a => CalloutLeaders.Count(a) == 2 ? CalloutLeaders.RemoveSecond(a) with { ModifiedAt = _clock() } : a, null);
 
     /// <summary>클라우드 켜기·끄기 (사각형·다각형). 켜면 세기 1(또는 기존 값), 끄면 0.</summary>
     public Task SetCloudAsync(bool on) => !_tab.CanUsePatchFeatures ? Task.CompletedTask :

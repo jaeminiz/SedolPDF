@@ -16,7 +16,11 @@ public enum LineCap { Butt = 0, Round = 1, Square = 2 }
 public enum LineJoin { Miter = 0, Round = 1, Bevel = 2 }
 
 public sealed record PaintOp(
-    ImmutableArray<PathSeg> Path, PdfColor? Fill, PdfColor? Stroke, float StrokeWidth, LineCap Cap, LineJoin Join);
+    ImmutableArray<PathSeg> Path, PdfColor? Fill, PdfColor? Stroke, float StrokeWidth, LineCap Cap, LineJoin Join)
+{
+    /// <summary>선 대시(켜짐, 꺼짐, ...; 기본값/빈 배열 = 실선). 화면(DashStyle)과 AP(d 연산자)가 같은 값을 쓴다.</summary>
+    public ImmutableArray<float> Dash { get; init; }
+}
 
 /// <summary>같은 글자 크기·색의 글리프 묶음(BT ... ET 한 번). FontResource는 AP 리소스 이름(예: "F1").</summary>
 public sealed record TextRunOp(string FontResource, float SizePt, PdfColor Color, ImmutableArray<PositionedGlyph> Glyphs);

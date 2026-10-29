@@ -87,6 +87,13 @@ public static class XfdfWriter
             e.SetAttributeValue("intensity", Num(a.CloudIntensity));
         }
 
+        // 선 모양(0.4.0): XFDF 표준 style="dash" + dashes="켜짐,꺼짐,..."(PDF /BS /D와 같은 값). 실선은 쓰지 않는다.
+        if (a.Kind.Applies() && a.LineStyle != LineStyle.Solid && a.BorderWidth > 0)
+        {
+            e.SetAttributeValue("style", "dash");
+            e.SetAttributeValue("dashes", string.Join(",", LineStyleExtensions.DashArray(a.LineStyle, a.BorderWidth).Select(Num)));
+        }
+
         switch (a.Kind)
         {
             case AnnotKind.Highlight or AnnotKind.Underline or AnnotKind.StrikeOut:
@@ -140,6 +147,8 @@ public static class XfdfWriter
         }
         if (!a.Vertices.IsDefaultOrEmpty)
             e.SetAttributeValue("callout", string.Join(",", a.Vertices.Select(Pt)));
+        if (!a.Leader2.IsDefaultOrEmpty && a.Leader2.Length >= 2)
+            e.SetAttributeValue("callout2", string.Join(",", a.Leader2.Select(Pt)));   // 둘째 지시선(0.4.0, 비표준 속성)
         if (a.TextBox is { } tb)
             e.SetAttributeValue("fringe", string.Join(",", [Num(tb.Left - a.Rect.Left), Num(tb.Bottom - a.Rect.Bottom), Num(a.Rect.Right - tb.Right), Num(a.Rect.Top - tb.Top)]));
         if (a.Intent == FreeTextIntent.Callout) Endings(e, a);

@@ -37,7 +37,8 @@ public static class AnnotationGeometry
                 {
                     var box = a.TextBox ?? a.Rect;
                     if (a.Vertices.IsDefaultOrEmpty) return box;
-                    return box.Union(PdfRectF.FromPoints(a.Vertices).Inflate(a.BorderWidth / 2f + EndingSize(a)));
+                    var leaders = a.Leader2.IsDefaultOrEmpty ? a.Vertices : a.Vertices.AddRange(a.Leader2);   // 둘째 지시선도 영역에 넣는다
+                    return box.Union(PdfRectF.FromPoints(leaders).Inflate(a.BorderWidth / 2f + EndingSize(a)));
                 }
             default:
                 return a.Rect;
@@ -75,10 +76,11 @@ public static class AnnotationGeometry
             : [.. a.Quads.Select(q => new PdfQuadF(Move(q.P1, dx, dy), Move(q.P2, dx, dy), Move(q.P3, dx, dy), Move(q.P4, dx, dy)))];
         var verts = a.Vertices.IsDefault ? a.Vertices
             : [.. a.Vertices.Select(p => Move(p, dx, dy))];
+        var leader2 = a.Leader2.IsDefaultOrEmpty ? a.Leader2 : [.. a.Leader2.Select(p => Move(p, dx, dy))];
         return a with
         {
             Rect = a.Rect.Offset(dx, dy), InkStrokes = strokes, Quads = quads,
-            Vertices = verts, TextBox = a.TextBox?.Offset(dx, dy),
+            Vertices = verts, Leader2 = leader2, TextBox = a.TextBox?.Offset(dx, dy),
         };
     }
 
