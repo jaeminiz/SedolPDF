@@ -38,7 +38,9 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 
 ## 설치
 
-[Releases](https://github.com/jaeminiz/SedolPDF/releases)에서 받으세요.
+**[Microsoft Store에서 받기](https://apps.microsoft.com/detail/9NV1D7TDKVJK)** — 자동 업데이트되고 SmartScreen 경고가 없습니다. 스토어에서는 "SedolPDF" 또는 "세돌PDF"로 검색하세요. 새 버전은 심사를 거쳐 올라오므로 GitHub보다 며칠 늦을 수 있습니다.
+
+직접 받으려면 [Releases](https://github.com/jaeminiz/SedolPDF/releases)를 이용하세요.
 
 | 파일 | 설명 |
 |---|---|

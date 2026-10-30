@@ -38,7 +38,9 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 
 ## Install
 
-Download from [Releases](https://github.com/jaeminiz/SedolPDF/releases).
+**[Get it from the Microsoft Store](https://apps.microsoft.com/detail/9NV1D7TDKVJK)** — updates automatically and has no SmartScreen warning. Search for "SedolPDF" in the Store. New versions go through Store review, so they can arrive a few days after GitHub.
+
+Or download from [Releases](https://github.com/jaeminiz/SedolPDF/releases).
 
 | File | Description |
 |---|---|
