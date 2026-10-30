@@ -158,8 +158,10 @@ public sealed partial class DocumentView : Control
         _layout = null;
         if (tab?.Session is { } session)
         {
+            bool isNew = false;
             if (!_states.TryGetValue(tab, out var st))
             {
+                isNew = true;
                 st = CreateState(tab, session);
                 _states[tab] = st;
                 var captured = st;
@@ -176,6 +178,8 @@ public sealed partial class DocumentView : Control
                 tab.ViewportSize = _sv.Viewport;
                 _sv.UpdateLayout();
                 _sv.Offset = st.Offset;
+                // 새로 연 문서가 보던 쪽(0.4.0 보기 상태 복원)에서 시작하면 스크롤 위치(0)가 쪽 번호를 0으로 덮어쓰지 않도록 먼저 그 쪽으로 간다.
+                if (isNew && tab.CurrentPageIndex > 0) GoToPage(tab.CurrentPageIndex);
             }
         }
         InvalidateMeasure();
