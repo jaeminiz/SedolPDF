@@ -143,3 +143,27 @@ public class PrintOptionsLogicTests
         Assert.Equal(2, r.Copies);
     }
 }
+
+public class PrintOptionsStoreTests
+{
+    [Fact]
+    public void Store_RoundTrips_DropsRange_AndSurvivesCorruptFile()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "pdfeditor-pos-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string file = Path.Combine(dir, "sub", "print-options.json");
+            var store = new PrintOptionsStore(file);
+            Assert.Equal(new PrintOptions(), store.Load());   // 파일 없음 → 기본값
+            store.Save(new PrintOptions(Copies: 3, Range: PrintRangeMode.Custom, RangeText: "2", PrinterName: "X", Grayscale: true));
+            var back = store.Load();
+            Assert.Equal(3, back.Copies);
+            Assert.True(back.Grayscale);
+            Assert.Equal(PrintRangeMode.All, back.Range);
+            Assert.Null(back.PrinterName);
+            File.WriteAllText(file, "{broken");
+            Assert.Equal(new PrintOptions(), store.Load());
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+}

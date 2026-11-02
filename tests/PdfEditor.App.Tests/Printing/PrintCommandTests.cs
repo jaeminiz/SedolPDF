@@ -35,6 +35,20 @@ public class PrintCommandTests : PanelTestBase
     }
 
     [Fact]
+    public async Task PrintCommand_PassesThumbnailSelection_InDocumentOrder()
+    {
+        string p = Path.Combine(Dir, "sel.pdf");
+        TestPdfFactory.CreateBlank(p, 5, 595.28f, 841.89f);
+        var (vm, print) = await OpenAsync(p);
+        var doc = vm.ActiveDocument!;
+        var pages = doc.Session!.Pages;
+        doc.SelectedPages = new HashSet<PdfEditor.Document.PageId> { pages[3].Id, pages[1].Id };
+        vm.Commands.Find("file.print")!.Command.Execute(null);
+        await Task.Delay(100);
+        Assert.Equal([1, 3], print.LastSelected);
+    }
+
+    [Fact]
     public async Task PrintCommand_Enabled_AndCallsService()
     {
         string p = Path.Combine(Dir, "a.pdf");
