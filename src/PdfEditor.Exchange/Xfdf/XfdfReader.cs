@@ -556,6 +556,10 @@ public static partial class XfdfReader
         var callout2 = ImmutableArray<PdfPointF>.Empty;
         if (intent == FreeTextIntent.Callout && at.TryGetValue("callout2", out var c2s) && Floats(c2s) is { } n2 && n2.Length is 4 or 6)
             callout2 = [.. Enumerable.Range(0, n2.Length / 2).Select(i => new PdfPointF(n2[2 * i], n2[2 * i + 1]))];
+        // 글자 서식(0.5.0, 비표준 속성)
+        a = a with { TextFamily = TextFormat.FamilyFromName(at.GetValueOrDefault("sedolfont")?.Trim()) };
+        if (at.TryGetValue("sedolfmt", out var fmts) && int.TryParse(fmts.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var fmtv))
+            a = TextFormat.WithBits(a, TextFormat.Sanitize(fmtv));
         a = a with { FontSizePt = size, TextColor = tc, Align = align, Intent = intent, Vertices = callout, Leader2 = callout2, TextBox = box };
         if (intent == FreeTextIntent.Callout) a = WithEndings(a, at, name, notes);
         return a;

@@ -698,6 +698,7 @@ public sealed partial class DocumentView
         var align = a.Align switch { TextAlign.Center => TextAlignment.Center, TextAlign.Right => TextAlignment.Right, _ => TextAlignment.Left };
         _ftEditor!.Load(a.Contents ?? "", a.FontSizePt * lay.Scale, v.W, v.H, Color.FromRgb(c.R, c.G, c.B),
             wrap: a.Intent != FreeTextIntent.Typewriter, align);
+        _ftEditor.ApplyFormat(a.Bold, a.Italic, a.Underline, a.StrikeThrough, a.TextFamily == TextFontFamily.Serif);
         if (!isNew) SetAnnotationPreview(page, new Dictionary<AnnotId, Annotation?> { [a.Id] = null });
         _ftPopup.IsOpen = true;
         Dispatcher.UIThread.Post(() => _ftEditor.FocusBox(), DispatcherPriority.Input);

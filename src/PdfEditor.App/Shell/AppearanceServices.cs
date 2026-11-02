@@ -41,7 +41,7 @@ public sealed class AppearanceServices
         _font = font;
         _baseDirectory = baseDirectory;
         Assets = assets;
-        Appearance = PdfAppearanceSource.WithFontProvider(() => font.Value, assets);
+        Appearance = PdfAppearanceSource.WithFontProvider(() => font.Value, assets, () => Catalog?.Serif);
         Patcher = PdfSharpAnnotationPatcher.Shared(() => font.Value, () => Catalog?.Serif);
     }
 
@@ -64,7 +64,9 @@ public sealed class AppearanceServices
         var assets = new AnnotationAssets(PdfEditor.Appearance.Patching.ImageEmbedder.Validate);
         AppearanceGeometry.Assets = assets;
         AppearanceGeometry.ImageResolver = new ImageCache(assets).Resolve;
-        return new AppearanceServices(font, assets, baseDirectory);
+        var services = new AppearanceServices(font, assets, baseDirectory);
+        AppearanceGeometry.SetSerifFontProvider(() => services.Catalog?.Serif);
+        return services;
     }
 
     /// <summary>화면용 비트맵 폭 상한(px). 아주 큰 이미지도 이 폭으로 줄여 풀어 UI 스레드 메모리를 지킨다.</summary>

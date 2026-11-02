@@ -394,6 +394,13 @@ public static class Strings
     public static string Prop_Annot_FontSize => Get(nameof(Prop_Annot_FontSize));
     public static string Prop_Annot_TextColor => Get(nameof(Prop_Annot_TextColor));
     public static string Prop_Annot_Align => Get(nameof(Prop_Annot_Align));
+    public static string Prop_Annot_Font => Get(nameof(Prop_Annot_Font));
+    public static string Font_Sans => Get(nameof(Font_Sans));
+    public static string Font_Serif => Get(nameof(Font_Serif));
+    public static string Format_Bold => Get(nameof(Format_Bold));
+    public static string Format_Italic => Get(nameof(Format_Italic));
+    public static string Format_Underline => Get(nameof(Format_Underline));
+    public static string Format_Strike => Get(nameof(Format_Strike));
     public static string Align_Left => Get(nameof(Align_Left));
     public static string Align_Center => Get(nameof(Align_Center));
     public static string Align_Right => Get(nameof(Align_Right));

@@ -25,10 +25,11 @@ internal static class FreeTextPainter
         if (IntentOf(page) != FreeTextIntent.Typewriter) return page;
         // 회전한 타자기는 바로 선 자기 좌표에서 맞춘 뒤 되돌린다(화면에서 본 왼쪽 위가 고정된다).
         var a = AnnotationRotation.ToLocal(page, out var toPage);
-        var laid = TextLayout.Layout(ctx.Font ?? throw new InvalidOperationException("Fitting a typewriter annotation needs the app font."), a.Contents ?? "", a.FontSizePt, float.PositiveInfinity, a.Align,
+        var laid = TextLayout.Layout(ctx.FontFor(a.TextFamily, out _) ?? throw new InvalidOperationException("Fitting a typewriter annotation needs the app font."), a.Contents ?? "", a.FontSizePt, float.PositiveInfinity, a.Align,
             new PdfPointF(a.Rect.Left + Padding, a.Rect.Top - Padding));
         float lineH = a.FontSizePt * 1.2f;
-        float w = Math.Max(laid.Bounds.Width, 0f) + 2 * Padding;
+        // 합성 기울임은 윗부분이 오른쪽으로 밀리므로 그만큼 상자를 넓힌다.
+        float w = Math.Max(laid.Bounds.Width, 0f) + 2 * Padding + (a.Italic && laid.Lines.Length > 0 ? AppFontCatalog.SyntheticItalicSkew * a.FontSizePt * 0.8f : 0f);
         float h = Math.Max(laid.Lines.Length, 1) * lineH + 2 * Padding;
         return AnnotationRotation.FromLocal(a with { Rect = new PdfRectF(a.Rect.Left, a.Rect.Top - h, a.Rect.Left + w, a.Rect.Top) }, toPage, page.Rotation);
     }
@@ -36,7 +37,8 @@ internal static class FreeTextPainter
     public static (ImmutableArray<TextRunOp> Texts, PdfRectF? TextBounds) Paint(
         Annotation a, PaintContext? ctx, List<PaintOp> ops)
     {
-        var font = ctx?.Font ?? throw new InvalidOperationException("Painting a FreeText annotation needs a PaintContext with the app font.");
+        var font = ctx?.FontFor(a.TextFamily, out _) ?? throw new InvalidOperationException("Painting a FreeText annotation needs a PaintContext with the app font.");
+        string family = TextFontFamilyName(ctx, a);
         var intent = IntentOf(a);
         var box = BoxOf(a);
 
@@ -76,6 +78,28 @@ internal static class FreeTextPainter
         var laid = TextLayout.Layout(font, a.Contents ?? "", a.FontSizePt, width, a.Align, topLeft);
         var glyphs = laid.Lines.SelectMany(l => l).ToImmutableArray();
         if (glyphs.IsEmpty) return (ImmutableArray<TextRunOp>.Empty, null);
-        return ([new TextRunOp("F1", a.FontSizePt, a.TextColor ?? Black, glyphs)], laid.Bounds);
+        var textColor = a.TextColor ?? Black;
+        // 밑줄·취소선(0.5.0): 줄마다 글자 색 가는 선. 화면과 AP가 같은 Op를 쓴다(글자보다 먼저 그려 글자 밑에 깔린다).
+        if (a.Underline || a.StrikeThrough)
+        {
+            float thick = Math.Max(0.5f, a.FontSizePt * UnderlineThicknessRatio);
+            foreach (var line in laid.Lines)
+            {
+                if (line.IsDefaultOrEmpty) continue;
+                float x0 = line[0].Origin.X, x1 = line[^1].Origin.X + line[^1].Advance, y = line[0].Origin.Y;
+                if (a.Underline) ops.Add(new PaintOp([new MoveTo(new(x0, y - a.FontSizePt * UnderlineOffsetRatio)), new LineTo(new(x1, y - a.FontSizePt * UnderlineOffsetRatio))], null, textColor, thick, LineCap.Butt, LineJoin.Miter));
+                if (a.StrikeThrough) ops.Add(new PaintOp([new MoveTo(new(x0, y + a.FontSizePt * StrikeOffsetRatio)), new LineTo(new(x1, y + a.FontSizePt * StrikeOffsetRatio))], null, textColor, thick, LineCap.Butt, LineJoin.Miter));
+            }
+        }
+        return ([new TextRunOp("F1", a.FontSizePt, textColor, glyphs) { Family = family, Bold = a.Bold, Italic = a.Italic }], laid.Bounds);
+    }
+
+    /// <summary>밑줄 위치(기준선 아래)·취소선 위치(기준선 위)·선 굵기, 모두 글자 크기 비례.</summary>
+    public const float UnderlineOffsetRatio = 0.12f, StrikeOffsetRatio = 0.3f, UnderlineThicknessRatio = 0.06f;
+
+    private static string TextFontFamilyName(PaintContext? ctx, Annotation a)
+    {
+        ctx!.FontFor(a.TextFamily, out string family);
+        return family;
     }
 }

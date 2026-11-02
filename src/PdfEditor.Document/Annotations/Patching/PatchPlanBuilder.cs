@@ -434,6 +434,9 @@ public static class PatchPlanBuilder
         string borderDa = m.Color is { } bc ? $" {N(bc.R / 255f)} {N(bc.G / 255f)} {N(bc.B / 255f)} RG" : "";
         ops.Add(new SetString("/DA", $"{N(tc.R / 255f)} {N(tc.G / 255f)} {N(tc.B / 255f)} rg{borderDa} /Helv {N(m.FontSizePt)} Tf"));
         ops.Add(new SetInteger("/Q", (int)m.Align));
+        // 글자 서식(0.5.0): 비표준 키. 기본 서식이면 키를 지운다(이전 파일과 같은 출력).
+        ops.Add(m.TextFamily != TextFontFamily.Sans ? new SetName("/SedolFont", "/" + TextFormat.FamilyName(m.TextFamily)) : new RemoveKeys(["/SedolFont"]));
+        ops.Add(TextFormat.ToBits(m) != 0 ? new SetInteger("/SedolFmt", TextFormat.ToBits(m)) : new RemoveKeys(["/SedolFmt"]));
 
         // AP는 불투명하게 그리므로 손댄 원본에 남은 낡은 /CA는 지운다.
         if (!isNew) ops.Add(new RemoveKeys(["/CA"]));

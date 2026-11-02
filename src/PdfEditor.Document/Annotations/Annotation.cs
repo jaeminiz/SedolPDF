@@ -60,4 +60,11 @@ public sealed record Annotation
     /// 설명선의 둘째 지시선(2~3점, 끝이 가리키는 점부터; 없으면 기본값/빈 배열). PDF에는 비표준 키 /SedolCL2로 저장하고 AP에 둘 다 그린다(V24).
     /// </summary>
     public ImmutableArray<PdfPointF> Leader2 { get; init; } = [];
+
+    // --- 0.5.0 글자 서식 (FreeText 전용, 상자 전체 단위; 비표준 /SedolFont·/SedolFmt에 저장, TextFormat 참고) ---
+    public TextFontFamily TextFamily { get; init; }
+    public bool Bold { get; init; }
+    public bool Italic { get; init; }
+    public bool Underline { get; init; }
+    public bool StrikeThrough { get; init; }
 }

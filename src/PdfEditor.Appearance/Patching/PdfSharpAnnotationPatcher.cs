@@ -478,7 +478,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     {
         var form = Resolve(Resolve(annot.Elements["/AP"])?.Elements["/N"])
             ?? throw new InvalidOperationException("AddApFont needs an annotation appearance stream (/AP /N).");
-        var fontRef = FontEmbedder.Embed(doc, GetFont(), op.Font);
+        var fontRef = FontEmbedder.Embed(doc, GetFontFor(op.Font), op.Font);
 
         var resources = Resolve(form.Elements["/Resources"]);
         if (resources is null)

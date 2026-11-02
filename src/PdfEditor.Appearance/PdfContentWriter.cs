@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Pdf.Native;
+using PdfEditor.Appearance.Fonts;
 using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.Appearance;
@@ -56,8 +57,13 @@ public static class PdfContentWriter
             if (t.Glyphs.IsEmpty) continue;
             sb.Append("BT\n/").Append(t.FontResource).Append(' ').Append(Num(t.SizePt)).Append(" Tf\n")
               .Append(Color(t.Color)).Append(" rg\n");
+            // 합성 굵게(윤곽선 번짐): 채움+선(2 Tr), 선 색은 글자 색, 굵기는 글자 크기 비례. q ... Q 안이라 다른 묶음에 새지 않지만 끝에 되돌린다.
+            if (t.Bold)
+                sb.Append(Color(t.Color)).Append(" RG\n").Append(Num(t.SizePt * AppFontCatalog.SyntheticBoldStrokeRatio)).Append(" w\n1 j\n2 Tr\n");
+            string skew = t.Italic ? Num(AppFontCatalog.SyntheticItalicSkew) : "0";   // 합성 기울임: 글자 원점 기준 전단
             foreach (var g in t.Glyphs)
-                sb.Append("1 0 0 1 ").Append(Pt(g.Origin)).Append(" Tm\n<").Append(g.Cid.ToString("X4")).Append("> Tj\n");
+                sb.Append("1 0 ").Append(skew).Append(" 1 ").Append(Pt(g.Origin)).Append(" Tm\n<").Append(g.Cid.ToString("X4")).Append("> Tj\n");
+            if (t.Bold) sb.Append("0 Tr\n");
             sb.Append("ET\n");
         }
         sb.Append("Q\n");

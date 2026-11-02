@@ -366,6 +366,13 @@
   <data name="Prop_Annot_FontSize" xml:space="preserve"><value>Font size · {0:0.#} pt</value></data>
   <data name="Prop_Annot_TextColor" xml:space="preserve"><value>Text color</value></data>
   <data name="Prop_Annot_Align" xml:space="preserve"><value>Alignment</value></data>
+  <data name="Prop_Annot_Font" xml:space="preserve"><value>Font</value></data>
+  <data name="Font_Sans" xml:space="preserve"><value>Gothic (sans)</value></data>
+  <data name="Font_Serif" xml:space="preserve"><value>Myeongjo (serif)</value></data>
+  <data name="Format_Bold" xml:space="preserve"><value>Bold</value></data>
+  <data name="Format_Italic" xml:space="preserve"><value>Italic</value></data>
+  <data name="Format_Underline" xml:space="preserve"><value>Underline</value></data>
+  <data name="Format_Strike" xml:space="preserve"><value>Strikethrough</value></data>
   <data name="Align_Left" xml:space="preserve"><value>Left</value></data>
   <data name="Align_Center" xml:space="preserve"><value>Center</value></data>
   <data name="Align_Right" xml:space="preserve"><value>Right</value></data>

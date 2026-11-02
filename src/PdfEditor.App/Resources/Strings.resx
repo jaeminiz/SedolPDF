@@ -366,6 +366,13 @@
   <data name="Prop_Annot_FontSize" xml:space="preserve"><value>글자 크기 · {0:0.#} pt</value></data>
   <data name="Prop_Annot_TextColor" xml:space="preserve"><value>글자 색</value></data>
   <data name="Prop_Annot_Align" xml:space="preserve"><value>정렬</value></data>
+  <data name="Prop_Annot_Font" xml:space="preserve"><value>글꼴</value></data>
+  <data name="Font_Sans" xml:space="preserve"><value>고딕</value></data>
+  <data name="Font_Serif" xml:space="preserve"><value>명조</value></data>
+  <data name="Format_Bold" xml:space="preserve"><value>굵게</value></data>
+  <data name="Format_Italic" xml:space="preserve"><value>기울임</value></data>
+  <data name="Format_Underline" xml:space="preserve"><value>밑줄</value></data>
+  <data name="Format_Strike" xml:space="preserve"><value>취소선</value></data>
   <data name="Align_Left" xml:space="preserve"><value>왼쪽</value></data>
   <data name="Align_Center" xml:space="preserve"><value>가운데</value></data>
   <data name="Align_Right" xml:space="preserve"><value>오른쪽</value></data>

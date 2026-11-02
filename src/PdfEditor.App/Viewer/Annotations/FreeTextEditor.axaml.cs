@@ -36,6 +36,26 @@ public partial class FreeTextEditor : UserControl
         Box.CaretIndex = text.Length;
     }
 
+    /// <summary>
+    /// 글자 서식을 편집 칸에 미리 보인다(0.5.0): 굵게·기울임·밑줄·취소선·명조. 입력 칸은 시스템 글꼴을 쓰므로 모양이 저장 PDF와 완전히 같지는 않다
+    /// (저장 모양은 앱 글꼴 Noto Sans/Serif KR + 합성 굵게·기울임). 편집을 끝내면 화면도 Painter 결과로 돌아온다.
+    /// </summary>
+    public void ApplyFormat(bool bold, bool italic, bool underline, bool strike, bool serif)
+    {
+        Box.FontWeight = bold ? FontWeight.Bold : FontWeight.Normal;
+        Box.FontStyle = italic ? FontStyle.Italic : FontStyle.Normal;
+        var deco = new TextDecorationCollection();
+        if (underline) deco.Add(new TextDecoration { Location = TextDecorationLocation.Underline });
+        if (strike) deco.Add(new TextDecoration { Location = TextDecorationLocation.Strikethrough });
+        Box.SetValue(TextBlock.TextDecorationsProperty, deco.Count > 0 ? deco : null);
+        Box.FontFamily = serif ? new FontFamily("Noto Serif KR, Batang, Times New Roman, serif") : FontFamily.Default;
+    }
+
+    /// <summary>입력 칸 서식 확인용 (테스트).</summary>
+    public (FontWeight Weight, FontStyle Style, bool Underline, bool Strike) EditorFormat => (Box.FontWeight, Box.FontStyle,
+        Box.GetValue(TextBlock.TextDecorationsProperty)?.Any(d => d.Location == TextDecorationLocation.Underline) == true,
+        Box.GetValue(TextBlock.TextDecorationsProperty)?.Any(d => d.Location == TextDecorationLocation.Strikethrough) == true);
+
     /// <summary>한 줄 모드(쪽 객체의 텍스트 편집·추가, M4): Enter = 확정, Esc = 취소. 줄바꿈 없음.</summary>
     public bool SingleLine { get; private set; }
 

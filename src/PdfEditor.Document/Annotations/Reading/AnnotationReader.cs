@@ -295,6 +295,9 @@ public static class AnnotationReader
                 FontSizePt = ft?.FontSizePt ?? 12f,
                 TextColor = ft?.TextColor,
                 Align = ft?.Align ?? TextAlign.Left,
+                TextFamily = ft?.Family ?? TextFontFamily.Sans,
+                Bold = ((ft?.Fmt ?? 0) & TextFormat.BoldBit) != 0, Italic = ((ft?.Fmt ?? 0) & TextFormat.ItalicBit) != 0,
+                Underline = ((ft?.Fmt ?? 0) & TextFormat.UnderlineBit) != 0, StrikeThrough = ((ft?.Fmt ?? 0) & TextFormat.StrikeBit) != 0,
                 Rotation = ft?.Rotation ?? 0,
                 State = reviewState,
             };
@@ -398,7 +401,7 @@ public static class AnnotationReader
     private sealed record FreeTextData(
         ReadOnlyReason Failure, PdfRectF Rect, FreeTextIntent Intent, PdfRectF? TextBox, ImmutableArray<PdfPointF> Vertices,
         LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align, PdfColor? Stroke = null, int Rotation = 0,
-        ImmutableArray<PdfPointF> Leader2 = default, LineStyle Style = LineStyle.Solid);
+        ImmutableArray<PdfPointF> Leader2 = default, LineStyle Style = LineStyle.Solid, TextFontFamily Family = TextFontFamily.Sans, int Fmt = 0);
 
     /// <summary>FreeText 전용 값: /IT, /DA, /Q, /CL, /RD, /LE. 지원하지 않는 /IT·/LE는 UnsupportedType, 모양이 망가진 /CL은 Malformed.</summary>
     private static FreeTextData ReadFreeText(PdfDictionary.DictionaryElements e, PdfRectF rect)
@@ -465,13 +468,17 @@ public static class AnnotationReader
             }
         }
 
+        // 글자 서식(0.5.0, 비표준 키): 모르는 값은 기본으로 본다.
+        var family = TextFormat.FamilyFromName(e.GetName("/SedolFont"));
+        int fmt = TextFormat.Sanitize(Int(e, "/SedolFmt") ?? 0);
+
         // 설명선 지시선의 선 모양(0.5.0, 비표준 /SedolLS). 상자 테두리는 실선이다.
         var leaderStyle = intent == FreeTextIntent.Callout ? LineStyleExtensions.FromSedolName(e.GetName("/SedolLS")) ?? LineStyle.Solid : LineStyle.Solid;
 
         // 설명선은 Rect 전체(지시선 포함)와 글 상자를 따로 갖는다. 나머지는 안쪽 상자가 곧 Rect다.
         return intent == FreeTextIntent.Callout
-            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, leader2, leaderStyle)
-            : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation);
+            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, leader2, leaderStyle, family, fmt)
+            : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation, Family: family, Fmt: fmt);
     }
 
     private static PdfItem? Resolve(PdfItem? item)

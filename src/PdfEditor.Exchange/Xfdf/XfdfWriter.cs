@@ -143,6 +143,9 @@ public static class XfdfWriter
         if (a.Color is { } bc)
             da += string.Create(CultureInfo.InvariantCulture, $" {bc.R / 255.0:0.###} {bc.G / 255.0:0.###} {bc.B / 255.0:0.###} RG");
         e.Add(new XElement(Ns + "defaultappearance", da));
+        // 글자 서식(0.5.0, 비표준 속성): 기본이면 쓰지 않는다.
+        if (a.TextFamily != TextFontFamily.Sans) e.SetAttributeValue("sedolfont", TextFormat.FamilyName(a.TextFamily));
+        if (TextFormat.ToBits(a) != 0) e.SetAttributeValue("sedolfmt", TextFormat.ToBits(a).ToString(CultureInfo.InvariantCulture));
         e.SetAttributeValue("justification", a.Align switch { TextAlign.Center => "centered", TextAlign.Right => "right", _ => "left" });
         switch (a.Intent)
         {

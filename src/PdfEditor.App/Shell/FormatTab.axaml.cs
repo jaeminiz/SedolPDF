@@ -40,6 +40,18 @@ public sealed partial class FormatTab : UserControl
         EndEndBox.SelectionChanged += (_, _) => OnEndingPicked(EndEndBox, start: false);
         WidthBox.ValueChanged += (_, e) => { if (!_syncing && _props is not null && e.NewValue is { } v) _props.Width = (float)v; };
         FontBox.ValueChanged += (_, e) => { if (!_syncing && _props is not null && e.NewValue is { } v) _ = Run(() => _props.SetFontSizeAsync((float)v)); };
+        FontFamilyBox.Items.Add(new ComboBoxItem { Content = PdfEditor.App.Resources.Strings.Font_Sans, Tag = PdfEditor.Document.Annotations.TextFontFamily.Sans });
+        FontFamilyBox.Items.Add(new ComboBoxItem { Content = PdfEditor.App.Resources.Strings.Font_Serif, Tag = PdfEditor.Document.Annotations.TextFontFamily.Serif });
+        FontFamilyBox.SelectionChanged += (_, _) =>
+        {
+            if (!_syncing && _props is not null && FontFamilyBox.SelectedItem is ComboBoxItem { Tag: PdfEditor.Document.Annotations.TextFontFamily f }) _ = Run(() => _props.SetFontFamilyAsync(f));
+        };
+        void Wire(Avalonia.Controls.Primitives.ToggleButton b, int bit) =>
+            b.IsCheckedChanged += (_, _) => { if (!_syncing && _props is not null) _ = Run(() => _props.SetTextStyleAsync(bit, b.IsChecked == true)); };
+        Wire(BoldBtn, PdfEditor.Document.Annotations.TextFormat.BoldBit);
+        Wire(ItalicBtn, PdfEditor.Document.Annotations.TextFormat.ItalicBit);
+        Wire(UnderlineBtn, PdfEditor.Document.Annotations.TextFormat.UnderlineBit);
+        Wire(StrikeBtn, PdfEditor.Document.Annotations.TextFormat.StrikeBit);
         SaveStyleBtn.Click += (_, _) => _styles?.SaveCurrentFromInput();
         StyleNameBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) { _styles?.SaveCurrentFromInput(); e.Handled = true; } };
         StyleNameBox.TextChanged += (_, _) => { if (!_syncing && _styles is not null) _styles.NewStyleName = StyleNameBox.Text ?? ""; };
@@ -107,6 +119,8 @@ public sealed partial class FormatTab : UserControl
             {
                 FontLabel.Text = p.FontSizeLabel;
                 FontBox.Value = (decimal)p.FontSizePt;
+                FontFamilyBox.SelectedIndex = (int)p.TextFamily;
+                BoldBtn.IsChecked = p.Bold; ItalicBtn.IsChecked = p.Italic; UnderlineBtn.IsChecked = p.Underline; StrikeBtn.IsChecked = p.Strike;
                 Rebuild(TextColorSwatches, p.TextColor, c => _ = Run(() => p.SetTextColorAsync(c!.Value)));
             }
         }

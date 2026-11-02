@@ -23,6 +23,7 @@ public static class AnnotationComparer
         for (int i = 0; i < va.Length; i++)
             if (!Near(va[i], vb[i], tol)) return false;
         if (a.LineStyle != b.LineStyle) return false;
+        if (a.TextFamily != b.TextFamily || TextFormat.ToBits(a) != TextFormat.ToBits(b)) return false;
         var la = a.Leader2.IsDefault ? [] : a.Leader2;
         var lb = b.Leader2.IsDefault ? [] : b.Leader2;
         if (la.Length != lb.Length) return false;

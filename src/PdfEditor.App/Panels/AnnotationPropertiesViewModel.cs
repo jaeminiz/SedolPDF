@@ -57,6 +57,11 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     [ObservableProperty] private float _fontSizePt = 12f;
     [ObservableProperty] private PdfColor? _textColor;
     [ObservableProperty] private TextAlign _align;
+    [ObservableProperty] private TextFontFamily _textFamily;
+    [ObservableProperty] private bool _bold;
+    [ObservableProperty] private bool _italic;
+    [ObservableProperty] private bool _underline;
+    [ObservableProperty] private bool _strike;
     [ObservableProperty] private bool _showStamp;
     [ObservableProperty] private string? _currentStampName;
     [ObservableProperty] private bool _showAttachment;
@@ -223,6 +228,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
             FontSizePt = Math.Clamp(sel[0].FontSizePt, MinFontSize, MaxFontSize);
             TextColor = sel[0].TextColor ?? sel[0].Color;
             Align = sel[0].Align;
+            TextFamily = sel[0].TextFamily; Bold = sel[0].Bold; Italic = sel[0].Italic; Underline = sel[0].Underline; Strike = sel[0].StrikeThrough;
         }
         ShowStamp = sel.Count == 1 && sel[0].Kind == AnnotKind.Stamp;
         CurrentStampName = ShowStamp ? StampNameOf(sel[0].Stamp) : null;
@@ -405,6 +411,19 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
 
     public Task SetTextColorAsync(PdfColor c) =>
         EditAsync(a => a.Kind != AnnotKind.FreeText ? a : a with { TextColor = c, ModifiedAt = _clock() }, null);
+
+    /// <summary>글꼴(고딕/명조, 0.5.0). 타자기는 글 폭이 달라지므로 상자를 다시 맞춘다.</summary>
+    public Task SetFontFamilyAsync(TextFontFamily f) =>
+        EditAsync(a => a.Kind != AnnotKind.FreeText || a.TextFamily == f ? a : _tab.Tools.FitForCommit(a with { TextFamily = f, ModifiedAt = _clock() }), null);
+
+    /// <summary>굵게·기울임·밑줄·취소선 중 하나를 켜고 끈다(상자 전체, 0.5.0). bit는 <see cref="TextFormat"/>의 *Bit.</summary>
+    public Task SetTextStyleAsync(int bit, bool on) =>
+        EditAsync(a =>
+        {
+            if (a.Kind != AnnotKind.FreeText) return a;
+            int cur = TextFormat.ToBits(a), next = on ? cur | bit : cur & ~bit;
+            return next == cur ? a : _tab.Tools.FitForCommit(TextFormat.WithBits(a, next) with { ModifiedAt = _clock() });
+        }, null);
 
     public Task SetAlignAsync(TextAlign align) =>
         EditAsync(a => a.Kind != AnnotKind.FreeText ? a : _tab.Tools.FitForCommit(a with { Align = align, ModifiedAt = _clock() }), null);
