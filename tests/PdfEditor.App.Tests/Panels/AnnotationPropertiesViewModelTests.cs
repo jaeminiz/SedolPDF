@@ -310,7 +310,7 @@ public class AnnotationPropertiesViewModelTests : PanelTestBase, IDisposable
         var square = items.Single(a => a.Kind == AnnotKind.Square);
         tab.Selection.Set(page, [line.Id]);
         Assert.True(vm.ShowLineEndings);
-        Assert.Equal(8, AnnotationPropertiesViewModel.LineEndingChoices.Count);
+        Assert.Equal(9, AnnotationPropertiesViewModel.LineEndingChoices.Count);
         tab.Selection.Set(page, [square.Id]);
         Assert.False(vm.ShowLineEndings);
         Assert.True(vm.ShowCloud);   // 사각형은 클라우드 켜기가 있다
