@@ -217,7 +217,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 b = b with { StartEnding = r.Start ?? b.StartEnding, EndEnding = r.End ?? b.EndEnding };
             if (a.Kind is AnnotKind.Square or AnnotKind.Polygon && r.Cloud is { } c)
                 b = b with { CloudIntensity = c };
-            if (a.Kind.Applies() && r.Style is { } ls) b = b with { LineStyle = ls };
+            if (LineStyleExtensions.AppliesTo(a) && r.Style is { } ls) b = b with { LineStyle = ls };
         }
         return b;
     }
@@ -269,7 +269,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 a.Kind is AnnotKind.Line or AnnotKind.PolyLine ? a.StartEnding.ToString() : null,
                 a.Kind is AnnotKind.Line or AnnotKind.PolyLine ? a.EndEnding.ToString() : null,
                 a.Kind is AnnotKind.Square or AnnotKind.Polygon ? a.CloudIntensity : null,
-                a.Kind.Applies() ? a.LineStyle.ToString() : null);
+                LineStyleExtensions.AppliesTo(a) ? a.LineStyle.ToString() : null);
         }
         if (AnnotationPropertiesViewModel.IsCreateTool(_tab.Tool))
         {

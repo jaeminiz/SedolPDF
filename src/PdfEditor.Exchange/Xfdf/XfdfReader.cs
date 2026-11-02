@@ -443,6 +443,10 @@ public static partial class XfdfReader
                 : LineStyle.Dashed;
             a = a with { LineStyle = ls };
         }
+        else if (kind.Applies() && width > 0 && LineStyleExtensions.FromSedolName(at.GetValueOrDefault("sedolls")) is LineStyle.Double)
+            a = a with { LineStyle = LineStyle.Double };
+        else if (kind.AppliesToLeader() && LineStyleExtensions.FromSedolName(at.GetValueOrDefault("sedolls")) is { } leaderStyle)
+            a = a with { LineStyle = leaderStyle };
 
         // 종류별 나머지
         switch (kind)
@@ -487,7 +491,9 @@ public static partial class XfdfReader
             if (le is null) { notes.Add($"{name}: line ending '{Short(v)}' is not supported and was replaced by none"); return LineEnding.None; }
             return le.Value;
         }
-        return a with { StartEnding = Ending("head"), EndEnding = Ending("tail") };
+        var start = LineEndingExtensions.WithSedolMark(Ending("head"), at.GetValueOrDefault("sedolhead")?.Trim());
+        var end = LineEndingExtensions.WithSedolMark(Ending("tail"), at.GetValueOrDefault("sedoltail")?.Trim());
+        return a with { StartEnding = start, EndEnding = end };
     }
 
     private static Annotation? FreeText(Annotation a, XElement el, Dictionary<string, string> at, string name, List<string> notes, out string? error)

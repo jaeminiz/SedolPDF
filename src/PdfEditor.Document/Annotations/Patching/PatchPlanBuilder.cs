@@ -337,6 +337,12 @@ public static class PatchPlanBuilder
     /// 선·폴리라인·다각형·Caret의 키 목록(A3). 새 주석과 손댄 원본이 같은 목록을 쓴다(원본은 Rect·CreationDate 차이만).
     /// 선 끝 /LE는 선·폴리라인에서 이름 두 개의 배열(시작, 끝)이다(FreeText의 /LE는 이름 하나).
     /// </summary>
+    /// <summary>비표준 /SedolLE: 속 빈 화살촉(HollowArrow)이 하나라도 있으면 시작·끝 표시 두 개를, 없으면 키를 지운다.</summary>
+    private static PatchOp SedolLeOp(LineEnding start, LineEnding end)
+        => start == LineEnding.HollowArrow || end == LineEnding.HollowArrow
+            ? new SetNames("/SedolLE", [start.ToSedolMark(), end.ToSedolMark()])
+            : new RemoveKeys(["/SedolLE"]);
+
     internal static ImmutableArray<PatchOp> ShapeOps(Annotation m, PatchAppearance ap, bool isNew, string? replyParentNm = null)
     {
         var ops = ImmutableArray.CreateBuilder<PatchOp>();
@@ -358,10 +364,12 @@ public static class PatchPlanBuilder
                 if (m.Vertices.Length >= 2)
                     ops.Add(new SetNumbers("/L", [m.Vertices[0].X, m.Vertices[0].Y, m.Vertices[1].X, m.Vertices[1].Y]));
                 ops.Add(new SetNames("/LE", [m.StartEnding.ToPdfName(), m.EndEnding.ToPdfName()]));
+                ops.Add(SedolLeOp(m.StartEnding, m.EndEnding));
                 break;
             case AnnotKind.PolyLine:
                 ops.Add(new SetNumbers("/Vertices", [.. m.Vertices.SelectMany(v => new[] { v.X, v.Y })]));
                 ops.Add(new SetNames("/LE", [m.StartEnding.ToPdfName(), m.EndEnding.ToPdfName()]));
+                ops.Add(SedolLeOp(m.StartEnding, m.EndEnding));
                 break;
             case AnnotKind.Polygon:
                 ops.Add(new SetNumbers("/Vertices", [.. m.Vertices.SelectMany(v => new[] { v.X, v.Y })]));
@@ -384,7 +392,10 @@ public static class PatchPlanBuilder
         {
             // 두께는 /Border에 쓰므로 낡은 /BS는 지운다(M2 한계 1과 같은 이유).
             // 점선·파선·일점쇄선(0.4.0)은 표준 /BS /S /D /D로 쓴다(/Border도 같이 둬 /BS를 모르는 뷰어에서 굵기가 맞게).
-            bool styled = m.Kind.Applies() && m.LineStyle != LineStyle.Solid && m.BorderWidth > 0;
+            bool styled = m.Kind.Applies() && m.LineStyle.IsDashed() && m.BorderWidth > 0;
+            // 이중선(0.5.0)은 표준에 없으므로 /BS는 실선으로 두고 비표준 /SedolLS에 쓴다(AP가 두 줄로 그린다).
+            if (m.Kind.Applies() && m.LineStyle == LineStyle.Double && m.BorderWidth > 0) ops.Add(new SetName("/SedolLS", "/Double"));
+            else ops.Add(new RemoveKeys(["/SedolLS"]));
             if (!styled) ops.Add(new RemoveKeys(["/BS"]));   // 실선: 낡은 /BS를 지운다. 점선류는 아래 SetBorderStyle가 기존 /BS에 합쳐 모르는 키를 보존한다.
             ops.Add(new SetNumbers("/Border", [0f, 0f, m.BorderWidth]));
             if (styled) ops.Add(new SetBorderStyle(m.BorderWidth, [.. LineStyleExtensions.DashArray(m.LineStyle, m.BorderWidth)]));
@@ -440,12 +451,15 @@ public static class PatchPlanBuilder
             if (m.Leader2.IsDefault || m.Leader2.Length is not (2 or 3)) ops.Add(new RemoveKeys(["/SedolCL2"]));
             else ops.Add(new SetNumbers("/SedolCL2", [.. m.Leader2.SelectMany(v => new[] { v.X, v.Y })]));
             ops.Add(new SetName("/LE", m.EndEnding.ToPdfName()));
+            ops.Add(m.EndEnding == LineEnding.HollowArrow ? new SetNames("/SedolLE", [m.EndEnding.ToSedolMark()]) : new RemoveKeys(["/SedolLE"]));
+            // 지시선 선 모양(0.5.0): 상자 테두리는 실선이라 /BS를 쓰지 않고 비표준 /SedolLS에 모양 이름을 쓴다.
+            ops.Add(m.LineStyle != LineStyle.Solid && Enum.IsDefined(m.LineStyle) ? new SetName("/SedolLS", "/" + m.LineStyle) : new RemoveKeys(["/SedolLS"]));
             var box = m.TextBox ?? m.Rect;
             ops.Add(new SetNumbers("/RD", [box.Left - m.Rect.Left, box.Bottom - m.Rect.Bottom, m.Rect.Right - box.Right, m.Rect.Top - box.Top]));
         }
         else
         {
-            ops.Add(new RemoveKeys(["/CL", "/LE", "/SedolCL2"]));
+            ops.Add(new RemoveKeys(["/CL", "/LE", "/SedolCL2", "/SedolLE", "/SedolLS"]));
             ops.Add(new SetNumbers("/RD", [0f, 0f, 0f, 0f]));
         }
 
