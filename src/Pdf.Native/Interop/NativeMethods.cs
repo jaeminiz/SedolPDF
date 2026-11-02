@@ -39,6 +39,7 @@ internal static unsafe partial class NativeMethods
     public const uint FPDF_ERR_PASSWORD = 4;
     public const int FPDFBitmap_BGRA = 4;
     public const int FPDF_ANNOT = 0x01;
+    public const int FPDF_GRAYSCALE = 0x08;
     public const int FPDF_PRINTING = 0x800;
 
     private const string Lib = "pdfium";

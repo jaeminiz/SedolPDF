@@ -18,7 +18,9 @@ public class PrintCommandTests : PanelTestBase
     {
         public int Calls;
         public int LastPage = -1;
-        public Task PrintAsync(DocumentSession session, int currentPageIndex) { Calls++; LastPage = currentPageIndex; return Task.CompletedTask; }
+        public IReadOnlyCollection<int> LastSelected = [];
+        public Task PrintAsync(DocumentSession session, int currentPageIndex, IReadOnlyCollection<int> selectedPageIndices)
+        { Calls++; LastPage = currentPageIndex; LastSelected = selectedPageIndices; return Task.CompletedTask; }
     }
 
     private async Task<(MainWindowViewModel Vm, FakePrint Print)> OpenAsync(string path)

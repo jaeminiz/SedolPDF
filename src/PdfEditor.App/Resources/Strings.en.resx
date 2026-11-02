@@ -249,15 +249,56 @@
   <data name="Search_PageLabel" xml:space="preserve"><value>Page {0}</value></data>
   <data name="Cmd_FindNext" xml:space="preserve"><value>Next Result</value></data>
   <data name="Cmd_FindPrev" xml:space="preserve"><value>Previous Result</value></data>
-  <data name="Dlg_PrintTitle" xml:space="preserve"><value>Print Options</value></data>
+  <data name="Dlg_PrintTitle" xml:space="preserve"><value>Print</value></data>
   <data name="Dlg_PrintAnnotations" xml:space="preserve"><value>Include annotations</value></data>
   <data name="Dlg_PrintNoAnnotations" xml:space="preserve"><value>Exclude annotations</value></data>
   <data name="Dlg_PrintFit" xml:space="preserve"><value>Fit to paper</value></data>
   <data name="Dlg_PrintActualSize" xml:space="preserve"><value>Actual size</value></data>
   <data name="Dlg_PrintAutoRotate" xml:space="preserve"><value>Rotate automatically to match paper orientation</value></data>
-  <data name="Dlg_PrintButton" xml:space="preserve"><value>Print…</value></data>
+  <data name="Dlg_PrintButton" xml:space="preserve"><value>Print</value></data>
   <data name="Dlg_PrintProgressTitle" xml:space="preserve"><value>Printing</value></data>
   <data name="Dlg_PrintProgress" xml:space="preserve"><value>Printing page {0} of {1}</value></data>
+  <data name="Print_Printer" xml:space="preserve"><value>Printer</value></data>
+  <data name="Print_Properties" xml:space="preserve"><value>Properties…</value></data>
+  <data name="Print_NoPrinter" xml:space="preserve"><value>No printer is installed.</value></data>
+  <data name="Print_Range" xml:space="preserve"><value>Page range</value></data>
+  <data name="Print_RangeAll" xml:space="preserve"><value>All</value></data>
+  <data name="Print_RangeCurrent" xml:space="preserve"><value>Current page</value></data>
+  <data name="Print_RangeSelected" xml:space="preserve"><value>Selected pages (thumbnails)</value></data>
+  <data name="Print_RangeCustom" xml:space="preserve"><value>Custom</value></data>
+  <data name="Print_RangeHint" xml:space="preserve"><value>e.g. 1-3, 5</value></data>
+  <data name="Print_RangeInvalid" xml:space="preserve"><value>The page range is not valid.</value></data>
+  <data name="Print_ParityAll" xml:space="preserve"><value>All pages</value></data>
+  <data name="Print_ParityOdd" xml:space="preserve"><value>Odd pages only</value></data>
+  <data name="Print_ParityEven" xml:space="preserve"><value>Even pages only</value></data>
+  <data name="Print_Copies" xml:space="preserve"><value>Copies</value></data>
+  <data name="Print_Collate" xml:space="preserve"><value>Collate</value></data>
+  <data name="Print_Paper" xml:space="preserve"><value>Paper</value></data>
+  <data name="Print_PaperDefault" xml:space="preserve"><value>Printer default</value></data>
+  <data name="Print_Orientation" xml:space="preserve"><value>Orientation</value></data>
+  <data name="Print_OrientAuto" xml:space="preserve"><value>Auto</value></data>
+  <data name="Print_OrientPortrait" xml:space="preserve"><value>Portrait</value></data>
+  <data name="Print_OrientLandscape" xml:space="preserve"><value>Landscape</value></data>
+  <data name="Print_Duplex" xml:space="preserve"><value>Two-sided</value></data>
+  <data name="Print_DuplexOff" xml:space="preserve"><value>Off</value></data>
+  <data name="Print_DuplexLong" xml:space="preserve"><value>Flip on long edge</value></data>
+  <data name="Print_DuplexShort" xml:space="preserve"><value>Flip on short edge</value></data>
+  <data name="Print_Scale" xml:space="preserve"><value>Scale</value></data>
+  <data name="Print_ScalePercent" xml:space="preserve"><value>Custom scale (%)</value></data>
+  <data name="Print_Center" xml:space="preserve"><value>Center on paper</value></data>
+  <data name="Print_PerSheet" xml:space="preserve"><value>Pages per sheet</value></data>
+  <data name="Print_PerSheet1" xml:space="preserve"><value>1 (off)</value></data>
+  <data name="Print_PerSheet2" xml:space="preserve"><value>2 pages</value></data>
+  <data name="Print_PerSheet4" xml:space="preserve"><value>4 pages</value></data>
+  <data name="Print_Grayscale" xml:space="preserve"><value>Print in black and white</value></data>
+  <data name="Print_Preview" xml:space="preserve"><value>Preview</value></data>
+  <data name="Print_PreviewLoading" xml:space="preserve"><value>Preparing…</value></data>
+  <data name="Print_PreviewNone" xml:space="preserve"><value>There are no pages to print.</value></data>
+  <data name="Print_PreviewFailed" xml:space="preserve"><value>Could not create the preview.</value></data>
+  <data name="Print_SheetOf" xml:space="preserve"><value>Sheet {0} of {1}</value></data>
+  <data name="Print_Summary" xml:space="preserve"><value>{0} pages · {1} sheets</value></data>
+  <data name="Print_PrevSheet" xml:space="preserve"><value>Previous sheet</value></data>
+  <data name="Print_NextSheet" xml:space="preserve"><value>Next sheet</value></data>
   <data name="Msg_PrintRestricted" xml:space="preserve"><value>Printing is restricted in this document.</value></data>
   <data name="Msg_PrintDone" xml:space="preserve"><value>The print job has been sent.</value></data>
   <data name="Doc_Recovered" xml:space="preserve"><value>{0} (recovered)</value></data>

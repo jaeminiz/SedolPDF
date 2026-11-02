@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:res="using:PdfEditor.App.Resources"
+        x:Class="PdfEditor.App.Printing.PrintDialog"
+        Title="{x:Static res:Strings.Dlg_PrintTitle}"
+        Width="880" Height="640" MinWidth="720" MinHeight="420"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="#F3F3F3">
+  <Grid RowDefinitions="*,Auto" Margin="20,16,20,16">
+    <Grid Grid.Row="0" ColumnDefinitions="340,16,*">
+      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="6" Margin="0,0,12,0">
+          <TextBlock Text="{x:Static res:Strings.Print_Printer}" Foreground="#5C5C5C" />
+          <Grid ColumnDefinitions="*,8,Auto">
+            <ComboBox x:Name="PrinterBox" Grid.Column="0" HorizontalAlignment="Stretch" />
+            <Button x:Name="PropsButton" Grid.Column="2" Content="{x:Static res:Strings.Print_Properties}" />
+          </Grid>
+          <TextBlock x:Name="NoPrinterText" Text="{x:Static res:Strings.Print_NoPrinter}" Foreground="#C42B1C" IsVisible="False" />
+
+          <TextBlock Text="{x:Static res:Strings.Print_Range}" Foreground="#5C5C5C" Margin="0,8,0,0" />
+          <RadioButton x:Name="RangeAll" GroupName="range" IsChecked="True" Content="{x:Static res:Strings.Print_RangeAll}" />
+          <RadioButton x:Name="RangeCurrent" GroupName="range" Content="{x:Static res:Strings.Print_RangeCurrent}" />
+          <RadioButton x:Name="RangeSelected" GroupName="range" Content="{x:Static res:Strings.Print_RangeSelected}" />
+          <RadioButton x:Name="RangeCustom" GroupName="range" Content="{x:Static res:Strings.Print_RangeCustom}" />
+          <TextBox x:Name="RangeText" PlaceholderText="{x:Static res:Strings.Print_RangeHint}" IsEnabled="False" />
+          <TextBlock x:Name="RangeError" Text="{x:Static res:Strings.Print_RangeInvalid}" Foreground="#C42B1C" IsVisible="False" />
+          <ComboBox x:Name="ParityBox" HorizontalAlignment="Stretch" SelectedIndex="0" />
+          <TextBlock x:Name="SummaryText" Foreground="#5C5C5C" />
+
+          <Grid ColumnDefinitions="Auto,8,110,16,Auto" Margin="0,8,0,0">
+            <TextBlock Grid.Column="0" Text="{x:Static res:Strings.Print_Copies}" VerticalAlignment="Center" />
+            <NumericUpDown x:Name="CopiesBox" Grid.Column="2" Minimum="1" Maximum="999" Value="1" Increment="1" FormatString="0" />
+            <CheckBox x:Name="CollateBox" Grid.Column="4" IsChecked="True" Content="{x:Static res:Strings.Print_Collate}" />
+          </Grid>
+
+          <TextBlock Text="{x:Static res:Strings.Print_Paper}" Foreground="#5C5C5C" Margin="0,8,0,0" />
+          <ComboBox x:Name="PaperBox" HorizontalAlignment="Stretch" />
+          <Grid ColumnDefinitions="*,12,*">
+            <StackPanel Grid.Column="0" Spacing="4">
+              <TextBlock Text="{x:Static res:Strings.Print_Orientation}" Foreground="#5C5C5C" />
+              <ComboBox x:Name="OrientBox" HorizontalAlignment="Stretch" SelectedIndex="0" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="4">
+              <TextBlock Text="{x:Static res:Strings.Print_Duplex}" Foreground="#5C5C5C" />
+              <ComboBox x:Name="DuplexBox" HorizontalAlignment="Stretch" SelectedIndex="0" />
+            </StackPanel>
+          </Grid>
+
+          <TextBlock Text="{x:Static res:Strings.Print_Scale}" Foreground="#5C5C5C" Margin="0,8,0,0" />
+          <RadioButton x:Name="FitRadio" GroupName="scale" IsChecked="True" Content="{x:Static res:Strings.Dlg_PrintFit}" />
+          <RadioButton x:Name="ActualRadio" GroupName="scale" Content="{x:Static res:Strings.Dlg_PrintActualSize}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <RadioButton x:Name="PercentRadio" GroupName="scale" Content="{x:Static res:Strings.Print_ScalePercent}" />
+            <NumericUpDown x:Name="PercentBox" Minimum="10" Maximum="400" Value="100" Increment="5" FormatString="0" Width="110" IsEnabled="False" />
+          </StackPanel>
+          <CheckBox x:Name="CenterBox" IsChecked="True" Content="{x:Static res:Strings.Print_Center}" />
+          <CheckBox x:Name="AutoRotateBox" IsChecked="True" Content="{x:Static res:Strings.Dlg_PrintAutoRotate}" />
+
+          <TextBlock Text="{x:Static res:Strings.Print_PerSheet}" Foreground="#5C5C5C" Margin="0,8,0,0" />
+          <ComboBox x:Name="PerSheetBox" HorizontalAlignment="Stretch" SelectedIndex="0" />
+
+          <RadioButton x:Name="WithAnnotRadio" GroupName="annot" IsChecked="True" Margin="0,8,0,0" Content="{x:Static res:Strings.Dlg_PrintAnnotations}" />
+          <RadioButton x:Name="NoAnnotRadio" GroupName="annot" Content="{x:Static res:Strings.Dlg_PrintNoAnnotations}" />
+          <CheckBox x:Name="GrayBox" Content="{x:Static res:Strings.Print_Grayscale}" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Row="0" Text="{x:Static res:Strings.Print_Preview}" Foreground="#5C5C5C" Margin="0,0,0,6" />
+        <Border Grid.Row="1" Background="#D9D9D9" BorderBrush="#BDBDBD" BorderThickness="1" ClipToBounds="True">
+          <Grid>
+            <Image x:Name="PreviewImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12" />
+            <TextBlock x:Name="PreviewStatus" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#5C5C5C" />
+          </Grid>
+        </Border>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,8,0,0">
+          <Button x:Name="PrevButton" Content="&#9664;" MinWidth="40" ToolTip.Tip="{x:Static res:Strings.Print_PrevSheet}" />
+          <TextBlock x:Name="SheetText" VerticalAlignment="Center" MinWidth="80" TextAlignment="Center" />
+          <Button x:Name="NextButton" Content="&#9654;" MinWidth="40" ToolTip.Tip="{x:Static res:Strings.Print_NextSheet}" />
+        </StackPanel>
+      </Grid>
+    </Grid>
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_PrintButton}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    </StackPanel>
+  </Grid>
+</Window>
