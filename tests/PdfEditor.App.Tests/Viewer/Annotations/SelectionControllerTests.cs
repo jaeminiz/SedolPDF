@@ -81,13 +81,45 @@ public class SelectionControllerTests
     }
 
     [Fact]
-    public void HitTest_NoHandlesForTextOrMarkup()
+    public void HitTest_NoHandlesForNoteAndMultiLineOrSlantedMarkup()
     {
         var note = Note(1, 100, 100);
-        var hl = Highlight(2, 300, 300, 400, 320);
         var c = Make();
         Assert.Equal(HandleKind.Body, c.HitTest(Snap(note), Sel(1), new(120, 100), 1f)!.Handle);
-        Assert.Equal(HandleKind.Body, c.HitTest(Snap(hl), Sel(2), new(400, 300), 1f)!.Handle);
+        // 여러 줄 형광펜(사각형 2개)·밑줄·기울어진 사각형은 글에 붙은 마크업이라 손잡이가 없다
+        var two = new Annotation { Id = new AnnotId(2), Kind = AnnotKind.Highlight, Quads = [PdfQuadF.FromRect(new(300, 300, 400, 320)), PdfQuadF.FromRect(new(300, 270, 380, 290))] };
+        two = two with { Rect = AnnotationGeometry.ComputeRect(two) };
+        Assert.Equal(HandleKind.Body, c.HitTest(Snap(two), Sel(2), new(400, 320), 1f)!.Handle);
+        var under = new Annotation { Id = new AnnotId(3), Kind = AnnotKind.Underline, Quads = [PdfQuadF.FromRect(new(300, 300, 400, 320))] };
+        under = under with { Rect = AnnotationGeometry.ComputeRect(under) };
+        Assert.Equal(HandleKind.Body, c.HitTest(Snap(under), Sel(3), new(400, 300), 1f)!.Handle);
+        var slanted = new Annotation { Id = new AnnotId(4), Kind = AnnotKind.Highlight, Quads = [new PdfQuadF(new(300, 320), new(400, 330), new(300, 300), new(400, 310))] };
+        Assert.False(AnnotationGeometry.IsRectHighlight(slanted));
+    }
+
+    [Fact]
+    public void AreaHighlight_HasEightHandlesAndResizes()
+    {
+        var hl = Highlight(2, 300, 300, 400, 320);
+        Assert.Equal(8, SelectionController.HandlesOf(hl).Count);
+        var c = Make();
+        Assert.Equal(HandleKind.SE, c.HitTest(Snap(hl), Sel(2), new(400, 300), 1f)!.Handle);
+        Assert.Equal(HandleKind.N, c.HitTest(Snap(hl), Sel(2), new(350, 320), 1f)!.Handle);
+        c.Begin(Snap(hl), Sel(2), new HitResult(hl.Id, HandleKind.SE), new(400, 300), Bounds, 1f);
+        var after = Changes(c.End(new(450, 280))!)[0].After!;
+        Assert.Equal(new PdfRectF(300, 280, 450, 320), after.Rect);
+        Assert.Single(after.Quads);
+        Assert.Equal(new PdfRectF(300, 280, 450, 320), after.Quads[0].Bounds);   // 그려지는 모양(Quads)도 함께 바뀐다
+    }
+
+    [Fact]
+    public void AreaHighlight_CornerOrderFromFilesStillCounts()
+    {
+        // Acrobat 순서(왼쪽 위·오른쪽 위·왼쪽 아래·오른쪽 아래)가 아닌 파일의 점 순서(왼쪽 아래부터 시계 반대)도 직사각형으로 본다
+        var a = new Annotation { Kind = AnnotKind.Highlight, Quads = [new PdfQuadF(new(10, 10), new(60, 10), new(60, 30), new(10, 30))] };
+        Assert.True(AnnotationGeometry.IsRectHighlight(a));
+        var resized = AnnotationGeometry.Resize(a with { Rect = AnnotationGeometry.ComputeRect(a) }, new PdfRectF(10, 10, 100, 40));
+        Assert.Equal(new PdfRectF(10, 10, 100, 40), resized.Quads[0].Bounds);
     }
 
     [Fact]

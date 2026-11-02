@@ -57,7 +57,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
                 foreach (var (k, c) in HandleCenters(BoxOf(a))) list.Add((k, 0, c));
                 break;
             default:
-                if (AnnotationGeometry.CanResize(a.Kind) && a.Kind is not (AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon))
+                if (AnnotationGeometry.CanResize(a) && a.Kind is not (AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon))
                     foreach (var (k, c) in HandleCenters(AnnotationGeometry.ComputeRect(a))) list.Add((k, 0, c));
                 break;
         }
