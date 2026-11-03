@@ -66,8 +66,8 @@ By Park Jaemin and Park Sehyeon. MIT-licensed open source — https://github.com
 
 ## 스크린샷 규격
 - 형식: PNG, 장당 50 MB 이하, 최소 1~최대 10장. 데스크톱: 가로 1366×768 이상 권장(검증 필요: 현재 Partner Center 규격).
-- 현재 `docs/screenshots/viewer.png`, `edit.png` 2장이 있다 → 해상도를 확인하고(검증 필요) 부족하면 최소 3~4장으로 늘린다: 보기, 주석+코멘트 패널, 쪽 편집(썸네일), 문단 편집.
-- 회사 도면 등 공개하면 안 되는 PDF는 쓰지 않는다. 스크린샷은 직접 만든 샘플 PDF(`spikes/out/*.pdf`)로 찍는다.
+- 현재 `docs/screenshots/01-info.png`~`06-print-preview.png` 6장(정보·홈·주석·편집·페이지·인쇄 미리보기, 1600×1000 / 인쇄 창 980×880, 영어판은 `docs/screenshots/en/`). 스토어에는 이 6장을 올린다. 다시 만들기: 환경 변수 `SEDOL_STORE_SHOTS_DIR`, `SEDOL_STORE_SAMPLE`을 정하고 `dotnet test tests/PdfEditor.App.Tests --filter Generate_StoreScreenshots`.
+- 샘플 PDF는 직접 만든 가상의 제품 소개서(SEDOL Analytics)이며 개인정보·회사 도면이 없다. 문서에 실제 회사명(BP, HSBC 등)이 시세 예시로 나오므로 스토어 심사 전에 한 번 더 확인한다.
 - 스크린샷 촬영은 헤드리스 렌더 또는 사용자가 허락한 시간에만(화면 조작 시험 지침).
 
 ## 앱 로고(스토어 목록용)

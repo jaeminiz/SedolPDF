@@ -6,7 +6,7 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 
 > **초기 공개 버전(v0.5.0)입니다.** 기본 기능은 쓸 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요. 문제나 제안은 [Issues](https://github.com/jaeminiz/SedolPDF/issues)에 남겨 주세요.
 
-![보기와 주석](docs/screenshots/viewer.png)
+![주석 탭](docs/screenshots/03-annotate.png)
 
 ## 주요 기능
 
@@ -32,9 +32,15 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 - 자동 복구(비정상 종료 뒤 편집 내용 복구), 암호가 걸린 PDF 열기.
 - 앱 코드에는 네트워크 통신이 없습니다.
 
-![편집 탭](docs/screenshots/edit.png)
+![홈 탭](docs/screenshots/02-home.png)
 
-![정보 창](docs/screenshots/about.png)
+![편집 탭](docs/screenshots/04-edit.png)
+
+![페이지 탭](docs/screenshots/05-page.png)
+
+![인쇄 미리보기](docs/screenshots/06-print-preview.png)
+
+![정보 창](docs/screenshots/01-info.png)
 
 ## 설치
 
