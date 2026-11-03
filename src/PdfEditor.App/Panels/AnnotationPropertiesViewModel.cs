@@ -80,8 +80,6 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         LineStyle.Solid => Strings.LineStyle_Solid,
         LineStyle.Dotted => Strings.LineStyle_Dotted,
         LineStyle.Dashed => Strings.LineStyle_Dashed,
-        LineStyle.LongDash => Strings.LineStyle_LongDash,
-        LineStyle.Double => Strings.LineStyle_Double,
         _ => Strings.LineStyle_DashDot,
     };
     public static string LineEndingName(LineEnding e) => e switch
@@ -92,7 +90,6 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         LineEnding.Diamond => Strings.LineEnding_Diamond,
         LineEnding.OpenArrow => Strings.LineEnding_OpenArrow,
         LineEnding.ClosedArrow => Strings.LineEnding_ClosedArrow,
-        LineEnding.HollowArrow => Strings.LineEnding_HollowArrow,
         LineEnding.Butt => Strings.LineEnding_Butt,
         _ => Strings.LineEnding_Slash,
     };
@@ -212,7 +209,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         ShowLineEndings = sel.Count > 0 && sel.All(a => a.Kind is AnnotKind.Line or AnnotKind.PolyLine);
         if (ShowLineEndings) { StartEnding = sel[0].StartEnding; EndEnding = sel[0].EndEnding; }
         // 선 모양(점선·파선·일점쇄선)은 선·폴리라인·다각형(LineStyleExtensions.Applies). 저장 때 패치로 쓰므로 패치 불가 문서에서는 UI가 끈다.
-        ShowLineStyle = sel.Count > 0 && sel.All(LineStyleExtensions.AppliesTo);
+        ShowLineStyle = sel.Count > 0 && sel.All(a => a.Kind.Applies());
         if (ShowLineStyle) LineStyle = sel[0].LineStyle;
         // 지시선 단추: 설명선 하나를 골랐을 때만.
         ShowLeaders = sel.Count == 1 && CalloutLeaders.IsCallout(sel[0]);
@@ -376,7 +373,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
 
     /// <summary>선 모양(실선·점선·파선·일점쇄선). 선·폴리라인·다각형만 바뀐다. 굵기는 그대로(대시 간격이 굵기에 비례해 다시 계산된다).</summary>
     public Task SetLineStyleAsync(LineStyle s) =>
-        EditAsync(a => !LineStyleExtensions.AppliesTo(a) || a.LineStyle == s ? a : a with { LineStyle = s, ModifiedAt = _clock() }, null);
+        EditAsync(a => !a.Kind.Applies() || a.LineStyle == s ? a : a with { LineStyle = s, ModifiedAt = _clock() }, null);
 
     /// <summary>양쪽 화살표: 시작과 끝 모양을 e(기본 열린 화살표)로 한 번에 바꾼다. 선·폴리라인만.</summary>
     public Task SetBothArrowsAsync(LineEnding e = LineEnding.OpenArrow) =>

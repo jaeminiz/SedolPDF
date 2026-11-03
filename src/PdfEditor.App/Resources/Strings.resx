@@ -344,8 +344,6 @@
   <data name="LineStyle_Dotted" xml:space="preserve"><value>점선</value></data>
   <data name="LineStyle_Dashed" xml:space="preserve"><value>파선</value></data>
   <data name="LineStyle_DashDot" xml:space="preserve"><value>일점쇄선</value></data>
-  <data name="LineStyle_LongDash" xml:space="preserve"><value>긴 점선</value></data>
-  <data name="LineStyle_Double" xml:space="preserve"><value>이중선</value></data>
   <data name="Prop_Annot_BothArrows" xml:space="preserve"><value>양쪽 화살표</value></data>
   <data name="Prop_Annot_BothArrowsTip" xml:space="preserve"><value>시작과 끝 모양을 모두 화살표로 바꿉니다.</value></data>
   <data name="Prop_Annot_Leaders" xml:space="preserve"><value>지시선</value></data>
@@ -357,8 +355,7 @@
   <data name="LineEnding_Circle" xml:space="preserve"><value>원</value></data>
   <data name="LineEnding_Diamond" xml:space="preserve"><value>마름모</value></data>
   <data name="LineEnding_OpenArrow" xml:space="preserve"><value>열린 화살표</value></data>
-  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>채운 화살표</value></data>
-  <data name="LineEnding_HollowArrow" xml:space="preserve"><value>닫힌 화살표</value></data>
+  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>닫힌 화살표</value></data>
   <data name="LineEnding_Butt" xml:space="preserve"><value>막대</value></data>
   <data name="LineEnding_Slash" xml:space="preserve"><value>빗금</value></data>
   <data name="Prop_Annot_Cloud" xml:space="preserve"><value>클라우드 테두리</value></data>

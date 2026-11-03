@@ -220,10 +220,6 @@ public static class AnnotationReader
                     return Fail(ReadOnlyReason.StyledBorder);
             }
 
-            // 이중선(0.5.0)은 표준에 없어 비표준 /SedolLS로 저장한다. 표준 /BS가 실선(또는 없음)일 때만 인정한다.
-            if (kind is { } sk && sk.Applies() && lineStyle == LineStyle.Solid && LineStyleExtensions.FromSedolName(e.GetName("/SedolLS")) is LineStyle.Double)
-                lineStyle = LineStyle.Double;
-
             // /RD: 일반 사각형·타원에서는 모양이 달라지므로 읽기 전용. 클라우드 Square는 /RD가 클라우드 안쪽 간격이라 허용한다.
             if (kind is AnnotKind.Square or AnnotKind.Circle && !cloudBe && HasNonZeroRd(e.GetArray("/RD")))
                 return Fail(ReadOnlyReason.RectDifferences);
@@ -277,7 +273,7 @@ public static class AnnotationReader
                 FillColor = fill,
                 Opacity = (float)(Num(e, "/CA") ?? 1.0),
                 BorderWidth = ReadBorderWidth(e, bs),
-                LineStyle = ft is not null ? ft.Style : lineStyle,
+                LineStyle = lineStyle,
                 InkStrokes = strokes,
                 Quads = quads,
                 Contents = Str(e, "/Contents"),
@@ -387,13 +383,6 @@ public static class AnnotationReader
             if (s is null || t is null || names.Count > 2) return Bad(ReadOnlyReason.UnsupportedLineEnding);
             start = s.Value;
             end = t.Value;
-            // 속 빈 화살촉(0.5.0): 표준 /LE는 ClosedArrow이고 비표준 /SedolLE에 같은 순서로 표시가 있다.
-            if (Resolve(e["/SedolLE"]) is PdfArray marks)
-            {
-                string? Mark(int i) => i < marks.Elements.Count ? (Resolve(marks.Elements[i]) as PdfName)?.Value : null;
-                start = LineEndingExtensions.WithSedolMark(start, Mark(0));
-                end = LineEndingExtensions.WithSedolMark(end, Mark(1));
-            }
         }
         return new ShapeData(ReadOnlyReason.None, verts.ToImmutable(), start, end);
     }
@@ -401,7 +390,7 @@ public static class AnnotationReader
     private sealed record FreeTextData(
         ReadOnlyReason Failure, PdfRectF Rect, FreeTextIntent Intent, PdfRectF? TextBox, ImmutableArray<PdfPointF> Vertices,
         LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align, PdfColor? Stroke = null, int Rotation = 0,
-        ImmutableArray<PdfPointF> Leader2 = default, LineStyle Style = LineStyle.Solid, TextFontFamily Family = TextFontFamily.Sans, int Fmt = 0);
+        ImmutableArray<PdfPointF> Leader2 = default, TextFontFamily Family = TextFontFamily.Sans, int Fmt = 0);
 
     /// <summary>FreeText 전용 값: /IT, /DA, /Q, /CL, /RD, /LE. 지원하지 않는 /IT·/LE는 UnsupportedType, 모양이 망가진 /CL은 Malformed.</summary>
     private static FreeTextData ReadFreeText(PdfDictionary.DictionaryElements e, PdfRectF rect)
@@ -463,8 +452,6 @@ public static class AnnotationReader
             {
                 if (LineEndingExtensions.FromPdfName(le) is not { } parsed) return Bad(ReadOnlyReason.UnsupportedType);
                 ending = parsed;
-                if (Resolve(e["/SedolLE"]) is PdfArray fm && fm.Elements.Count > 0)
-                    ending = LineEndingExtensions.WithSedolMark(ending, (Resolve(fm.Elements[0]) as PdfName)?.Value);
             }
         }
 
@@ -472,12 +459,10 @@ public static class AnnotationReader
         var family = TextFormat.FamilyFromName(e.GetName("/SedolFont"));
         int fmt = TextFormat.Sanitize(Int(e, "/SedolFmt") ?? 0);
 
-        // 설명선 지시선의 선 모양(0.5.0, 비표준 /SedolLS). 상자 테두리는 실선이다.
-        var leaderStyle = intent == FreeTextIntent.Callout ? LineStyleExtensions.FromSedolName(e.GetName("/SedolLS")) ?? LineStyle.Solid : LineStyle.Solid;
 
         // 설명선은 Rect 전체(지시선 포함)와 글 상자를 따로 갖는다. 나머지는 안쪽 상자가 곧 Rect다.
         return intent == FreeTextIntent.Callout
-            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, leader2, leaderStyle, family, fmt)
+            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, leader2, Family: family, Fmt: fmt)
             : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation, Family: family, Fmt: fmt);
     }
 

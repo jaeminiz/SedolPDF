@@ -541,7 +541,7 @@ public sealed partial class CommentsViewModel : ObservableObject, IDisposable
         };
     }
 
-    private static bool IsArrow(LineEnding e) => e is LineEnding.OpenArrow or LineEnding.ClosedArrow or LineEnding.HollowArrow;
+    private static bool IsArrow(LineEnding e) => e is LineEnding.OpenArrow or LineEnding.ClosedArrow;
 
     private static string ReadOnlyKindName(int subtype) => subtype switch
     {

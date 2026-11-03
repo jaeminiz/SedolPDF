@@ -183,10 +183,8 @@ public class AnnotationGeometryTests
     [Fact]
     public void LineEnding_PdfNames_RoundTrip_UnknownIsNull()
     {
-        foreach (var e in Enum.GetValues<LineEnding>().Where(x => x != LineEnding.HollowArrow))
+        foreach (var e in Enum.GetValues<LineEnding>())
             Assert.Equal(e, LineEndingExtensions.FromPdfName(e.ToPdfName()));
-        // 속 빈 화살촉(0.5.0)은 표준 이름 ClosedArrow로 쓰고 비표준 /SedolLE 표시로만 구분한다.
-        Assert.Equal(LineEnding.ClosedArrow, LineEndingExtensions.FromPdfName(LineEnding.HollowArrow.ToPdfName()));
         Assert.Null(LineEndingExtensions.FromPdfName("ROpenArrow"));
         Assert.Equal(LineEnding.OpenArrow, LineEndingExtensions.FromPdfName("/OpenArrow"));
     }
