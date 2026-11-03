@@ -86,6 +86,14 @@
         <NumericUpDown x:Name="FontBox" Minimum="6" Maximum="72" Increment="1" FormatString="0" />
         <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_TextColor}" />
         <WrapPanel x:Name="TextColorSwatches" />
+        <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_Font}" />
+        <ComboBox x:Name="FontFamilyBox" HorizontalAlignment="Stretch" />
+        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,6,0,0">
+  <ToggleButton x:Name="BoldBtn" Width="30" Content="B" FontWeight="Bold" ToolTip.Tip="{x:Static res:Strings.Format_Bold}" />
+  <ToggleButton x:Name="ItalicBtn" Width="30" Content="I" FontStyle="Italic" ToolTip.Tip="{x:Static res:Strings.Format_Italic}" />
+  <ToggleButton x:Name="UnderlineBtn" Width="30" ToolTip.Tip="{x:Static res:Strings.Format_Underline}"><TextBlock Text="U" TextDecorations="Underline" /></ToggleButton>
+  <ToggleButton x:Name="StrikeBtn" Width="30" ToolTip.Tip="{x:Static res:Strings.Format_Strike}"><TextBlock Text="S" TextDecorations="Strikethrough" /></ToggleButton>
+</StackPanel>
         <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_Align}" />
         <ComboBox x:Name="AlignBox" HorizontalAlignment="Stretch" />
       </StackPanel>

@@ -344,6 +344,8 @@
   <data name="LineStyle_Dotted" xml:space="preserve"><value>Dotted</value></data>
   <data name="LineStyle_Dashed" xml:space="preserve"><value>Dashed</value></data>
   <data name="LineStyle_DashDot" xml:space="preserve"><value>Dash-dot</value></data>
+  <data name="LineStyle_LongDash" xml:space="preserve"><value>Long dash</value></data>
+  <data name="LineStyle_Double" xml:space="preserve"><value>Double</value></data>
   <data name="Prop_Annot_BothArrows" xml:space="preserve"><value>Arrows on both ends</value></data>
   <data name="Prop_Annot_BothArrowsTip" xml:space="preserve"><value>Makes both the start and the end an arrow.</value></data>
   <data name="Prop_Annot_Leaders" xml:space="preserve"><value>Leader lines</value></data>
@@ -355,7 +357,8 @@
   <data name="LineEnding_Circle" xml:space="preserve"><value>Circle</value></data>
   <data name="LineEnding_Diamond" xml:space="preserve"><value>Diamond</value></data>
   <data name="LineEnding_OpenArrow" xml:space="preserve"><value>Open arrow</value></data>
-  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>Closed arrow</value></data>
+  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>Filled arrow</value></data>
+  <data name="LineEnding_HollowArrow" xml:space="preserve"><value>Closed arrow</value></data>
   <data name="LineEnding_Butt" xml:space="preserve"><value>Bar</value></data>
   <data name="LineEnding_Slash" xml:space="preserve"><value>Slash</value></data>
   <data name="Prop_Annot_Cloud" xml:space="preserve"><value>Cloud border</value></data>
@@ -363,6 +366,13 @@
   <data name="Prop_Annot_FontSize" xml:space="preserve"><value>Font size · {0:0.#} pt</value></data>
   <data name="Prop_Annot_TextColor" xml:space="preserve"><value>Text color</value></data>
   <data name="Prop_Annot_Align" xml:space="preserve"><value>Alignment</value></data>
+  <data name="Prop_Annot_Font" xml:space="preserve"><value>Font</value></data>
+  <data name="Font_Sans" xml:space="preserve"><value>Gothic (sans)</value></data>
+  <data name="Font_Serif" xml:space="preserve"><value>Myeongjo (serif)</value></data>
+  <data name="Format_Bold" xml:space="preserve"><value>Bold</value></data>
+  <data name="Format_Italic" xml:space="preserve"><value>Italic</value></data>
+  <data name="Format_Underline" xml:space="preserve"><value>Underline</value></data>
+  <data name="Format_Strike" xml:space="preserve"><value>Strikethrough</value></data>
   <data name="Align_Left" xml:space="preserve"><value>Left</value></data>
   <data name="Align_Center" xml:space="preserve"><value>Center</value></data>
   <data name="Align_Right" xml:space="preserve"><value>Right</value></data>

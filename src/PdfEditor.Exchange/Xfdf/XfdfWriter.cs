@@ -88,11 +88,15 @@ public static class XfdfWriter
         }
 
         // 선 모양(0.4.0): XFDF 표준 style="dash" + dashes="켜짐,꺼짐,..."(PDF /BS /D와 같은 값). 실선은 쓰지 않는다.
-        if (a.Kind.Applies() && a.LineStyle != LineStyle.Solid && a.BorderWidth > 0)
+        if (a.Kind.Applies() && a.LineStyle.IsDashed() && a.BorderWidth > 0)
         {
             e.SetAttributeValue("style", "dash");
             e.SetAttributeValue("dashes", string.Join(",", LineStyleExtensions.DashArray(a.LineStyle, a.BorderWidth).Select(Num)));
         }
+        // 이중선(0.5.0)은 XFDF 표준에 없어 비표준 속성 sedolls로 쓴다(다른 프로그램은 실선으로 읽는다). 설명선 지시선의 모양도 같은 속성.
+        else if (a.Kind.Applies() && a.LineStyle == LineStyle.Double && a.BorderWidth > 0) e.SetAttributeValue("sedolls", "Double");
+        else if (a.Kind.AppliesToLeader() && a.Intent == FreeTextIntent.Callout && a.LineStyle != LineStyle.Solid && Enum.IsDefined(a.LineStyle))
+            e.SetAttributeValue("sedolls", a.LineStyle.ToString());
 
         switch (a.Kind)
         {
@@ -139,6 +143,9 @@ public static class XfdfWriter
         if (a.Color is { } bc)
             da += string.Create(CultureInfo.InvariantCulture, $" {bc.R / 255.0:0.###} {bc.G / 255.0:0.###} {bc.B / 255.0:0.###} RG");
         e.Add(new XElement(Ns + "defaultappearance", da));
+        // 글자 서식(0.5.0, 비표준 속성): 기본이면 쓰지 않는다.
+        if (a.TextFamily != TextFontFamily.Sans) e.SetAttributeValue("sedolfont", TextFormat.FamilyName(a.TextFamily));
+        if (TextFormat.ToBits(a) != 0) e.SetAttributeValue("sedolfmt", TextFormat.ToBits(a).ToString(CultureInfo.InvariantCulture));
         e.SetAttributeValue("justification", a.Align switch { TextAlign.Center => "centered", TextAlign.Right => "right", _ => "left" });
         switch (a.Intent)
         {
@@ -173,6 +180,9 @@ public static class XfdfWriter
     {
         if (a.StartEnding != LineEnding.None) e.SetAttributeValue("head", a.StartEnding.ToPdfName());
         if (a.EndEnding != LineEnding.None) e.SetAttributeValue("tail", a.EndEnding.ToPdfName());
+        // 속 빈 화살촉(0.5.0): head/tail은 표준 ClosedArrow이고 비표준 속성이 속 빈 모양임을 알린다.
+        if (a.StartEnding == LineEnding.HollowArrow) e.SetAttributeValue("sedolhead", "HollowArrow");
+        if (a.EndEnding == LineEnding.HollowArrow) e.SetAttributeValue("sedoltail", "HollowArrow");
     }
 
     private static XElement? WriteReadOnly(int page, ReadOnlyAnnotationInfo info)

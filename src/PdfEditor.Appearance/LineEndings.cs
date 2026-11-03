@@ -14,7 +14,7 @@ internal static class LineEndings
     /// <summary>본선을 끝점에서 안쪽으로 얼마나 짧게 그릴지(닫힌 모양 안으로 겹쳐 그리지 않기 위해).</summary>
     public static float ShaftInset(LineEnding e, float size) => e switch
     {
-        LineEnding.ClosedArrow => size * Cos30,
+        LineEnding.ClosedArrow or LineEnding.HollowArrow => size * Cos30,
         LineEnding.Circle or LineEnding.Square or LineEnding.Diamond => size / 2f,
         _ => 0f,
     };
@@ -35,9 +35,10 @@ internal static class LineEndings
                 ], null, color, width, LineCap.Butt, LineJoin.Round));
                 break;
             case LineEnding.ClosedArrow:
+            case LineEnding.HollowArrow:   // 속 빈 쪽은 채움색(/IC)이 없으면 윤곽만, ClosedArrow는 없으면 선 색으로 채운다
                 ops.Add(new PaintOp([
                     new MoveTo(tip), new LineTo(At(-size * Cos30, size * Sin30)), new LineTo(At(-size * Cos30, -size * Sin30)), new ClosePath(),
-                ], fill ?? color, color, width, LineCap.Butt, LineJoin.Round));
+                ], e == LineEnding.HollowArrow ? fill : fill ?? color, color, width, LineCap.Butt, LineJoin.Round));
                 break;
             case LineEnding.Circle:
             {

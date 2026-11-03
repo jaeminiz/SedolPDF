@@ -186,7 +186,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         Tools.CanUsePatchFeatures = () => CanUsePatchFeatures;
         Tools.Assets = () => Appearance?.Assets ?? AnnotationAssets.Empty;
         Tools.NewName = () => Guid.NewGuid().ToString("N");
-        Tools.FitTypewriter = a => AnnotationPainter.FitTypewriter(a, new PaintContext(Appearance?.Font, Appearance?.Assets ?? AnnotationAssets.Empty));
+        Tools.FitTypewriter = a => AnnotationPainter.FitTypewriter(a, new PaintContext(Appearance?.Font, Appearance?.Assets ?? AnnotationAssets.Empty, Appearance?.Catalog?.Serif));
         Tools.StampLabel = StampLabelFor;
         Tools.LastStamp = BuiltinStamp("Approved");
         // 글자 경계 찾기는 PDFium 스레드 작업이라 동기 함수로 줄 수 없다: 텍스트 삽입은 DocumentView가 비동기로 찾아 CreateInsertCaret을 직접 부른다.

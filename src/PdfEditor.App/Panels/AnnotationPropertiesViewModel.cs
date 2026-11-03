@@ -57,6 +57,11 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     [ObservableProperty] private float _fontSizePt = 12f;
     [ObservableProperty] private PdfColor? _textColor;
     [ObservableProperty] private TextAlign _align;
+    [ObservableProperty] private TextFontFamily _textFamily;
+    [ObservableProperty] private bool _bold;
+    [ObservableProperty] private bool _italic;
+    [ObservableProperty] private bool _underline;
+    [ObservableProperty] private bool _strike;
     [ObservableProperty] private bool _showStamp;
     [ObservableProperty] private string? _currentStampName;
     [ObservableProperty] private bool _showAttachment;
@@ -75,6 +80,8 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         LineStyle.Solid => Strings.LineStyle_Solid,
         LineStyle.Dotted => Strings.LineStyle_Dotted,
         LineStyle.Dashed => Strings.LineStyle_Dashed,
+        LineStyle.LongDash => Strings.LineStyle_LongDash,
+        LineStyle.Double => Strings.LineStyle_Double,
         _ => Strings.LineStyle_DashDot,
     };
     public static string LineEndingName(LineEnding e) => e switch
@@ -85,6 +92,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         LineEnding.Diamond => Strings.LineEnding_Diamond,
         LineEnding.OpenArrow => Strings.LineEnding_OpenArrow,
         LineEnding.ClosedArrow => Strings.LineEnding_ClosedArrow,
+        LineEnding.HollowArrow => Strings.LineEnding_HollowArrow,
         LineEnding.Butt => Strings.LineEnding_Butt,
         _ => Strings.LineEnding_Slash,
     };
@@ -204,7 +212,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
         ShowLineEndings = sel.Count > 0 && sel.All(a => a.Kind is AnnotKind.Line or AnnotKind.PolyLine);
         if (ShowLineEndings) { StartEnding = sel[0].StartEnding; EndEnding = sel[0].EndEnding; }
         // 선 모양(점선·파선·일점쇄선)은 선·폴리라인·다각형(LineStyleExtensions.Applies). 저장 때 패치로 쓰므로 패치 불가 문서에서는 UI가 끈다.
-        ShowLineStyle = sel.Count > 0 && sel.All(a => a.Kind.Applies());
+        ShowLineStyle = sel.Count > 0 && sel.All(LineStyleExtensions.AppliesTo);
         if (ShowLineStyle) LineStyle = sel[0].LineStyle;
         // 지시선 단추: 설명선 하나를 골랐을 때만.
         ShowLeaders = sel.Count == 1 && CalloutLeaders.IsCallout(sel[0]);
@@ -220,6 +228,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
             FontSizePt = Math.Clamp(sel[0].FontSizePt, MinFontSize, MaxFontSize);
             TextColor = sel[0].TextColor ?? sel[0].Color;
             Align = sel[0].Align;
+            TextFamily = sel[0].TextFamily; Bold = sel[0].Bold; Italic = sel[0].Italic; Underline = sel[0].Underline; Strike = sel[0].StrikeThrough;
         }
         ShowStamp = sel.Count == 1 && sel[0].Kind == AnnotKind.Stamp;
         CurrentStampName = ShowStamp ? StampNameOf(sel[0].Stamp) : null;
@@ -367,7 +376,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
 
     /// <summary>선 모양(실선·점선·파선·일점쇄선). 선·폴리라인·다각형만 바뀐다. 굵기는 그대로(대시 간격이 굵기에 비례해 다시 계산된다).</summary>
     public Task SetLineStyleAsync(LineStyle s) =>
-        EditAsync(a => !a.Kind.Applies() || a.LineStyle == s ? a : a with { LineStyle = s, ModifiedAt = _clock() }, null);
+        EditAsync(a => !LineStyleExtensions.AppliesTo(a) || a.LineStyle == s ? a : a with { LineStyle = s, ModifiedAt = _clock() }, null);
 
     /// <summary>양쪽 화살표: 시작과 끝 모양을 e(기본 열린 화살표)로 한 번에 바꾼다. 선·폴리라인만.</summary>
     public Task SetBothArrowsAsync(LineEnding e = LineEnding.OpenArrow) =>
@@ -402,6 +411,19 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
 
     public Task SetTextColorAsync(PdfColor c) =>
         EditAsync(a => a.Kind != AnnotKind.FreeText ? a : a with { TextColor = c, ModifiedAt = _clock() }, null);
+
+    /// <summary>글꼴(고딕/명조, 0.5.0). 타자기는 글 폭이 달라지므로 상자를 다시 맞춘다.</summary>
+    public Task SetFontFamilyAsync(TextFontFamily f) =>
+        EditAsync(a => a.Kind != AnnotKind.FreeText || a.TextFamily == f ? a : _tab.Tools.FitForCommit(a with { TextFamily = f, ModifiedAt = _clock() }), null);
+
+    /// <summary>굵게·기울임·밑줄·취소선 중 하나를 켜고 끈다(상자 전체, 0.5.0). bit는 <see cref="TextFormat"/>의 *Bit.</summary>
+    public Task SetTextStyleAsync(int bit, bool on) =>
+        EditAsync(a =>
+        {
+            if (a.Kind != AnnotKind.FreeText) return a;
+            int cur = TextFormat.ToBits(a), next = on ? cur | bit : cur & ~bit;
+            return next == cur ? a : _tab.Tools.FitForCommit(TextFormat.WithBits(a, next) with { ModifiedAt = _clock() });
+        }, null);
 
     public Task SetAlignAsync(TextAlign align) =>
         EditAsync(a => a.Kind != AnnotKind.FreeText ? a : _tab.Tools.FitForCommit(a with { Align = align, ModifiedAt = _clock() }), null);

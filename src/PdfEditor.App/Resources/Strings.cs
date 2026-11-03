@@ -372,6 +372,8 @@ public static class Strings
     public static string LineStyle_Dotted => Get(nameof(LineStyle_Dotted));
     public static string LineStyle_Dashed => Get(nameof(LineStyle_Dashed));
     public static string LineStyle_DashDot => Get(nameof(LineStyle_DashDot));
+    public static string LineStyle_LongDash => Get(nameof(LineStyle_LongDash));
+    public static string LineStyle_Double => Get(nameof(LineStyle_Double));
     public static string Prop_Annot_BothArrows => Get(nameof(Prop_Annot_BothArrows));
     public static string Prop_Annot_BothArrowsTip => Get(nameof(Prop_Annot_BothArrowsTip));
     public static string Prop_Annot_Leaders => Get(nameof(Prop_Annot_Leaders));
@@ -384,6 +386,7 @@ public static class Strings
     public static string LineEnding_Diamond => Get(nameof(LineEnding_Diamond));
     public static string LineEnding_OpenArrow => Get(nameof(LineEnding_OpenArrow));
     public static string LineEnding_ClosedArrow => Get(nameof(LineEnding_ClosedArrow));
+    public static string LineEnding_HollowArrow => Get(nameof(LineEnding_HollowArrow));
     public static string LineEnding_Butt => Get(nameof(LineEnding_Butt));
     public static string LineEnding_Slash => Get(nameof(LineEnding_Slash));
     public static string Prop_Annot_Cloud => Get(nameof(Prop_Annot_Cloud));
@@ -391,6 +394,13 @@ public static class Strings
     public static string Prop_Annot_FontSize => Get(nameof(Prop_Annot_FontSize));
     public static string Prop_Annot_TextColor => Get(nameof(Prop_Annot_TextColor));
     public static string Prop_Annot_Align => Get(nameof(Prop_Annot_Align));
+    public static string Prop_Annot_Font => Get(nameof(Prop_Annot_Font));
+    public static string Font_Sans => Get(nameof(Font_Sans));
+    public static string Font_Serif => Get(nameof(Font_Serif));
+    public static string Format_Bold => Get(nameof(Format_Bold));
+    public static string Format_Italic => Get(nameof(Format_Italic));
+    public static string Format_Underline => Get(nameof(Format_Underline));
+    public static string Format_Strike => Get(nameof(Format_Strike));
     public static string Align_Left => Get(nameof(Align_Left));
     public static string Align_Center => Get(nameof(Align_Center));
     public static string Align_Right => Get(nameof(Align_Right));

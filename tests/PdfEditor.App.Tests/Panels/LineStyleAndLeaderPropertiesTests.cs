@@ -69,7 +69,7 @@ public class LineStyleAndLeaderPropertiesTests : PanelTestBase, IDisposable
         var items = tab.Session!.Annotations.Get(page).Items.Select(v => v.Data).ToList();
         var line = items.Single(a => a.Kind == AnnotKind.Line);
         var square = items.Single(a => a.Kind == AnnotKind.Square);
-        Assert.Equal(4, AnnotationPropertiesViewModel.LineStyleChoices.Count);
+        Assert.Equal(6, AnnotationPropertiesViewModel.LineStyleChoices.Count);   // 0.5.0: 긴 점선·이중선 추가
         tab.Selection.Set(page, [line.Id]);
         Assert.True(vm.ShowLineStyle);
         Assert.Equal(LineStyle.Solid, vm.LineStyle);

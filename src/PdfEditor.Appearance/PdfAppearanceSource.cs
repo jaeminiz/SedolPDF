@@ -11,14 +11,14 @@ public sealed class PdfAppearanceSource : IAppearanceSource
 {
     private readonly PaintContext _ctx;
 
-    public PdfAppearanceSource(AppFont? font = null, AnnotationAssets? assets = null)
-        => _ctx = new PaintContext(font, assets ?? AnnotationAssets.Empty);
+    public PdfAppearanceSource(AppFont? font = null, AnnotationAssets? assets = null, AppFont? serif = null)
+        => _ctx = new PaintContext(font, assets ?? AnnotationAssets.Empty, serif);
 
     private PdfAppearanceSource(PaintContext ctx) => _ctx = ctx;
 
     /// <summary>글꼴을 글자가 있는 주석을 처음 만들 때 읽는다(앱 시작을 늦추지 않기 위해).</summary>
-    public static PdfAppearanceSource WithFontProvider(Func<AppFont?> fontProvider, AnnotationAssets? assets = null)
-        => new(PaintContext.WithFontProvider(fontProvider, assets ?? AnnotationAssets.Empty));
+    public static PdfAppearanceSource WithFontProvider(Func<AppFont?> fontProvider, AnnotationAssets? assets = null, Func<AppFont?>? serifProvider = null)
+        => new(PaintContext.WithFontProvider(fontProvider, assets ?? AnnotationAssets.Empty, serifProvider));
 
     public string BuildContent(Annotation a, int pageRotation)
         => PdfContentWriter.Write(AnnotationPainter.Paint(a, pageRotation, _ctx));

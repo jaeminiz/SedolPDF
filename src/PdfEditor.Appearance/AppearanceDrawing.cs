@@ -23,7 +23,15 @@ public sealed record PaintOp(
 }
 
 /// <summary>같은 글자 크기·색의 글리프 묶음(BT ... ET 한 번). FontResource는 AP 리소스 이름(예: "F1").</summary>
-public sealed record TextRunOp(string FontResource, float SizePt, PdfColor Color, ImmutableArray<PositionedGlyph> Glyphs);
+public sealed record TextRunOp(string FontResource, float SizePt, PdfColor Color, ImmutableArray<PositionedGlyph> Glyphs)
+{
+    /// <summary>글꼴 가족: ""(고딕) 또는 <see cref="FontUse.SerifFamily"/>(명조). 화면은 이 글꼴의 윤곽선을, AP는 이 글꼴의 서브셋을 쓴다.</summary>
+    public string Family { get; init; } = "";
+    /// <summary>합성 굵게: 글자 윤곽선을 크기 x <see cref="AppFontCatalog.SyntheticBoldStrokeRatio"/> 굵기로 번지게(렌더 모드 2).</summary>
+    public bool Bold { get; init; }
+    /// <summary>합성 기울임: x += <see cref="AppFontCatalog.SyntheticItalicSkew"/> x y 기울이기 변환.</summary>
+    public bool Italic { get; init; }
+}
 
 /// <summary>이미지 XObject 한 장을 Rect(PDF 사용자 좌표)에 채워 그린다. ImageId는 AnnotationAssets의 키.</summary>
 public sealed record ImageOp(string ImageResource, string ImageId, PdfRectF Rect);
@@ -52,6 +60,6 @@ public sealed record AppearanceDrawing(ImmutableArray<PaintOp> Ops, float Opacit
                 if (!seen.Add((g.Cid, g.Text))) continue;
                 glyphs.Add(new GlyphUse(g.Cid, run.SizePt > 0 ? (int)Math.Round(g.Advance * 1000f / run.SizePt) : 0, g.Text));
             }
-        return new FontUse([.. cps], [.. glyphs]);
+        return new FontUse([.. cps], [.. glyphs], Texts.FirstOrDefault()?.Family ?? "");
     }
 }

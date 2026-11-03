@@ -64,6 +64,18 @@ public static class AppearanceGeometry
     private static AppFont? _textFont;
     private static Func<AppFont?>? _textFontProvider;
 
+    /// <summary>명조(Noto Serif KR). 명조를 고른 글자를 그릴 때 받아 온다. 없으면 고딕으로 그린다(AP도 같은 규칙: PaintContext.FontFor).</summary>
+    public static AppFont? SerifFont
+    {
+        get => _serifFont ?? _serifFontProvider?.Invoke();
+        set { _serifFont = value; _serifFontProvider = null; }
+    }
+
+    private static AppFont? _serifFont;
+    private static Func<AppFont?>? _serifFontProvider;
+
+    public static void SetSerifFontProvider(Func<AppFont?> provider) { _serifFont = null; _serifFontProvider = provider; }
+
     /// <summary>글꼴을 글자가 있는 주석을 처음 그릴 때 공급자에게서 받는다(시작 때 읽지 않는다). TextFont를 직접 정하면 이 공급자는 지워진다.</summary>
     public static void SetTextFontProvider(Func<AppFont?> provider) { _textFont = null; _textFontProvider = provider; }
 
@@ -82,7 +94,7 @@ public static class AppearanceGeometry
         lock (perRot)
         {
             if (perRot.TryGetValue(rot, out var c)) return c;
-            c = FromDrawing(AnnotationPainter.Paint(a, rot, PaintContext.WithFontProvider(() => TextFont, Assets)));
+            c = FromDrawing(AnnotationPainter.Paint(a, rot, PaintContext.WithFontProvider(() => TextFont, Assets, () => SerifFont)));
             if (c.Complete) perRot[rot] = c;   // 그림이 아직 없으면 캐시하지 않아 다음에 다시 만든다
             return c;
         }
@@ -133,15 +145,18 @@ public static class AppearanceGeometry
         foreach (var run in d.Texts)
         {
             if (run.Glyphs.IsEmpty) continue;
-            var font = TextFont ?? throw new InvalidOperationException(
+            var font = (run.Family == PdfEditor.Document.Annotations.Patching.FontUse.SerifFamily ? SerifFont : TextFont) ?? TextFont ?? throw new InvalidOperationException(
                 "AppearanceGeometry.TextFont is not set; text runs cannot be drawn.");
             var path = ImmutableArray.CreateBuilder<PathSeg>();
+            float skew = run.Italic ? AppFontCatalog.SyntheticItalicSkew : 0f;   // 합성 기울임: AP의 Tm과 같은 전단
             foreach (var g in run.Glyphs)
                 foreach (var seg in GlyphOutlines.Get(font, g.Gid))
-                    path.Add(Place(seg, run.SizePt, g.Origin));
+                    path.Add(Place(seg, run.SizePt, g.Origin, skew));
             var brush = new ImmutableSolidColorBrush(Color.FromArgb(alpha, run.Color.R, run.Color.G, run.Color.B));
             var op = new PaintOp(path.ToImmutable(), run.Color, null, 0, PdfEditor.Appearance.LineCap.Butt, PdfEditor.Appearance.LineJoin.Miter);
-            texts.Add((ToGeometry(op), brush, null));
+            // 합성 굵게: AP의 2 Tr + 글자 크기 x 비율 굵기 선과 같다
+            IPen? pen = run.Bold ? new ImmutablePen(brush, run.SizePt * AppFontCatalog.SyntheticBoldStrokeRatio, null, AvLineCap.Flat, AvLineJoin.Round) : null;
+            texts.Add((ToGeometry(op), brush, pen));
         }
         return new CachedAppearance(items)
         {
@@ -151,9 +166,9 @@ public static class AppearanceGeometry
     }
 
     /// <summary>글리프 윤곽선(em 단위)을 글자 크기만큼 키우고 기준선 원점으로 옮긴다.</summary>
-    private static PathSeg Place(PathSeg s, float size, PdfPointF o)
+    private static PathSeg Place(PathSeg s, float size, PdfPointF o, float skew = 0f)
     {
-        PdfPointF P(PdfPointF p) => new(o.X + p.X * size, o.Y + p.Y * size);
+        PdfPointF P(PdfPointF p) => new(o.X + (p.X + skew * p.Y) * size, o.Y + p.Y * size);
         return s switch
         {
             MoveTo m => new MoveTo(P(m.P)),
