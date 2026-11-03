@@ -8,6 +8,7 @@ using PdfEditor.TestFixtures;
 namespace PdfEditor.Exchange.Tests;
 
 /// <summary>0.5.0: 글자 서식의 XFDF 내보내기 → 가져오기.</summary>
+[Collection("XfdfHardening")]   // PDFium을 쓰는 다른 XFDF 시험과 동시에 돌 때 시험 호스트가 죽는 일이 있어 혼자 실행
 public class V050StyleXfdfTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "pdfeditor-v50x-" + Guid.NewGuid().ToString("N"));
