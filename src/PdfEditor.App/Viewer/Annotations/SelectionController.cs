@@ -53,6 +53,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
             case AnnotKind.FreeText:
                 if (a.Intent == FreeTextIntent.Callout && !a.Vertices.IsDefaultOrEmpty)
                     list.Add((HandleKind.LeaderTip, 0, a.Vertices[0]));
+                if (a.Intent == FreeTextIntent.Callout && a.Vertices.Length == 3) list.Add((HandleKind.Vertex, 1, a.Vertices[1]));   // 꺾임점(참고 편집기처럼 끌 수 있다)
                 if (CalloutLeaders.Count(a) == 2) list.Add((HandleKind.LeaderTip, 1, a.Leader2[0]));   // 둘째 지시선 끝점
                 foreach (var (k, c) in HandleCenters(BoxOf(a))) list.Add((k, 0, c));
                 break;
@@ -219,10 +220,9 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     private static Annotation ReAnchorLeader(Annotation a)
     {
         if (a.Intent != FreeTextIntent.Callout || a.TextBox is not { } box || a.Vertices.IsDefaultOrEmpty || a.Vertices.Length < 2) return a;
-        var verts = a.Vertices.SetItem(a.Vertices.Length - 1, AnnotationToolController.LeaderAttachPoint(box, a.Vertices[0]));
-        var b = a with { Vertices = verts };
+        var b = a with { Vertices = CalloutLeaders.ReAnchor(a.Vertices, box) };
         if (CalloutLeaders.Count(a) == 2)
-            b = b with { Leader2 = a.Leader2.SetItem(a.Leader2.Length - 1, AnnotationToolController.LeaderAttachPoint(box, a.Leader2[0])) };
+            b = b with { Leader2 = CalloutLeaders.ReAnchor(a.Leader2, box) };
         return b with { Rect = AnnotationGeometry.ComputeRect(b) };
     }
 

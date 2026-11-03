@@ -14,6 +14,10 @@ internal static class FreeTextPainter
     public const float Padding = 2f;
     private static readonly PdfColor Black = new(0, 0, 0);
 
+    /// <summary>글자 시작 안쪽 여백: 기본 여백 + 상자 선 두께(선은 상자 안쪽으로 그려진다). 타자기·선 없는 상자는 기본 여백만.</summary>
+    public static float TextInset(Annotation a)
+        => Padding + (IntentOf(a) != FreeTextIntent.Typewriter && a.Color is not null && a.BorderWidth > 0 ? a.BorderWidth : 0f);
+
     public static FreeTextIntent IntentOf(Annotation a) => a.Intent ?? FreeTextIntent.TextBox;
 
     /// <summary>글 상자: 설명선이면 TextBox, 아니면 Rect.</summary>
@@ -73,8 +77,10 @@ internal static class FreeTextPainter
                 AnnotationPainter.AddPolyline(leader with { Vertices = a.Leader2, Leader2 = [] }, ops);
         }
 
-        var topLeft = new PdfPointF(box.Left + Padding, box.Top - Padding);
-        float width = intent == FreeTextIntent.Typewriter ? float.PositiveInfinity : Math.Max(box.Width - 2 * Padding, 0f);
+        // 선이 안쪽으로 늘어난 만큼 글자도 안쪽으로 민다(0.5.0): 바깥 크기는 그대로, 글자가 선과 겹치지 않는다.
+        float inset = TextInset(a);
+        var topLeft = new PdfPointF(box.Left + inset, box.Top - inset);
+        float width = intent == FreeTextIntent.Typewriter ? float.PositiveInfinity : Math.Max(box.Width - 2 * inset, 0f);
         var laid = TextLayout.Layout(font, a.Contents ?? "", a.FontSizePt, width, a.Align, topLeft);
         var glyphs = laid.Lines.SelectMany(l => l).ToImmutableArray();
         if (glyphs.IsEmpty) return (ImmutableArray<TextRunOp>.Empty, null);

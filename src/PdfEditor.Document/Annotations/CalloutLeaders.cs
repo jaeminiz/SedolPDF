@@ -20,6 +20,63 @@ public static class CalloutLeaders
 
     public static bool CanAdd(Annotation a) => IsCallout(a) && Count(a) < MaxLeaders;
 
+    /// <summary>첫 지시선의 기본 꺾임 길이(상자 변에서 변과 수직으로, pt). 편집기들이 만드는 "짧은 직선 → 꺾임 → 비스듬한 선" 모양.</summary>
+    public const float DefaultKneePt = 20f;
+
+    /// <summary>지시선이 상자에 닿는 점: 끝점이 있는 쪽 변의 가운데(왼쪽·오른쪽 우선, 가로 범위 안이면 위·아래).</summary>
+    public static PdfPointF AttachPoint(PdfRectF box, PdfPointF tip)
+    {
+        float cx = (box.Left + box.Right) / 2f, cy = (box.Bottom + box.Top) / 2f;
+        if (tip.X < box.Left) return new(box.Left, cy);
+        if (tip.X > box.Right) return new(box.Right, cy);
+        return tip.Y > box.Top ? new(cx, box.Top) : new(cx, box.Bottom);
+    }
+
+    /// <summary>
+    /// 새 지시선 길: [끝점, 꺾임점, 닿는 점]. 꺾임점은 닿는 점에서 변과 수직으로 <paramref name="kneePt"/>만큼 나간 곳.
+    /// 끝점이 그 꺾임점보다 가까우면 꺾을 수 없으니 [끝점, 닿는 점] 두 점이다. 화면·AP·/CL이 이 점들을 그대로 쓴다.
+    /// </summary>
+    public static ImmutableArray<PdfPointF> Route(PdfRectF box, PdfPointF tip, float kneePt = DefaultKneePt)
+    {
+        var attach = AttachPoint(box, tip);
+        var (nx, ny) = NormalAt(box, attach);
+        float outDist = (tip.X - attach.X) * nx + (tip.Y - attach.Y) * ny;
+        if (kneePt <= 0f || outDist < kneePt * 1.5f) return [tip, attach];
+        return [tip, new PdfPointF(attach.X + nx * kneePt, attach.Y + ny * kneePt), attach];
+    }
+
+    /// <summary>
+    /// 상자를 고친 뒤 지시선의 상자 쪽 끝을 다시 붙인다. 꺾임점이 이전 붙은 점에서 변과 수직으로 서 있었으면(우리가 만든 모양) 같은 길이로 따라가고,
+    /// 사용자가 끌어 둔 꺾임점은 그대로 둔다.
+    /// </summary>
+    public static ImmutableArray<PdfPointF> ReAnchor(ImmutableArray<PdfPointF> leader, PdfRectF box)
+    {
+        int n = leader.Length;
+        var attach = AttachPoint(box, leader[0]);
+        var result = leader.SetItem(n - 1, attach);
+        if (n == 3)
+        {
+            var old = leader[2];
+            var (nx, ny) = NormalAt(box, attach);
+            float dx = leader[1].X - old.X, dy = leader[1].Y - old.Y, len = MathF.Sqrt(dx * dx + dy * dy);
+            // 이전에 변에서 수직으로 서 있던 꺾임(새 변도 같은 방향)이면 같은 길이로 따라간다.
+            bool standing = len > 0.5f && (MathF.Abs(dx) < 0.5f || MathF.Abs(dy) < 0.5f) && (dx * nx + dy * ny) > 0f;
+            // 사용자가 끈 꺾임점은 새 변의 바깥쪽에 있을 때만 둔다. 안쪽·옆이면(지시선이 상자를 가로지름) 바깥으로 다시 세운다.
+            bool outward = (leader[1].X - attach.X) * nx + (leader[1].Y - attach.Y) * ny > 0.5f;
+            if (standing || !outward)
+            {
+                float outDist = (leader[0].X - attach.X) * nx + (leader[0].Y - attach.Y) * ny;
+                float k = standing ? len : DefaultKneePt;
+                k = Math.Min(k, Math.Max(outDist / 2f, 2f));   // 끝점이 가까우면 끝점을 지나치지 않는다
+                result = result.SetItem(1, new PdfPointF(attach.X + nx * k, attach.Y + ny * k));
+            }
+        }
+        return result;
+    }
+
+    private static (float X, float Y) NormalAt(PdfRectF box, PdfPointF attach)
+        => attach.X == box.Left ? (-1f, 0f) : attach.X == box.Right ? (1f, 0f) : attach.Y == box.Top ? (0f, 1f) : (0f, -1f);
+
     private enum Side { Left, Right, Top, Bottom }
 
     private static Side SideOf(PdfRectF box, PdfPointF p)

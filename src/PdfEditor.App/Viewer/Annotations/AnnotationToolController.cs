@@ -453,7 +453,7 @@ public sealed class AnnotationToolController(
                         ? AnnotationRotation.About(tip, AnnotationRotation.Quarter(PageRotationDeg)).Apply(new PdfPointF(tip.X + 40f * _ptPerDip, tip.Y + 40f * _ptPerDip))
                         : end;
                     var box = UprightAt(topLeft, new PdfRectF(topLeft.X, topLeft.Y - DefaultCalloutHeightPt, topLeft.X + DefaultCalloutWidthPt, topLeft.Y));
-                    var leader = NormalizeCalloutLeader([tip, LeaderAttachPoint(box, tip)]);
+                    var leader = NormalizeCalloutLeader([.. CalloutLeaders.Route(box, tip)]);
                     if (leader is null) return null;
                     var a = Finish(_tool, style, new Annotation
                     {
@@ -543,13 +543,7 @@ public sealed class AnnotationToolController(
     }
 
     /// <summary>지시선이 상자에 닿는 점: 끝점이 있는 쪽 변의 가운데.</summary>
-    public static PdfPointF LeaderAttachPoint(PdfRectF box, PdfPointF tip)
-    {
-        float cx = (box.Left + box.Right) / 2f, cy = (box.Bottom + box.Top) / 2f;
-        if (tip.X < box.Left) return new(box.Left, cy);
-        if (tip.X > box.Right) return new(box.Right, cy);
-        return tip.Y > box.Top ? new(cx, box.Top) : new(cx, box.Bottom);
-    }
+    public static PdfPointF LeaderAttachPoint(PdfRectF box, PdfPointF tip) => CalloutLeaders.AttachPoint(box, tip);
 
     private Annotation Finish(ToolKind tool, ToolStyle style, Annotation a)
     {
