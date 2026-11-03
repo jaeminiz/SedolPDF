@@ -454,7 +454,7 @@ public sealed partial class DocumentView
             var session = st.Session;
             var rects = await session.Thread.InvokeAsync(() => session.IndexOf(page) < 0
                 ? Array.Empty<RectangleF>()
-                : session.GetLoadedText(page).GetRects(r.Start, r.Count));
+                : session.GetLoadedText(page).GetMarkupRects(r.Start, r.Count));   // 글자별 느슨한 상자: 줄로 합치는 일은 CreateMarkup
             if (epoch != _markupEpoch) return;
             var rectList = rects.Select(PdfRectF.FromLtrbRectangle).ToList();
             var style = DocumentTabViewModel.StyleFor(tool);

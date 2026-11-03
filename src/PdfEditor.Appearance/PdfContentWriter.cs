@@ -16,7 +16,7 @@ public static class PdfContentWriter
         if (d.Transform is { } tm)
             sb.Append(Num(tm.A)).Append(' ').Append(Num(tm.B)).Append(' ').Append(Num(tm.C)).Append(' ').Append(Num(tm.D)).Append(' ')
               .Append(Num(tm.E)).Append(' ').Append(Num(tm.F)).Append(" cm\n");
-        if (d.Opacity < 1f) sb.Append("/GS gs\n");
+        if (d.Opacity < 1f || d.Multiply) sb.Append("/GS gs\n");
         bool dashOn = false;
         foreach (var op in d.Ops)
         {

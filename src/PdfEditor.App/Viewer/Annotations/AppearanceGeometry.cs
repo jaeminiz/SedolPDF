@@ -30,11 +30,31 @@ public sealed record CachedAppearance(IReadOnlyList<(Geometry Geometry, IBrush? 
     /// <summary>모든 항목에 곱하는 쪽 좌표 행렬(AppearanceDrawing.Transform, 회전한 FreeText·Stamp). null이면 없음.</summary>
     public Matrix? Transform { get; init; }
 
+    /// <summary>Items와 같은 순서. null이 아닌 칸은 그 경로를 이 색 한 점 그림으로 곱하기(Multiply) 블렌드해 칠한다(형광펜). null이면 일반 칠하기.</summary>
+    public IReadOnlyList<IImage?>? MultiplyFills { get; init; }
+
+    private static readonly Avalonia.Media.RenderOptions MultiplyOptions = new()
+    {
+        BitmapBlendingMode = Avalonia.Media.Imaging.BitmapBlendingMode.Multiply,
+        BitmapInterpolationMode = Avalonia.Media.Imaging.BitmapInterpolationMode.None,
+    };
+
     /// <summary>경로 → 그림 → 글자 순(PDF 내용 스트림 순서와 같다).</summary>
     public void Draw(DrawingContext ctx)
     {
         using var _ = Transform is { } t ? ctx.PushTransform(t) : default(DrawingContext.PushedState?);
-        foreach (var (geo, fill, stroke) in Items) ctx.DrawGeometry(fill, stroke, geo);
+        for (int i = 0; i < Items.Count; i++)
+        {
+            var (geo, fill, stroke) = Items[i];
+            if (MultiplyFills is { } mf && mf[i] is { } color)
+            {
+                // 곱하기(Multiply) 블렌드: 경로 안쪽에 색 한 점짜리 그림을 곱하기로 깐다. 아래 글자가 검정 그대로 비친다(AP의 /BM /Multiply와 같은 결과).
+                using (ctx.PushGeometryClip(geo))
+                using (ctx.PushRenderOptions(MultiplyOptions))
+                    ctx.DrawImage(color, new Rect(0, 0, 1, 1), geo.Bounds);
+            }
+            else ctx.DrawGeometry(fill, stroke, geo);
+        }
         foreach (var (rect, bmp) in Images)
         {
             if (bmp is null) continue;
@@ -103,6 +123,7 @@ public static class AppearanceGeometry
     public static CachedAppearance FromDrawing(AppearanceDrawing d)
     {
         var items = new List<(Geometry, IBrush?, IPen?)>(d.Ops.Length);
+        List<IImage?>? multiply = d.Multiply ? new(d.Ops.Length) : null;
         // PDF의 /GS gs처럼 Op마다 알파를 곱한다(그룹 투명도가 아님): 채움과 선이 겹쳐도 각자 알파로 칠해진다.
         byte alpha = (byte)Math.Clamp((int)Math.Round(d.Opacity * 255f), 0, 255);
         foreach (var op in d.Ops)
@@ -119,6 +140,7 @@ public static class AppearanceGeometry
                 stroke = new ImmutablePen(sb, op.StrokeWidth, dash, ToCap(op.Cap), ToJoin(op.Join));
             }
             items.Add((geo, fill, stroke));
+            multiply?.Add(op.Fill is { } mc && op.Stroke is null ? PointImage(mc, alpha) : null);
         }
         bool complete = true;
         var images = new List<(PdfRectF, IImage?)>(d.Images.Length);
@@ -160,9 +182,22 @@ public static class AppearanceGeometry
         }
         return new CachedAppearance(items)
         {
-            Images = images, Texts = texts, Opacity = d.Opacity, Complete = complete,
+            Images = images, Texts = texts, Opacity = d.Opacity, Complete = complete, MultiplyFills = multiply,
             Transform = d.Transform is { } m ? new Matrix(m.A, m.B, m.C, m.D, m.E, m.F) : null,
         };
+    }
+
+    /// <summary>색 한 점(1×1, 알파 미리 곱함)짜리 비트맵. 곱하기 블렌드로 경로를 칠할 때 쓴다.</summary>
+    private static IImage PointImage(PdfColor c, byte alpha)
+    {
+        var bmp = new Avalonia.Media.Imaging.WriteableBitmap(new PixelSize(1, 1), new Vector(96, 96),
+            Avalonia.Platform.PixelFormat.Bgra8888, Avalonia.Platform.AlphaFormat.Premul);
+        using (var fb = bmp.Lock())
+        {
+            int px = (alpha << 24) | ((c.R * alpha / 255) << 16) | ((c.G * alpha / 255) << 8) | (c.B * alpha / 255);
+            System.Runtime.InteropServices.Marshal.WriteInt32(fb.Address, px);
+        }
+        return bmp;
     }
 
     /// <summary>글리프 윤곽선(em 단위)을 글자 크기만큼 키우고 기준선 원점으로 옮긴다.</summary>

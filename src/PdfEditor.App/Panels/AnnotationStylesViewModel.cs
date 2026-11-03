@@ -36,7 +36,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
     public static IReadOnlyList<AnnotationStyle> DefaultStyles() =>
     [
         new(Strings.Style_ReviewRed, null, "#E5372D", null, 1f, 1.5f),
-        new(Strings.Style_HighlightYellow, nameof(AnnotKind.Highlight), "#FFD60A", null, 0.5f, 1f),
+        new(Strings.Style_HighlightYellow, nameof(AnnotKind.Highlight), "#FFFF00", null, 1f, 1f),   // 0.5.0: 선명한 노랑 + 불투명(곱하기 블렌드는 그리기 쪽이 정한다)
         new(Strings.Style_ApprovedGreen, null, "#1F9D55", null, 1f, 1.5f),
     ];
 

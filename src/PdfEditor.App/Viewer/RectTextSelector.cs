@@ -70,7 +70,7 @@ public static class RectTextSelector
     private static bool IsBlank(string s) => string.IsNullOrWhiteSpace(s);
 
     /// <summary>전용 스레드 안에서 부른다. 사각형은 쪽 좌표(pt). 쪽이 문서에 없으면 빈 결과.</summary>
-    public static (RectTextResult Result, IReadOnlyList<RectangleF> Rects) Resolve(DocumentSession session, PageId id, RectangleF rectPt)
+    public static (RectTextResult Result, IReadOnlyList<RectangleF> Rects) Resolve(DocumentSession session, PageId id, RectangleF rectPt, bool markup = false)
     {
         if (session.IndexOf(id) < 0) return (RectTextResult.Empty, []);
         // 쪽 핸들은 경계·회전을 읽는 데만 쓰고 놓는다(다음 GetLoaded*가 닫을 수 있다).
@@ -85,7 +85,7 @@ public static class RectTextSelector
         }).ToList();
         var result = Build(view);
         var rects = new List<RectangleF>();
-        foreach (var (s, n) in result.Runs) rects.AddRange(text.GetRects(s, n));
+        foreach (var (s, n) in result.Runs) rects.AddRange(markup ? text.GetMarkupRects(s, n) : text.GetRects(s, n));   // markup: 주석용 글자별 느슨한 상자(합치기는 CreateMarkup)
         return (result, rects);
     }
 }

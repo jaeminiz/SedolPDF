@@ -103,8 +103,8 @@ public sealed partial class DocumentView
         {
             var rects = await session.Thread.InvokeAsync(() =>
                 session.IndexOf(page) < 0 ? Array.Empty<RectangleF>()
-                : rectPt is { } rc ? [.. RectTextSelector.Resolve(session, page, rc).Rects]
-                : range is { } r ? [.. session.GetLoadedText(page).GetRects(r.Start, r.Count)]
+                : rectPt is { } rc ? [.. RectTextSelector.Resolve(session, page, rc, markup: true).Rects]
+                : range is { } r ? [.. session.GetLoadedText(page).GetMarkupRects(r.Start, r.Count)]
                 : Array.Empty<RectangleF>());
             if (st.Disposed || rects.Length == 0) return;
             var cmd = tab.Tools.CreateMarkup(tool, DocumentTabViewModel.StyleFor(tool), page, [.. rects.Select(Pdf.Native.PdfRectF.FromLtrbRectangle)]);

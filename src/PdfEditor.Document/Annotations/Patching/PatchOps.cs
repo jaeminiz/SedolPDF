@@ -15,8 +15,8 @@ public sealed record SetInteger(string Key, int Value) : PatchOp;
 /// <summary>실수 하나(예: /CA 투명도). SetNumbers는 배열을 쓴다.</summary>
 public sealed record SetReal(string Key, float Value) : PatchOp;
 
-/// <summary>AP 폼의 /Resources /ExtGState /GS (CA = ca = 투명도). AP 내용 스트림이 /GS gs를 쓸 때 필요하다.</summary>
-public sealed record AddApOpacity(float Opacity) : PatchOp;
+/// <summary>AP 폼의 /Resources /ExtGState /GS (CA = ca = 투명도, Multiply면 /BM /Multiply). AP 내용 스트림이 /GS gs를 쓸 때 필요하다.</summary>
+public sealed record AddApOpacity(float Opacity, bool Multiply = false) : PatchOp;
 
 /// <summary>/BE &lt;&lt;/S /C /I n&gt;&gt; (클라우드 테두리)</summary>
 public sealed record SetBorderEffect(float Intensity) : PatchOp;
