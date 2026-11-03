@@ -177,7 +177,7 @@ public static class AnnotationPainter
             var path = ImmutableArray.CreateBuilder<PathSeg>();
             path.Add(new MoveTo(pts[0]));
             for (int i = 1; i < pts.Length; i++) path.Add(new LineTo(pts[i]));
-            AddStyled(a, ops, path.ToImmutable(), null, color, closed: false);
+            ops.Add(StyledOp(a, path.ToImmutable(), null, color));
         }
         LineEndings.Add(ops, a.StartEnding, v[0], dirS, size, color, a.FillColor, a.BorderWidth);
         LineEndings.Add(ops, a.EndEnding, v[n - 1], dirE, size, color, a.FillColor, a.BorderWidth);
@@ -207,28 +207,10 @@ public static class AnnotationPainter
             b.Add(new ClosePath());
             path = b.ToImmutable();
         }
-        AddStyled(a, ops, path, a.FillColor, stroke, closed: true, allowDouble: a.CloudIntensity <= 0);
+        ops.Add(StyledOp(a, path, a.FillColor, stroke));
     }
 
     /// <summary>선 모양(실선·점선·파선·일점쇄선)을 입힌 테두리 Op. 선·폴리라인·다각형이 같이 쓴다 — 화면과 AP가 같은 대시를 얻는다(D1).</summary>
-    /// <summary>
-    /// 테두리 Op를 목록에 더한다. 이중선(0.5.0)은 굵기를 3등분해 가운데를 비우고 양쪽에 1/3 굵기 선 둘을 그린다
-    /// (경로를 굵기/3만큼 안팎으로 옮긴 두 경로; 채움이 있으면 채움 Op를 먼저 따로 그린다). 구름 테두리는 실선으로 그린다.
-    /// </summary>
-    private static void AddStyled(Annotation a, List<PaintOp> ops, ImmutableArray<PathSeg> path, PdfColor? fill, PdfColor? stroke, bool closed, bool allowDouble = true)
-    {
-        var style = a.Kind.Applies() ? a.LineStyle : LineStyle.Solid;
-        if (style != LineStyle.Double || stroke is null || !allowDouble || !DoubleStroke.TryOffsets(path, a.BorderWidth / 3f, closed, out var inner, out var outer))
-        {
-            ops.Add(StyledOp(a with { LineStyle = style == LineStyle.Double ? LineStyle.Solid : style }, path, fill, stroke));
-            return;
-        }
-        if (fill is not null) ops.Add(new PaintOp(path, fill, null, 0f, LineCap.Butt, LineJoin.Round));
-        float w = a.BorderWidth / 3f;
-        ops.Add(new PaintOp(inner, null, stroke, w, LineCap.Butt, LineJoin.Round));
-        ops.Add(new PaintOp(outer, null, stroke, w, LineCap.Butt, LineJoin.Round));
-    }
-
     private static PaintOp StyledOp(Annotation a, ImmutableArray<PathSeg> path, PdfColor? fill, PdfColor? stroke)
     {
         var style = a.Kind.Applies() ? a.LineStyle : LineStyle.Solid;

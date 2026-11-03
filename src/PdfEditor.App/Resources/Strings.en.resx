@@ -385,8 +385,6 @@
   <data name="LineStyle_Dotted" xml:space="preserve"><value>Dotted</value></data>
   <data name="LineStyle_Dashed" xml:space="preserve"><value>Dashed</value></data>
   <data name="LineStyle_DashDot" xml:space="preserve"><value>Dash-dot</value></data>
-  <data name="LineStyle_LongDash" xml:space="preserve"><value>Long dash</value></data>
-  <data name="LineStyle_Double" xml:space="preserve"><value>Double</value></data>
   <data name="Prop_Annot_BothArrows" xml:space="preserve"><value>Arrows on both ends</value></data>
   <data name="Prop_Annot_BothArrowsTip" xml:space="preserve"><value>Makes both the start and the end an arrow.</value></data>
   <data name="Prop_Annot_Leaders" xml:space="preserve"><value>Leader lines</value></data>
@@ -398,8 +396,7 @@
   <data name="LineEnding_Circle" xml:space="preserve"><value>Circle</value></data>
   <data name="LineEnding_Diamond" xml:space="preserve"><value>Diamond</value></data>
   <data name="LineEnding_OpenArrow" xml:space="preserve"><value>Open arrow</value></data>
-  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>Filled arrow</value></data>
-  <data name="LineEnding_HollowArrow" xml:space="preserve"><value>Closed arrow</value></data>
+  <data name="LineEnding_ClosedArrow" xml:space="preserve"><value>Closed arrow</value></data>
   <data name="LineEnding_Butt" xml:space="preserve"><value>Bar</value></data>
   <data name="LineEnding_Slash" xml:space="preserve"><value>Slash</value></data>
   <data name="Prop_Annot_Cloud" xml:space="preserve"><value>Cloud border</value></data>

@@ -70,7 +70,7 @@ public sealed partial class PropertiesPanel : UserControl
     [
         (PdfEditor.Document.Annotations.LineEnding.None, "\u2014"), (PdfEditor.Document.Annotations.LineEnding.Square, "\u25A0"),
         (PdfEditor.Document.Annotations.LineEnding.Circle, "\u25CF"), (PdfEditor.Document.Annotations.LineEnding.Diamond, "\u25C6"),
-        (PdfEditor.Document.Annotations.LineEnding.OpenArrow, "\u2192"), (PdfEditor.Document.Annotations.LineEnding.HollowArrow, "\u25B7"), (PdfEditor.Document.Annotations.LineEnding.ClosedArrow, "\u25B6"),
+        (PdfEditor.Document.Annotations.LineEnding.OpenArrow, "\u2192"), (PdfEditor.Document.Annotations.LineEnding.ClosedArrow, "\u25B6"),
         (PdfEditor.Document.Annotations.LineEnding.Butt, "|"), (PdfEditor.Document.Annotations.LineEnding.Slash, "/"),
     ];
 

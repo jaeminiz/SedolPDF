@@ -223,7 +223,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 b = b with { StartEnding = r.Start ?? b.StartEnding, EndEnding = r.End ?? b.EndEnding };
             if (a.Kind is AnnotKind.Square or AnnotKind.Polygon && r.Cloud is { } c)
                 b = b with { CloudIntensity = c };
-            if (LineStyleExtensions.AppliesTo(a) && r.Style is { } ls) b = b with { LineStyle = ls };
+            if (a.Kind.Applies() && r.Style is { } ls) b = b with { LineStyle = ls };
         }
         return b;
     }
@@ -275,7 +275,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 a.Kind is AnnotKind.Line or AnnotKind.PolyLine ? a.StartEnding.ToString() : null,
                 a.Kind is AnnotKind.Line or AnnotKind.PolyLine ? a.EndEnding.ToString() : null,
                 a.Kind is AnnotKind.Square or AnnotKind.Polygon ? a.CloudIntensity : null,
-                LineStyleExtensions.AppliesTo(a) ? a.LineStyle.ToString() : null,
+                a.Kind.Applies() ? a.LineStyle.ToString() : null,
                 a.Kind == AnnotKind.FreeText ? PdfEditor.Document.Annotations.TextFormat.FamilyName(a.TextFamily) : null,
                 a.Kind == AnnotKind.FreeText ? PdfEditor.Document.Annotations.TextFormat.ToBits(a) : null);
         }

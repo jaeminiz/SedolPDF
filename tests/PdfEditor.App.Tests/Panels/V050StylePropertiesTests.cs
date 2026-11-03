@@ -10,7 +10,7 @@ using PdfEditor.TestFixtures;
 
 namespace PdfEditor.App.Tests.Panels;
 
-/// <summary>0.5.0: 속성 패널·형식 탭 모델의 새 선 모양·속 빈 화살촉·글자 서식(굵게/기울임/밑줄/취소선/글꼴)과 이름 붙인 스타일 저장·적용.</summary>
+/// <summary>0.5.0: 속성 패널·형식 탭 모델의 새 글자 서식(굵게/기울임/밑줄/취소선/글꼴)과 이름 붙인 스타일 저장·적용.</summary>
 [Collection("TabSettings")]
 public class V050StylePropertiesTests : PanelTestBase, IDisposable
 {
@@ -68,50 +68,6 @@ public class V050StylePropertiesTests : PanelTestBase, IDisposable
         tab.Session!.Annotations.Get(page).Items.Single(v => v.Data.Id == id).Data;
 
     [Fact]
-    public void Names_AreAllFilled_ForEveryChoice()
-    {
-        foreach (var s in AnnotationPropertiesViewModel.LineStyleChoices) Assert.False(string.IsNullOrWhiteSpace(AnnotationPropertiesViewModel.LineStyleName(s)));
-        foreach (var e in AnnotationPropertiesViewModel.LineEndingChoices) Assert.False(string.IsNullOrWhiteSpace(AnnotationPropertiesViewModel.LineEndingName(e)));
-        Assert.Equal(9, AnnotationPropertiesViewModel.LineEndingChoices.Count);   // 없음 + 8종
-        Assert.Equal(AnnotationPropertiesViewModel.LineEndingChoices.Distinct().Count(), AnnotationPropertiesViewModel.LineEndingChoices.Select(AnnotationPropertiesViewModel.LineEndingName).Distinct().Count());
-    }
-
-    [Fact]
-    public async Task NewLineStyles_AndHollowArrow_Apply_OneUndoEach()
-    {
-        var (tab, vm, _, page) = await SetupAsync(LineAnnot());
-        var line = tab.Session!.Annotations.Get(page).Items.Single().Data;
-        tab.Selection.Set(page, [line.Id]);
-        foreach (var s in new[] { LineStyle.LongDash, LineStyle.Double })
-        {
-            await vm.SetLineStyleAsync(s);
-            Assert.Equal(s, Current(tab, page, line.Id).LineStyle);
-            Assert.Equal(s, vm.LineStyle);
-        }
-        await vm.SetLineEndingAsync(start: false, LineEnding.HollowArrow);
-        Assert.Equal(LineEnding.HollowArrow, Current(tab, page, line.Id).EndEnding);
-        await tab.Session.Commands.UndoAsync();
-        Assert.Equal(LineEnding.None, Current(tab, page, line.Id).EndEnding);
-    }
-
-    [Fact]
-    public async Task CalloutLeader_ShowsLineStyle_AndAppliesIt()
-    {
-        var (tab, vm, _, page) = await SetupAsync(CalloutAnnot(), Box());
-        var items = tab.Session!.Annotations.Get(page).Items.Select(v => v.Data).ToList();
-        var co = items.Single(a => a.Intent == FreeTextIntent.Callout);
-        var tb = items.Single(a => a.Intent == FreeTextIntent.TextBox);
-        tab.Selection.Set(page, [co.Id]);
-        Assert.True(vm.ShowLineStyle);
-        await vm.SetLineStyleAsync(LineStyle.DashDot);
-        Assert.Equal(LineStyle.DashDot, Current(tab, page, co.Id).LineStyle);
-        tab.Selection.Set(page, [tb.Id]);
-        Assert.False(vm.ShowLineStyle);   // 일반 텍스트 상자의 테두리는 실선만
-        await vm.SetLineStyleAsync(LineStyle.Double);
-        Assert.Equal(LineStyle.Solid, Current(tab, page, tb.Id).LineStyle);
-    }
-
-    [Fact]
     public async Task TextFormat_Toggles_AreIndependent_AndEachIsOneUndo()
     {
         var (tab, vm, _, page) = await SetupAsync(Box());
@@ -161,11 +117,10 @@ public class V050StylePropertiesTests : PanelTestBase, IDisposable
     [Fact]
     public async Task NamedStyle_SavesAndAppliesTextFormat_AndLineStyleNames()
     {
-        var (tab, _, styles, page) = await SetupAsync(Box("A") with { Bold = true, Underline = true, TextFamily = TextFontFamily.Serif }, Box("B"), LineAnnot() with { LineStyle = LineStyle.Double });
+        var (tab, _, styles, page) = await SetupAsync(Box("A") with { Bold = true, Underline = true, TextFamily = TextFontFamily.Serif }, Box("B"));
         var items = tab.Session!.Annotations.Get(page).Items.Select(v => v.Data).ToList();
         var src = items.Single(a => a.Contents == "A");
         var dst = items.Single(a => a.Contents == "B");
-        var line = items.Single(a => a.Kind == AnnotKind.Line);
 
         tab.Selection.Set(page, [src.Id]);
         Assert.True(styles.SaveCurrentAs("서식 스타일"));
@@ -179,9 +134,6 @@ public class V050StylePropertiesTests : PanelTestBase, IDisposable
         Assert.True(after.Bold && after.Underline && !after.Italic);
         Assert.Equal(TextFontFamily.Serif, after.TextFamily);
 
-        tab.Selection.Set(page, [line.Id]);
-        Assert.True(styles.SaveCurrentAs("이중선 스타일"));
-        Assert.Equal(nameof(LineStyle.Double), styles.All.Single(s => s.Name == "이중선 스타일").LineStyle);
     }
 
     [Fact]
