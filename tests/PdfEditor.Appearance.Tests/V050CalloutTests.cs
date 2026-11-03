@@ -85,6 +85,28 @@ public class V050CalloutTests : IDisposable
     }
 
     [Fact]
+    public void ReAnchor_TipMovesToAnotherSide_ElbowStandsOutwardOfNewSide_NeverCrossesBox()
+    {
+        var box = new PdfRectF(100, 100, 520, 180);
+        // 아래 변 가운데에서 수직으로 선 꺾임 → 끝점을 왼쪽 아래로 옮기면 왼쪽 변 가운데로 옮겨 바깥(왼쪽)으로 선다
+        var leader = CalloutLeaders.Route(box, new PdfPointF(300, 40));
+        Assert.Equal(new PdfPointF(310, 100), leader[2]);
+        var tipMoved = leader.SetItem(0, new PdfPointF(40, 60));
+        var re = CalloutLeaders.ReAnchor(tipMoved, box);
+        Assert.Equal(new PdfPointF(100, 140), re[2]);
+        Assert.Equal(140f, re[1].Y);
+        Assert.True(re[1].X < 100f && re[1].X >= 40f);   // 왼쪽 바깥, 끝점을 지나치지 않음
+
+        // 위·오른쪽도 마찬가지
+        var up = CalloutLeaders.ReAnchor(tipMoved.SetItem(0, new PdfPointF(300, 260)), box);
+        Assert.Equal(new PdfPointF(310, 180), up[2]);
+        Assert.True(up[1].Y > 180f && up[1].X == 310f);
+        var right = CalloutLeaders.ReAnchor(tipMoved.SetItem(0, new PdfPointF(600, 90)), box);
+        Assert.Equal(new PdfPointF(520, 140), right[2]);
+        Assert.True(right[1].X > 520f && right[1].Y == 140f);
+    }
+
+    [Fact]
     public void ReAnchor_StandingElbowFollowsBox_DraggedElbowStays()
     {
         var box = new PdfRectF(150, 100, 310, 140);
@@ -220,6 +242,8 @@ public class V050CalloutTests : IDisposable
         var outDir = Path.Combine(Root(), "spikes", "out");
         Directory.CreateDirectory(outDir);
         var target = Path.Combine(outDir, "v050-callout-shapes.pdf");
+        try { if (File.Exists(target)) using (File.Open(target, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { } }
+        catch (IOException) { target = Path.Combine(outDir, "v050-callout-shapes-new.pdf"); }   // 뷰어가 열어 둔 샘플은 덮어쓸 수 없다
         string blank = Path.Combine(_dir, "blank.pdf");
         TestPdfFactory.CreateBlank(blank, 2, W, H);
         var svc = Service(out var patcher);

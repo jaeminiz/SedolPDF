@@ -59,8 +59,17 @@ public static class CalloutLeaders
             var old = leader[2];
             var (nx, ny) = NormalAt(box, attach);
             float dx = leader[1].X - old.X, dy = leader[1].Y - old.Y, len = MathF.Sqrt(dx * dx + dy * dy);
-            bool standing = len > 0.01f && (MathF.Abs(dx) < 0.01f || MathF.Abs(dy) < 0.01f);   // 축에 평행 = 변에서 수직으로 선 꺾임
-            if (standing) result = result.SetItem(1, new PdfPointF(attach.X + nx * len, attach.Y + ny * len));
+            // 이전에 변에서 수직으로 서 있던 꺾임(새 변도 같은 방향)이면 같은 길이로 따라간다.
+            bool standing = len > 0.5f && (MathF.Abs(dx) < 0.5f || MathF.Abs(dy) < 0.5f) && (dx * nx + dy * ny) > 0f;
+            // 사용자가 끈 꺾임점은 새 변의 바깥쪽에 있을 때만 둔다. 안쪽·옆이면(지시선이 상자를 가로지름) 바깥으로 다시 세운다.
+            bool outward = (leader[1].X - attach.X) * nx + (leader[1].Y - attach.Y) * ny > 0.5f;
+            if (standing || !outward)
+            {
+                float outDist = (leader[0].X - attach.X) * nx + (leader[0].Y - attach.Y) * ny;
+                float k = standing ? len : DefaultKneePt;
+                k = Math.Min(k, Math.Max(outDist / 2f, 2f));   // 끝점이 가까우면 끝점을 지나치지 않는다
+                result = result.SetItem(1, new PdfPointF(attach.X + nx * k, attach.Y + ny * k));
+            }
         }
         return result;
     }

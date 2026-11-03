@@ -448,13 +448,20 @@ public class SelectionControllerTests
         Assert.Equal(new PdfPointF(280, 300), a4.Vertices[^1]);
         Assert.Equal(AnnotationGeometry.ComputeRect(a4), a4.Rect);
 
-        // 3-vertex leader keeps its elbow and count
+        // 3-vertex leader keeps its count; the elbow that would now cross the box is stood up outward of the new (right) side
         var co3 = FreeText(2, box, (100, 280), (150, 330), (200, 280));
         c.Begin(Snap(co3), Sel(2), new HitResult(co3.Id, HandleKind.LeaderTip), new(100, 280), Bounds, 1f);
         var a5 = Changes(c.End(new(500, 280))!)[0].After!;
         Assert.Equal(3, a5.Vertices.Length);
-        Assert.Equal(new PdfPointF(150, 330), a5.Vertices[1]);
         Assert.Equal(new PdfPointF(360, 280), a5.Vertices[2]);
+        Assert.Equal(280f, a5.Vertices[1].Y);
+        Assert.True(a5.Vertices[1].X > 360f && a5.Vertices[1].X < 500f);
+
+        // an elbow already outward of the side stays where the user put it
+        var co4 = FreeText(3, box, (100, 280), (150, 330), (200, 280));
+        c.Begin(Snap(co4), Sel(3), new HitResult(co4.Id, HandleKind.N), new(280, 300), Bounds, 1f);
+        var a6 = Changes(c.End(new(280, 340))!)[0].After!;
+        Assert.Equal(new PdfPointF(150, 330), a6.Vertices[1]);
     }
 
     private static (Annotation Strike, Annotation Caret) Group()
