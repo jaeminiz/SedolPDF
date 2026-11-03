@@ -469,7 +469,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private async Task PrintActiveAsync()
     {
         if (_printService is null || ActiveDocument is not { Session: { } s } d) return;
-        try { await _printService.PrintAsync(s, d.CurrentPageIndex); }
+        // 썸네일 패널에서 고른 쪽(문서 순서). 없으면 빈 목록 → 대화상자의 "선택한 쪽"이 꺼진다.
+        var sel = d.SelectedPages;
+        var selected = s.Pages.Select((p, i) => (p.Id, i)).Where(x => sel.Contains(x.Id)).Select(x => x.i).ToList();
+        try { await _printService.PrintAsync(s, d.CurrentPageIndex, selected); }
         catch (Exception ex) { await ShowErrorAsync(ex); }
     }
 
