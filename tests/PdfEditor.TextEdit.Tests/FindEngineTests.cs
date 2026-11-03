@@ -186,17 +186,32 @@ public sealed class FindEngineTests : IDisposable
         PdfEditor.TestFixtures.ContentPdfFactory.CreateManyTextLines(path, 5000);
         using var doc = PdfReader.Open(path, PdfDocumentOpenMode.Import);
         PageTextIndex.Build(doc.Pages[0], 0);   // 첫 호출 JIT 제외
-        double best = double.MaxValue;
+        // 전체 dotnet test는 여러 시험 프로세스가 동시에 돌아 벽시계 시간이 5~6배까지 늘어난다(0.5.0 검토: 922 ms로 실패).
+        // 그래서 이 스레드가 실제로 쓴 CPU 시간(사용자+커널)으로 판정하고, 벽시계 시간은 알림 글에만 남긴다.
+        double best = double.MaxValue, bestWall = double.MaxValue;
         for (int i = 0; i < 3; i++)
         {
             var sw = Stopwatch.StartNew();
+            double cpu0 = ThreadCpuSeconds();
             var idx = PageTextIndex.Build(doc.Pages[0], 0);
             var found = idx.Find(new FindOptions { Query = "1" });
-            best = Math.Min(best, sw.Elapsed.TotalSeconds);
+            best = Math.Min(best, ThreadCpuSeconds() - cpu0);
+            bestWall = Math.Min(bestWall, sw.Elapsed.TotalSeconds);
             Assert.True(idx.Lines.Count >= 4000);
         }
-        Assert.True(best <= 0.15, $"5,000줄 쪽 해석+찾기 {best * 1000:0} ms (목표 150 ms)");
+        Assert.True(best <= 0.15, $"5,000줄 쪽 해석+찾기 CPU {best * 1000:0} ms, 벽시계 {bestWall * 1000:0} ms (목표 CPU 150 ms)");
     }
+
+    /// <summary>현재 스레드의 CPU 시간(초). 갱신 단위는 시계 틱(약 15.6 ms)이다.</summary>
+    private static double ThreadCpuSeconds()
+    {
+        if (!GetThreadTimes(GetCurrentThread(), out _, out _, out long kernel, out long user)) throw new InvalidOperationException("GetThreadTimes");
+        return (kernel + user) / 1e7;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GetCurrentThread();
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetThreadTimes(IntPtr thread, out long creation, out long exit, out long kernel, out long user);
 
     [Fact]
     public void Find_WholeDocument_IsCancellableAndReportsProgress()
