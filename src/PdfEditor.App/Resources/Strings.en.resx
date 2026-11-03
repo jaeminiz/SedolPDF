@@ -286,7 +286,7 @@
   <data name="Print_Scale" xml:space="preserve"><value>Scale</value></data>
   <data name="Print_ScalePercent" xml:space="preserve"><value>Custom scale (%)</value></data>
   <data name="Print_Center" xml:space="preserve"><value>Center on paper</value></data>
-  <data name="Print_PerSheet" xml:space="preserve"><value>Pages per sheet</value></data>
+  <data name="Print_PerSheet" xml:space="preserve"><value>Pages per paper</value></data>
   <data name="Print_PerSheet1" xml:space="preserve"><value>1 (off)</value></data>
   <data name="Print_PerSheet2" xml:space="preserve"><value>2 pages</value></data>
   <data name="Print_PerSheet4" xml:space="preserve"><value>4 pages</value></data>
@@ -295,10 +295,10 @@
   <data name="Print_PreviewLoading" xml:space="preserve"><value>Preparing…</value></data>
   <data name="Print_PreviewNone" xml:space="preserve"><value>There are no pages to print.</value></data>
   <data name="Print_PreviewFailed" xml:space="preserve"><value>Could not create the preview.</value></data>
-  <data name="Print_SheetOf" xml:space="preserve"><value>Sheet {0} of {1}</value></data>
-  <data name="Print_Summary" xml:space="preserve"><value>{0} pages · {1} sheets</value></data>
-  <data name="Print_PrevSheet" xml:space="preserve"><value>Previous sheet</value></data>
-  <data name="Print_NextSheet" xml:space="preserve"><value>Next sheet</value></data>
+  <data name="Print_SheetOf" xml:space="preserve"><value>Preview {0} of {1}</value></data>
+  <data name="Print_Summary" xml:space="preserve"><value>{0} pages · {1} pieces of paper</value></data>
+  <data name="Print_PrevSheet" xml:space="preserve"><value>Previous</value></data>
+  <data name="Print_NextSheet" xml:space="preserve"><value>Next</value></data>
   <data name="Msg_PrintRestricted" xml:space="preserve"><value>Printing is restricted in this document.</value></data>
   <data name="Msg_PrintDone" xml:space="preserve"><value>The print job has been sent.</value></data>
   <data name="Doc_Recovered" xml:space="preserve"><value>{0} (recovered)</value></data>
