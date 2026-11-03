@@ -7,9 +7,9 @@
         Width="480" Height="380" MinWidth="380" MinHeight="300"
         ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="#F3F3F3">
-  <Grid Margin="24,20,24,16" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+  <Grid Margin="{DynamicResource InsetDialog}" RowDefinitions="Auto,*,Auto" RowSpacing="{DynamicResource Space12}">
     <TextBlock Text="{x:Static res:Strings.Dlg_MergeHint}" TextWrapping="Wrap" Foreground="#1A1A1A" />
-    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource Space12}">
       <ListBox x:Name="FileList" Background="White">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="dlg:MergeEntry">
@@ -17,15 +17,15 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <StackPanel Grid.Column="1" Spacing="6">
+      <StackPanel Grid.Column="1" Spacing="{DynamicResource Space8}">
         <Button x:Name="UpButton" MinWidth="80" Content="{x:Static res:Strings.Dlg_MoveItemUp}" />
         <Button x:Name="DownButton" MinWidth="80" Content="{x:Static res:Strings.Dlg_MoveItemDown}" />
         <Button x:Name="RemoveButton" MinWidth="80" Content="{x:Static res:Strings.Dlg_RemoveItem}" />
       </StackPanel>
     </Grid>
-    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Ok}" />
-      <Button x:Name="CancelButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Ok}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Cancel}" />
     </StackPanel>
   </Grid>
 </Window>

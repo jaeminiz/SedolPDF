@@ -16,6 +16,6 @@
         </TreeDataTemplate>
       </TreeView.ItemTemplate>
     </TreeView>
-    <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Foreground="#5C5C5C" Margin="{DynamicResource Inset12}" TextWrapping="Wrap" />
   </Grid>
 </UserControl>

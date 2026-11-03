@@ -36,7 +36,7 @@
               <panels:ThumbnailAnnotationLayer />
             </Grid>
           </Border>
-          <TextBlock Text="{Binding PageNumber}" HorizontalAlignment="Center" FontSize="11" Foreground="#5C5C5C" />
+          <TextBlock Text="{Binding PageNumber}" HorizontalAlignment="Center" FontSize="{DynamicResource FontSizeCaption}" Foreground="#5C5C5C" />
         </StackPanel>
       </DataTemplate>
     </ListBox.ItemTemplate>

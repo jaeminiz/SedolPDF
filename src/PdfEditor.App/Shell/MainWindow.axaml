@@ -47,7 +47,7 @@
     <Style Selector="TextBox.quickbox, TextBox.pagebox">
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="Padding" Value="4,2" />
-      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
     </Style>
     <Style Selector="TextBox.quickbox">
       <Setter Property="BorderThickness" Value="0" />
@@ -63,7 +63,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="#5C5C5C" />
       <Setter Property="Padding" Value="12,0,12,7" />
-      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
       <Setter Property="VerticalAlignment" Value="Bottom" />
     </Style>
     <Style Selector="Button.menutab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -90,7 +90,7 @@
       <Setter Property="Foreground" Value="White" />
       <Setter Property="CornerRadius" Value="4,4,0,0" />
       <Setter Property="Padding" Value="12,5,12,7" />
-      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
       <Setter Property="VerticalAlignment" Value="Bottom" />
     </Style>
     <Style Selector="Button.filetab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -146,7 +146,7 @@
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="CornerRadius" Value="6,6,0,0" />
       <Setter Property="Foreground" Value="#5C5C5C" />
-      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
     </Style>
     <Style Selector="ListBox.doctabs > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="#D4D4D9" />
@@ -184,7 +184,7 @@
       </ItemsControl>
       <!-- "형식" 탭: 만들기 도구가 켜졌거나 주석이 선택되면 오른쪽 끝에 나타난다 (대상 이름은 작은 글씨) -->
       <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" Margin="8,0,0,0" IsVisible="{Binding IsFormatTabVisible}">
-        <TextBlock Text="{Binding FormatTabSubtitle}" FontSize="10.5" Foreground="#005FB8" VerticalAlignment="Bottom"
+        <TextBlock Text="{Binding FormatTabSubtitle}" FontSize="{DynamicResource FontSizeCaption}" Foreground="#005FB8" VerticalAlignment="Bottom"
                    Margin="0,0,2,9" />
         <StackPanel VerticalAlignment="Bottom">
           <Button Name="FormatTabButton" Classes="menutab ctx" Classes.on="{Binding IsFormatTabSelected}"

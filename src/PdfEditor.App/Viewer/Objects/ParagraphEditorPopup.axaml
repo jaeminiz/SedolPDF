@@ -4,11 +4,11 @@
   <!-- 문단 위에 겹치는 여러 줄 편집 창(M5 C17). 위: 줄 포함/제외 단추, 가운데: 글 입력칸 + 좌우 폭 손잡이, 아래: 줄 수·알림과 확정/취소. -->
   <Border Background="White" BorderBrush="#005FB8" BorderThickness="1" Padding="0">
     <StackPanel>
-      <StackPanel Name="ExtendRow" Orientation="Horizontal" Spacing="4" Margin="2">
-        <Button Name="AddTopBtn" Focusable="False" Padding="6,1" FontSize="11" />
-        <Button Name="RemoveTopBtn" Focusable="False" Padding="6,1" FontSize="11" />
-        <Button Name="AddBottomBtn" Focusable="False" Padding="6,1" FontSize="11" />
-        <Button Name="RemoveBottomBtn" Focusable="False" Padding="6,1" FontSize="11" />
+      <StackPanel Name="ExtendRow" Orientation="Horizontal" Spacing="{DynamicResource Space4}" Margin="2">
+        <Button Name="AddTopBtn" Focusable="False" Classes="small" />
+        <Button Name="RemoveTopBtn" Focusable="False" Classes="small" />
+        <Button Name="AddBottomBtn" Focusable="False" Classes="small" />
+        <Button Name="RemoveBottomBtn" Focusable="False" Classes="small" />
       </StackPanel>
       <Grid Name="BoxHost">
         <TextBox Name="Box" AcceptsReturn="True" TextWrapping="Wrap" Background="White" BorderThickness="0"
@@ -19,15 +19,15 @@
       </Grid>
       <!-- 실제 줄바꿈 미리보기: 계획된 줄을 한 줄씩 보여 준다(입력칸의 줄바꿈은 테마 글꼴 폭이라 PDF 결과와 다를 수 있음) -->
       <StackPanel Name="LinePreviewHost" IsVisible="False" Margin="4,2,4,0">
-        <TextBlock Name="LinePreviewLabel" FontSize="12" Foreground="#5C5C5C" />
+        <TextBlock Name="LinePreviewLabel" FontSize="{DynamicResource FontSizeBody}" Foreground="#5C5C5C" />
         <ScrollViewer MaxHeight="130" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-          <TextBlock Name="LinePreview" FontSize="13" Foreground="#303030" TextWrapping="NoWrap" />
+          <TextBlock Name="LinePreview" FontSize="{DynamicResource FontSizeBody}" Foreground="#303030" TextWrapping="NoWrap" />
         </ScrollViewer>
       </StackPanel>
       <Grid ColumnDefinitions="*,Auto,Auto" Margin="2">
-        <TextBlock Name="Status" Grid.Column="0" FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" />
-        <Button Name="CommitBtn" Grid.Column="1" Focusable="False" Padding="8,1" Margin="4,0,0,0" FontSize="11" />
-        <Button Name="CancelBtn" Grid.Column="2" Focusable="False" Padding="8,1" Margin="4,0,0,0" FontSize="11" />
+        <TextBlock Name="Status" Grid.Column="0" FontSize="{DynamicResource FontSizeBody}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Button Name="CommitBtn" Grid.Column="1" Focusable="False" Margin="4,0,0,0" Classes="small" />
+        <Button Name="CancelBtn" Grid.Column="2" Focusable="False" Margin="4,0,0,0" Classes="small" />
       </Grid>
     </StackPanel>
   </Border>

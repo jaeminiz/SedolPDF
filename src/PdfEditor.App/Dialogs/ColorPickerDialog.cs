@@ -1,3 +1,4 @@
+using PdfEditor.App.Styles;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -107,7 +108,7 @@ public sealed class ColorPickerDialog : Window
     private static StackPanel Labeled(string label, Control c)
     {
         var p = new StackPanel { Spacing = 2 };
-        p.Children.Add(new TextBlock { Text = label, FontSize = 11, Foreground = new SolidColorBrush(Color.Parse("#5C5C5C")) });
+        p.Children.Add(new TextBlock { Text = label, FontSize = DesignTokens.FontCaption, Foreground = new SolidColorBrush(Color.Parse("#5C5C5C")) });
         p.Children.Add(c);
         return p;
     }

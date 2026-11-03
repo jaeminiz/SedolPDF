@@ -5,8 +5,8 @@
              x:Class="PdfEditor.App.Panels.CommentsPanel"
              x:DataType="panels:CommentsViewModel">
   <DockPanel>
-    <StackPanel DockPanel.Dock="Top" Margin="8,6,8,4" Spacing="6">
-      <TextBlock Text="{Binding ReplyNotice}" IsVisible="{Binding HasReplyNotice}" TextWrapping="Wrap" FontSize="11" Foreground="#8A5A00" />
+    <StackPanel DockPanel.Dock="Top" Margin="{DynamicResource Inset8}" Spacing="{DynamicResource Space8}">
+      <TextBlock Text="{Binding ReplyNotice}" IsVisible="{Binding HasReplyNotice}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}" Foreground="#8A5A00" />
       <TextBox x:Name="SearchBox" Text="{Binding SearchText}" PlaceholderText="{x:Static res:Strings.Comment_Search}" />
       <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
         <ComboBox ItemsSource="{Binding SortChoices}" SelectedIndex="{Binding SortIndex}" HorizontalAlignment="Stretch"
@@ -16,7 +16,7 @@
         <Button Grid.Column="2" Content="{x:Static res:Strings.Comment_Filter}">
           <Button.Flyout>
             <Flyout Placement="BottomEdgeAlignedRight">
-              <StackPanel Spacing="6" Width="220">
+              <StackPanel Spacing="{DynamicResource Space8}" Width="220">
                 <ComboBox ItemsSource="{Binding KindChoices}" SelectedIndex="{Binding KindIndex}" HorizontalAlignment="Stretch" />
                 <ComboBox ItemsSource="{Binding AuthorChoices}" SelectedIndex="{Binding AuthorIndex}" HorizontalAlignment="Stretch" />
                 <ComboBox ItemsSource="{Binding StateChoices}" SelectedIndex="{Binding StateIndex}" HorizontalAlignment="Stretch" />
@@ -26,7 +26,7 @@
           </Button.Flyout>
         </Button>
       </Grid>
-      <TextBlock Text="{Binding CountText}" FontSize="11" Foreground="#5C5C5C" />
+      <TextBlock Text="{Binding CountText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="#5C5C5C" />
     </StackPanel>
     <Border DockPanel.Dock="Top" Height="1" Background="#17000000" />
     <Grid>
@@ -46,15 +46,15 @@
                   <res:IconView Key="{Binding IconKey}" Width="14" Height="14" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="1" Text="{Binding KindName}" FontWeight="SemiBold" Margin="6,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   <Border Grid.Column="2" Background="#14000000" CornerRadius="8" Padding="6,0" VerticalAlignment="Center" IsVisible="{Binding !IsReply}">
-                    <TextBlock Text="{Binding PageText}" FontSize="11" />
+                    <TextBlock Text="{Binding PageText}" FontSize="{DynamicResource FontSizeCaption}" />
                   </Border>
                   <Button Grid.Column="3" Name="RowMenuButton" Content="&#x22EF;" Padding="6,0" Margin="4,0,0,0" Background="Transparent" BorderThickness="0"
                           ToolTip.Tip="{x:Static res:Strings.Comment_Menu}" />
                 </Grid>
-                <TextBlock Text="{Binding AuthorLine}" FontSize="11" Foreground="#5C5C5C" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding AuthorLine}" FontSize="{DynamicResource FontSizeCaption}" Foreground="#5C5C5C" TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding Contents}" MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                <Border IsVisible="{Binding HasState}" HorizontalAlignment="Left" Background="#1A0F6CBD" CornerRadius="8" Padding="8,1">
-                  <TextBlock Text="{Binding StateText}" FontSize="11" Foreground="#0F6CBD" />
+                <Border IsVisible="{Binding HasState}" HorizontalAlignment="Left" Background="#1A0F6CBD" CornerRadius="8">
+                  <TextBlock Text="{Binding StateText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="#0F6CBD" />
                 </Border>
                 <TextBox Name="ReplyBox" Tag="reply" IsVisible="{Binding Ui.IsReplying}" Text="{Binding Ui.Draft, Mode=TwoWay}"
                          AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" PlaceholderText="{x:Static res:Strings.Comment_ReplyPlaceholder}" />
@@ -63,7 +63,7 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <TextBlock Text="{x:Static res:Strings.Comment_Empty}" IsVisible="{Binding IsEmptyList}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap"
+      <TextBlock Text="{x:Static res:Strings.Comment_Empty}" IsVisible="{Binding IsEmptyList}" Foreground="#5C5C5C" Margin="{DynamicResource Inset12}" TextWrapping="Wrap"
                  VerticalAlignment="Top" IsHitTestVisible="False" />
     </Grid>
   </DockPanel>

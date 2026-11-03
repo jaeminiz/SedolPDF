@@ -7,7 +7,7 @@
   <UserControl.Styles>
     <Style Selector="TextBlock.k">
       <Setter Property="Foreground" Value="#5C5C5C" />
-      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
       <Setter Property="Margin" Value="0,8,0,0" />
     </Style>
     <Style Selector="TextBlock.v">
@@ -16,7 +16,7 @@
   </UserControl.Styles>
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
     <Panel>
-    <StackPanel Margin="10,0,10,10" IsVisible="{Binding IsDocumentMode}">
+    <StackPanel Margin="{DynamicResource Inset8}" IsVisible="{Binding IsDocumentMode}">
       <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_FileName}" />
       <TextBlock Classes="v" Text="{Binding FileName}" />
       <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_PageCount}" />
@@ -44,7 +44,7 @@
       <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Repaired}" />
       <TextBlock Classes="v" Text="{Binding Repaired}" />
     </StackPanel>
-    <StackPanel x:Name="AnnotSection" Margin="10,0,10,10" IsVisible="{Binding !IsDocumentMode}" x:DataType="panels:PropertiesViewModel">
+    <StackPanel x:Name="AnnotSection" Margin="{DynamicResource Inset8}" IsVisible="{Binding !IsDocumentMode}" x:DataType="panels:PropertiesViewModel">
       <TextBlock Text="{Binding Annotation.KindName}" FontWeight="SemiBold" />
       <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_DefaultsHint}" TextWrapping="Wrap" x:Name="DefaultsHint" />
       <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_Color}" />
@@ -88,7 +88,7 @@
         <WrapPanel x:Name="TextColorSwatches" />
         <TextBlock Classes="k" Text="{x:Static res:Strings.Prop_Annot_Font}" />
         <ComboBox x:Name="FontFamilyBox" HorizontalAlignment="Stretch" />
-        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,6,0,0">
+        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource Space4}" Margin="0,6,0,0">
   <ToggleButton x:Name="BoldBtn" Width="30" Content="B" FontWeight="Bold" ToolTip.Tip="{x:Static res:Strings.Format_Bold}" />
   <ToggleButton x:Name="ItalicBtn" Width="30" Content="I" FontStyle="Italic" ToolTip.Tip="{x:Static res:Strings.Format_Italic}" />
   <ToggleButton x:Name="UnderlineBtn" Width="30" ToolTip.Tip="{x:Static res:Strings.Format_Underline}"><TextBlock Text="U" TextDecorations="Underline" /></ToggleButton>

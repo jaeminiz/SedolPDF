@@ -6,12 +6,15 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://SedolPDF/Resources/Icons.axaml" />
+        <ResourceInclude Source="avares://SedolPDF/Styles/DesignTokens.axaml" />
+        <ResourceInclude Source="avares://SedolPDF/Styles/ControlThemes.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
     <FluentTheme />
     <StyleInclude Source="avares://SedolPDF/Shell/Ribbon/RibbonStyles.axaml" />
+    <StyleInclude Source="avares://SedolPDF/Styles/ControlStyles.axaml" />
     <Style Selector="Window">
       <Setter Property="FontFamily" Value="Segoe UI Variable Text, Malgun Gothic" />
     </Style>

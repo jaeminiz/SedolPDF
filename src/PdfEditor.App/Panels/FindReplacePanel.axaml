@@ -4,13 +4,13 @@
              xmlns:panels="using:PdfEditor.App.Panels"
              x:Class="PdfEditor.App.Panels.FindReplacePanel"
              x:DataType="panels:FindReplaceViewModel">
-  <DockPanel Margin="8,6,8,0">
-    <StackPanel DockPanel.Dock="Top" Spacing="4">
-      <TextBlock Text="{x:Static res:Strings.Replace_FindLabel}" FontSize="12" Foreground="#5C5C5C" />
+  <DockPanel Margin="{DynamicResource Inset8}">
+    <StackPanel DockPanel.Dock="Top" Spacing="{DynamicResource Space4}">
+      <TextBlock Text="{x:Static res:Strings.Replace_FindLabel}" FontSize="{DynamicResource FontSizeBody}" Foreground="#5C5C5C" />
       <TextBox x:Name="FindBox" Text="{Binding FindText, Mode=TwoWay}" PlaceholderText="{x:Static res:Strings.Replace_FindPlaceholder}" />
-      <TextBlock Text="{x:Static res:Strings.Replace_WithLabel}" FontSize="12" Foreground="#5C5C5C" Margin="0,2,0,0" />
+      <TextBlock Text="{x:Static res:Strings.Replace_WithLabel}" FontSize="{DynamicResource FontSizeBody}" Foreground="#5C5C5C" Margin="0,2,0,0" />
       <TextBox x:Name="WithBox" Text="{Binding ReplaceText, Mode=TwoWay}" PlaceholderText="{x:Static res:Strings.Replace_WithPlaceholder}" />
-      <TextBlock Text="{Binding BlockedReason}" IsVisible="{Binding HasBlockedReason}" TextWrapping="Wrap" FontSize="11" Foreground="#8A5A00" />
+      <TextBlock Text="{Binding BlockedReason}" IsVisible="{Binding HasBlockedReason}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}" Foreground="#8A5A00" />
 
       <CheckBox Content="{x:Static res:Strings.Replace_MatchCase}" IsChecked="{Binding MatchCase, Mode=TwoWay}" />
       <CheckBox Content="{x:Static res:Strings.Replace_WholeWord}" IsChecked="{Binding WholeWord, Mode=TwoWay}" />
@@ -34,13 +34,13 @@
         <Button Grid.Column="1" Content="{x:Static res:Strings.Replace_ReplaceAll}" Command="{Binding ReplaceAllCommand}" IsEnabled="{Binding CanReplace}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
       </Grid>
       <ProgressBar Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue}" IsVisible="{Binding IsBusy}" Height="4" />
-      <TextBlock Text="{Binding SummaryText}" IsVisible="{Binding HasSummary}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="#0F7B0F" />
-      <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="12" Foreground="#5C5C5C" />
-      <TextBlock Text="{Binding NoticeText}" IsVisible="{Binding HasNotice}" TextWrapping="Wrap" FontSize="11" Foreground="#8A5A00" />
-      <TextBlock Text="{x:Static res:Strings.Replace_Preview}" FontSize="11" Foreground="#5C5C5C" TextWrapping="Wrap" Margin="0,4,0,0" />
-      <StackPanel Orientation="Horizontal" Spacing="4">
-        <Button Content="{x:Static res:Strings.Replace_CheckAll}" Command="{Binding CheckAllCommand}" Padding="4,1" FontSize="11" />
-        <Button Content="{x:Static res:Strings.Replace_UncheckAll}" Command="{Binding UncheckAllCommand}" Padding="4,1" FontSize="11" />
+      <TextBlock Text="{Binding SummaryText}" IsVisible="{Binding HasSummary}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeBody}" FontWeight="SemiBold" Foreground="#0F7B0F" />
+      <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeBody}" Foreground="#5C5C5C" />
+      <TextBlock Text="{Binding NoticeText}" IsVisible="{Binding HasNotice}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}" Foreground="#8A5A00" />
+      <TextBlock Text="{x:Static res:Strings.Replace_Preview}" FontSize="{DynamicResource FontSizeCaption}" Foreground="#5C5C5C" TextWrapping="Wrap" Margin="0,4,0,0" />
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource Space4}">
+        <Button Content="{x:Static res:Strings.Replace_CheckAll}" Command="{Binding CheckAllCommand}" Classes="small" />
+        <Button Content="{x:Static res:Strings.Replace_UncheckAll}" Command="{Binding UncheckAllCommand}" Classes="small" />
       </StackPanel>
     </StackPanel>
     <ListBox x:Name="ResultList" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}" Background="Transparent" Margin="0,4,0,0"
@@ -56,16 +56,16 @@
           <Grid ColumnDefinitions="Auto,*">
             <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" IsEnabled="{Binding Ok}" MinWidth="0" Margin="0,0,4,0" VerticalAlignment="Top" />
             <StackPanel Grid.Column="1" Spacing="1">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="{Binding PageLabel}" FontSize="11" Foreground="#005FB8" />
-                <TextBlock Text="{Binding FontLabel}" FontSize="11" Foreground="#5C5C5C" />
+              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource Space8}">
+                <TextBlock Text="{Binding PageLabel}" FontSize="{DynamicResource FontSizeCaption}" Foreground="#005FB8" />
+                <TextBlock Text="{Binding FontLabel}" FontSize="{DynamicResource FontSizeCaption}" Foreground="#5C5C5C" />
               </StackPanel>
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="{Binding Before}" MaxWidth="80" TextTrimming="CharacterEllipsis" Foreground="#5C5C5C" />
                 <TextBlock Text="{Binding Match}" FontWeight="Bold" />
                 <TextBlock Text="{Binding After}" MaxWidth="80" TextTrimming="CharacterEllipsis" Foreground="#5C5C5C" />
               </StackPanel>
-              <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" TextWrapping="Wrap" FontSize="11" Foreground="#8A5A00" />
+              <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}" Foreground="#8A5A00" />
             </StackPanel>
           </Grid>
         </DataTemplate>

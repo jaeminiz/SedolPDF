@@ -1,0 +1,94 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- 체크 상자·라디오 단추 자체 모양. Fluent 기본은 상자가 20이고 템플릿에 크기가 박혀 있어 스타일로 줄일 수 없다.
+       상자 크기는 IconSizeM(16), 높이는 ControlHeightS(24), 글자와 상자는 세로 가운데로 맞춘다. 색은 리본과 같은 WinAccent 계열. -->
+  <ControlTheme x:Key="{x:Type CheckBox}" TargetType="CheckBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightS}" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid Background="{TemplateBinding Background}" ColumnDefinitions="Auto,*" Name="Root">
+          <Grid Width="{DynamicResource IconSizeM}" Height="{DynamicResource IconSizeM}" VerticalAlignment="Center">
+            <Border Name="Box" Background="White" BorderBrush="#7A7A7A" BorderThickness="1" CornerRadius="3" />
+            <Path Name="Glyph" Data="M3.5,8.2 L6.7,11.2 L12.5,4.6" Stroke="White" StrokeThickness="1.7"
+                  StrokeLineCap="Round" StrokeJoin="Round" IsVisible="False" />
+            <Rectangle Name="Dash" Width="8" Height="2" Fill="White" RadiusX="1" RadiusY="1" IsVisible="False" />
+          </Grid>
+          <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="6,0,0,0"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}" RecognizesAccessKey="True"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#Box">
+      <Setter Property="BorderBrush" Value="#1A1A1A" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#Box">
+      <Setter Property="BorderBrush" Value="{DynamicResource WinAccent}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="^:checked /template/ Border#Box">
+      <Setter Property="Background" Value="{DynamicResource WinAccent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource WinAccent}" />
+    </Style>
+    <Style Selector="^:checked /template/ Path#Glyph">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:indeterminate /template/ Border#Box">
+      <Setter Property="Background" Value="{DynamicResource WinAccent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource WinAccent}" />
+    </Style>
+    <Style Selector="^:indeterminate /template/ Rectangle#Dash">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled /template/ Grid#Root">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type RadioButton}" TargetType="RadioButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightS}" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid Background="{TemplateBinding Background}" ColumnDefinitions="Auto,*" Name="Root">
+          <Grid Width="{DynamicResource IconSizeM}" Height="{DynamicResource IconSizeM}" VerticalAlignment="Center">
+            <Ellipse Name="Ring" Fill="White" Stroke="#7A7A7A" StrokeThickness="1" />
+            <Ellipse Name="Dot" Width="8" Height="8" Fill="{DynamicResource WinAccent}" IsVisible="False" />
+          </Grid>
+          <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="6,0,0,0"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}" RecognizesAccessKey="True"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Ellipse#Ring">
+      <Setter Property="Stroke" Value="#1A1A1A" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Ellipse#Ring">
+      <Setter Property="Stroke" Value="{DynamicResource WinAccent}" />
+      <Setter Property="StrokeThickness" Value="2" />
+    </Style>
+    <Style Selector="^:checked /template/ Ellipse#Ring">
+      <Setter Property="Stroke" Value="{DynamicResource WinAccent}" />
+    </Style>
+    <Style Selector="^:checked /template/ Ellipse#Dot">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled /template/ Grid#Root">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

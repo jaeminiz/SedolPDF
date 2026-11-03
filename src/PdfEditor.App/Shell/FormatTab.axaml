@@ -6,7 +6,7 @@
   <UserControl.Styles>
     <Style Selector="TextBlock.gh">
       <Setter Property="Foreground" Value="#5C5C5C" />
-      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="Margin" Value="0,4,0,0" />
     </Style>
@@ -18,13 +18,13 @@
     <Style Selector="Button.stylebtn">
       <Setter Property="Padding" Value="8,3" />
       <Setter Property="MinHeight" Value="0" />
-      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}" />
     </Style>
     <Style Selector="Button.styledel">
       <Setter Property="Padding" Value="4,3" />
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
-      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
       <Setter Property="Foreground" Value="#5C5C5C" />
     </Style>
   </UserControl.Styles>

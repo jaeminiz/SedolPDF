@@ -5,9 +5,9 @@
              x:DataType="panels:LayersViewModel">
   <DockPanel>
     <TextBlock DockPanel.Dock="Bottom" Text="{Binding ToggleNote}" IsVisible="{Binding HasLayers}"
-               Foreground="#5C5C5C" FontSize="11" Margin="10,6" TextWrapping="Wrap" />
+               Foreground="#5C5C5C" FontSize="{DynamicResource FontSizeCaption}" Margin="10,6" TextWrapping="Wrap" />
     <Grid>
-      <ItemsControl ItemsSource="{Binding Items}" Margin="6,2">
+      <ItemsControl ItemsSource="{Binding Items}" Margin="{DynamicResource Inset8}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="panels:LayerItem">
             <!-- 표시 전환은 다음 버전: 처음 표시 상태만 비활성 체크박스로 보여 준다. -->
@@ -15,7 +15,7 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-      <TextBlock Text="{Binding Message}" IsVisible="{Binding !HasLayers}" Foreground="#5C5C5C" Margin="10" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding Message}" IsVisible="{Binding !HasLayers}" Foreground="#5C5C5C" Margin="{DynamicResource Inset12}" TextWrapping="Wrap" />
     </Grid>
   </DockPanel>
 </UserControl>

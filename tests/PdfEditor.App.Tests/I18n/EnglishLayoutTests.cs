@@ -66,6 +66,8 @@ public class EnglishLayoutTests(ITestOutputHelper output)
     {
         private readonly Avalonia.Styling.IStyle[] _styles;
         private readonly Avalonia.Controls.IResourceProvider _icons;
+        private readonly Avalonia.Controls.IResourceProvider _tokens;
+        private readonly Avalonia.Controls.IResourceProvider _themes;
 
         public AppStyles()
         {
@@ -75,10 +77,15 @@ public class EnglishLayoutTests(ITestOutputHelper output)
             [
                 new Avalonia.Themes.Fluent.FluentTheme(),
                 new Avalonia.Markup.Xaml.Styling.StyleInclude(baseUri) { Source = new Uri("avares://SedolPDF/Shell/Ribbon/RibbonStyles.axaml") },
+                new Avalonia.Markup.Xaml.Styling.StyleInclude(baseUri) { Source = new Uri("avares://SedolPDF/Styles/ControlStyles.axaml") },
             ];
             _icons = new Avalonia.Markup.Xaml.Styling.ResourceInclude(baseUri) { Source = new Uri("avares://SedolPDF/Resources/Icons.axaml") };
+            _tokens = new Avalonia.Markup.Xaml.Styling.ResourceInclude(baseUri) { Source = new Uri("avares://SedolPDF/Styles/DesignTokens.axaml") };
+            _themes = new Avalonia.Markup.Xaml.Styling.ResourceInclude(baseUri) { Source = new Uri("avares://SedolPDF/Styles/ControlThemes.axaml") };
             foreach (var s in _styles) app.Styles.Add(s);
             app.Resources.MergedDictionaries.Add(_icons);
+            app.Resources.MergedDictionaries.Add(_tokens);
+            app.Resources.MergedDictionaries.Add(_themes);
         }
 
         public void Dispose()
@@ -86,6 +93,8 @@ public class EnglishLayoutTests(ITestOutputHelper output)
             var app = Application.Current!;
             foreach (var s in _styles) app.Styles.Remove(s);
             app.Resources.MergedDictionaries.Remove(_icons);
+            app.Resources.MergedDictionaries.Remove(_tokens);
+            app.Resources.MergedDictionaries.Remove(_themes);
         }
     }
 

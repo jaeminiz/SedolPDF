@@ -5,7 +5,7 @@
         Width="560" SizeToContent="Height"
         CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="#F3F3F3">
-  <StackPanel Margin="24,20,24,16" Spacing="12">
+  <StackPanel Margin="{DynamicResource InsetDialog}" Spacing="{DynamicResource Space12}">
     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
       <Image Source="avares://SedolPDF/Assets/sedolpdf-256.png" Width="96" Height="96" VerticalAlignment="Top" />
       <StackPanel Grid.Column="1" Spacing="3">
@@ -28,9 +28,9 @@
     <dlg:WordWrapText x:Name="StarHint" Foreground="#5C5C5C" IsVisible="False" />
     <WrapPanel x:Name="LinksPanel" Orientation="Horizontal" />
     <TextBlock x:Name="NoticeStatus" Foreground="#C42B1C" IsVisible="False" TextWrapping="Wrap" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}" Margin="0,8,0,0">
       <Button x:Name="NoticesButton" MinWidth="120" />
-      <Button x:Name="CloseButton" MinWidth="88" IsDefault="True" Classes="accent" />
+      <Button x:Name="CloseButton" MinWidth="{DynamicResource ButtonMinWidth}" IsDefault="True" Classes="accent" />
     </StackPanel>
   </StackPanel>
 </Window>

@@ -15,7 +15,7 @@
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="#1A1A1A" />
-      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
       <Setter Property="MinWidth" Value="44" />
       <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
       <Setter Property="Template">
@@ -71,7 +71,7 @@
             <Grid RowDefinitions="*,14">
               <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}"
                               VerticalAlignment="Center" />
-              <TextBlock Grid.Row="1" Text="{TemplateBinding Header}" FontSize="10"
+              <TextBlock Grid.Row="1" Text="{TemplateBinding Header}" FontSize="{DynamicResource FontSizeCaption}"
                          Foreground="{StaticResource WinSub}" HorizontalAlignment="Center" />
             </Grid>
           </Border>

@@ -6,12 +6,12 @@
         SizeToContent="Height" Width="520"
         CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="#F3F3F3">
-  <StackPanel Margin="24,20,24,16" Spacing="12">
+  <StackPanel Margin="{DynamicResource InsetDialog}" Spacing="{DynamicResource Space12}">
     <TextBlock Text="{x:Static res:Strings.Dlg_RecoveryMessage}" TextWrapping="Wrap" Foreground="#1A1A1A" />
-    <StackPanel x:Name="ItemsPanel" Spacing="8" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
-      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Ok}" />
-      <Button x:Name="LaterButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_RecoveryLater}" />
+    <StackPanel x:Name="ItemsPanel" Spacing="{DynamicResource Space8}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}" Margin="0,8,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Ok}" />
+      <Button x:Name="LaterButton" IsCancel="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_RecoveryLater}" />
     </StackPanel>
   </StackPanel>
 </Window>

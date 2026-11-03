@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using PdfEditor.App.Styles;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -58,7 +59,7 @@ public sealed partial class ObjectPropertiesPanel : UserControl
         ParsingNumberStyle = System.Globalization.NumberStyles.Float,
     };
 
-    private static TextBlock Label(string text) => new() { Text = text, Foreground = new SolidColorBrush(Color.Parse("#5C5C5C")), FontSize = 11, Margin = new Thickness(0, 8, 0, 0) };
+    private static TextBlock Label(string text) => new() { Text = text, Foreground = new SolidColorBrush(Color.Parse("#5C5C5C")), FontSize = DesignTokens.FontCaption, Margin = new Thickness(0, 8, 0, 0) };
 
     private static StackPanel Row(string label, Control box)
     {

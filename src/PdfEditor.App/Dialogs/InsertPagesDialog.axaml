@@ -6,7 +6,7 @@
         SizeToContent="Height" Width="420"
         CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="#F3F3F3">
-  <StackPanel Margin="24,20,24,16" Spacing="10">
+  <StackPanel Margin="{DynamicResource InsetDialog}" Spacing="{DynamicResource Space12}">
     <TextBlock x:Name="SourceText" TextWrapping="Wrap" Foreground="#1A1A1A" FontWeight="SemiBold" />
     <TextBlock Text="{x:Static res:Strings.Dlg_InsertPosition}" Foreground="#5C5C5C" Margin="0,6,0,0" />
     <RadioButton x:Name="AfterCurrentRadio" GroupName="pos" IsChecked="True" Content="{x:Static res:Strings.Dlg_PosAfterCurrent}" />
@@ -16,9 +16,9 @@
     <TextBox x:Name="RangeBox" />
     <TextBlock x:Name="ErrorText" TextWrapping="Wrap" Foreground="#C42B1C" IsVisible="False"
                Text="{x:Static res:Strings.Err_PageRangeInvalid}" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
-      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Ok}" />
-      <Button x:Name="CancelButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}" Margin="0,8,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Ok}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Cancel}" />
     </StackPanel>
   </StackPanel>
 </Window>

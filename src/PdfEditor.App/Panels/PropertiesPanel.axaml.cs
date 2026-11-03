@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using PdfEditor.App.Styles;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -246,7 +247,7 @@ public sealed partial class PropertiesPanel : UserControl
         {
             Width = 22, Height = 22, Margin = new Thickness(0, 4, 4, 0), Padding = new Thickness(0),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xC8)), BorderThickness = new Thickness(1),
-            Content = new TextBlock { Text = "+", FontSize = 14, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+            Content = new TextBlock { Text = "+", FontSize = DesignTokens.FontSubtitle, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
         };
         Avalonia.Automation.AutomationProperties.SetName(b, PdfEditor.App.Resources.Strings.Tip_MoreColors);
         ToolTip.SetTip(b, PdfEditor.App.Resources.Strings.Tip_MoreColors);
@@ -272,7 +273,7 @@ public sealed partial class PropertiesPanel : UserControl
             Background = c is { } v ? new SolidColorBrush(Color.FromRgb(v.R, v.G, v.B)) : Brushes.White,
             BorderBrush = selected ? Brushes.DodgerBlue : new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xC8)),
             BorderThickness = new Thickness(selected ? 2 : 1),
-            Content = c is null ? new TextBlock { Text = "∅", FontSize = 11, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center } : null,
+            Content = c is null ? new TextBlock { Text = "∅", FontSize = DesignTokens.FontCaption, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center } : null,
         };
         Avalonia.Automation.AutomationProperties.SetName(b, c?.ToHex() ?? PdfEditor.App.Resources.Strings.Prop_Annot_NoFill);
         b.Click += (_, _) => onPick(c);

@@ -20,7 +20,7 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-      <TextBlock Text="{Binding FileName}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" />
+      <TextBlock Text="{Binding FileName}" FontSize="{DynamicResource FontSizeBody}" Margin="8,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" />
     </StackPanel>
 
     <Panel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Width="300">

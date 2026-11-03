@@ -43,7 +43,7 @@
     <Style Selector="Slider.zoom:disabled"><Setter Property="Opacity" Value="0.45" /></Style>
   </UserControl.Styles>
   <Border Background="#FBFBFB" BorderBrush="#17000000" BorderThickness="0,1,0,0" Height="30">
-    <Grid ColumnDefinitions="*,Auto,*" Margin="12,0" TextElement.FontSize="11" TextElement.Foreground="#5C5C5C">
+    <Grid ColumnDefinitions="*,Auto,*" Margin="12,0" TextElement.FontSize="{DynamicResource FontSizeCaption}" TextElement.Foreground="#5C5C5C">
       <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
         <TextBlock Text="{Binding StatusSizeText}" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas" />
         <TextBlock Text="{Binding TextSelectHint}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />

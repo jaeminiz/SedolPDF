@@ -1,0 +1,46 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- 공통 컨트롤 규격: 높이·안쪽 여백·세로 가운데 정렬을 DesignTokens 값으로 통일한다. 개별 화면에서 따로 정하지 않는다. -->
+  <Style Selector="Button">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightM}" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusS}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.small">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightS}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
+  </Style>
+  <Style Selector="Button.large">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightL}" />
+  </Style>
+  <Style Selector="ToggleButton">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightM}" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusS}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBox">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightM}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusS}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBox[AcceptsReturn=True]">
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="VerticalContentAlignment" Value="Top" />
+  </Style>
+  <Style Selector="ComboBox">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightM}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusS}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="NumericUpDown">
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeightM}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+</Styles>

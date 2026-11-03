@@ -6,9 +6,9 @@
         SizeToContent="Height" Width="340"
         CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="#F3F3F3">
-  <StackPanel Margin="24,20,24,16" Spacing="10">
+  <StackPanel Margin="{DynamicResource InsetDialog}" Spacing="{DynamicResource Space12}">
     <TextBlock x:Name="StatusText" />
     <ProgressBar x:Name="Bar" Minimum="0" />
-    <Button x:Name="CancelButton" HorizontalAlignment="Right" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    <Button x:Name="CancelButton" HorizontalAlignment="Right" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Cancel}" />
   </StackPanel>
 </Window>

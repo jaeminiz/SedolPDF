@@ -9,7 +9,7 @@
   <Grid RowDefinitions="*,Auto" Margin="20,16,20,16">
     <Grid Grid.Row="0" ColumnDefinitions="340,16,*">
       <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="6" Margin="0,0,12,0">
+        <StackPanel Spacing="{DynamicResource Space8}" Margin="0,0,12,0">
           <TextBlock Text="{x:Static res:Strings.Print_Printer}" Foreground="#5C5C5C" />
           <Grid ColumnDefinitions="*,8,Auto">
             <ComboBox x:Name="PrinterBox" Grid.Column="0" HorizontalAlignment="Stretch" />
@@ -49,7 +49,7 @@
           <TextBlock Text="{x:Static res:Strings.Print_Scale}" Foreground="#5C5C5C" Margin="0,8,0,0" />
           <RadioButton x:Name="FitRadio" GroupName="scale" IsChecked="True" Content="{x:Static res:Strings.Dlg_PrintFit}" />
           <RadioButton x:Name="ActualRadio" GroupName="scale" Content="{x:Static res:Strings.Dlg_PrintActualSize}" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="{DynamicResource Space8}">
             <RadioButton x:Name="PercentRadio" GroupName="scale" Content="{x:Static res:Strings.Print_ScalePercent}" />
             <NumericUpDown x:Name="PercentBox" Minimum="10" Maximum="400" Value="100" Increment="5" FormatString="0" Width="110" IsEnabled="False" />
           </StackPanel>
@@ -73,7 +73,7 @@
             <TextBlock x:Name="PreviewStatus" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#5C5C5C" />
           </Grid>
         </Border>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,8,0,0">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="{DynamicResource Space12}" Margin="0,8,0,0">
           <Button x:Name="PrevButton" Content="&#9664;" MinWidth="40" ToolTip.Tip="{x:Static res:Strings.Print_PrevSheet}" />
           <TextBlock x:Name="SheetText" VerticalAlignment="Center" MinWidth="80" TextAlignment="Center" />
           <Button x:Name="NextButton" Content="&#9654;" MinWidth="40" ToolTip.Tip="{x:Static res:Strings.Print_NextSheet}" />
@@ -81,9 +81,9 @@
       </Grid>
     </Grid>
 
-    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
-      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_PrintButton}" />
-      <Button x:Name="CancelButton" IsCancel="True" MinWidth="88" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}" Margin="0,12,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_PrintButton}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Cancel}" />
     </StackPanel>
   </Grid>
 </Window>
