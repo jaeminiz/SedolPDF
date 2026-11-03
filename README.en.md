@@ -6,7 +6,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 
 > **This is an early public release (v0.5.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
 
-![Viewing and annotating](docs/screenshots/viewer.png)
+![Comment tab](docs/screenshots/en/03-annotate.png)
 
 ## Features
 
@@ -32,9 +32,15 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 - Auto-recovery after a crash, and opening password-protected PDFs.
 - The application code makes no network connections.
 
-![Edit tab](docs/screenshots/edit.png)
+![Home tab](docs/screenshots/en/02-home.png)
 
-![About window](docs/screenshots/about.png)
+![Edit tab](docs/screenshots/en/04-edit.png)
+
+![Pages tab](docs/screenshots/en/05-page.png)
+
+![Print preview](docs/screenshots/en/06-print-preview.png)
+
+![About window](docs/screenshots/en/01-info.png)
 
 ## Install
 
