@@ -124,10 +124,10 @@
         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
           <ComboBox x:Name="FontFamilyBox" Width="110" ToolTip.Tip="{x:Static res:Strings.Prop_Annot_Font}" />
           <StackPanel Orientation="Horizontal" Spacing="4" Margin="0">
-  <ToggleButton x:Name="BoldBtn" Width="30" Content="B" FontWeight="Bold" ToolTip.Tip="{x:Static res:Strings.Format_Bold}" />
-  <ToggleButton x:Name="ItalicBtn" Width="30" Content="I" FontStyle="Italic" ToolTip.Tip="{x:Static res:Strings.Format_Italic}" />
-  <ToggleButton x:Name="UnderlineBtn" Width="30" ToolTip.Tip="{x:Static res:Strings.Format_Underline}"><TextBlock Text="U" TextDecorations="Underline" /></ToggleButton>
-  <ToggleButton x:Name="StrikeBtn" Width="30" ToolTip.Tip="{x:Static res:Strings.Format_Strike}"><TextBlock Text="S" TextDecorations="Strikethrough" /></ToggleButton>
+  <ToggleButton x:Name="BoldBtn" Width="30" Padding="0" Content="B" FontWeight="Bold" ToolTip.Tip="{x:Static res:Strings.Format_Bold}" />
+  <ToggleButton x:Name="ItalicBtn" Width="30" Padding="0" Content="I" FontStyle="Italic" ToolTip.Tip="{x:Static res:Strings.Format_Italic}" />
+  <ToggleButton x:Name="UnderlineBtn" Width="30" Padding="0" ToolTip.Tip="{x:Static res:Strings.Format_Underline}"><TextBlock Text="U" TextDecorations="Underline" /></ToggleButton>
+  <ToggleButton x:Name="StrikeBtn" Width="30" Padding="0" ToolTip.Tip="{x:Static res:Strings.Format_Strike}"><TextBlock Text="S" TextDecorations="Strikethrough" /></ToggleButton>
 </StackPanel>
         </StackPanel>
         <TextBlock Classes="gh" Text="{x:Static res:Strings.Format_GroupText}" />
