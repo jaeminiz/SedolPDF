@@ -15,6 +15,8 @@ internal static unsafe partial class NativeMethods
     [LibraryImport(Lib)] public static partial int FPDFText_GetCharIndexAtPos(IntPtr textPage, double x, double y, double xTolerance, double yTolerance);
     [LibraryImport(Lib)] public static partial uint FPDFText_GetUnicode(IntPtr textPage, int index);
     [LibraryImport(Lib)] public static partial int FPDFText_GetCharBox(IntPtr textPage, int index, double* left, double* right, double* bottom, double* top);
+    /// <summary>글꼴 위·아래 여백(ascent/descent)까지 포함한 느슨한 글자 상자. 글리프 윤곽만 감싸는 FPDFText_GetCharBox와 달리 같은 글꼴이면 높이가 일정하다.</summary>
+    [LibraryImport(Lib)] public static partial int FPDFText_GetLooseCharBox(IntPtr textPage, int index, FsRectF* rect);
     [LibraryImport(Lib)] public static partial int FPDFText_CountRects(IntPtr textPage, int startIndex, int count);
     [LibraryImport(Lib)] public static partial int FPDFText_GetRect(IntPtr textPage, int rectIndex, double* left, double* top, double* right, double* bottom);
 

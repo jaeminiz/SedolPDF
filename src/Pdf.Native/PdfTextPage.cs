@@ -58,6 +58,33 @@ public sealed unsafe class PdfTextPage : IDisposable
     }
 
     /// <summary>
+    /// 텍스트 마크업(강조·밑줄·취소선)용 글자 사각형: 글자마다 하나, 글꼴 ascent/descent까지 담은 느슨한 상자(없으면 글리프 상자).
+    /// 줄 바꿈 같은 제어 문자는 뺀다. 같은 줄로 합치는 일은 호출한 쪽이 한다(<c>TextMarkupGeometry</c>). 규약은 <see cref="GetRects"/>와 같다.
+    /// </summary>
+    public IReadOnlyList<RectangleF> GetMarkupRects(int start, int count)
+    {
+        var h = H;
+        int total = NativeMethods.FPDFText_CountChars(h);
+        int end = Math.Min(total, start + count);
+        var list = new List<RectangleF>(Math.Max(end - start, 0));
+        for (int i = Math.Max(start, 0); i < end; i++)
+        {
+            uint u = NativeMethods.FPDFText_GetUnicode(h, i);
+            if (u < 0x20 || u == 0xFFFE || u == 0xFFFF) continue;
+            FsRectF loose;
+            if (NativeMethods.FPDFText_GetLooseCharBox(h, i, &loose) != 0 && loose.Right > loose.Left && loose.Top > loose.Bottom)
+            {
+                list.Add(RectangleF.FromLTRB(loose.Left, loose.Bottom, loose.Right, loose.Top));
+                continue;
+            }
+            double l, r, b, t;
+            if (NativeMethods.FPDFText_GetCharBox(h, i, &l, &r, &b, &t) == 0 || r <= l || t <= b) continue;
+            list.Add(RectangleF.FromLTRB((float)l, (float)b, (float)r, (float)t));
+        }
+        return list;
+    }
+
+    /// <summary>
     /// 글자 상자의 중심점이 사각형(PDF 사용자 좌표) 안에 있는 글자들. 줄바꿈 같은 제어 문자와 상자를 못 얻는 글자는 뺀다.
     /// 반환 순서는 PDFium 글자 번호 순서이다.
     /// </summary>

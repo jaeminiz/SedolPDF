@@ -47,7 +47,7 @@ public static class AnnotationPainter
         if (rotated) bounds = AnnotationRotation.Apply(transform, bounds);
         return new AppearanceDrawing(arr, a.Kind == AnnotKind.FreeText ? 1f : a.Opacity, bounds)
         {
-            Texts = texts, Images = images, Transform = rotated ? transform : null,
+            Texts = texts, Images = images, Transform = rotated ? transform : null, Multiply = a.Kind == AnnotKind.Highlight,
         };
     }
 

@@ -571,6 +571,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         gs.Elements["/Type"] = new PdfName("/ExtGState");
         gs.Elements["/CA"] = new PdfReal(op.Opacity);
         gs.Elements["/ca"] = new PdfReal(op.Opacity);
+        if (op.Multiply) gs.Elements["/BM"] = new PdfName("/Multiply");   // 형광펜: 아래 글자가 곱하기로 비친다
         states.Elements["/GS"] = gs;
     }
 

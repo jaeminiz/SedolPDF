@@ -44,6 +44,8 @@ public sealed record AppearanceDrawing(ImmutableArray<PaintOp> Ops, float Opacit
 {
     /// <summary>모든 경로·그림·글자에 곱하는 행렬(PDF cm). 회전한 FreeText·Stamp만 쓰고 나머지는 null. Bounds는 이미 곱한 뒤의 경계.</summary>
     public PdfMatrix? Transform { get; init; }
+    /// <summary>곱하기(Multiply) 블렌드로 그린다(형광펜: 아래 글자가 그대로 비친다). 화면은 곱하기로 칠하고 AP는 /GS의 /BM /Multiply를 쓴다.</summary>
+    public bool Multiply { get; init; }
     public ImmutableArray<TextRunOp> Texts { get; init; } = ImmutableArray<TextRunOp>.Empty;
     public ImmutableArray<ImageOp> Images { get; init; } = ImmutableArray<ImageOp>.Empty;
 

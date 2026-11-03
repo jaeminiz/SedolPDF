@@ -108,6 +108,11 @@ public static class PatchPlanBuilder
                         .BuildPatchAppearance(e.Current, rotation);
                     ops.AddRange(PatchKindOps(e.Current, ap, isNew: false));
                 }
+                else if (e.Current.Kind == AnnotKind.Highlight && (!e.IsOriginal || e.Owned))
+                {
+                    // 형광펜(0.5.0): PDFium이 AP에 자원을 못 넣으므로 /GS(/BM /Multiply + 투명도)를 패치로 넣는다. 우리가 AP를 쓴 형광펜만(손대지 않은 원본은 그대로).
+                    ops.Add(new AddApOpacity(e.Current.Opacity, Multiply: true));
+                }
                 if (!e.IsOriginal && e.Current.Kind == AnnotKind.Square)
                     ops.AddRange(SquareCloudOps(e.Current, original: false));   // 새 클라우드 사각형: PDFium 길 + /BE·/RD 패치
                 if (ops.Count == 0) continue;

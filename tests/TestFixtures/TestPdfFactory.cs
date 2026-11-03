@@ -107,6 +107,45 @@ public static class TestPdfFactory
         Save(doc, path);
     }
 
+    /// <summary>
+    /// 웹 문서를 PDF로 인쇄한 것처럼 낱말·글자를 따로 놓은 쪽(595×842, 쪽 /Rotate = rotate). 줄마다: 낱말은 Arial(굵게 옵션)로 한 번씩, 한글은 맑은 고딕으로
+    /// 글자마다 따로(글자 간격 spacing pt), 낱말 사이 공백 글자는 그리지 않고 비워 둔다(브라우저 인쇄본이 그렇다).
+    /// 한 줄에 글꼴 크기가 다른 두 글꼴이 섞이므로 글자 상자 높이가 낱말마다 다르다.
+    /// </summary>
+    public static void CreateWebLikeText(string path, IReadOnlyList<string> lines, int rotate = 0, double sizePt = 20, double spacing = 3)
+    {
+        using var doc = Build(1, 595, 842);
+        doc.Pages[0].Rotate = rotate;
+        using (var gfx = XGraphics.FromPdfPage(doc.Pages[0]))
+        {
+            var latin = new XFont("Arial", sizePt, XFontStyleEx.Bold);
+            var hangul = new XFont("Malgun Gothic", sizePt * 0.9, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode));
+            for (int i = 0; i < lines.Count; i++)
+            {
+                double x = 40, y = 100 + sizePt * 2 * i;
+                foreach (var word in lines[i].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    bool kr = word.Any(c => c >= 0xAC00 && c <= 0xD7A3);
+                    if (kr)
+                    {
+                        foreach (var ch in word)
+                        {
+                            gfx.DrawString(ch.ToString(), hangul, XBrushes.Black, new XPoint(x, y));
+                            x += gfx.MeasureString(ch.ToString(), hangul).Width + spacing;
+                        }
+                    }
+                    else
+                    {
+                        gfx.DrawString(word, latin, XBrushes.Black, new XPoint(x, y));
+                        x += gfx.MeasureString(word, latin).Width + spacing;
+                    }
+                    x += sizePt * 0.6;   // 공백 자리는 비어 있다
+                }
+            }
+        }
+        Save(doc, path);
+    }
+
     /// <summary>3쪽. 책갈피: 1장(→1쪽) 아래 1.1 절(→2쪽), 2장(→3쪽, 닫힘).</summary>
     public static void CreateWithOutline(string path)
     {

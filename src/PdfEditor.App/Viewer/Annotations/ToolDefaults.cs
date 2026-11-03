@@ -9,6 +9,7 @@ public static class ToolDefaults
     private static readonly PdfColor Red = PdfColor.FromHex("#E5372D");
     private static readonly PdfColor Blue = PdfColor.FromHex("#005FB8");
     private static readonly PdfColor Yellow = PdfColor.FromHex("#FFD60A");
+    private static readonly PdfColor HighlightYellow = PdfColor.FromHex("#FFFF00");
     private static readonly PdfColor Black = PdfColor.FromHex("#000000");
     private static readonly PdfColor White = PdfColor.FromHex("#FFFFFF");
 
@@ -21,7 +22,8 @@ public static class ToolDefaults
     public static ToolStyle For(ToolKind tool) => tool switch
     {
         ToolKind.Pencil => new(Red, null, 1f, 1.5f),
-        ToolKind.HighlightText or ToolKind.HighlightArea => new(Yellow, null, 0.5f, 1f),
+        // 0.5.0: 형광펜은 선명한 노랑 + 불투명 + 곱하기 블렌드(AnnotationPainter)라 글자가 검정 그대로 보인다.
+        ToolKind.HighlightText or ToolKind.HighlightArea => new(HighlightYellow, null, 1f, 1f),
         ToolKind.Underline => new(Blue, null, 1f, 1f),
         ToolKind.StrikeOut => new(Red, null, 1f, 1f),
         ToolKind.StickyNote => new(Yellow, null, 1f, 1f),

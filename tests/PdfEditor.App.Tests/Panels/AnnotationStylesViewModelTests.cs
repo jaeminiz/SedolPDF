@@ -125,8 +125,8 @@ public class AnnotationStylesViewModelTests : PanelTestBase, IDisposable
         tab.Selection.Set(page, [items[0].Id, items[1].Id]);
         await vm.ApplyAsync(vm.All.Single(s => s.AppliesTo == nameof(AnnotKind.Highlight)));
         Assert.Equal(Red, Current(tab, page, items[0].Id).Color);   // 사각형은 그대로
-        Assert.Equal(PdfColor.FromHex("#FFD60A"), Current(tab, page, items[1].Id).Color);
-        Assert.Equal(0.5f, Current(tab, page, items[1].Id).Opacity);
+        Assert.Equal(PdfColor.FromHex("#FFFF00"), Current(tab, page, items[1].Id).Color);
+        Assert.Equal(1f, Current(tab, page, items[1].Id).Opacity);
     }
 
     [Fact]

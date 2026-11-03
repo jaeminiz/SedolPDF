@@ -221,7 +221,7 @@ public sealed class AnnotationToolController(
         return ChangeAnnotationsCommand.Add(page, Finish(tool, style, new Annotation
         {
             Kind = kind,
-            Quads = [.. textRects.Select(PdfQuadF.FromRect)],
+            Quads = [.. TextMarkupGeometry.ToQuads(textRects)],   // 같은 줄은 하나로 이어 붙인다(공백·글자 사이 틈 포함)
         }));
     }
 
@@ -247,7 +247,7 @@ public sealed class AnnotationToolController(
         var strike = Finish(ToolKind.ReplaceText, style, new Annotation
         {
             Kind = AnnotKind.StrikeOut,
-            Quads = [.. textRects.Select(PdfQuadF.FromRect)],
+            Quads = [.. TextMarkupGeometry.ToQuads(textRects)],
         });
         var last = textRects[^1];
         var caret = Finish(ToolKind.ReplaceText, style, new Annotation
