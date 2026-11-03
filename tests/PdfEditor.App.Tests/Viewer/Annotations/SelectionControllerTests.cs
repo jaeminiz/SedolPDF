@@ -359,6 +359,23 @@ public class SelectionControllerTests
     }
 
     [Fact]
+    public void Callout_ThreePointLeader_HasDraggableKneeHandle()
+    {
+        var box = new PdfRectF(200, 260, 360, 300);
+        var co = FreeText(1, box, (100, 100), (180, 280), (200, 280));
+        var c = Make();
+        Assert.Equal(1 + 1 + 8, SelectionController.HandlesOf(co).Count);   // 끝점 + 꺾임점 + 상자 8개
+        var hit = c.HitTest(Snap(co), Sel(1), new(180, 280), 1f);
+        Assert.Equal(HandleKind.Vertex, hit!.Handle);
+        Assert.Equal(1, hit.Index);
+        c.Begin(Snap(co), Sel(1), hit, new(180, 280), Bounds, 1f);
+        var a = Changes(c.End(new(170, 230))!)[0].After!;
+        Assert.Equal(new PdfPointF(170, 230), a.Vertices[1]);
+        Assert.Equal(co.Vertices[0], a.Vertices[0]);
+        Assert.Equal(co.Vertices[2], a.Vertices[2]);
+    }
+
+    [Fact]
     public void FreeText_BoxHandles_ResizeBoxOnly_AndLeaderTipMovesTip()
     {
         var box = new PdfRectF(200, 260, 360, 300);
