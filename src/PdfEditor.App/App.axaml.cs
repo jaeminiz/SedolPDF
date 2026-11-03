@@ -16,6 +16,14 @@ public sealed class App : Application
             var window = new Shell.MainWindow(
                 Program.Bench is not null ? [] : (desktop.Args ?? []).Where(x => !x.StartsWith("-") && File.Exists(x)).ToList());
             desktop.MainWindow = window;
+            Program.Instance?.StartServer(paths => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            {
+                var files = paths.Where(File.Exists).ToList();
+                if (window.WindowState == Avalonia.Controls.WindowState.Minimized) window.WindowState = Avalonia.Controls.WindowState.Normal;
+                window.Activate();
+                await window.ViewModel.OpenManyAsync(files);
+                window.Activate();
+            }));
             if (Program.Bench is { } bench)
                 window.Opened += async (_, _) => await Bench.BenchRunner.RunAsync(window, bench);
         }

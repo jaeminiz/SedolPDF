@@ -10,6 +10,7 @@ public static class ToolDefaults
     private static readonly PdfColor Blue = PdfColor.FromHex("#005FB8");
     private static readonly PdfColor Yellow = PdfColor.FromHex("#FFD60A");
     private static readonly PdfColor Black = PdfColor.FromHex("#000000");
+    private static readonly PdfColor White = PdfColor.FromHex("#FFFFFF");
 
     public static IReadOnlyList<PdfColor> Swatches { get; } =
     [
@@ -27,9 +28,10 @@ public static class ToolDefaults
         ToolKind.Rectangle or ToolKind.Ellipse => new(Red, null, 1f, 1.5f),
         // M3a: 선 계열은 사각형과 같은 빨강 1.5pt
         ToolKind.Line or ToolKind.Arrow or ToolKind.PolyLine or ToolKind.Polygon or ToolKind.Cloud => new(Red, null, 1f, 1.5f),
-        ToolKind.TextBox => new(Red, null, 1f, 1f),
+        // 0.5.0: 새 텍스트 상자·설명선은 흰 바탕이 기본(형식 패널에서 투명으로 바꿀 수 있다). 타자기는 투명 그대로.
+        ToolKind.TextBox => new(Red, White, 1f, 1f),
         ToolKind.Typewriter => new(Black, null, 1f, 0f),
-        ToolKind.Callout => new(Red, null, 1f, 1.5f),
+        ToolKind.Callout => new(Red, White, 1f, 1.5f),
         ToolKind.InsertText or ToolKind.ReplaceText => new(Red, null, 1f, 1f),
         ToolKind.Stamp => new(Red, null, 1f, 1f),
         ToolKind.FileAttach => new(Blue, null, 1f, 1f),

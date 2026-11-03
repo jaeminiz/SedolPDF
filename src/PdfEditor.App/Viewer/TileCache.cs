@@ -7,7 +7,8 @@ public sealed class TileCache<TImage> where TImage : class
 {
     // 160 MB(계획서 값)에서는 300쪽 벤치 작업 집합이 428~434 MB로 목표(400 MB 미만)를 넘었다.
     // 96 MB로 줄여도 300쪽 스크롤 회색 비율은 세 방식 모두 0 %였다(M1 마무리 검토, 결과 문서 참고).
-    public const long DefaultBudgetBytes = 96L * 1024 * 1024;
+    // 0.5.0: 96 MB에서 300쪽 작업 집합이 390~407 MB(여유 0)라 64 MB로 더 줄였다 → 357~362 MB, 회색 0 %(96/64/48 MB를 3번씩 측정, 48 MB는 342~363 MB로 이득이 작아 64 MB 선택).
+    public const long DefaultBudgetBytes = 64L * 1024 * 1024;
 
     private sealed record Entry(TileKey Key, TImage Image, long Bytes);
 

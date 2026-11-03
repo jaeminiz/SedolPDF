@@ -88,9 +88,31 @@ public static class AnnotationGeometry
         => k is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle or AnnotKind.Line or AnnotKind.PolyLine
             or AnnotKind.Polygon or AnnotKind.FreeText or AnnotKind.Stamp;
 
+    /// <summary>
+    /// 크기 조절 손잡이를 줄 수 있는 주석인가. 영역 강조(0.5.0) = 사각형 하나뿐인 형광펜(Quads 1개, 축에 나란한 직사각형)도 가능 —
+    /// 글줄 하나를 고른 형광펜도 같은 모양이라 구별할 표식이 없어 함께 조절할 수 있다. 여러 줄·기울어진 마크업은 글에 붙은 것이라 제외.
+    /// </summary>
+    public static bool CanResize(Annotation a) => CanResize(a.Kind) || IsRectHighlight(a);
+
+    public static bool IsRectHighlight(Annotation a)
+    {
+        if (a.Kind != AnnotKind.Highlight || a.Quads.IsDefault || a.Quads.Length != 1) return false;
+        var b = a.Quads[0].Bounds;
+        const float eps = 0.01f;
+        var corners = new HashSet<(bool Right, bool Top)>();   // 네 꼭짓점이 모두 서로 다른 모서리에 있어야 직사각형(점 순서는 파일마다 다르다)
+        foreach (var p in new[] { a.Quads[0].P1, a.Quads[0].P2, a.Quads[0].P3, a.Quads[0].P4 })
+        {
+            bool onLeft = Math.Abs(p.X - b.Left) < eps, onRight = Math.Abs(p.X - b.Right) < eps;
+            bool onBottom = Math.Abs(p.Y - b.Bottom) < eps, onTop = Math.Abs(p.Y - b.Top) < eps;
+            if (!(onLeft || onRight) || !(onBottom || onTop)) return false;
+            corners.Add((onRight && !onLeft, onTop && !onBottom));
+        }
+        return corners.Count == 4;
+    }
+
     public static Annotation Resize(Annotation a, PdfRectF newRect)
     {
-        if (!CanResize(a.Kind)) throw new NotSupportedException($"{a.Kind} annotations cannot be resized.");
+        if (!CanResize(a)) throw new NotSupportedException($"{a.Kind} annotations cannot be resized.");
         newRect = ClampMin(newRect);
         if (a.Kind == AnnotKind.FreeText)
         {
@@ -98,6 +120,7 @@ public static class AnnotationGeometry
             var boxed = a.TextBox is null ? a with { Rect = newRect } : a with { TextBox = newRect };
             return boxed with { Rect = ComputeRect(boxed) };
         }
+        if (a.Kind == AnnotKind.Highlight) return a with { Rect = newRect, Quads = [PdfQuadF.FromRect(newRect)] };
         bool isInk = a.Kind == AnnotKind.Ink;
         if (!isInk && a.Kind is not (AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon)) return a with { Rect = newRect };
 

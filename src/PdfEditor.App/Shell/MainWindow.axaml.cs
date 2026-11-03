@@ -58,6 +58,10 @@ public sealed partial class MainWindow : Window
         DataContext = _vm;
         BuildKeyBindings();
         WireTabDrag();
+        LeftPanelSplitter.DragDelta += (_, dx) => _vm.SetLeftPanelWidth(_vm.LeftPanelWidth + dx);
+        LeftPanelSplitter.Reset += (_, _) => _vm.ResetLeftPanelWidth();
+        PropertiesPanelSplitter.DragDelta += (_, dx) => _vm.SetPropertiesPanelWidth(_vm.PropertiesPanelWidth - dx);
+        PropertiesPanelSplitter.Reset += (_, _) => _vm.ResetPropertiesPanelWidth();
         TabStripPanel.ScrollStateChanged += _ => UpdateTabScrollButtons();
         FileTabButton.Flyout = BuildFileMenu();
         var prompts = new AvaloniaPrompts(this);
@@ -69,7 +73,12 @@ public sealed partial class MainWindow : Window
         var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
         _settings = new SettingsStore(paths.SettingsPath);
         PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
-        try { _vm.ApplyPanelState(_settings.Load()); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
+        try { var saved = _settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
+        _vm.PanelWidthsChanged += (_, _) =>
+        {
+            try { _settings.Update(s => s with { LeftPanelWidths = _vm.LeftPanelWidths.ToDictionary(k => k.Key.ToString(), k => k.Value), PropertiesPanelWidth = _vm.SavedPropertiesPanelWidth }); }
+            catch (Exception) { /* 저장 실패가 화면 조작을 막지 않는다 */ }
+        };
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is not (nameof(MainWindowViewModel.IsLeftPanelVisible) or nameof(MainWindowViewModel.ActiveLeftPanel)

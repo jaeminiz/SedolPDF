@@ -221,8 +221,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public AttachmentsViewModel? ActiveAttachments => ActiveDocument?.Attachments;
     public CommentsViewModel? ActiveComments => ActiveDocument?.Comments;
 
-    /// <summary>왼쪽 패널 폭: 코멘트 목록은 글이 길어 더 넓게.</summary>
-    public double LeftPanelWidth => ActiveLeftPanel is PanelKind.Comments ? 320 : ActiveLeftPanel is PanelKind.Replace ? 340 : 200;
+
     public LayersViewModel? ActiveLayers => ActiveDocument?.Layers;
     public PropertiesViewModel? ActiveProperties => ActiveDocument?.Properties;
     public PdfEditor.App.Panels.ObjectPropertiesViewModel? ActiveObjectProps => ActiveDocument?.ObjectProps;

@@ -14,7 +14,7 @@ public sealed record AnnotationStyle(
 
 /// <summary>
 /// 사용자 설정. RecentFiles는 최근 것이 앞. AuthorName이 비면 Environment.UserName을 쓴다.
-/// ViewStates(0.4.0)는 파일별 마지막 보던 쪽·배율(최대 50개, 최근 것이 앞). Language(0.4.0)는 "ko"·"en"이고 null이면 자동(Windows 표시 언어를 따름). Styles가 null이면 기본 스타일 3개를 보인다 (한 번이라도 저장·삭제·이름 바꾸면 전체 목록이 저장된다. 빈 목록 = 모두 지움).
+/// LeftPanelWidths(0.5.0)는 왼쪽 패널 종류(PanelKind 이름)별로 끌어서 바꾼 폭, PropertiesPanelWidth는 속성 패널 폭(null = 기본). ViewStates(0.4.0)는 파일별 마지막 보던 쪽·배율(최대 50개, 최근 것이 앞). Language(0.4.0)는 "ko"·"en"이고 null이면 자동(Windows 표시 언어를 따름). Styles가 null이면 기본 스타일 3개를 보인다 (한 번이라도 저장·삭제·이름 바꾸면 전체 목록이 저장된다. 빈 목록 = 모두 지움).
 /// </summary>
 public sealed record AppSettings(
     IReadOnlyList<string> RecentFiles,
@@ -26,7 +26,9 @@ public sealed record AppSettings(
     string? LeftPanelKind = null,
     bool? PropertiesPanelVisible = null,
     string? Language = null,
-    IReadOnlyList<ViewStateEntry>? ViewStates = null)
+    IReadOnlyList<ViewStateEntry>? ViewStates = null,
+    IReadOnlyDictionary<string, double>? LeftPanelWidths = null,
+    double? PropertiesPanelWidth = null)
 {
     public static AppSettings Default { get; } = new([], 5);
 

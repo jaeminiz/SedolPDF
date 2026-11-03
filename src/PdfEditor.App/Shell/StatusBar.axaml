@@ -4,6 +4,44 @@
              xmlns:shell="using:PdfEditor.App.Shell"
              x:Class="PdfEditor.App.Shell.StatusBar"
              x:DataType="shell:MainWindowViewModel">
+  <UserControl.Styles>
+    <!-- 배율 슬라이더 (0.5.0): Fluent 기본 모양(세로로 긴 반달 손잡이)을 쓰지 않고 가는 트랙 + 둥근 손잡이로 직접 그린다. -->
+    <Style Selector="Slider.zoom">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid Height="20" Background="Transparent">
+            <Border Height="3" CornerRadius="1.5" Background="#D3D3D3" VerticalAlignment="Center" />
+            <Track Name="PART_Track" Orientation="Horizontal" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                   Value="{TemplateBinding Value, Mode=TwoWay}" IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+              <Track.DecreaseButton>
+                <RepeatButton Name="PART_DecreaseButton" Focusable="False">
+                  <RepeatButton.Template>
+                    <ControlTemplate><Border Height="3" CornerRadius="1.5" Background="#005FB8" VerticalAlignment="Center" /></ControlTemplate>
+                  </RepeatButton.Template>
+                </RepeatButton>
+              </Track.DecreaseButton>
+              <Track.IncreaseButton>
+                <RepeatButton Name="PART_IncreaseButton" Focusable="False">
+                  <RepeatButton.Template>
+                    <ControlTemplate><Border Height="3" Background="Transparent" VerticalAlignment="Center" /></ControlTemplate>
+                  </RepeatButton.Template>
+                </RepeatButton>
+              </Track.IncreaseButton>
+              <Thumb Name="PART_Thumb" Classes="zoomThumb" Width="14" Height="14" VerticalAlignment="Center">
+                <Thumb.Template>
+                  <ControlTemplate><Ellipse Fill="{TemplateBinding Background}" Stroke="#005FB8" StrokeThickness="2" /></ControlTemplate>
+                </Thumb.Template>
+              </Thumb>
+            </Track>
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Slider.zoom /template/ Thumb#PART_Thumb"><Setter Property="Background" Value="White" /></Style>
+    <Style Selector="Slider.zoom:pointerover /template/ Thumb#PART_Thumb"><Setter Property="Background" Value="#E6F0FA" /></Style>
+    <Style Selector="Slider.zoom /template/ Thumb#PART_Thumb:pressed"><Setter Property="Background" Value="#005FB8" /></Style>
+    <Style Selector="Slider.zoom:disabled"><Setter Property="Opacity" Value="0.45" /></Style>
+  </UserControl.Styles>
   <Border Background="#FBFBFB" BorderBrush="#17000000" BorderThickness="0,1,0,0" Height="30">
     <Grid ColumnDefinitions="*,Auto,*" Margin="12,0" TextElement.FontSize="11" TextElement.Foreground="#5C5C5C">
       <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
@@ -32,7 +70,7 @@
       <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
         <TextBlock Text="{Binding ZoomText}" MinWidth="40" VerticalAlignment="Center" TextAlignment="Right" Foreground="#1A1A1A"
                    ToolTip.Tip="{x:Static res:Strings.Tip_Zoom}" />
-        <Slider Width="110" MinHeight="0" Height="20" VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding ZoomSliderValue, Mode=TwoWay}" />
+        <Slider Classes="zoom" Width="110" MinHeight="0" Height="20" VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding ZoomSliderValue, Mode=TwoWay}" />
       </StackPanel>
     </Grid>
   </Border>
