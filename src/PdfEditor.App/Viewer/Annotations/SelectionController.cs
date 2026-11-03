@@ -219,10 +219,9 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     private static Annotation ReAnchorLeader(Annotation a)
     {
         if (a.Intent != FreeTextIntent.Callout || a.TextBox is not { } box || a.Vertices.IsDefaultOrEmpty || a.Vertices.Length < 2) return a;
-        var verts = a.Vertices.SetItem(a.Vertices.Length - 1, AnnotationToolController.LeaderAttachPoint(box, a.Vertices[0]));
-        var b = a with { Vertices = verts };
+        var b = a with { Vertices = CalloutLeaders.ReAnchor(a.Vertices, box) };
         if (CalloutLeaders.Count(a) == 2)
-            b = b with { Leader2 = a.Leader2.SetItem(a.Leader2.Length - 1, AnnotationToolController.LeaderAttachPoint(box, a.Leader2[0])) };
+            b = b with { Leader2 = CalloutLeaders.ReAnchor(a.Leader2, box) };
         return b with { Rect = AnnotationGeometry.ComputeRect(b) };
     }
 
