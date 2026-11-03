@@ -199,7 +199,14 @@ public sealed class FindEngineTests : IDisposable
             bestWall = Math.Min(bestWall, sw.Elapsed.TotalSeconds);
             Assert.True(idx.Lines.Count >= 4000);
         }
-        Assert.True(best <= 0.15, $"5,000줄 쪽 해석+찾기 CPU {best * 1000:0} ms, 벽시계 {bestWall * 1000:0} ms (목표 CPU 150 ms)");
+        // 제품 목표 150 ms는 Release 기준(0.5.0 검토: Release 78~94 ms). Debug는 최적화가 꺼져 단독 109~125 ms, 병렬 부하 중 CPU도
+        // 188 ms까지 늘어(캐시·클럭 경쟁) 150 ms로는 흔들리므로, Debug에서는 알고리즘 퇴행(예: 줄 수의 제곱)을 잡는 300 ms로 본다.
+#if DEBUG
+        const double limit = 0.30;
+#else
+        const double limit = 0.15;
+#endif
+        Assert.True(best <= limit, $"5,000줄 쪽 해석+찾기 CPU {best * 1000:0} ms, 벽시계 {bestWall * 1000:0} ms (기준 CPU {limit * 1000:0} ms)");
     }
 
     /// <summary>현재 스레드의 CPU 시간(초). 갱신 단위는 시계 틱(약 15.6 ms)이다.</summary>
