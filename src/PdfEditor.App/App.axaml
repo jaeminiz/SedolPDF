@@ -12,7 +12,13 @@
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
-    <FluentTheme />
+    <!-- 선택 색(켜진 토글·슬라이더 등)은 Windows 시스템 강조색(기기마다 청록 등) 대신 리본과 같은 파랑(WinAccent #005FB8)으로 고정한다. -->
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light" Accent="#005FB8" />
+        <ColorPaletteResources x:Key="Dark" Accent="#005FB8" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <StyleInclude Source="avares://SedolPDF/Shell/Ribbon/RibbonStyles.axaml" />
     <StyleInclude Source="avares://SedolPDF/Styles/ControlStyles.axaml" />
     <Style Selector="Window">

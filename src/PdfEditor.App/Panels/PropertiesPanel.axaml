@@ -90,7 +90,7 @@
         <ComboBox x:Name="FontFamilyBox" HorizontalAlignment="Stretch" />
         <StackPanel Orientation="Horizontal" Spacing="{DynamicResource Space4}" Margin="0,6,0,0">
   <ToggleButton x:Name="BoldBtn" Width="30" Padding="0" Content="B" FontWeight="Bold" ToolTip.Tip="{x:Static res:Strings.Format_Bold}" />
-  <ToggleButton x:Name="ItalicBtn" Width="30" Padding="0" Content="I" FontStyle="Italic" ToolTip.Tip="{x:Static res:Strings.Format_Italic}" />
+  <ToggleButton x:Name="ItalicBtn" Width="30" Padding="0" Content="I" FontFamily="Georgia, Times New Roman, serif" FontStyle="Italic" FontWeight="SemiBold" ToolTip.Tip="{x:Static res:Strings.Format_Italic}" />
   <ToggleButton x:Name="UnderlineBtn" Width="30" Padding="0" ToolTip.Tip="{x:Static res:Strings.Format_Underline}"><TextBlock Text="U" TextDecorations="Underline" /></ToggleButton>
   <ToggleButton x:Name="StrikeBtn" Width="30" Padding="0" ToolTip.Tip="{x:Static res:Strings.Format_Strike}"><TextBlock Text="S" TextDecorations="Strikethrough" /></ToggleButton>
 </StackPanel>
