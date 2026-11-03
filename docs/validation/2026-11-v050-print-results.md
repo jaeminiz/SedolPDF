@@ -41,3 +41,12 @@
 | 드라이버 속성 대화상자 | 코드는 넣었으나 화면 조작 금지라 열어 보지 않음 → **검증 필요** |
 
 (구현이 끝난 뒤 아래에 결과·수치를 이어서 적는다.)
+
+## 4. 구현 결과 (2026-11-03)
+
+- 구현: `PrintDialog`(옵션 + 쪽 미리보기), `PrintSource`(미리보기·인쇄가 같이 쓰는 출력 사본), `PrintPlan`(모아 찍기·소프트웨어 매수·양면 빈 장), `PrintPreviewRenderer`(인쇄와 같은 배치 규칙으로 용지 한 장 그리기), `PrinterInterop`(목록·능력·DEVMODE). 0.4.0의 `PrintOptionsDialog`와 `PrintDlgExW` 경로는 제거. 미리보기는 옵션 변경 150ms 뒤 백그라운드에서 다시 그리고 낡은 결과는 버린다.
+- 선택한 쪽: `DocumentTabViewModel.SelectedPages`(썸네일 패널 선택)를 문서 순서 번호로 바꿔 `IPrintService.PrintAsync`에 넘긴다.
+- 시험: 인쇄 폴더 시험 45개 → 전체 App.Tests 733개. 단위(쪽 범위·홀짝·모아 찍기 계획·배율/가운데·JSON·옵션 저장소), 헤드리스 대화상자(가짜 프린터), Microsoft Print to PDF 출력(5쪽 2쪽 모아 찍기 → 가로 3장, 3쪽 2부 → 6장, 양면 홀수 장 2부 → 빈 장 포함 7장, 강제 가로).
+- 전체 `dotnet test PdfEditor.sln` 3회: App.Tests 733개 3회 모두 통과, 경고 0. 3회 중 1회에서 TextEdit의 시간 측정 시험(`FindEngineTests.Find_Synthetic5000Lines_IsFast`, 922ms)이 부하로 한 번 늦었고 나머지 2회는 통과 — 인쇄와 무관. (그 앞 실행에서 LineStylePerformance·FontCodebook 시험이 한 번씩 실패한 것도 동일하게 부하/순서 의존으로 보이며 단독 실행은 통과.)
+- `--bench`: 실행하지 않음. 이번 변경은 뷰어·렌더 경로를 건드리지 않고(`PdfPage.RenderToDc`에 선택 인자 `grayscale=false`만 추가), 인쇄 대화상자는 인쇄 명령에서만 만들어진다. 릴리스 빌드 비교는 마무리 검토 때 필요하면 실행.
+- 검증 필요: 물리 프린터(SINDOH 등)의 양면·드라이버 매수, "프린터 속성…" 대화상자, 125/150% 배율에서 대화상자 모양, 높이가 낮은 화면에서 옵션 영역 스크롤.
