@@ -43,4 +43,40 @@
     <Setter Property="MinHeight" Value="{DynamicResource ControlHeightM}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
+    <!-- 슬라이더 (0.5.0, 배율·선 두께·불투명도 공용): Fluent 기본 모양(세로로 긴 반달 손잡이)을 쓰지 않고 가는 트랙 + 둥근 손잡이로 직접 그린다. -->
+    <Style Selector="Slider.zoom">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid Height="20" Background="Transparent">
+            <Border Height="3" CornerRadius="1.5" Background="#D3D3D3" VerticalAlignment="Center" />
+            <Track Name="PART_Track" Orientation="Horizontal" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                   Value="{TemplateBinding Value, Mode=TwoWay}" IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+              <Track.DecreaseButton>
+                <RepeatButton Name="PART_DecreaseButton" Focusable="False">
+                  <RepeatButton.Template>
+                    <ControlTemplate><Border Height="3" CornerRadius="1.5" Background="#005FB8" VerticalAlignment="Center" /></ControlTemplate>
+                  </RepeatButton.Template>
+                </RepeatButton>
+              </Track.DecreaseButton>
+              <Track.IncreaseButton>
+                <RepeatButton Name="PART_IncreaseButton" Focusable="False">
+                  <RepeatButton.Template>
+                    <ControlTemplate><Border Height="3" Background="Transparent" VerticalAlignment="Center" /></ControlTemplate>
+                  </RepeatButton.Template>
+                </RepeatButton>
+              </Track.IncreaseButton>
+              <Thumb Name="PART_Thumb" Classes="zoomThumb" Width="14" Height="14" VerticalAlignment="Center">
+                <Thumb.Template>
+                  <ControlTemplate><Ellipse Fill="{TemplateBinding Background}" Stroke="#005FB8" StrokeThickness="2" /></ControlTemplate>
+                </Thumb.Template>
+              </Thumb>
+            </Track>
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Slider.zoom /template/ Thumb#PART_Thumb"><Setter Property="Background" Value="White" /></Style>
+    <Style Selector="Slider.zoom:pointerover /template/ Thumb#PART_Thumb"><Setter Property="Background" Value="#E6F0FA" /></Style>
+    <Style Selector="Slider.zoom /template/ Thumb#PART_Thumb:pressed"><Setter Property="Background" Value="#005FB8" /></Style>
+    <Style Selector="Slider.zoom:disabled"><Setter Property="Opacity" Value="0.45" /></Style>
 </Styles>
