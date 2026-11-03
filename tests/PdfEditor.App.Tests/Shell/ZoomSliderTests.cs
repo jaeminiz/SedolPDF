@@ -18,6 +18,9 @@ public class ZoomSliderTests
     {
         var app = Application.Current!;
         if (!app.Styles.OfType<Avalonia.Themes.Fluent.FluentTheme>().Any()) app.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
+        // 슬라이더 모양은 공용 ControlStyles(앱 스타일)에 있다.
+        if (!app.Styles.OfType<Avalonia.Markup.Xaml.Styling.StyleInclude>().Any(s => s.Source?.AbsolutePath.EndsWith("ControlStyles.axaml") == true))
+            app.Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://SedolPDF/")) { Source = new Uri("avares://SedolPDF/Styles/ControlStyles.axaml") });
         var w = new Window { Width = 800, Height = 30, Content = new StatusBar { DataContext = vm } };
         w.Show();
         w.UpdateLayout();
