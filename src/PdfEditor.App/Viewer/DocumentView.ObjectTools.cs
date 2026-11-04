@@ -150,6 +150,7 @@ public sealed partial class DocumentView
             if (st.Disposed || text == original) return;
             await RunToolAsync(st, ObjectToolController.ReplaceTextAsync(tab, page, pick.Ref, text, shadows));
         });
+        _lnEditor!.SetOverlayBackground(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF));   // 제자리 편집: 원본 글이 비친다
     }
 
     /// <summary>앱 글꼴로 넣어 화면에서는 경로인 줄의 Id들: 한 줄 텍스트(M4)와 고친 문단의 앱 글꼴 줄(M5).</summary>

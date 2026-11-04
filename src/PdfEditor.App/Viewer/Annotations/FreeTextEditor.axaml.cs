@@ -25,6 +25,7 @@ public partial class FreeTextEditor : UserControl
     /// <summary>화면 글자 크기(DIP) = FontSizePt × 화면 배율. 자동 줄바꿈은 타자기만 끈다.</summary>
     public void Load(string text, double fontSizeDip, double widthDip, double heightDip, Color foreground, bool wrap, TextAlignment align)
     {
+        Box.Background = Brushes.White;
         Box.Text = text;
         Box.FontSize = Math.Max(fontSizeDip, 6);
         Box.Foreground = new SolidColorBrush(foreground);
@@ -66,6 +67,12 @@ public partial class FreeTextEditor : UserControl
         Box.AcceptsReturn = false;
         Box.MinHeight = 0;
     }
+
+    /// <summary>입력칸 배경을 반투명으로 바꿔 아래의 원본 글이 비치게 한다(제자리 편집). 다음 Load에서 흰색으로 돌아온다.</summary>
+    public void SetOverlayBackground(Color color) => Box.Background = new SolidColorBrush(color);
+
+    /// <summary>입력칸 배경 확인용 (테스트).</summary>
+    public IBrush? EditorBackground => Box.Background;
 
     /// <summary>입력칸 글을 바꾼다(테스트용).</summary>
     public void SetText(string text) { Box.Text = text; Box.CaretIndex = text.Length; }

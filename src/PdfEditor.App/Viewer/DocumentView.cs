@@ -260,7 +260,7 @@ public sealed partial class DocumentView : Control
                 if (!_fromScroll) GoToPage(_state.Tab.CurrentPageIndex);
                 break;
             case nameof(DocumentTabViewModel.PageCount): OnPagesInvalidated(_state); break;
-            case nameof(DocumentTabViewModel.Tool): Cursor = CursorFor(_state.Tab.Tool); CancelGesture(); _hover = null; if (_state.Tab.Tool != ToolKind.EditText) CloseParagraphEditor(); InvalidateVisual(); break;
+            case nameof(DocumentTabViewModel.Tool): Cursor = CursorFor(_state.Tab.Tool); CancelGesture(); _hover = null; _textHover = null; if (_state.Tab.Tool != ToolKind.EditText) CloseParagraphEditor(); InvalidateVisual(); break;
         }
     }
 

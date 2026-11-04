@@ -40,3 +40,24 @@ public class OverlappedTextEditTests : ObjectUiTestBase
         Assert.Equal(4, Edits(h).OfType<DeactivateEdit>().Count());
     }
 }
+
+[Collection("TabSettings")]
+public class InPlaceEditorTests : ObjectUiTestBase
+{
+    [Fact]
+    public async Task LineEditor_OnExistingText_IsTranslucent_AddText_StaysOpaque()
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateDocumentLike(p));
+        var h = Show(s);
+        SetTool(h, ToolKind.EditText);
+        Click(h, AtPt(h, 80, 96));
+        WaitEditorOpen(h);
+        Assert.True(Ui(() => ((Avalonia.Media.ISolidColorBrush)h.View.LineEditorForTest!.EditorBackground!).Color.A) < 255);
+        EditorKey(h, Key.Escape);
+        PumpUi(() => !EditorOpen(h));
+        SetTool(h, ToolKind.AddText);
+        Click(h, AtPt(h, 300, 300));
+        WaitEditorOpen(h);
+        Assert.Equal(255, Ui(() => ((Avalonia.Media.ISolidColorBrush)h.View.LineEditorForTest!.EditorBackground!).Color.A));
+    }
+}

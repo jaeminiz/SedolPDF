@@ -153,6 +153,7 @@ public sealed partial class DocumentView
 
     private bool HandleObjectPointerMoved(PointerEventArgs e)
     {
+        UpdateTextHover(e);
         if (HandleShapePointerMoved(e)) return true;
         if (!_objDragging || _state is not { } st || _layout is not { } lay || _objGeom is null) return false;
         var pt = ToPdf(_objGeom, _objPage, e.GetPosition(this), lay.Scale);
@@ -216,6 +217,7 @@ public sealed partial class DocumentView
 
     private void DrawObjectSelection(DrawingContext ctx, ViewState st, PageInfo info, Rect pr, double scale)
     {
+        DrawTextBoxes(ctx, st, info, pr, scale);
         DrawShapePreview(ctx, info, pr, scale);
         DrawParagraphBox(ctx, st, info, pr, scale);
         var ctl = st.Tab.Objects;
