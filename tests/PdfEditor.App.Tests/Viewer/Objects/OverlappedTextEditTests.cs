@@ -61,3 +61,22 @@ public class InPlaceEditorTests : ObjectUiTestBase
         Assert.Equal(255, Ui(() => ((Avalonia.Media.ISolidColorBrush)h.View.LineEditorForTest!.EditorBackground!).Color.A));
     }
 }
+
+[Collection("TabSettings")]
+public class FauxBoldFallbackTests : ObjectUiTestBase
+{
+    [Fact]
+    public async Task EditText_OnFauxBoldLine_AppFontFallback_KeepsBold()
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateFauxBoldLine(p));
+        var h = Show(s);
+        SetTool(h, ToolKind.EditText);
+        Click(h, AtPt(h, 80, 96));
+        WaitEditorOpen(h);
+        HeadlessUi.Run(() => { h.View.LineEditorForTest!.SetText("한글 제목"); return 0; });   // 원본 서브셋에 없는 글자 → 앱 글꼴
+        EditorKey(h, Key.Enter);
+        PumpUi(() => Edits(h).Any(e => e is InsertAppTextEdit));
+        var app = Edits(h).OfType<InsertAppTextEdit>().Single();
+        Assert.True(app.Line.BoldStrokePt > 0, "겹쳐 찍은 굵은 글은 대체 글꼴에서도 굵게");
+    }
+}

@@ -19,13 +19,13 @@ public sealed partial class DocumentView
     private static readonly IBrush TextBoxFaint = new SolidColorBrush(Color.FromArgb(0x70, 0x00, 0x5F, 0xB8));
     private static readonly IBrush TextBoxHoverFill = new SolidColorBrush(Color.FromArgb(0x22, 0x00, 0x5F, 0xB8));
 
-    private readonly Dictionary<(PageId Id, int Version), IReadOnlyList<PdfRectF>> _textBoxes = new();
+    private readonly Dictionary<(ViewState St, PageId Id, int Version), IReadOnlyList<PdfRectF>> _textBoxes = new();   // 탭(ViewState)마다 따로: 쪽 번호만으로는 다른 문서와 겹친다
     private (PageId Page, PdfRectF Box)? _textHover;
 
     private IReadOnlyList<PdfRectF>? TextBoxesOf(ViewState st, PageInfo info)
     {
         if (!TryGetObjectIndex(st, info, out var idx)) return null;
-        var key = (info.Id, info.Version);
+        var key = (st, info.Id, info.Version);
         if (_textBoxes.TryGetValue(key, out var cached)) return cached;
         if (_textBoxes.Count > 64) _textBoxes.Clear();
         return _textBoxes[key] = TextBoxOverlay.Boxes(idx, AppTextIds(st, info.Id));

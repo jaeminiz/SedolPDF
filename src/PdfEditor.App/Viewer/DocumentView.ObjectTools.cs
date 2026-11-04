@@ -143,7 +143,9 @@ public sealed partial class DocumentView
         var v = tr.ToView(RectangleF.FromLTRB(b.Left, b.Bottom, b.Right, b.Top));
         var pr = lay.GetPageRect(pageIndex);
         var at = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(v.W, 1), Math.Max(v.H, 1));
-        double sizeDip = Math.Clamp(v.H * 0.8, 8, 64);
+        float? fontPt = await ObjectToolController.ReadFontSizeAsync(tab, info.Id, pick.Ref);   // 상자 높이(글자 윗부분)가 아니라 실제 글자 크기로
+        if (st.Disposed || !ReferenceEquals(st, _state) || tab.Tool != ToolKind.EditText) return;
+        double sizeDip = fontPt is > 0 ? Math.Clamp(fontPt.Value * lay.Scale, 8, 96) : Math.Clamp(v.H * 0.8, 8, 64);
         var page = info.Id;
         OpenLineEditor(st, at, original, sizeDip, v.W, async text =>
         {
@@ -151,6 +153,7 @@ public sealed partial class DocumentView
             await RunToolAsync(st, ObjectToolController.ReplaceTextAsync(tab, page, pick.Ref, text, shadows));
         });
         _lnEditor!.SetOverlayBackground(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF));   // 제자리 편집: 원본 글이 비친다
+        if (shadows.Count > 0) _lnEditor.ApplyFormat(bold: true, italic: false, underline: false, strike: false, serif: false);   // 겹쳐 찍은 굵은 글: 편집 칸도 굵게
     }
 
     /// <summary>앱 글꼴로 넣어 화면에서는 경로인 줄의 Id들: 한 줄 텍스트(M4)와 고친 문단의 앱 글꼴 줄(M5).</summary>

@@ -24,7 +24,7 @@ public sealed record ReplacePlan(IReadOnlyList<ContentEdit> Edits, bool Fallback
 public static class TextEditPlanner
 {
     public static ReplacePlan PlanReplace(DocumentSession s, PageId page, ObjectRef target, string newText, AppFont? appFont,
-        float? sizeOverride = null, PdfColor? colorOverride = null)
+        float? sizeOverride = null, PdfColor? colorOverride = null, AppFontCatalog? catalog = null, bool forceBold = false)
     {
         s.Thread.AssertOnThread();
         int pageIndex = s.IndexOf(page);
@@ -41,6 +41,7 @@ public static class TextEditPlanner
         PdfMatrix placement;
         float size;
         PdfColor color;
+        PdfFontInfo? origFont = null;
         var app = target.IsInserted ? edits.OfType<InsertAppTextEdit>().FirstOrDefault(a => a.Id == target.InsertedId) : null;
         if (app is not null)
         {
@@ -57,6 +58,7 @@ public static class TextEditPlanner
                 ? edits.OfType<InsertTextLikeEdit>().FirstOrDefault(e => e.Id == target.InsertedId)?.Original.OriginalIndex
                 : target.OriginalIndex;
             placement = obj.Matrix;
+            if (obj.Font is { } of) origFont = new PdfFontInfo(of.BaseName);
             size = obj.FontSize;
             var fc = obj.FillColor;
             color = fc is { } c ? new PdfColor(c.R, c.G, c.B) : new PdfColor(0, 0, 0);
@@ -77,7 +79,10 @@ public static class TextEditPlanner
         // ② 앱 글꼴
         if (!SavePolicy.CanPatch(s)) return ReplacePlan.Refused(ReplaceRefusal.Encrypted);
         if (appFont is null) return ReplacePlan.Refused(ReplaceRefusal.NoAppFont);
-        var (spec, missing) = AppFontLine.Build(appFont, newText, size, placement, color);
+        // 원본 글꼴의 명조·굵게·기울임을 닮게 고른다(문단 편집과 같은 카탈로그). 가짜 굵게로 겹쳐 찍은 줄(forceBold)은 굵게로.
+        var choice = catalog is not null && origFont is not null ? catalog.Choose(origFont) : new AppFontChoice(AppFontFamily.Sans, appFont, false, false);
+        if (forceBold) choice = choice with { SyntheticBold = true };
+        var (spec, missing) = AppFontLine.Build(choice, newText, size, placement, color);
         if (spec is null) return ReplacePlan.Refused(ReplaceRefusal.AppFontMissingGlyphs, missing);
         return new ReplacePlan([new InsertAppTextEdit(st.NewId(), spec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);
     }
