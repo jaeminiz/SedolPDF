@@ -39,7 +39,7 @@ public readonly record struct OutlineSeg(char Op, PdfPointF A, PdfPointF B = def
 /// </summary>
 public sealed record AppTextSpec(string Text, float SizePt, PdfEditor.Document.Annotations.PdfColor Color, PdfMatrix Placement, PdfRectF Bounds,
     System.Collections.Immutable.ImmutableArray<OutlineSeg> Outline, string Content,
-    PdfEditor.Document.Annotations.Patching.FontUse Font, float BoldStrokePt = 0f);
+    PdfEditor.Document.Annotations.Patching.FontUse Font, float BoldStrokePt = 0f, bool SyntheticItalic = false, bool Serif = false);
 
 /// <summary>앱 글꼴 줄을 쪽 맨 위에 넣는다(C7: 화면 replay도 다른 편집을 모두 적용한 뒤 맨 마지막에). 가리킬 때는 ObjectRef.Inserted(Id).</summary>
 public sealed record InsertAppTextEdit(long Id, AppTextSpec Line) : ContentEdit(Id);
@@ -63,6 +63,9 @@ public sealed record InsertShapeEdit(long Id, ShapeSpec Shape) : ContentEdit(Id)
 
 /// <summary>도형(경로 객체)의 선·채우기 바꾸기.</summary>
 public sealed record SetShapeStyleEdit(long Id, ObjectRef Target, ShapeStyle Style) : ContentEdit(Id);
+
+/// <summary>원본 글 객체(또는 원래 글꼴로 다시 쓴 줄)의 글자 색 바꾸기. 글꼴·글자 모양은 그대로다(채움색, 렌더 모드에 선이 있으면 선색도).</summary>
+public sealed record SetTextColorEdit(long Id, ObjectRef Target, PdfEditor.Document.Annotations.PdfColor Color) : ContentEdit(Id);
 
 /// <summary>
 /// 문단 편집(M5)에서 원래 글꼴로 다시 쓰는 줄 하나. Placement = 쪽 좌표 글 객체 행렬(원본 글 객체 행렬에서 이동량(E,F)만 이 줄의 기준선 원점으로 바꾼 것).

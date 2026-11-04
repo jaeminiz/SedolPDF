@@ -76,7 +76,7 @@ public static class AppFontLine
             placement.Apply(new(0, asc)), placement.Apply(new(width, asc))]);
 
         var use = drawing.CollectFontUse() with { Family = family == AppFontFamily.Serif ? FontUse.SerifFamily : "" };
-        return (new AppTextSpec(line, sizePt, color, placement, bounds, outline.ToImmutable(), content, use, stroke), []);
+        return (new AppTextSpec(line, sizePt, color, placement, bounds, outline.ToImmutable(), content, use, stroke, syntheticItalic, family == AppFontFamily.Serif), []);
     }
 
     private static string Num(float v) => v.ToString("0.###", CultureInfo.InvariantCulture);

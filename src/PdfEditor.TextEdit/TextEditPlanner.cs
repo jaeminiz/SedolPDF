@@ -27,7 +27,7 @@ public static class TextEditPlanner
     public const float OverlapBoldStrokeRatio = 0.05f;
 
     public static ReplacePlan PlanReplace(DocumentSession s, PageId page, ObjectRef target, string newText, AppFont? appFont,
-        float? sizeOverride = null, PdfColor? colorOverride = null, AppFontCatalog? catalog = null, bool forceBold = false)
+        float? sizeOverride = null, PdfColor? colorOverride = null, AppFontCatalog? catalog = null, bool forceBold = false, TextFormatOverride? format = null)
     {
         s.Thread.AssertOnThread();
         int pageIndex = s.IndexOf(page);
@@ -45,6 +45,7 @@ public static class TextEditPlanner
         float size;
         PdfColor color;
         PdfFontInfo? origFont = null;
+        (bool Bold, bool Italic, bool Serif)? appFormat = null;
         var app = target.IsInserted ? edits.OfType<InsertAppTextEdit>().FirstOrDefault(a => a.Id == target.InsertedId) : null;
         if (app is not null)
         {
@@ -53,6 +54,7 @@ public static class TextEditPlanner
             foreach (var t in edits.OfType<TransformEdit>().Where(t => t.Target == target)) placement = placement.Then(t.Then);
             size = sizeOverride ?? app.Line.SizePt;
             color = colorOverride ?? app.Line.Color;
+            appFormat = (app.Line.BoldStrokePt > 0, app.Line.SyntheticItalic, app.Line.Serif);
         }
         else
         {
@@ -68,7 +70,7 @@ public static class TextEditPlanner
         }
 
         // ① 원래 글꼴
-        if (sourceOriginal is int src && src >= 0 && OriginalFontReplacer.Verify(s, pageIndex, src, newText) == OriginalFontReplacer.Result.Ok)
+        if (format is not { IsEmpty: false } && sourceOriginal is int src && src >= 0 && OriginalFontReplacer.Verify(s, pageIndex, src, newText) == OriginalFontReplacer.Result.Ok)
         {
             var insert = new InsertTextLikeEdit(st.NewId(), ObjectRef.Original(src), newText);
             // 새 줄은 replay 때 원본 객체의 "그 시점" 행렬을 복사하므로 원본을 옮긴 것은 이미 들어 있다.
@@ -84,11 +86,17 @@ public static class TextEditPlanner
         if (appFont is null) return ReplacePlan.Refused(ReplaceRefusal.NoAppFont);
         // 원본 글꼴의 명조·굵게·기울임을 닮게 고른다(문단 편집과 같은 카탈로그). 가짜 굵게로 겹쳐 찍은 줄(forceBold)은 굵게로.
         var choice = catalog is not null && origFont is not null ? catalog.Choose(origFont) : new AppFontChoice(AppFontFamily.Sans, appFont, false, false);
+        if (appFormat is { } af) choice = ChoiceFor(catalog, appFont, af.Serif, af.Bold, af.Italic);   // 앱 글꼴 줄을 다시 쓸 때는 그 줄의 모양을 이어받는다
+        if (format is { IsEmpty: false } fo)
+            choice = ChoiceFor(catalog, appFont, fo.Serif ?? (choice.Family == AppFontFamily.Serif), fo.Bold ?? choice.SyntheticBold, fo.Italic ?? choice.SyntheticItalic);
         if (forceBold) choice = choice with { SyntheticBold = true };
         var (spec, missing) = AppFontLine.Build(choice, newText, size, placement, color, forceBold ? OverlapBoldStrokeRatio : null);
         if (spec is null) return ReplacePlan.Refused(ReplaceRefusal.AppFontMissingGlyphs, missing);
         return new ReplacePlan([new InsertAppTextEdit(st.NewId(), spec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);
     }
+
+    private static AppFontChoice ChoiceFor(AppFontCatalog? catalog, AppFont sans, bool serif, bool bold, bool italic)
+        => serif && catalog?.Serif is { } sr ? new AppFontChoice(AppFontFamily.Serif, sr, bold, italic) : new AppFontChoice(AppFontFamily.Sans, catalog?.Sans ?? sans, bold, italic);
 
     /// <summary>새 텍스트(앱 글꼴 한 줄)를 baseline 왼쪽 점 at에 넣는 편집. 암호 문서·글꼴 없음·없는 글자면 거절.</summary>
     public static ReplacePlan PlanAdd(DocumentSession s, PdfPointF at, string text, float sizePt, PdfColor color, AppFont? appFont)

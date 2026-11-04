@@ -123,6 +123,15 @@ public static class ContentReplayer
                 case SetShapeStyleEdit ss:
                     if (result.Resolve(ss.Target) is { Type: PdfPageObjectType.Path } po) ApplyStyle(po, ss.Style); else skipped++;
                     break;
+                case SetTextColorEdit tc:
+                    if (result.Resolve(tc.Target) is { Type: PdfPageObjectType.Text } to)
+                    {
+                        var rgba = new PdfRgba(tc.Color.R, tc.Color.G, tc.Color.B, 255);
+                        to.FillColor = rgba;
+                        if (to.TextRenderMode is 1 or 2 or 5 or 6) to.StrokeColor = rgba;
+                    }
+                    else skipped++;
+                    break;
                 default:
                     skipped++;
                     break;
