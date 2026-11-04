@@ -152,6 +152,9 @@
   <data name="Status_Cursor" xml:space="preserve"><value>X {0:0.0}  Y {1:0.0}</value></data>
   <data name="Status_PageCount" xml:space="preserve"><value>/ {0}</value></data>
   <data name="Tip_CloseTab" xml:space="preserve"><value>Close tab</value></data>
+  <data name="TabMenu_Close" xml:space="preserve"><value>Close this tab</value></data>
+  <data name="TabMenu_CopyPath" xml:space="preserve"><value>Copy full file path</value></data>
+  <data name="TabMenu_RevealInFolder" xml:space="preserve"><value>Show in folder</value></data>
   <data name="Tip_NewTab" xml:space="preserve"><value>Open document</value></data>
   <data name="Tip_FirstPage" xml:space="preserve"><value>First page</value></data>
   <data name="Tip_PrevPage" xml:space="preserve"><value>Previous page</value></data>

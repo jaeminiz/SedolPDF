@@ -180,6 +180,9 @@ public static class Strings
     public static string Status_Cursor => Get(nameof(Status_Cursor));
     public static string Status_PageCount => Get(nameof(Status_PageCount));
     public static string Tip_CloseTab => Get(nameof(Tip_CloseTab));
+    public static string TabMenu_Close => Get(nameof(TabMenu_Close));
+    public static string TabMenu_CopyPath => Get(nameof(TabMenu_CopyPath));
+    public static string TabMenu_RevealInFolder => Get(nameof(TabMenu_RevealInFolder));
     public static string Tip_NewTab => Get(nameof(Tip_NewTab));
     public static string Tip_FirstPage => Get(nameof(Tip_FirstPage));
     public static string Tip_PrevPage => Get(nameof(Tip_PrevPage));

@@ -284,6 +284,14 @@
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="docs:DocumentTabViewModel">
                   <Grid ColumnDefinitions="*,Auto" ToolTip.Tip="{Binding Title}">
+                    <Grid.ContextMenu>
+                      <ContextMenu Opening="OnTabMenuOpening">
+                        <MenuItem Header="{x:Static res:Strings.TabMenu_RevealInFolder}" Click="OnTabMenuReveal" />
+                        <MenuItem Header="{x:Static res:Strings.TabMenu_CopyPath}" Click="OnTabMenuCopyPath" />
+                        <Separator />
+                        <MenuItem Header="{x:Static res:Strings.TabMenu_Close}" Click="OnTabMenuClose" />
+                      </ContextMenu>
+                    </Grid.ContextMenu>
                     <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     <Button Grid.Column="1" Margin="6,0,0,0" Classes="tabclose" ToolTip.Tip="{x:Static res:Strings.Tip_CloseTab}" Click="OnTabCloseClick">
                       <res:IconView Key="close" Width="10" Height="10" />

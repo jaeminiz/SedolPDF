@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using System.IO;
 using Avalonia.Media;
@@ -362,4 +363,26 @@ public sealed partial class MainWindow : Window
         if ((sender as Control)?.DataContext is DocumentTabViewModel d) _vm.CloseDocumentCommand.Execute(d);
         e.Handled = true;
     }
+
+    // ---- 탭 오른쪽 클릭 메뉴 ----
+
+    private static DocumentTabViewModel? TabOf(object? sender)
+        => (sender as MenuItem)?.Parent is ContextMenu { PlacementTarget: Control { DataContext: DocumentTabViewModel d } } ? d : (sender as ContextMenu)?.PlacementTarget is Control { DataContext: DocumentTabViewModel d2 } ? d2 : null;
+
+    /// <summary>파일로 저장돼 있지 않거나 파일이 없어졌으면 "포함하는 폴더 열기"·"경로 복사"를 끈다.</summary>
+    private void OnTabMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (sender is not ContextMenu { Items: { Count: >= 2 } items } m) return;
+        bool has = FileReveal.BuildArguments(TabOf(m)?.Session?.FilePath) is not null;
+        foreach (var i in new[] { 0, 1 }) if (items[i] is MenuItem mi) mi.IsEnabled = has;
+    }
+
+    private void OnTabMenuReveal(object? sender, RoutedEventArgs e) { if (TabOf(sender) is { } d) FileReveal.Reveal(d.Session?.FilePath); }
+
+    private async void OnTabMenuCopyPath(object? sender, RoutedEventArgs e)
+    {
+        if (TabOf(sender)?.Session?.FilePath is { Length: > 0 } p && Clipboard is { } cb) await cb.SetTextAsync(p);
+    }
+
+    private void OnTabMenuClose(object? sender, RoutedEventArgs e) { if (TabOf(sender) is { } d) _vm.CloseDocumentCommand.Execute(d); }
 }

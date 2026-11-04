@@ -152,6 +152,9 @@
   <data name="Status_Cursor" xml:space="preserve"><value>X {0:0.0}  Y {1:0.0}</value></data>
   <data name="Status_PageCount" xml:space="preserve"><value>/ {0}</value></data>
   <data name="Tip_CloseTab" xml:space="preserve"><value>탭 닫기</value></data>
+  <data name="TabMenu_Close" xml:space="preserve"><value>이 탭 닫기</value></data>
+  <data name="TabMenu_CopyPath" xml:space="preserve"><value>전체 파일 경로 복사</value></data>
+  <data name="TabMenu_RevealInFolder" xml:space="preserve"><value>포함하는 폴더 열기</value></data>
   <data name="Tip_NewTab" xml:space="preserve"><value>문서 열기</value></data>
   <data name="Tip_FirstPage" xml:space="preserve"><value>첫 페이지</value></data>
   <data name="Tip_PrevPage" xml:space="preserve"><value>이전 페이지</value></data>
