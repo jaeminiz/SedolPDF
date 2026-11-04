@@ -27,6 +27,13 @@ public static class TextBoxOverlay
         return result;
     }
 
+    /// <summary>같은 자리(경계가 거의 같음)에 겹쳐 찍힌 다른 원본 글 객체가 있나(가짜 굵게).</summary>
+    public static bool HasOverlappedCopy(PageObjectIndex idx, ObjectRef target, PdfRectF bounds)
+    {
+        float tol = Math.Max(0.5f, 0.15f * bounds.Height);
+        return idx.Entries.Any(e => e.Type == PdfPageObjectType.Text && !e.Ref.IsInserted && e.Ref != target && Near(e.Bounds, bounds, tol));
+    }
+
     /// <summary>점 p(쪽 좌표)를 덮는 상자. 여럿이면 가장 작은 것.</summary>
     public static PdfRectF? HoverBox(IReadOnlyList<PdfRectF> boxes, PdfPointF p, float tolerancePt)
     {

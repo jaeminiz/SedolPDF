@@ -515,6 +515,11 @@
   <data name="Prop_Obj_Fill" xml:space="preserve"><value>Fill</value></data>
   <data name="Prop_Obj_NoFill" xml:space="preserve"><value>No fill</value></data>
   <data name="Prop_Obj_TextSize" xml:space="preserve"><value>Font size (pt)</value></data>
+  <data name="Prop_Obj_TextFont" xml:space="preserve"><value>Font</value></data>
+  <data name="Prop_Obj_Bold" xml:space="preserve"><value>Bold</value></data>
+  <data name="Prop_Obj_Italic" xml:space="preserve"><value>Italic</value></data>
+  <data name="Prop_Obj_Serif" xml:space="preserve"><value>Serif</value></data>
+  <data name="Prop_Obj_FormatNote" xml:space="preserve"><value>Changing bold, italic or serif rewrites this line in the app font. Size and color keep the original font.</value></data>
   <data name="Msg_ImageInsertFailed" xml:space="preserve"><value>This image cannot be inserted. Check that it is a PNG or JPEG file and is not too large.</value></data>
   <data name="Tip_AddImage" xml:space="preserve"><value>Inserts a PNG or JPEG image in the center of the page you are viewing</value></data>
   <data name="Tab_Help" xml:space="preserve"><value>Help</value></data>

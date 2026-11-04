@@ -51,12 +51,17 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
     public float TextSizePt { get; private set; }
     public PdfColor TextColor { get; private set; }
 
+    /// <summary>고른 글 객체(원본·앱 글꼴 줄)에서 읽은 글자 모양. 읽기 전이거나 글이 아니면 null.</summary>
+    public TextFormatInfo? Format { get; private set; }
+    public bool HasTextFormat => Format is not null;
+
     public event Action? Updated;
 
     private void Refresh()
     {
         var sel = _tab.Objects.Selected;
         IsShape = IsAppText = false;
+        Format = null;
         if (sel is not null)
         {
             var b = sel.Bounds;
@@ -79,7 +84,34 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
         }
         OnPropertyChanged(string.Empty);
         Updated?.Invoke();
+        if (sel is not null && HasSelection && (IsAppText || sel.Type == PdfPageObjectType.Text)) _ = LoadFormatAsync(sel);
     }
+
+    private int _formatVersion;
+
+    /// <summary>선택한 글 객체의 글자 모양을 PDFium 스레드에서 읽어 패널에 알린다(늦게 온 결과가 다른 선택을 덮지 않게 번호로 거른다).</summary>
+    private async Task LoadFormatAsync(SelectedObject sel)
+    {
+        int version = ++_formatVersion;
+        if (_tab.Session is not { } s) return;
+        TextFormatInfo? f;
+        try
+        {
+            f = await s.Thread.InvokeAsync(() =>
+            {
+                if (s.IndexOf(sel.Page) < 0) return null;
+                bool overlapped = !sel.Ref.IsInserted && TextBoxOverlay.HasOverlappedCopy(s.GetObjectIndex(sel.Page), sel.Ref, sel.Bounds);
+                return TextFormatReader.Read(s, sel.Page, sel.Ref, overlapped);
+            });
+        }
+        catch (Exception) { return; }
+        if (version != _formatVersion || _tab.Objects.Selected is not { } cur || cur.Ref != sel.Ref) return;
+        Format = f;
+        if (f is not null) { TextSizePt = f.SizePt; TextColor = f.Color; }
+        OnPropertyChanged(string.Empty);
+        Updated?.Invoke();
+    }
+
 
     /// <summary>모두 mm. 위치·크기를 바꾼다(옛 경계 → 새 경계 행렬 하나). 너비·높이는 1pt 이상.</summary>
     public async Task SetBoundsAsync(double xMm, double yMm, double widthMm, double heightMm)
@@ -101,8 +133,61 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
         await RunAsync(sel.Page, new SetShapeStyleEdit(s.Content.NewId(), sel.Ref, style));
     }
 
+    // ---- 글자 형식 바꾸기 (0.6.0) ----
+
+    /// <summary>글 크기(pt). 원본 글은 글꼴을 그대로 두고 줄 시작점(기준선) 기준으로 균등하게 키우거나 줄인다. 앱 글꼴 줄은 다시 넣는다.</summary>
+    public async Task SetTextSizeAsync(float sizePt)
+    {
+        if (Format is not { } f || _tab.Objects.Selected is not { } sel || _tab.Session is not { } s || !_tab.CanEditContent) return;
+        sizePt = Math.Clamp(sizePt, 4f, 200f);
+        if (Math.Abs(sizePt - f.SizePt) < 0.05f) return;
+        if (!f.IsOriginalFont) { await SetTextStyleAsync(sizePt, null); return; }
+        try
+        {
+            float ratio = sizePt / Math.Max(f.SizePt, 0.1f);
+            var m = await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0 ? (PdfMatrix?)null : s.GetReplay(sel.Page).Resolve(sel.Ref)?.Matrix);
+            if (m is not { } mat) return;
+            var scale = PdfMatrix.ScaleAbout(ratio, ratio, mat.E, mat.F);
+            await _tab.RunContentCommandAsync(new ContentEditCommand(sel.Page, [new TransformEdit(s.Content.NewId(), sel.Ref, scale)]));
+            var b = sel.Bounds;
+            var pts = new[] { scale.Apply(new PdfPointF(b.Left, b.Bottom)), scale.Apply(new PdfPointF(b.Right, b.Top)) };
+            _tab.Objects.Select(new SelectedObject(sel.Page, sel.Ref, sel.Type,
+                new PdfRectF(pts.Min(p => p.X), pts.Min(p => p.Y), pts.Max(p => p.X), pts.Max(p => p.Y))));
+        }
+        catch (Exception) { _tab.RaiseNotice(Strings.Msg_ContentEditFailed); }
+    }
+
+    /// <summary>글자 색. 원본 글은 글꼴을 그대로 두고 색만 바꾼다(SetTextColorEdit). 앱 글꼴 줄은 다시 넣는다.</summary>
+    public async Task SetTextColorAsync(PdfColor color)
+    {
+        if (Format is not { } f || _tab.Objects.Selected is not { } sel || _tab.Session is not { } s || !_tab.CanEditContent) return;
+        if (f.Color == color) return;
+        if (!f.IsOriginalFont) { await SetTextStyleAsync(null, color); return; }
+        await RunAsync(sel.Page, new SetTextColorEdit(s.Content.NewId(), sel.Ref, color));
+    }
+
+    /// <summary>굵게·기울임·명조(null = 그대로). 원본 글꼴의 모양은 바꿀 수 없어서 앱 글꼴로 줄을 다시 쓰고 알린다.</summary>
+    public async Task SetTextEmphasisAsync(bool? bold = null, bool? italic = null, bool? serif = null)
+    {
+        if (Format is not { } f || _tab.Objects.Selected is not { } sel || _tab.Session is not { } s || !_tab.CanEditContent) return;
+        var format = new TextFormatOverride(bold, italic, serif);
+        if (format.IsEmpty) return;
+        if (!f.IsOriginalFont) { await SetTextStyleAsync(null, null, format); return; }
+        try
+        {
+            string text = await ObjectToolController.ReadTextAsync(_tab, sel.Page, sel.Ref) ?? "";
+            IReadOnlyList<ObjectRef> shadows = [];
+            var pick = await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0 ? null : s.GetObjectIndex(sel.Page) is { } idx && idx.Entries.FirstOrDefault(e => e.Ref == sel.Ref) is { } e ? (Entry: e, Idx: idx) : ((PageObjectEntry Entry, PageObjectIndex Idx)?)null);
+            if (pick is { } p) shadows = (await ObjectToolController.ResolveOverlappedAsync(_tab, sel.Page, p.Entry, p.Idx)).Shadows;
+            var r = await ObjectToolController.ReplaceTextAsync(_tab, sel.Page, sel.Ref, text, shadows, format);
+            if (r.Notice is not null) _tab.RaiseNotice(r.Notice);
+            _tab.Objects.Clear();
+        }
+        catch (Exception) { _tab.RaiseNotice(Strings.Msg_ContentEditFailed); }
+    }
+
     /// <summary>앱 글꼴 줄의 크기·색 바꾸기: 같은 글을 새 크기·색으로 다시 넣고 옛 줄을 끈다(실행 취소 한 번).</summary>
-    public async Task SetTextStyleAsync(float? size, PdfColor? color)
+    public async Task SetTextStyleAsync(float? size, PdfColor? color, TextFormatOverride? format = null)
     {
         if (!IsAppText || _tab.Objects.Selected is not { } sel || _tab.Session is not { } s || !_tab.CanEditContent) return;
         try
@@ -111,7 +196,7 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
             var font = DocumentTabViewModel.Appearance?.Font;
             var plan = await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0
                 ? ReplacePlan.Refused(ReplaceRefusal.NotText)
-                : TextEditPlanner.PlanReplace(s, sel.Page, sel.Ref, text, font, Math.Clamp(size ?? TextSizePt, 4f, 200f), color ?? TextColor));
+                : TextEditPlanner.PlanReplace(s, sel.Page, sel.Ref, text, font, Math.Clamp(size ?? TextSizePt, 4f, 200f), color ?? TextColor, catalog: DocumentTabViewModel.Appearance?.Catalog, format: format));
             if (plan.Edits.Count == 0) { _tab.RaiseNotice(ObjectToolController.RefusalMessage(plan)); return; }
             await _tab.RunContentCommandAsync(new ContentEditCommand(sel.Page, plan.Edits));
             // 새 줄이 선택을 이어받는다

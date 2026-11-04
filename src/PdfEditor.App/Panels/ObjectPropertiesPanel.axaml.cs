@@ -20,6 +20,9 @@ public sealed partial class ObjectPropertiesPanel : UserControl
     private readonly WrapPanel _stroke = new(), _fill = new(), _textColor = new();
     private readonly StackPanel _shapeSection = new(), _textSection = new(), _paraSection = new();
     private readonly NumericUpDown _paraWidth = Box(1, 100000, 1, 1);
+    private readonly TextBlock _fontName = new() { TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Avalonia.Controls.Primitives.ToggleButton _bold = Toggle("B", FontWeight.Bold), _italic = Toggle("I", FontWeight.Normal, FontStyle.Italic), _serif = Toggle(Strings.Prop_Obj_Serif);
+    private readonly TextBlock _formatNote = new() { TextWrapping = TextWrapping.Wrap, FontSize = DesignTokens.FontCaption, Foreground = new SolidColorBrush(Color.Parse("#5C5C5C")), Margin = new Thickness(0, 6, 0, 0) };
 
     public ObjectPropertiesPanel()
     {
@@ -45,13 +48,26 @@ public sealed partial class ObjectPropertiesPanel : UserControl
         };
         Root.Children.Add(_paraSection);
 
+        _textSection.Children.Add(Label(Strings.Prop_Obj_TextFont)); _textSection.Children.Add(_fontName);
         _textSection.Children.Add(Row(Strings.Prop_Obj_TextSize, _textSize));
         _textSection.Children.Add(Label(Strings.Prop_Annot_Color)); _textSection.Children.Add(_textColor);
-        _textSize.ValueChanged += (_, e) => { if (!_syncing && _vm is not null && e.NewValue is { } v) _ = _vm.SetTextStyleAsync((float)v, null); };
+        _textSize.ValueChanged += (_, e) => { if (!_syncing && _vm is not null && e.NewValue is { } v) _ = _vm.SetTextSizeAsync((float)v); };
+        var emphasis = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
+        emphasis.Children.Add(_bold); emphasis.Children.Add(_italic); emphasis.Children.Add(_serif);
+        ToolTip.SetTip(_bold, Strings.Prop_Obj_Bold); ToolTip.SetTip(_italic, Strings.Prop_Obj_Italic);
+        _textSection.Children.Add(emphasis);
+        _formatNote.Text = Strings.Prop_Obj_FormatNote;
+        _textSection.Children.Add(_formatNote);
+        _bold.IsCheckedChanged += (_, _) => { if (!_syncing && _vm is not null) _ = _vm.SetTextEmphasisAsync(bold: _bold.IsChecked == true); };
+        _italic.IsCheckedChanged += (_, _) => { if (!_syncing && _vm is not null) _ = _vm.SetTextEmphasisAsync(italic: _italic.IsChecked == true); };
+        _serif.IsCheckedChanged += (_, _) => { if (!_syncing && _vm is not null) _ = _vm.SetTextEmphasisAsync(serif: _serif.IsChecked == true); };
         Root.Children.Add(_textSection);
 
         DataContextChanged += (_, _) => Attach();
     }
+
+    private static Avalonia.Controls.Primitives.ToggleButton Toggle(string text, FontWeight weight = default, FontStyle style = FontStyle.Normal)
+        => new() { Content = text, FontWeight = weight == default ? FontWeight.Normal : weight, FontStyle = style, MinWidth = 36, Padding = new Thickness(8, 3) };
 
     private static NumericUpDown Box(decimal min = -100000, decimal max = 100000, decimal inc = 0.5m, int digits = 1) => new()
     {
@@ -94,17 +110,20 @@ public sealed partial class ObjectPropertiesPanel : UserControl
             _paraSection.IsVisible = _vm.HasParagraph;
             if (_vm.HasParagraph) _paraWidth.Value = (decimal)Math.Round(_vm.ParagraphWidthMm, 1);
             _shapeSection.IsVisible = _vm.IsShape;
-            _textSection.IsVisible = _vm.IsAppText;
+            _textSection.IsVisible = _vm.HasTextFormat;
             if (_vm.IsShape)
             {
                 _strokeWidth.Value = (decimal)_vm.StrokeWidth;
                 Rebuild(_stroke, _vm.Stroke, includeNone: true, c => _ = _vm.SetShapeStyleAsync(c, _vm.StrokeWidth, _vm.Fill));
                 Rebuild(_fill, _vm.Fill, includeNone: true, c => _ = _vm.SetShapeStyleAsync(_vm.Stroke, _vm.StrokeWidth, c));
             }
-            if (_vm.IsAppText)
+            if (_vm.Format is { } tf)
             {
-                _textSize.Value = (decimal)_vm.TextSizePt;
-                Rebuild(_textColor, _vm.TextColor, includeNone: false, c => _ = _vm.SetTextStyleAsync(null, c));
+                _textSize.Value = (decimal)Math.Round(tf.SizePt, 1);
+                _fontName.Text = tf.FontName;
+                _bold.IsChecked = tf.Bold; _italic.IsChecked = tf.Italic; _serif.IsChecked = tf.Serif;
+                _formatNote.IsVisible = tf.IsOriginalFont;
+                Rebuild(_textColor, tf.Color, includeNone: false, c => { if (c is { } col) _ = _vm.SetTextColorAsync(col); });
             }
         }
         finally { _syncing = false; }

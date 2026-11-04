@@ -523,6 +523,11 @@ public static class Strings
     public static string Prop_Obj_Fill => Get(nameof(Prop_Obj_Fill));
     public static string Prop_Obj_NoFill => Get(nameof(Prop_Obj_NoFill));
     public static string Prop_Obj_TextSize => Get(nameof(Prop_Obj_TextSize));
+    public static string Prop_Obj_TextFont => Get(nameof(Prop_Obj_TextFont));
+    public static string Prop_Obj_Bold => Get(nameof(Prop_Obj_Bold));
+    public static string Prop_Obj_Italic => Get(nameof(Prop_Obj_Italic));
+    public static string Prop_Obj_Serif => Get(nameof(Prop_Obj_Serif));
+    public static string Prop_Obj_FormatNote => Get(nameof(Prop_Obj_FormatNote));
     public static string Msg_ImageInsertFailed => Get(nameof(Msg_ImageInsertFailed));
     public static string Tip_AddImage => Get(nameof(Tip_AddImage));
     public static string Tab_Help => Get(nameof(Tab_Help));

@@ -89,7 +89,7 @@ public static class TextEditPlanner
         if (appFormat is { } af) choice = ChoiceFor(catalog, appFont, af.Serif, af.Bold, af.Italic);   // 앱 글꼴 줄을 다시 쓸 때는 그 줄의 모양을 이어받는다
         if (format is { IsEmpty: false } fo)
             choice = ChoiceFor(catalog, appFont, fo.Serif ?? (choice.Family == AppFontFamily.Serif), fo.Bold ?? choice.SyntheticBold, fo.Italic ?? choice.SyntheticItalic);
-        if (forceBold) choice = choice with { SyntheticBold = true };
+        if (forceBold && format?.Bold != false) choice = choice with { SyntheticBold = true };
         var (spec, missing) = AppFontLine.Build(choice, newText, size, placement, color, forceBold ? OverlapBoldStrokeRatio : null);
         if (spec is null) return ReplacePlan.Refused(ReplaceRefusal.AppFontMissingGlyphs, missing);
         return new ReplacePlan([new InsertAppTextEdit(st.NewId(), spec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);

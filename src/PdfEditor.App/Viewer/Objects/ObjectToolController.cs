@@ -76,7 +76,7 @@ public static class ObjectToolController
     }
 
     /// <summary>텍스트 한 줄 바꾸기. 원래 글꼴이 안 되면 앱 글꼴(알림), 그것도 안 되면 거절 이유(대화상자). shadows는 같은 자리에 겹쳐 찍힌 빈 객체로 함께 끈다.</summary>
-    public static async Task<ObjectToolResult> ReplaceTextAsync(DocumentTabViewModel tab, PageId page, ObjectRef target, string newText, IReadOnlyList<ObjectRef>? shadows = null)
+    public static async Task<ObjectToolResult> ReplaceTextAsync(DocumentTabViewModel tab, PageId page, ObjectRef target, string newText, IReadOnlyList<ObjectRef>? shadows = null, TextFormatOverride? format = null)
     {
         if (tab.Session is not { } s || !tab.CanEditContent) return ObjectToolResult.None;
         try
@@ -84,7 +84,7 @@ public static class ObjectToolController
             var font = DocumentTabViewModel.Appearance?.Font;
             var plan = await s.Thread.InvokeAsync(() => s.IndexOf(page) < 0
                 ? ReplacePlan.Refused(ReplaceRefusal.NotText)
-                : TextEditPlanner.PlanReplace(s, page, target, newText, font, catalog: DocumentTabViewModel.Appearance?.Catalog, forceBold: shadows is { Count: > 0 }));
+                : TextEditPlanner.PlanReplace(s, page, target, newText, font, catalog: DocumentTabViewModel.Appearance?.Catalog, forceBold: shadows is { Count: > 0 }, format: format));
             if (plan.Edits.Count == 0) return new ObjectToolResult(RefusalMessage(plan), null);
             IReadOnlyList<ContentEdit> edits = plan.Edits;
             if (shadows is { Count: > 0 })
