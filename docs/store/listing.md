@@ -27,7 +27,8 @@
 • 보기: 빠른 열기, 큰 도면도 부드럽게, 확대·축소·쪽 이동, 찾기
 • 주석: 형광펜, 밑줄, 선·화살표·도형, 텍스트 상자, 스탬프, 메모, 지우개, 코멘트 목록과 답글·상태
 • 쪽 편집: 쪽 추가·삭제·회전·순서 바꾸기, 썸네일, 파일 끌어 놓아 넣기
-• 직접 편집: 글자 고치기, 문단 편집, 이미지·도형 넣기와 옮기기
+• 직접 편집: 글자 고치기(굵은 글·색·크기를 원본에 맞춤), 글자 형식 보기와 바꾸기, 문단 편집, 이미지·도형 넣기와 옮기기
+• 탭 오른쪽 클릭 메뉴(폴더 열기, 경로 복사, 닫기), 마우스 휠 버튼으로 화면 이동
 • 주석 요약 PDF 만들기, 주석 가져오기/내보내기(XFDF)
 • 인쇄, 자동 복구
 • Windows 11 디자인(Fluent), 한국어·영어 화면
@@ -35,7 +36,8 @@
 제작: Park Jaemin, Park Sehyeon. MIT 라이선스 오픈소스 — https://github.com/jaeminiz/SedolPDF
 
 **이 버전의 새 기능 (릴리스 노트):**
-첫 스토어 버전입니다. 기본 기능은 사용할 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요.
+0.6.0: 텍스트 편집 개선(겹쳐 찍은 굵은 글에서 글이 사라지던 문제 해결, 편집 가능한 글 조각 미리 표시, 반투명 제자리 편집 칸, 편집한 글의 굵기·색·크기를 원본에 맞춤), 탭 오른쪽 클릭 메뉴(포함하는 폴더 열기·전체 경로 복사·이 탭 닫기), 속성 패널의 글자 형식(글꼴·크기·색·굵게·기울임·명조) 보기와 바꾸기, 마우스 휠 버튼으로 화면 이동.
+기본 기능은 사용할 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요.
 
 **검색 키워드 (7개 이하, 각 30자 이내):**
 PDF, PDF 편집, PDF 뷰어, 주석, 형광펜, 무료 PDF, 오픈소스
@@ -51,14 +53,15 @@ Features
 • Viewing: fast open, smooth with large drawings, zoom, page navigation, search
 • Annotations: highlight, underline, lines/arrows/shapes, text boxes, stamps, notes, eraser, comment list with replies and status
 • Page tools: add, delete, rotate, reorder pages; thumbnails; drag-and-drop files in
-• Direct editing: fix text, edit paragraphs, add and move images and shapes
+• Direct editing: fix text (edited text keeps the original weight, color and size), view and change text format, edit paragraphs, add and move images and shapes
+• Tab right-click menu (open folder, copy path, close); pan with the mouse wheel button
 • Annotation summary PDF, annotation import/export (XFDF)
 • Printing and auto-recovery
 • Windows 11 Fluent design, Korean and English interface
 
 By Park Jaemin and Park Sehyeon. MIT-licensed open source — https://github.com/jaeminiz/SedolPDF
 
-**Release notes:** First Store release. Core features are usable but still being polished; keep a backup of important files.
+**Release notes:** 0.6.0 — better text editing (fixes text vanishing from overprinted bold text, editable text pieces previewed, translucent in-place editor, edited text keeps the original weight/color/size), tab right-click menu (open containing folder, copy full path, close tab), text format (font, size, color, bold, italic, serif) in the properties panel, and panning with the mouse wheel button. Core features are usable but still being polished; keep a backup of important files.
 
 **Keywords:** PDF, PDF editor, PDF viewer, annotate, highlight, free PDF, open source
 

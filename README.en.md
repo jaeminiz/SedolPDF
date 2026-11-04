@@ -4,7 +4,7 @@
 
 A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit text, images and shapes directly in one app. Free for personal and commercial use (MIT License).
 
-> **This is an early public release (v0.5.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
+> **This is an early public release (v0.6.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
 
 ![Comment tab](docs/screenshots/en/03-annotate.png)
 
@@ -12,7 +12,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 
 **Viewing**
 - Tile-based rendering so large CAD-style drawings open quickly (goal: first screen of an A1 drawing within 0.5 s; a 300-page document under 400 MB of memory).
-- Continuous and single-page view, zoom, actual size (100% = 96 dpi), fit width/page, hold Space to pan (hand tool).
+- Continuous and single-page view, zoom, actual size (100% = 96 dpi), fit width/page, hold Space or press the mouse wheel button and drag to pan (hand tool).
 - Text selection and copy, search, thumbnail / bookmark / attachment / layer panels, snapshot (copy a region or a whole page as an image).
 
 **Annotations**
@@ -25,7 +25,12 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 
 **Text and object editing**
 - Edit an existing line of text: the original font is kept when that is verifiably safe; otherwise the line is rewritten with the bundled Noto Sans KR.
+- Fixed text disappearing from bold text made by overprinting the same text. Editable text pieces are previewed as boxes, the in-place editor is translucent so you edit right over the original, and edited text keeps the original weight, color and size.
+- Text format: see and change font, size, color, bold, italic and serif in the properties panel.
 - Move, resize and delete images and shapes; add new text, images and shapes; multi-select.
+
+**Tabs**
+- Right-click a tab for Open containing folder, Copy full path and Close this tab.
 
 **Safety**
 - Saving writes a temporary file, verifies it, then replaces the original. Unknown annotation keys are preserved.
