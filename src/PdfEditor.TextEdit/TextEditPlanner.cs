@@ -23,6 +23,9 @@ public sealed record ReplacePlan(IReadOnlyList<ContentEdit> Edits, bool Fallback
 /// </summary>
 public static class TextEditPlanner
 {
+    /// <summary>같은 글을 어긋나게 겹쳐 찍어 굵게 보이던 줄을 대체 글꼴로 바꿀 때의 합성 굵게 선 굵기(글자 크기 비율). 기본(0.03)보다 굵게 해 원본의 굵기에 가깝게 한다.</summary>
+    public const float OverlapBoldStrokeRatio = 0.05f;
+
     public static ReplacePlan PlanReplace(DocumentSession s, PageId page, ObjectRef target, string newText, AppFont? appFont,
         float? sizeOverride = null, PdfColor? colorOverride = null, AppFontCatalog? catalog = null, bool forceBold = false)
     {
@@ -82,7 +85,7 @@ public static class TextEditPlanner
         // 원본 글꼴의 명조·굵게·기울임을 닮게 고른다(문단 편집과 같은 카탈로그). 가짜 굵게로 겹쳐 찍은 줄(forceBold)은 굵게로.
         var choice = catalog is not null && origFont is not null ? catalog.Choose(origFont) : new AppFontChoice(AppFontFamily.Sans, appFont, false, false);
         if (forceBold) choice = choice with { SyntheticBold = true };
-        var (spec, missing) = AppFontLine.Build(choice, newText, size, placement, color);
+        var (spec, missing) = AppFontLine.Build(choice, newText, size, placement, color, forceBold ? OverlapBoldStrokeRatio : null);
         if (spec is null) return ReplacePlan.Refused(ReplaceRefusal.AppFontMissingGlyphs, missing);
         return new ReplacePlan([new InsertAppTextEdit(st.NewId(), spec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);
     }

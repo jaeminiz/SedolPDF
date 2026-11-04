@@ -77,6 +77,6 @@ public class FauxBoldFallbackTests : ObjectUiTestBase
         EditorKey(h, Key.Enter);
         PumpUi(() => Edits(h).Any(e => e is InsertAppTextEdit));
         var app = Edits(h).OfType<InsertAppTextEdit>().Single();
-        Assert.True(app.Line.BoldStrokePt > 0, "겹쳐 찍은 굵은 글은 대체 글꼴에서도 굵게");
+        Assert.True(app.Line.BoldStrokePt > 0.04f * app.Line.SizePt, "겹쳐 찍은 굵은 글은 대체 글꼴에서도 굵게");
     }
 }
