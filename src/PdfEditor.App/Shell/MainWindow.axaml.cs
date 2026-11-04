@@ -366,23 +366,19 @@ public sealed partial class MainWindow : Window
 
     // ---- 탭 오른쪽 클릭 메뉴 ----
 
-    private static DocumentTabViewModel? TabOf(object? sender)
-        => (sender as MenuItem)?.Parent is ContextMenu { PlacementTarget: Control { DataContext: DocumentTabViewModel d } } ? d : (sender as ContextMenu)?.PlacementTarget is Control { DataContext: DocumentTabViewModel d2 } ? d2 : null;
-
-    /// <summary>파일로 저장돼 있지 않거나 파일이 없어졌으면 "포함하는 폴더 열기"·"경로 복사"를 끈다.</summary>
-    private void OnTabMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    /// <summary>탭 항목(글자 없는 빈 곳 포함) 어디서든 오른쪽 클릭하면 메뉴를 연다. 파일로 저장돼 있지 않거나 파일이 없어졌으면 "포함하는 폴더 열기"·"경로 복사"를 끈다.</summary>
+    private void OnTabContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (sender is not ContextMenu { Items: { Count: >= 2 } items } m) return;
-        bool has = FileReveal.BuildArguments(TabOf(m)?.Session?.FilePath) is not null;
-        foreach (var i in new[] { 0, 1 }) if (items[i] is MenuItem mi) mi.IsEnabled = has;
+        if ((e.Source as Visual)?.FindAncestorOfType<ListBoxItem>(true) is not { DataContext: DocumentTabViewModel d } item) return;
+        e.Handled = true;
+        string? path = d.Session?.FilePath;
+        bool has = FileReveal.BuildArguments(path) is not null;
+        var reveal = new MenuItem { Header = Strings.TabMenu_RevealInFolder, IsEnabled = has };
+        reveal.Click += (_, _) => FileReveal.Reveal(path);
+        var copy = new MenuItem { Header = Strings.TabMenu_CopyPath, IsEnabled = has };
+        copy.Click += async (_, _) => { if (path is { Length: > 0 } && Clipboard is { } cb) await cb.SetTextAsync(path); };
+        var close = new MenuItem { Header = Strings.TabMenu_Close };
+        close.Click += (_, _) => _vm.CloseDocumentCommand.Execute(d);
+        new ContextMenu { ItemsSource = new object[] { reveal, copy, new Separator(), close } }.Open(item);
     }
-
-    private void OnTabMenuReveal(object? sender, RoutedEventArgs e) { if (TabOf(sender) is { } d) FileReveal.Reveal(d.Session?.FilePath); }
-
-    private async void OnTabMenuCopyPath(object? sender, RoutedEventArgs e)
-    {
-        if (TabOf(sender)?.Session?.FilePath is { Length: > 0 } p && Clipboard is { } cb) await cb.SetTextAsync(p);
-    }
-
-    private void OnTabMenuClose(object? sender, RoutedEventArgs e) { if (TabOf(sender) is { } d) _vm.CloseDocumentCommand.Execute(d); }
 }
