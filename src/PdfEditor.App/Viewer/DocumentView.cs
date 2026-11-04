@@ -79,6 +79,7 @@ public sealed partial class DocumentView : Control
     private Point _dragStartPos;
     private Vector _dragStartOffset;
     private bool _dragging;
+    private bool _middlePan;   // 마우스 휠 버튼을 누른 채 끌어 옮기는 중(어떤 도구든 손처럼 화면을 옮긴다)
 
     static DocumentView()
     {
@@ -792,6 +793,17 @@ public sealed partial class DocumentView : Control
         base.OnPointerPressed(e);
         Focus();
         if (_state is null || _sv is null) return;
+        if (e.GetCurrentPoint(this).Properties.IsMiddleButtonPressed)
+        {
+            // 휠 버튼: 도구와 상관없이 "손"으로 화면을 옮긴다(놓으면 원래 도구 그대로).
+            _dragging = _middlePan = true;
+            Cursor = HandCursors.GrabOrFallback;
+            _dragStartPos = e.GetPosition(_sv);
+            _dragStartOffset = _sv.Offset;
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
         if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed && UsesTextMenu(_state.Tab.Tool))
         {
             ShowTextMenu(e);
@@ -870,6 +882,14 @@ public sealed partial class DocumentView : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_middlePan && e.InitialPressMouseButton == MouseButton.Middle)
+        {
+            _middlePan = _dragging = false;
+            e.Pointer.Capture(null);
+            if (_state is { } ms) Cursor = ms.Tab.Tool == ToolKind.Hand ? HandCursors.OpenOrFallback : CursorFor(ms.Tab.Tool);
+            e.Handled = true;
+            return;
+        }
         if (HandleSnapshotReleased(e)) return;
         if (HandleObjectPointerReleased(e)) return;
         if (HandleAnnotPointerReleased(e)) return;
