@@ -48,8 +48,27 @@ public static class ObjectToolController
         catch (Exception) { return null; }
     }
 
-    /// <summary>텍스트 한 줄 바꾸기. 원래 글꼴이 안 되면 앱 글꼴(알림), 그것도 안 되면 거절 이유(대화상자).</summary>
-    public static async Task<ObjectToolResult> ReplaceTextAsync(DocumentTabViewModel tab, PageId page, ObjectRef target, string newText)
+    /// <summary>
+    /// 가짜 굵게처럼 같은 글을 어긋나게 겹쳐 찍은 줄은 PDFium이 뒤쪽 객체의 글을 비워 준다. 누른 객체가 빈 쪽이어도 글이 있는 대표 객체를 고르고,
+    /// 같은 자리의 빈 객체(Shadows)를 함께 돌려줘 바꿀 때 같이 끄게 한다. 겹친 것이 없으면 누른 객체 그대로.
+    /// </summary>
+    public static async Task<(PageObjectEntry Pick, IReadOnlyList<ObjectRef> Shadows)> ResolveOverlappedAsync(DocumentTabViewModel tab, PageId page, PageObjectEntry pick, PageObjectIndex idx)
+    {
+        if (pick.Ref.IsInserted || pick.Type != PdfPageObjectType.Text) return (pick, []);
+        float tol = Math.Max(1f, 0.15f * pick.Bounds.Height);
+        bool Same(PdfRectF b) => Math.Abs(b.Left - pick.Bounds.Left) <= tol && Math.Abs(b.Right - pick.Bounds.Right) <= tol
+            && Math.Abs(b.Bottom - pick.Bounds.Bottom) <= tol && Math.Abs(b.Top - pick.Bounds.Top) <= tol;
+        var group = idx.Entries.Where(e => e.Type == PdfPageObjectType.Text && !e.Ref.IsInserted && Same(e.Bounds)).ToList();
+        if (group.Count < 2) return (pick, []);
+        var texts = new Dictionary<ObjectRef, string>();
+        foreach (var e in group) texts[e.Ref] = await ReadTextAsync(tab, page, e.Ref) ?? "";
+        var rep = !string.IsNullOrWhiteSpace(texts[pick.Ref]) ? pick : group.FirstOrDefault(e => !string.IsNullOrWhiteSpace(texts[e.Ref])) ?? pick;
+        var shadows = group.Where(e => e.Ref != rep.Ref && string.IsNullOrWhiteSpace(texts[e.Ref])).Select(e => e.Ref).ToList();
+        return (rep, shadows);
+    }
+
+    /// <summary>텍스트 한 줄 바꾸기. 원래 글꼴이 안 되면 앱 글꼴(알림), 그것도 안 되면 거절 이유(대화상자). shadows는 같은 자리에 겹쳐 찍힌 빈 객체로 함께 끈다.</summary>
+    public static async Task<ObjectToolResult> ReplaceTextAsync(DocumentTabViewModel tab, PageId page, ObjectRef target, string newText, IReadOnlyList<ObjectRef>? shadows = null)
     {
         if (tab.Session is not { } s || !tab.CanEditContent) return ObjectToolResult.None;
         try
@@ -59,7 +78,10 @@ public static class ObjectToolController
                 ? ReplacePlan.Refused(ReplaceRefusal.NotText)
                 : TextEditPlanner.PlanReplace(s, page, target, newText, font));
             if (plan.Edits.Count == 0) return new ObjectToolResult(RefusalMessage(plan), null);
-            await tab.RunContentCommandAsync(new ContentEditCommand(page, plan.Edits));
+            IReadOnlyList<ContentEdit> edits = plan.Edits;
+            if (shadows is { Count: > 0 })
+                edits = [.. plan.Edits, .. await s.Thread.InvokeAsync(() => shadows.Select(x => (ContentEdit)new DeactivateEdit(s.Content.NewId(), x)).ToList())];
+            await tab.RunContentCommandAsync(new ContentEditCommand(page, edits));
             return new ObjectToolResult(null, plan.FallbackUsed ? Strings.Msg_TextFallbackApp : null);
         }
         catch (Exception) { return new ObjectToolResult(Strings.Msg_ContentEditFailed, null); }

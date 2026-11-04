@@ -19,6 +19,24 @@ public static class ContentPdfFactory
     public const string LineKorean = "가나다 도면 검토";
     public const string LineHelvetica = "Helvetica standard";
 
+    public const string LineFauxBold = "FAUX HEADER";
+
+    /// <summary>가짜 굵게: 같은 글을 0.2pt씩 어긋나게 네 번 겹쳐 찍은 한 줄(기준선 100pt). PDFium은 뒤의 세 객체 글을 비워 준다.</summary>
+    public static void CreateFauxBoldLine(string path)
+    {
+        using var doc = new PdfDocument();
+        var page = doc.AddPage();
+        page.Width = XUnit.FromPoint(595);
+        page.Height = XUnit.FromPoint(842);
+        using (var g = XGraphics.FromPdfPage(page))
+        {
+            var f = new XFont("Arial", 14, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode));
+            foreach (var (dx, dy) in new[] { (0.0, 0.0), (0.2, 0.0), (0.0, 0.2), (0.2, 0.2) })
+                g.DrawString(LineFauxBold, f, XBrushes.Black, new XPoint(60 + dx, 100 + dy));
+        }
+        doc.Save(path);
+    }
+
     /// <summary>
     /// A4 세로 1쪽: Arial 한 줄(TrueType 서브셋), 맑은 고딕 한글 한 줄(CID, Identity-H), 표준 Helvetica 한 줄(임베드 없음),
     /// PNG 이미지 하나, 빨간 사각형 하나, 파란 선 하나. stripToUnicode면 맑은 고딕 글꼴의 /ToUnicode를 지운다.

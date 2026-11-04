@@ -132,7 +132,7 @@ public sealed partial class DocumentView
         return true;
     }
 
-    private async Task BeginTextEditAsync(ViewState st, int pageIndex, PageGeom g, PageInfo info, PageObjectEntry pick)
+    private async Task BeginTextEditAsync(ViewState st, int pageIndex, PageGeom g, PageInfo info, PageObjectEntry pick, IReadOnlyList<ObjectRef> shadows)
     {
         var tab = st.Tab;
         string original = (await ObjectToolController.ReadTextAsync(tab, info.Id, pick.Ref) ?? pick.TextPreview ?? "")
@@ -148,7 +148,7 @@ public sealed partial class DocumentView
         OpenLineEditor(st, at, original, sizeDip, v.W, async text =>
         {
             if (st.Disposed || text == original) return;
-            await RunToolAsync(st, ObjectToolController.ReplaceTextAsync(tab, page, pick.Ref, text));
+            await RunToolAsync(st, ObjectToolController.ReplaceTextAsync(tab, page, pick.Ref, text, shadows));
         });
     }
 

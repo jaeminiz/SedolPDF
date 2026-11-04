@@ -53,12 +53,14 @@ public sealed partial class DocumentView
 
     private async Task BeginTextOrParagraphEditAsync(ViewState st, int pageIndex, PageGeom g, PageInfo info, PageObjectEntry pick, PageObjectIndex idx)
     {
+        var (rep, shadows) = await ObjectToolController.ResolveOverlappedAsync(st.Tab, info.Id, pick, idx);
+        pick = rep;
         var start = await ParagraphController.StartAsync(st.Tab, info.Id, pick, idx);
         if (st.Disposed || !ReferenceEquals(st, _state) || st.Tab.Tool != ToolKind.EditText) return;
         if (start.InForm) { st.Tab.RaiseNotice(Strings.Msg_FormChildNotice); return; }
         if (start.Session is { } ps) { OpenParagraphEditor(st, pageIndex, g, ps); return; }
         if (start.Reason is not null) ShowToast(start.Reason);
-        await BeginTextEditAsync(st, pageIndex, g, info, pick);
+        await BeginTextEditAsync(st, pageIndex, g, info, pick, shadows);
     }
 
     private void EnsureParagraphPopup()
