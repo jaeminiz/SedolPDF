@@ -117,6 +117,18 @@ public sealed class TextFormatTests : IDisposable
     }
 
     [Fact]
+    public async Task BoldAppLine_OnScreen_IsStrokedPath()
+    {
+        var s = await OpenNew(p => ContentPdfFactory.CreateDocumentLike(p));
+        var line = await ArialLine(s);
+        var plan = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, line.Ref, ContentPdfFactory.LineArial, Font.Value, format: new TextFormatOverride(Bold: true)));
+        await s.Commands.ExecuteAsync(new ContentEditCommand(s.Pages[0].Id, plan.Edits));
+        var appId = plan.Edits.OfType<InsertAppTextEdit>().Single().Id;
+        float w = await _t.InvokeAsync(() => s.GetReplay(s.Pages[0].Id).Resolve(ObjectRef.Inserted(appId))!.StrokeWidth);
+        Assert.True(w > 0, "합성 굵게는 화면에서도 선을 긋는다");
+    }
+
+    [Fact]
     public async Task PlanReplace_ItalicOnAppLine_KeepsExistingBold()
     {
         var s = await OpenNew(p => ContentPdfFactory.CreateDocumentLike(p));

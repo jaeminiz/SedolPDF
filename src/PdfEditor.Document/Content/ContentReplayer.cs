@@ -304,8 +304,16 @@ public static class ContentReplayer
                 case 'Z': path.ClosePath(); break;
             }
         }
-        path.FillColor = new PdfRgba(line.Color.R, line.Color.G, line.Color.B, 255);
-        path.SetDrawMode(fill: true, stroke: false);
+        var ink = new PdfRgba(line.Color.R, line.Color.G, line.Color.B, 255);
+        path.FillColor = ink;
+        if (line.BoldStrokePt > 0)
+        {
+            // 합성 굵게: 저장본(렌더 모드 2)과 같은 굵기의 선을 글자 색으로 긋는다
+            path.StrokeColor = ink;
+            path.StrokeWidth = line.BoldStrokePt;
+            path.SetDrawMode(fill: true, stroke: true);
+        }
+        else path.SetDrawMode(fill: true, stroke: false);
         return path;
     }
 }

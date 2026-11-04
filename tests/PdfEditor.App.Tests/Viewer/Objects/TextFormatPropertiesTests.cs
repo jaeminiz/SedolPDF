@@ -48,6 +48,19 @@ public class TextFormatPropertiesTests : ObjectUiTestBase
     }
 
     [Fact]
+    public async Task SetColor_OverlappedFauxBold_ChangesAllCopies()
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateFauxBoldLine(p));
+        var tab = new DocumentTabViewModel(s, "a.pdf", null);
+        var page = s.Pages[0].Id;
+        var e = await s.Thread.InvokeAsync(() => s.GetObjectIndex(page).Entries.First(x => x.TextPreview == ContentPdfFactory.LineFauxBold));
+        tab.Objects.Select(new SelectedObject(page, e.Ref, PdfPageObjectType.Text, e.Bounds));
+        PumpUi(() => tab.ObjectProps.HasTextFormat);
+        await tab.ObjectProps.SetTextColorAsync(new PdfColor(255, 0, 0));
+        Assert.Equal(4, s.Content.For(page).OfType<SetTextColorEdit>().Count());   // 겹쳐 찍은 4개 모두: 가장자리에 옛 색이 남지 않는다
+    }
+
+    [Fact]
     public async Task SetSize_OriginalText_ScalesAboutBaselineOrigin()
     {
         var (tab, s, line) = await SelectArialAsync();

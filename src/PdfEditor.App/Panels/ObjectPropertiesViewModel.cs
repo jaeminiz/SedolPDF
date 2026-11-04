@@ -123,7 +123,9 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
         var from = sel.Bounds;
         if (Math.Abs(to.Left - from.Left) < 0.01f && Math.Abs(to.Bottom - from.Bottom) < 0.01f
             && Math.Abs(to.Width - from.Width) < 0.01f && Math.Abs(to.Height - from.Height) < 0.01f) return;
-        await RunAsync(sel.Page, new TransformEdit(s.Content.NewId(), sel.Ref, ObjectSelectionController.MapRect(from, to)));
+        var map = ObjectSelectionController.MapRect(from, to);
+        var copies = await CopiesOfAsync(sel);
+        await RunManyAsync(sel.Page, new[] { sel.Ref }.Concat(copies).Select(r => (ContentEdit)new TransformEdit(s.Content.NewId(), r, map)));
     }
 
     public async Task SetShapeStyleAsync(PdfColor? stroke, float width, PdfColor? fill)
@@ -148,7 +150,8 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
             var m = await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0 ? (PdfMatrix?)null : s.GetReplay(sel.Page).Resolve(sel.Ref)?.Matrix);
             if (m is not { } mat) return;
             var scale = PdfMatrix.ScaleAbout(ratio, ratio, mat.E, mat.F);
-            await _tab.RunContentCommandAsync(new ContentEditCommand(sel.Page, [new TransformEdit(s.Content.NewId(), sel.Ref, scale)]));
+            var copies = await CopiesOfAsync(sel);
+            await _tab.RunContentCommandAsync(new ContentEditCommand(sel.Page, [new TransformEdit(s.Content.NewId(), sel.Ref, scale), .. copies.Select(c => (ContentEdit)new TransformEdit(s.Content.NewId(), c, scale))]));
             var b = sel.Bounds;
             var pts = new[] { scale.Apply(new PdfPointF(b.Left, b.Bottom)), scale.Apply(new PdfPointF(b.Right, b.Top)) };
             _tab.Objects.Select(new SelectedObject(sel.Page, sel.Ref, sel.Type,
@@ -163,7 +166,8 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
         if (Format is not { } f || _tab.Objects.Selected is not { } sel || _tab.Session is not { } s || !_tab.CanEditContent) return;
         if (f.Color == color) return;
         if (!f.IsOriginalFont) { await SetTextStyleAsync(null, color); return; }
-        await RunAsync(sel.Page, new SetTextColorEdit(s.Content.NewId(), sel.Ref, color));
+        var copies = await CopiesOfAsync(sel);   // 겹쳐 찍은 글(가짜 굵게)은 복사본도 같이 바꿔야 가장자리에 옛 색이 남지 않는다
+        await RunManyAsync(sel.Page, new[] { sel.Ref }.Concat(copies).Select(r => (ContentEdit)new SetTextColorEdit(s.Content.NewId(), r, color)));
     }
 
     /// <summary>굵게·기울임·명조(null = 그대로). 원본 글꼴의 모양은 바꿀 수 없어서 앱 글꼴로 줄을 다시 쓰고 알린다.</summary>
@@ -203,6 +207,19 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
             if (plan.Edits.OfType<InsertAppTextEdit>().FirstOrDefault() is { } line)
                 _tab.Objects.Select(new SelectedObject(sel.Page, ObjectRef.Inserted(line.Id), sel.Type, line.Line.Bounds));
         }
+        catch (Exception) { _tab.RaiseNotice(Strings.Msg_ContentEditFailed); }
+    }
+
+    /// <summary>원본 글 객체와 같은 자리에 겹쳐 찍힌 복사본(가짜 굵게)들. 원본 글이 아니면 빈 목록.</summary>
+    private async Task<IReadOnlyList<ObjectRef>> CopiesOfAsync(SelectedObject sel)
+    {
+        if (sel.Ref.IsInserted || _tab.Session is not { } s) return [];
+        return await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0 ? [] : TextBoxOverlay.CopiesOf(s.GetObjectIndex(sel.Page), sel.Ref, sel.Bounds));
+    }
+
+    private async Task RunManyAsync(PageId page, IEnumerable<ContentEdit> edits)
+    {
+        try { await _tab.RunContentCommandAsync(new ContentEditCommand(page, [.. edits])); }
         catch (Exception) { _tab.RaiseNotice(Strings.Msg_ContentEditFailed); }
     }
 
