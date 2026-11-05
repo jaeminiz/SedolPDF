@@ -55,6 +55,65 @@ public class AnnotationReaderTests : IDisposable
     }
 
     [Fact]
+    public void Read_SquareWithRd_IsEditable_RectShrunkByRd()
+    {
+        var a = ReadExternalStyle()[0];   // /Rect [100 600 300 650], /RD 0.5
+        Assert.NotNull(a.Data);
+        Assert.Null(a.Info);
+        Assert.Equal(100.5f, a.Data.Rect.Left, 0.001f);
+        Assert.Equal(600.5f, a.Data.Rect.Bottom, 0.001f);
+        Assert.Equal(299.5f, a.Data.Rect.Right, 0.001f);
+        Assert.Equal(649.5f, a.Data.Rect.Top, 0.001f);
+    }
+
+    [Fact]
+    public void Read_CircleWithRd_IsEditable_RectShrunkByRd()
+    {
+        var a = ReadExternalStyle()[3];   // /Rect [100 500 220 560], /RD 3
+        Assert.NotNull(a.Data);
+        Assert.Equal(103f, a.Data.Rect.Left, 0.001f);
+        Assert.Equal(503f, a.Data.Rect.Bottom, 0.001f);
+        Assert.Equal(217f, a.Data.Rect.Right, 0.001f);
+        Assert.Equal(557f, a.Data.Rect.Top, 0.001f);
+    }
+
+    [Fact]
+    public void Read_SquareWithRdLargerThanRect_IsMalformed()
+    {
+        var p = P("rd-huge.pdf");
+        AnnotatedPdfFactory.CreateExternalStyle(p);
+        using (var doc = PdfReader.Open(p, PdfDocumentOpenMode.Modify))
+        {
+            var sq = doc.Pages[0].Elements.GetArray("/Annots")!.Elements.GetDictionary(0)!;
+            sq.Elements["/RD"] = new PdfArray(doc, new PdfReal(200), new PdfReal(5), new PdfReal(200), new PdfReal(5));
+            doc.Save(p);
+        }
+        var a = AnnotationReader.Read(File.ReadAllBytes(p), null, [0])[0][0];
+        Assert.Null(a.Data);
+        Assert.Equal(ReadOnlyReason.Malformed, a.Info!.Reason);
+    }
+
+    /// <summary>사용자가 보내 준 실제 파일(저장소에 없다). 파일이 있는 PC에서만 확인한다.</summary>
+    [Fact]
+    public void Read_XgardSamplePage4_SquareAndTypewriterAreEditable()
+    {
+        const string path = @"C:\Users\jaemin\Documents\카카오톡 받은 파일\Xgard-Data-Sheet-Interactive (1).pdf";
+        if (!File.Exists(path)) return;
+        var r = AnnotationReader.Read(File.ReadAllBytes(path), null, [3])[0];
+        Assert.Contains(r, o => o.Data is { Kind: AnnotKind.Square });
+        Assert.Contains(r, o => o.Data is { Kind: AnnotKind.FreeText, Intent: FreeTextIntent.Typewriter });
+    }
+
+    [Fact]
+    public void Hit_SquareWithRd_BorderClickSelects_InsideDoesNot()
+    {
+        var sq = ReadExternalStyle()[0].Data!;   // 모양 사각형 (100.5, 600.5)-(299.5, 649.5), 테두리 폭 1
+        Assert.True(AnnotationHitTest.Hit(sq, new PdfPointF(200, 649), 1f));    // 위 변
+        Assert.True(AnnotationHitTest.Hit(sq, new PdfPointF(101, 625), 1f));    // 왼쪽 변
+        Assert.False(AnnotationHitTest.Hit(sq, new PdfPointF(200, 625), 1f));   // 안쪽 한가운데
+    }
+
+    [Fact]
     public void Read_ReadOnlyOriginals_CarryListInfo_PopupHasNone()
     {
         var r = ReadMixed();
@@ -453,7 +512,7 @@ public class AnnotationReaderTests : IDisposable
     }
 
     [Fact]
-    public void Read_CloudSquare_EditableWithRd_PlainSquareWithRd_StillReadOnly_CircleCloudReadOnly()
+    public void Read_CloudSquare_EditableWithRd_PlainSquareWithRd_ShrunkByRd_CircleCloudReadOnly()
     {
         var r = ReadWith((doc, page) =>
         {
@@ -472,7 +531,8 @@ public class AnnotationReaderTests : IDisposable
         Assert.Equal(ReadOnlyReason.None, r[0].Reason);
         Assert.Equal(1f, r[0].Data!.CloudIntensity);
         Assert.Equal(new PdfRectF(10, 10, 110, 60), r[0].Data!.Rect);
-        Assert.Equal(ReadOnlyReason.RectDifferences, r[1].Reason);
+        Assert.Equal(ReadOnlyReason.None, r[1].Reason);   // 일반 사각형의 /RD는 모양 사각형으로 읽는다(2026-11-05)
+        Assert.Equal(new PdfRectF(15, 15, 105, 55), r[1].Data!.Rect);
         Assert.Equal(ReadOnlyReason.CloudBorder, r[2].Reason);   // Circle 클라우드는 Painter가 그리지 못하므로 읽기 전용
         Assert.Null(r[2].Data);
     }
@@ -509,14 +569,15 @@ public class AnnotationReaderTests : IDisposable
             var b = Add(doc, page, "Polygon", 10, 10, 110, 60);
             b.Elements["/Vertices"] = Nums(doc, 20, 20, 100, 20, 60, 50);
             b.Elements["/BE"] = be1;
-            // /I 0인 클라우드는 클라우드가 아니므로 /RD가 있으면 일반 사각형처럼 읽기 전용
+            // /I 0인 클라우드는 클라우드가 아니므로 /RD가 있으면 일반 사각형처럼 /RD만큼 줄여 읽는다
             var c = Add(doc, page, "Square", 10, 10, 110, 60);
             c.Elements["/BE"] = be0;
             c.Elements["/RD"] = Nums(doc, 5, 5, 5, 5);
         });
         Assert.Equal(0f, r[0].Data!.CloudIntensity);
         Assert.Equal(0f, r[1].Data!.CloudIntensity);
-        Assert.Equal(ReadOnlyReason.RectDifferences, r[2].Reason);
+        Assert.Equal(ReadOnlyReason.None, r[2].Reason);   // 클라우드가 아니므로 /RD는 모양 사각형으로 읽는다(2026-11-05)
+        Assert.Equal(new PdfRectF(15, 15, 105, 55), r[2].Data!.Rect);
     }
 
     [Fact]

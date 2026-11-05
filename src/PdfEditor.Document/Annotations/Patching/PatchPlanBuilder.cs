@@ -329,6 +329,8 @@ public static class PatchPlanBuilder
     /// <summary>Square 클라우드: /BE &lt;&lt;/S /C /I n&gt;&gt; + /RD(Painter와 같은 안쪽 간격). 클라우드가 아니면 손댄 원본의 낡은 /BE·/RD만 지운다.</summary>
     internal static ImmutableArray<PatchOp> SquareCloudOps(Annotation m, bool original)
     {
+        // 타원: 다른 편집기가 넣은 /RD는 읽을 때 모델 사각형에 반영했으므로 고쳐 저장할 때는 지운다(그대로 두면 모양이 이중으로 줄어든다).
+        if (m.Kind == AnnotKind.Circle) return original ? [new RemoveKeys(["/RD"])] : [];
         if (m.Kind != AnnotKind.Square) return [];
         if (m.CloudIntensity > 0)
         {

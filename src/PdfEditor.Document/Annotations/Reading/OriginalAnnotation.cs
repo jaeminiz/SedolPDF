@@ -26,9 +26,10 @@ public enum ReadOnlyReason
 /// GroupParentIndex: 텍스트 바꾸기 묶음의 Caret이면 부모 StrikeOut의 /Annots 번호(문서에 붙일 때 InReplyTo로 바꾼다).
 /// ReplyParentIndex: 답글·검토 상태(Text + /IRT)이면 부모의 /Annots 번호(부모가 이 쪽에서 편집 가능할 때만 편집 가능한 항목이 된다).
 /// Info: Data가 없는(읽기 전용) 항목의 목록용 정보. Popup과 읽을 수 없는 항목은 null.
+/// SourceRect: 파일의 /Rect 그대로. Data.Rect를 /RD만큼 줄여 읽은 사각형·타원만 있다(PDFium의 같은 번호 주석과 맞춰 볼 때 쓴다).
 /// </summary>
 public sealed record OriginalAnnotation(int Index, int Subtype, Annotation? Data, ReadOnlyReason Reason, int? GroupParentIndex = null, int? ReplyParentIndex = null,
-    ReadOnlyAnnotationInfo? Info = null);
+    ReadOnlyAnnotationInfo? Info = null, Pdf.Native.PdfRectF? SourceRect = null);
 
 /// <summary>원본 주석을 읽을 문서를 열 수 없을 때.</summary>
 public sealed class AnnotationReadException(string message, Exception? inner) : Exception(message, inner);

@@ -203,6 +203,53 @@ public class PatchKindsRoundTripTests : IDisposable
     }
 
     [Fact]
+    public async Task ExternalSquareAndCircleWithRd_MovedAndSaved_ReadBackAtNewRect_RdRemoved_UntouchedKeepsRd()
+    {
+        string src = P("external.pdf");
+        AnnotatedPdfFactory.CreateExternalStyle(src);   // [0] Square /RD 0.5, [1][2] FreeText, [3] Circle /RD 3
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await s.AnnotationsReady;
+        var items = s.Annotations.Get(s.Pages[0].Id).Items.Select(v => v.Data).ToList();
+        var square = items.Single(a => a.Kind == AnnotKind.Square);
+        var circle = items.Single(a => a.Kind == AnnotKind.Circle);
+        PdfRectF Moved(PdfRectF r) => new(r.Left + 20, r.Bottom, r.Right + 20, r.Top);
+        // 사각형만 옮긴다. 타원은 건드리지 않는다.
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Replace(s.Pages[0].Id, [(square, square with { Rect = Moved(square.Rect) })]));
+        string target = P("external-out.pdf");
+        await Svc().SaveAsync(s, target);
+
+        var read = ReadBack(target);
+        var rs = read.Single(o => o.Data?.Kind == AnnotKind.Square).Data!;
+        Assert.Equal(120.5f, rs.Rect.Left, 0.01f);
+        var rc = read.Single(o => o.Data?.Kind == AnnotKind.Circle).Data!;
+        Assert.Equal(circle.Rect.Left, rc.Rect.Left, 0.01f);
+        using var back = PdfReader.Open(target, PdfDocumentOpenMode.Import);
+        var dicts = Enumerable.Range(0, AnnotCount(back)).Select(i => AnnotDict(back, i)).ToList();
+        var sq = dicts.Single(d => d.Elements.GetName("/Subtype") == "/Square");
+        var ci = dicts.Single(d => d.Elements.GetName("/Subtype") == "/Circle");
+        Assert.False(sq.Elements.ContainsKey("/RD"));   // 고친 주석: 낡은 /RD는 지운다
+        Assert.True(ci.Elements.ContainsKey("/RD"));    // 건드리지 않은 주석은 원본 그대로
+    }
+
+    [Fact]
+    public async Task ExternalCircleWithRd_Edited_RdRemoved()
+    {
+        string src = P("external2.pdf");
+        AnnotatedPdfFactory.CreateExternalStyle(src);
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await s.AnnotationsReady;
+        var circle = s.Annotations.Get(s.Pages[0].Id).Items.Select(v => v.Data).Single(a => a.Kind == AnnotKind.Circle);
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Replace(s.Pages[0].Id, [(circle, circle with { Color = Blue })]));
+        string target = P("external2-out.pdf");
+        await Svc().SaveAsync(s, target);
+
+        using var back = PdfReader.Open(target, PdfDocumentOpenMode.Import);
+        var ci = Enumerable.Range(0, AnnotCount(back)).Select(i => AnnotDict(back, i)).Single(d => d.Elements.GetName("/Subtype") == "/Circle");
+        Assert.False(ci.Elements.ContainsKey("/RD"));
+        Assert.Equal(circle.Rect.Left, ReadBack(target).Single(o => o.Data?.Kind == AnnotKind.Circle).Data!.Rect.Left, 0.01f);
+    }
+
+    [Fact]
     public async Task CloudSquare_PdfiumPathPlusBePatch()
     {
         await using var s = await OpenBlankAsync();

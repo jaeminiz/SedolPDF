@@ -325,7 +325,7 @@ public sealed class DocumentSession : IAsyncDisposable
             using var a = page.GetAnnotation(o.Index);
             if (a.Subtype != o.Subtype) return false;
             var r = a.Rect;
-            var d = o.Data!.Rect;
+            var d = o.SourceRect ?? o.Data!.Rect;   // /RD로 줄여 읽은 사각형·타원은 파일의 /Rect와 맞춘다
             return Math.Abs(r.Left - d.Left) <= RectTolerancePt && Math.Abs(r.Bottom - d.Bottom) <= RectTolerancePt
                 && Math.Abs(r.Right - d.Right) <= RectTolerancePt && Math.Abs(r.Top - d.Top) <= RectTolerancePt;
         }

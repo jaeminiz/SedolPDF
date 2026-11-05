@@ -220,15 +220,25 @@ public static class AnnotationReader
                     return Fail(ReadOnlyReason.StyledBorder);
             }
 
-            // /RD: 일반 사각형·타원에서는 모양이 달라지므로 읽기 전용. 클라우드 Square는 /RD가 클라우드 안쪽 간격이라 허용한다.
-            if (kind is AnnotKind.Square or AnnotKind.Circle && !cloudBe && HasNonZeroRd(e.GetArray("/RD")))
-                return Fail(ReadOnlyReason.RectDifferences);
-
             int flags = Int(e, "/F") ?? 0;
             if ((flags & PdfAnnotFlags.Hidden) != 0 && reviewState is null) return Fail(ReadOnlyReason.HiddenFlag);   // 검토 상태 주석은 원래 숨김
 
             var rect = ReadRect(e.GetArray("/Rect"));
             if (rect is null) return Fail(ReadOnlyReason.Malformed);
+
+            // /RD(왼쪽, 아래, 오른쪽, 위): 일반 사각형·타원의 모양은 /Rect에서 /RD만큼 안쪽이다(규격; Acrobat·PDF-XChange가 테두리 폭 절반으로 넣는다).
+            // 모양 사각형을 모델 사각형으로 읽는다. 고쳐서 저장하면 낡은 /RD는 지운다(PatchPlanBuilder). 클라우드 Square는 /RD가 클라우드 안쪽 간격이라 그대로 둔다.
+            PdfRectF? sourceRect = null;
+            if (kind is AnnotKind.Square or AnnotKind.Circle && !cloudBe && HasNonZeroRd(e.GetArray("/RD")))
+            {
+                var rd = Numbers(e.GetArray("/RD"))!;
+                if (rd.Length != 4) return Fail(ReadOnlyReason.RectDifferences);
+                var r0 = rect.Value;
+                sourceRect = r0;
+                var shapeRect = new PdfRectF(r0.Left + (float)rd[0], r0.Bottom + (float)rd[1], r0.Right - (float)rd[2], r0.Top - (float)rd[3]);
+                if (shapeRect.Width <= 0 || shapeRect.Height <= 0) return Fail(ReadOnlyReason.Malformed);
+                rect = shapeRect;
+            }
 
             var strokes = ImmutableArray<ImmutableArray<PdfPointF>>.Empty;
             if (kind == AnnotKind.Ink)
@@ -297,7 +307,7 @@ public static class AnnotationReader
                 Rotation = ft?.Rotation ?? 0,
                 State = reviewState,
             };
-            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent, replyParent);
+            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent, replyParent, SourceRect: sourceRect);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
