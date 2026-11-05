@@ -21,6 +21,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 - Sticky note, highlight / underline / strikeout, text box, typewriter, callout, line, arrow, polyline, polygon, cloud, rectangle, ellipse, pencil, eraser, stamps (built-in and image), file attachment, text insert / replace.
 - Comment list, replies, review status, saved styles, annotation summary PDF, XFDF import / export (exchange annotations with other PDF tools).
 - Korean annotation text is saved so that it displays correctly in other viewers.
+- Rectangles and ellipses with a rect-difference margin (`/RD`) and typewriter text annotations made by other PDF tools can now be selected and edited.
 
 **Page editing**
 - Insert blank pages or pages from another file, delete, rotate, reorder, merge, extract pages, drag PDFs in to insert. Everything is undoable.
@@ -30,6 +31,9 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 - Fixed text disappearing from bold text made by overprinting the same text. Editable text pieces are previewed as boxes, the in-place editor is translucent so you edit right over the original, and edited text keeps the original weight, color and size.
 - Text format: see and change font, size, color, bold, italic and serif in the properties panel.
 - Move, resize and delete images and shapes; add new text, images and shapes; multi-select.
+
+**Reducing file size**
+- File → Save in another format → Save with reduced size: enter a target size (MB) and the images are recompressed into a new file at or below it (for email; default 16 MB). Text, vector graphics and annotations are untouched. If the target cannot be met you can save as is, or convert pages to images (text, links and annotations are lost) to reach it. The original is never changed.
 
 **Tabs**
 - Right-click a tab for Open containing folder, Copy full path and Close this tab.
