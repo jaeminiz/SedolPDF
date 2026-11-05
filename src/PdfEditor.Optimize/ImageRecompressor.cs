@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using PdfEditor.ContentStream;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
 using SkiaSharp;
 
 namespace PdfEditor.Optimize;
@@ -29,7 +30,7 @@ public static class ImageRecompressor
             var byName = new Dictionary<string, Candidate>();
             foreach (var key in xo.Elements.Keys)
             {
-                if (xo.Elements.GetDictionary(key) is not { } d || d.Elements.GetName("/Subtype") != "/Image") continue;
+                if (xo.Elements.GetDictionary(key) is not { } d || NameOf(d.Elements, "/Subtype") != "/Image") continue;
                 int num = d.Reference?.ObjectNumber ?? 0;
                 if (num == 0) continue;
                 if (!candidates.TryGetValue(num, out var c)) candidates[num] = c = new Candidate(d);
@@ -55,7 +56,7 @@ public static class ImageRecompressor
             e.SetName("/Filter", "/DCTDecode");
             e.SetInteger("/Width", result.Width);
             e.SetInteger("/Height", result.Height);
-            e.SetName("/ColorSpace", result.Gray ? "/DeviceGray" : "/DeviceRGB");
+            if (!result.KeepColorSpace) e.SetName("/ColorSpace", result.Gray ? "/DeviceGray" : "/DeviceRGB");   // ICC 등 프로필 배열은 그대로 둔다
             e.SetInteger("/BitsPerComponent", 8);
             e.Remove("/DecodeParms");
             replaced++;
@@ -71,7 +72,7 @@ public static class ImageRecompressor
         public double MaxDpi { get; set; }
     }
 
-    private sealed record Encoded(byte[] Jpeg, int Width, int Height, bool Gray);
+    private sealed record Encoded(byte[] Jpeg, int Width, int Height, bool Gray, bool KeepColorSpace = false);
 
     /// <summary>q/Q/cm으로 변환 행렬을 쌓아 Do 시점의 행렬에서 그려지는 크기(pt)를 구하고, 그 크기로 유효 dpi를 기록한다.</summary>
     private static void ObservePlacements(ParsedContent parsed, Dictionary<string, Candidate> byName)
@@ -101,10 +102,18 @@ public static class ImageRecompressor
         }
     }
 
+    private static PdfItem? Resolved(PdfDictionary.DictionaryElements e, string key)
+        => e.ContainsKey(key) ? (e[key] is PdfReference r ? r.Value : e[key]) : null;
+
+    /// <summary>이름 값이면 그 문자열, 없거나 이름이 아니면(예: /ColorSpace가 [/ICCBased …] 배열) null. GetName은 이름이 아니면 예외를 던지므로 쓰지 않는다.</summary>
+    private static string? NameOf(PdfDictionary.DictionaryElements e, string key) => Resolved(e, key) is PdfName n ? n.Value : null;
+
+    private static bool IsTrue(PdfDictionary.DictionaryElements e, string key) => Resolved(e, key) is PdfBoolean { Value: true };
+
     private static string? FilterOf(PdfDictionary d)
     {
         if (!d.Elements.ContainsKey("/Filter")) return "";
-        return d.Elements["/Filter"] switch
+        return Resolved(d.Elements, "/Filter") switch
         {
             PdfName n => n.Value,
             PdfArray { Elements.Count: 1 } a when a.Elements[0] is PdfName n1 => n1.Value,
@@ -116,18 +125,18 @@ public static class ImageRecompressor
     {
         var d = c.Dict;
         var e = d.Elements;
-        if (e.GetBoolean("/ImageMask") || e.ContainsKey("/Mask") || e.ContainsKey("/Decode")) return null;
+        if (IsTrue(e, "/ImageMask") || e.ContainsKey("/Mask") || e.ContainsKey("/Decode")) return null;
         int w = e.GetInteger("/Width"), h = e.GetInteger("/Height");
         if (w <= 0 || h <= 0 || e.GetInteger("/BitsPerComponent") != 8) return null;
-        string? cs = e.GetName("/ColorSpace");
-        if (cs is not ("/DeviceRGB" or "/DeviceGray")) return null;
-        bool gray = cs == "/DeviceGray";
+        var (comps, keepColorSpace) = ColorModel(Resolved(e, "/ColorSpace"));
+        if (comps == 0) return null;
+        bool gray = comps == 1;
         string? filter = FilterOf(d);
 
         using var bmp = filter switch
         {
             "/DCTDecode" => DecodeJpeg(stream.Value, w, h),
-            "/FlateDecode" or "" when !e.ContainsKey("/DecodeParms") => DecodeRaw(stream.UnfilteredValue, w, h, gray),
+            "/FlateDecode" or "" when PredictorOk(d) => DecodeRaw(stream.UnfilteredValue, w, h, gray),
             _ => null,
         };
         if (bmp is null) return null;
@@ -149,9 +158,51 @@ public static class ImageRecompressor
                 if (resized is null) return null;
                 src = resized;
             }
-            return Encode(src, gray, level.JpegQuality);
+            var enc = Encode(src, gray, level.JpegQuality);
+            if (enc is null || (keepColorSpace && enc.Gray != gray)) return null;   // 프로필을 그대로 두려면 성분 수가 같아야 한다
+            return enc with { KeepColorSpace = keepColorSpace };
         }
         finally { resized?.Dispose(); }
+    }
+
+    /// <summary>
+    /// 색 공간의 성분 수와 "원래 배열을 그대로 둘지". DeviceRGB/DeviceGray는 (3|1, false)이고 ICCBased(/N 1·3)·CalRGB·CalGray는 프로필을 그대로 두므로 (n, true).
+    /// 그 밖(CMYK·Indexed·Separation·Lab 등)은 (0, false) — 건드리지 않는다.
+    /// </summary>
+    private static (int Comps, bool Keep) ColorModel(PdfItem? cs)
+    {
+        switch (cs)
+        {
+            case PdfName { Value: "/DeviceRGB" }: return (3, false);
+            case PdfName { Value: "/DeviceGray" }: return (1, false);
+            case PdfArray { Elements.Count: >= 1 } a when a.Elements[0] is PdfName family:
+                switch (family.Value)
+                {
+                    case "/CalRGB": return (3, true);
+                    case "/CalGray": return (1, true);
+                    case "/ICCBased" when a.Elements.Count >= 2:
+                        var profile = a.Elements[1] is PdfReference r ? r.Value : a.Elements[1];
+                        if (profile is PdfDictionary pd && pd.Elements.ContainsKey("/N"))
+                        {
+                            int n = pd.Elements.GetInteger("/N");
+                            if (n is 1 or 3) return (n, true);
+                        }
+                        break;
+                }
+                break;
+        }
+        return (0, false);
+    }
+
+    /// <summary>Flate 예측기: 없거나 1(없음)이거나 PNG 계열(10 이상)이면 PDFsharp이 풀어 주고(길이는 호출자가 다시 확인한다), TIFF(2) 등은 풀지 못하므로 건드리지 않는다.</summary>
+    private static bool PredictorOk(PdfDictionary d)
+    {
+        var p = Resolved(d.Elements, "/DecodeParms");
+        if (p is PdfArray { Elements.Count: 1 } a) p = a.Elements[0] is PdfReference r ? r.Value : a.Elements[0];
+        if (p is null) return true;
+        if (p is not PdfDictionary dp) return false;
+        int predictor = dp.Elements.ContainsKey("/Predictor") ? dp.Elements.GetInteger("/Predictor") : 1;
+        return predictor == 1 || predictor >= 10;
     }
 
     private static SKBitmap? DecodeJpeg(byte[] jpeg, int w, int h)

@@ -119,6 +119,124 @@ public class ImageRecompressorTests : IDisposable
     }
 
     [Fact]
+    public void Recompress_ArrayColorSpace_IsSkippedNotThrown()
+    {
+        // 실제 PDF에서 흔한 /ColorSpace [/ICCBased …]·[/Indexed …]: 이름이 아니라 배열이다.
+        string src = P("indexed.pdf");
+        ImagePdfFactory.Create(src, new ImageSpec(600, 400, ImageKind.FlateRgb, 100, 66));
+        using var doc = Open(src);
+        var img = Images(doc).Single();
+        img.Elements["/ColorSpace"] = new PdfArray(doc, new PdfName("/Indexed"), new PdfName("/DeviceRGB"), new PdfInteger(255), new PdfString("x"));
+        long before = img.Stream!.Value.Length;
+        var stats = ImageRecompressor.Recompress(doc, Strongest, CancellationToken.None);
+        Assert.Equal(1, stats.Images);
+        Assert.Equal(1, stats.Skipped);
+        Assert.Equal(0, stats.Replaced);
+        Assert.Equal(before, Images(doc).Single().Stream!.Value.Length);
+    }
+
+    private static PdfArray IccBased(SharpDoc doc, int n)
+    {
+        var icc = new PdfDictionary(doc);
+        icc.Elements["/N"] = new PdfInteger(n);
+        icc.CreateStream(new byte[] { 0 });
+        doc.Internals.AddObject(icc);
+        return new PdfArray(doc, new PdfName("/ICCBased"), icc.Reference!);
+    }
+
+    [Fact]
+    public void Recompress_IccBasedRgb_IsRecompressed_ColorSpaceKept()
+    {
+        string src = P("icc3.pdf");
+        ImagePdfFactory.Create(src, new ImageSpec(800, 600, ImageKind.FlateRgb, 100, 75));
+        using var doc = Open(src);
+        var img = Images(doc).Single();
+        img.Elements["/ColorSpace"] = IccBased(doc, 3);
+        var stats = ImageRecompressor.Recompress(doc, Strongest, CancellationToken.None);
+        Assert.Equal(1, stats.Replaced);
+        var after = Images(doc).Single();
+        Assert.Equal("/DCTDecode", after.Elements.GetName("/Filter"));
+        Assert.IsType<PdfArray>(after.Elements["/ColorSpace"]);   // 프로필 배열은 그대로
+    }
+
+    [Fact]
+    public void Recompress_IccBasedGray_IsRecompressed_AsGrayJpeg()
+    {
+        string src = P("icc1.pdf");
+        ImagePdfFactory.Create(src, new ImageSpec(800, 600, ImageKind.FlateGray, 100, 75));
+        using var doc = Open(src);
+        Images(doc).Single().Elements["/ColorSpace"] = IccBased(doc, 1);
+        var stats = ImageRecompressor.Recompress(doc, Strongest, CancellationToken.None);
+        Assert.Equal(1, stats.Replaced);
+        Assert.IsType<PdfArray>(Images(doc).Single().Elements["/ColorSpace"]);
+    }
+
+    [Fact]
+    public void Recompress_IccBasedCmyk_IsSkipped()
+    {
+        string src = P("icc4.pdf");
+        ImagePdfFactory.Create(src, new ImageSpec(800, 600, ImageKind.FlateRgb, 100, 75));
+        using var doc = Open(src);
+        Images(doc).Single().Elements["/ColorSpace"] = IccBased(doc, 4);
+        Assert.Equal(1, ImageRecompressor.Recompress(doc, Strongest, CancellationToken.None).Skipped);
+    }
+
+    private static void SetPredicted(SharpDoc doc, PdfDictionary img, int predictor, int w, int h)
+    {
+        byte[] raw = img.Stream!.UnfilteredValue;   // w*h*3
+        int rowBytes = w * 3;
+        var predicted = new byte[h * (rowBytes + 1)];
+        for (int y = 0; y < h; y++)
+        {
+            predicted[y * (rowBytes + 1)] = 0;   // PNG 필터 0(없음)
+            Buffer.BlockCopy(raw, y * rowBytes, predicted, y * (rowBytes + 1) + 1, rowBytes);
+        }
+        using var ms = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(ms, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true)) z.Write(predicted);
+        img.Stream.Value = ms.ToArray();
+        var parms = new PdfDictionary(doc);
+        parms.Elements["/Predictor"] = new PdfInteger(predictor);
+        parms.Elements["/Colors"] = new PdfInteger(3);
+        parms.Elements["/BitsPerComponent"] = new PdfInteger(8);
+        parms.Elements["/Columns"] = new PdfInteger(w);
+        img.Elements["/DecodeParms"] = parms;
+    }
+
+    [Fact]
+    public void Recompress_FlateWithPngPredictor_IsRecompressed()
+    {
+        string src = P("png.pdf");
+        ImagePdfFactory.Create(src, new ImageSpec(600, 400, ImageKind.FlateRgb, 100, 66));
+        using var doc = Open(src);
+        SetPredicted(doc, Images(doc).Single(), 15, 600, 400);
+        var stats = ImageRecompressor.Recompress(doc, Strongest, CancellationToken.None);
+        Assert.Equal(1, stats.Replaced);
+        Assert.False(Images(doc).Single().Elements.ContainsKey("/DecodeParms"));
+    }
+
+    [Fact]
+    public void Recompress_FlateWithTiffPredictor_IsSkipped()
+    {
+        string src = P("tiff.pdf");
+        ImagePdfFactory.Create(src, new ImageSpec(600, 400, ImageKind.FlateRgb, 100, 66));
+        using var doc = Open(src);
+        SetPredicted(doc, Images(doc).Single(), 2, 600, 400);
+        Assert.Equal(1, ImageRecompressor.Recompress(doc, Strongest, CancellationToken.None).Skipped);
+    }
+
+    [Fact]
+    public void Recompress_ArrayFilter_IsSkippedNotThrown()
+    {
+        string src = P("filters.pdf");
+        ImagePdfFactory.Create(src, new ImageSpec(600, 400, ImageKind.FlateRgb, 100, 66));
+        using var doc = Open(src);
+        var img = Images(doc).Single();
+        img.Elements["/Filter"] = new PdfArray(doc, new PdfName("/ASCII85Decode"), new PdfName("/FlateDecode"));
+        var stats = ImageRecompressor.Recompress(doc, Strongest, CancellationToken.None);
+        Assert.Equal(1, stats.Skipped);
+    }
+
+    [Fact]
     public void Recompress_Cancelled_Throws()
     {
         string src = P("cancel.pdf");
