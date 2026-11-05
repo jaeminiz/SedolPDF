@@ -23,7 +23,7 @@
     <ProjectReference Include="..\PdfEditor.Pages\PdfEditor.Pages.csproj" />
     <ProjectReference Include="..\PdfEditor.Exchange\PdfEditor.Exchange.csproj" />
     <ProjectReference Include="..\PdfEditor.TextEdit\PdfEditor.TextEdit.csproj" />
-    <ProjectReference Include="..PdfEditor.OptimizePdfEditor.Optimize.csproj" />
+    <ProjectReference Include="..\PdfEditor.Optimize\PdfEditor.Optimize.csproj" />
   </ItemGroup>
 
   <ItemGroup>
