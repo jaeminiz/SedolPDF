@@ -6,6 +6,8 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 
 > **현재 공개 버전(v0.6.0)입니다.** 기본 기능은 쓸 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요. 문제나 제안은 [Issues](https://github.com/jaeminiz/SedolPDF/issues)에 남겨 주세요.
 
+[![Microsoft Store에서 받기](https://get.microsoft.com/images/ko%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
+
 ![주석 탭](docs/screenshots/03-annotate.png)
 
 ## 주요 기능
