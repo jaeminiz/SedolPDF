@@ -30,6 +30,30 @@ public class AnnotationReaderTests : IDisposable
         return AnnotationReader.Read(File.ReadAllBytes(p), null, [0])[0];
     }
 
+    private IReadOnlyList<OriginalAnnotation> ReadExternalStyle()
+    {
+        var p = P("external.pdf");
+        AnnotatedPdfFactory.CreateExternalStyle(p);
+        return AnnotationReader.Read(File.ReadAllBytes(p), null, [0])[0];
+    }
+
+    [Fact]
+    public void Read_FreeTextTypewriter_LowercaseW_IsEditableTypewriter()
+    {
+        var a = ReadExternalStyle()[1];   // Acrobat·PDF-XChange 철자
+        Assert.NotNull(a.Data);
+        Assert.Null(a.Info);
+        Assert.Equal(FreeTextIntent.Typewriter, a.Data.Intent);
+    }
+
+    [Fact]
+    public void Read_FreeTextTypewriter_UppercaseW_IsEditableTypewriter()
+    {
+        var a = ReadExternalStyle()[2];   // SedolPDF가 쓰는 철자
+        Assert.NotNull(a.Data);
+        Assert.Equal(FreeTextIntent.Typewriter, a.Data.Intent);
+    }
+
     [Fact]
     public void Read_ReadOnlyOriginals_CarryListInfo_PopupHasNone()
     {

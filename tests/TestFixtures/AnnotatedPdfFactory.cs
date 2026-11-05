@@ -211,6 +211,31 @@ public static class AnnotatedPdfFactory
         Save(doc, path);
     }
 
+    /// <summary>
+    /// 다른 편집기(Acrobat·PDF-XChange)가 만든 모양. /Annots 순서: [0] Square(/RD 0.5 네 변), [1] FreeText(/IT /FreeTextTypewriter, 소문자 w),
+    /// [2] FreeText(/IT /FreeTextTypeWriter, 대문자 W), [3] Circle(/RD 3 네 변).
+    /// </summary>
+    public static void CreateExternalStyle(string path)
+    {
+        using var doc = NewDoc(out var page);
+        var sq = Annot(doc, "Square", 100, 600, 300, 650, "1 0 0 RG 1 w 101 601 198 48 re S");
+        sq.Elements["/C"] = Nums(doc, 1, 0, 0);
+        sq.Elements["/RD"] = Nums(doc, 0.5, 0.5, 0.5, 0.5);
+        var ft1 = Annot(doc, "FreeText", 320, 600, 400, 620, "1 0 0 rg 320 600 80 20 re f");
+        ft1.Elements["/Contents"] = new PdfString("typewriter-a", PdfStringEncoding.Unicode);
+        ft1.Elements["/DA"] = new PdfString("1 0 0 rg /Helv 10 Tf");
+        ft1.Elements["/IT"] = new PdfName("/FreeTextTypewriter");
+        var ft2 = Annot(doc, "FreeText", 320, 560, 400, 580, "0 0 0 rg 320 560 80 20 re f");
+        ft2.Elements["/Contents"] = new PdfString("typewriter-b", PdfStringEncoding.Unicode);
+        ft2.Elements["/DA"] = new PdfString("0 0 0 rg /Helv 10 Tf");
+        ft2.Elements["/IT"] = new PdfName("/FreeTextTypeWriter");
+        var ci = Annot(doc, "Circle", 100, 500, 220, 560, "0 0 1 RG 1 w 103 503 114 54 re S");
+        ci.Elements["/C"] = Nums(doc, 0, 0, 1);
+        ci.Elements["/RD"] = Nums(doc, 3, 3, 3, 3);
+        SetAnnots(doc, page, [sq, ft1, ft2, ci]);
+        Save(doc, path);
+    }
+
     // ---- 주석 조각 ----
 
     private static PdfDictionary Link(PdfSharp.Pdf.PdfDocument doc)

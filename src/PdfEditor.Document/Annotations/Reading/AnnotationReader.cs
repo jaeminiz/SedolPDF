@@ -397,14 +397,13 @@ public static class AnnotationReader
     {
         FreeTextData Bad(ReadOnlyReason r) => new(r, rect, FreeTextIntent.TextBox, null, [], LineEnding.None, 12f, null, TextAlign.Left);
 
+        // 타자기 철자: 규격은 FreeTextTypeWriter, Acrobat·PDF-XChange는 FreeTextTypewriter로 쓴다 → 대소문자를 가리지 않는다.
         FreeTextIntent intent;
-        switch (e.GetName("/IT"))
-        {
-            case null or "": intent = FreeTextIntent.TextBox; break;
-            case "/FreeTextTypeWriter": intent = FreeTextIntent.Typewriter; break;
-            case "/FreeTextCallout": intent = FreeTextIntent.Callout; break;
-            default: return Bad(ReadOnlyReason.UnsupportedType);
-        }
+        string? it = e.GetName("/IT");
+        if (string.IsNullOrEmpty(it)) intent = FreeTextIntent.TextBox;
+        else if (string.Equals(it, "/FreeTextTypeWriter", StringComparison.OrdinalIgnoreCase)) intent = FreeTextIntent.Typewriter;
+        else if (it == "/FreeTextCallout") intent = FreeTextIntent.Callout;
+        else return Bad(ReadOnlyReason.UnsupportedType);
 
         var (size, color, stroke) = DefaultAppearance.Parse(Str(e, "/DA"));
         int rotation = AnnotationRotation.Quarter(Int(e, "/Rotate") ?? 0) * 90;
