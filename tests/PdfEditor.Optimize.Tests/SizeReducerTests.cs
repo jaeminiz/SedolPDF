@@ -84,6 +84,33 @@ public sealed class SizeReducerTests : IDisposable
     }
 
     [Fact]
+    public async Task Reduce_FileBloatedByIncrementalUpdate_CopyAlreadyFits_WritesTheCopy()
+    {
+        // 디스크의 파일은 증분 저장으로 부풀어 목표를 넘지만, 다시 쓴 사본은 목표 안이다 → "이미 작다"가 아니라 사본을 저장한다.
+        string baseline = P("base.pdf");
+        ImagePdfFactory.Create(baseline, new ImageSpec(400, 300, ImageKind.FlateRgb, 200, 150));
+        string src = P("bloated.pdf");
+        File.WriteAllBytes(src, PdfAppend.UnreferencedObject(File.ReadAllBytes(baseline), 300_000));
+        await using var s = await OpenAsync(src);
+        string probe = P("probe.tmp.pdf");
+        await new OutputCopyBuilder(null, null, null).BuildAsync(s, probe);
+        long copyBytes = new FileInfo(probe).Length;
+        long srcBytes = new FileInfo(src).Length;
+        File.Delete(probe);
+        Assert.True(copyBytes + 100_000 < srcBytes, $"PDFium's copy should drop the unreferenced object: {copyBytes} vs {srcBytes}");
+
+        string target = P("bloated_small.pdf");
+        var r = await NewReducer().ReduceAsync(s, target, copyBytes + 1000, ReduceMode.Images, null, CancellationToken.None);
+        Assert.False(r.AlreadySmallEnough);
+        Assert.True(r.Achieved);
+        Assert.Equal(-1, r.Level);
+        Assert.Equal(srcBytes, r.OriginalBytes);
+        Assert.True(File.Exists(target));
+        Assert.True(new FileInfo(target).Length <= copyBytes + 1000);
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    [Fact]
     public async Task Reduce_VectorOnly_NotAchieved_PendingSet_TargetNotCreated()
     {
         string src = P("blank.pdf");

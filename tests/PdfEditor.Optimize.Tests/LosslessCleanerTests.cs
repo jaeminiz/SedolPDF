@@ -39,34 +39,12 @@ public class LosslessCleanerTests : IDisposable
         return doc.PageCount;
     }
 
-    /// <summary>Acrobat처럼 증분 저장을 흉내: 끝에 어디서도 참조하지 않는 큰 스트림 객체와 새 xref·trailer를 덧붙인다.</summary>
-    private static byte[] AppendUnreferencedObject(byte[] pdf, int junkBytes)
-    {
-        string text = System.Text.Encoding.Latin1.GetString(pdf);
-        int sx = text.LastIndexOf("startxref", StringComparison.Ordinal);
-        long prev = long.Parse(System.Text.RegularExpressions.Regex.Match(text[(sx + 9)..], @"\d+").Value);
-        string trailer = text[text.LastIndexOf("trailer", StringComparison.Ordinal)..];
-        int size = int.Parse(System.Text.RegularExpressions.Regex.Match(trailer, @"/Size\s+(\d+)").Groups[1].Value);
-        string root = System.Text.RegularExpressions.Regex.Match(trailer, @"/Root\s+(\d+ \d+ R)").Groups[1].Value;
-
-        using var ms = new MemoryStream();
-        ms.Write(pdf);
-        long objOffset = ms.Length + 1;
-        void W(string s) => ms.Write(System.Text.Encoding.Latin1.GetBytes(s));
-        W($"\n{size} 0 obj\n<< /Length {junkBytes} >>\nstream\n");
-        ms.Write(new byte[junkBytes].Select((_, i) => (byte)(i * 31 % 251)).ToArray());
-        W("\nendstream\nendobj\n");
-        long xrefOffset = ms.Length;
-        W($"xref\n{size} 1\n{objOffset:D10} 00000 n \ntrailer\n<< /Size {size + 1} /Root {root} /Prev {prev} >>\nstartxref\n{xrefOffset}\n%%EOF\n");
-        return ms.ToArray();
-    }
-
     [Fact]
     public void Clean_DropsUnreferencedObjects_FromIncrementalUpdates()
     {
         string src = P("src.pdf");
         ImagePdfFactory.Create(src, new ImageSpec(200, 150, ImageKind.FlateRgb, 200, 150));
-        byte[] before = AppendUnreferencedObject(File.ReadAllBytes(src), 200_000);
+        byte[] before = PdfAppend.UnreferencedObject(File.ReadAllBytes(src), 200_000);
         Assert.Equal(1, PageCount(before));   // 덧붙인 파일도 열린다
         byte[] after = LosslessCleaner.Clean(before);
         Assert.True(after.Length < before.Length - 150_000, $"unreferenced object should be dropped: {before.Length} -> {after.Length}");

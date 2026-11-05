@@ -41,9 +41,18 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
             ct.ThrowIfCancellationRequested();
             progress?.Report(new ReduceProgress("copy", 0));
             await builder.BuildAsync(s, copy, ct).ConfigureAwait(false);
-            long original = new FileInfo(copy).Length;
-            if (original <= targetBytes)
-                return new ReduceResult(true, true, original, original, original, mode, 0, null);
+            long copyBytes = new FileInfo(copy).Length;
+            bool hasFile = s.FilePath is { } sp && File.Exists(sp);
+            long fileBytes = hasFile ? new FileInfo(s.FilePath!).Length : copyBytes;
+            long original = Math.Max(fileBytes, copyBytes);
+            if (copyBytes <= targetBytes)
+            {
+                // 디스크의 파일도 목표 이하면 줄일 필요가 없다. 파일은 크지만(증분 저장으로 쌓인 옛 객체 등) 다시 쓴 사본이 목표 안이면 그 사본이 곧 결과다.
+                if (fileBytes <= targetBytes)
+                    return new ReduceResult(true, true, original, original, original, mode, 0, null);
+                File.Move(copy, target, overwrite: true);
+                return new ReduceResult(false, true, original, copyBytes, copyBytes, mode, -1, null);
+            }
 
             var result = await Task.Run(() => mode == ReduceMode.Images
                 ? RunImages(s, copy, target, pending, targetBytes, original, progress, ct)
