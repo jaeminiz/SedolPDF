@@ -185,6 +185,24 @@
   <data name="Dlg_PasswordRetry" xml:space="preserve"><value>Wrong password. Please try again.</value></data>
   <data name="Dlg_Ok" xml:space="preserve"><value>OK</value></data>
   <data name="Dlg_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Cmd_SaveOther" xml:space="preserve"><value>Save in another format</value></data>
+  <data name="Cmd_ReduceSize" xml:space="preserve"><value>Save with reduced size…</value></data>
+  <data name="Dlg_ReduceTitle" xml:space="preserve"><value>Save with reduced size</value></data>
+  <data name="Dlg_ReduceTarget" xml:space="preserve"><value>Target size (MB)</value></data>
+  <data name="Dlg_ReduceCurrent" xml:space="preserve"><value>Current size: {0}</value></data>
+  <data name="Dlg_ReduceHint" xml:space="preserve"><value>For email, 16 MB or less is recommended.</value></data>
+  <data name="Dlg_ReduceInvalid" xml:space="preserve"><value>Enter a number from 1 to 2000.</value></data>
+  <data name="Doc_ReduceSuggestedName" xml:space="preserve"><value>{0}_reduced.pdf</value></data>
+  <data name="Msg_ReduceProgress" xml:space="preserve"><value>Reducing… {0}%</value></data>
+  <data name="Msg_ReduceAlready" xml:space="preserve"><value>Already small enough ({0}). Nothing was saved.</value></data>
+  <data name="Msg_ReduceDone" xml:space="preserve"><value>Reduced from {0} to {1}.</value></data>
+  <data name="Msg_ReduceNotAchieved" xml:space="preserve"><value>Even at the smallest setting the file is {0}. The target is {1}.</value></data>
+  <data name="Msg_ReduceFewImages" xml:space="preserve"><value>There are few images, so it cannot be reduced further.</value></data>
+  <data name="Btn_ReduceKeep" xml:space="preserve"><value>Save as is</value></data>
+  <data name="Btn_ReduceRasterize" xml:space="preserve"><value>Convert to images and save</value></data>
+  <data name="Msg_ReduceRasterWarn" xml:space="preserve"><value>Pages become images, so text selection, search, links and annotations are lost. Continue?</value></data>
+  <data name="Msg_ReduceEncrypted" xml:space="preserve"><value>Password-protected documents are not supported yet.</value></data>
+  <data name="Msg_ReduceSameFile" xml:space="preserve"><value>Save with a file name different from the original.</value></data>
   <data name="Dlg_Save" xml:space="preserve"><value>Save</value></data>
   <data name="Dlg_Discard" xml:space="preserve"><value>Don&apos;t Save</value></data>
   <data name="Dlg_UnsavedTitle" xml:space="preserve"><value>Save Changes</value></data>

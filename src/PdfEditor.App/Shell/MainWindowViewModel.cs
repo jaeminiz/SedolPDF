@@ -117,6 +117,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private IPrintService? _printService;
     private AsyncRelayCommand _printCommand = null!;
     private AsyncRelayCommand _newCommand = null!, _openCommand = null!, _saveCommand = null!, _saveAsCommand = null!, _closeActiveCommand = null!;
+    private AsyncRelayCommand _reduceSizeCommand = null!;
+    private ReduceSizeWorkflow? _reduceSize;
     public IRelayCommand<string> SelectRibbonTabCommand { get; }
 
     /// <summary>끝내기 명령이 실행되면 창이 닫는다.</summary>
@@ -330,6 +332,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _openCommand.NotifyCanExecuteChanged();
         _saveCommand.NotifyCanExecuteChanged();
         _saveAsCommand.NotifyCanExecuteChanged();
+        _reduceSizeCommand.NotifyCanExecuteChanged();
         _closeActiveCommand.NotifyCanExecuteChanged();
         _printCommand.NotifyCanExecuteChanged();
     }
@@ -488,6 +491,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (_workflow is null || ActiveDocument?.Session is not { } s) return;
         await _workflow.SaveAsAsync(s);
         ActiveDocument?.RefreshTitle();
+    }
+
+    /// <summary>"용량 줄여 저장"을 연결한다(창이 만든다).</summary>
+    public void AttachReduceSize(ReduceSizeWorkflow workflow)
+    {
+        _reduceSize = workflow;
+        NotifyFileCommands();
+    }
+
+    private async Task ReduceSizeActiveAsync()
+    {
+        if (_reduceSize is null || ActiveDocument?.Session is not { } s) return;
+        try { await _reduceSize.RunAsync(s); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { await ShowErrorAsync(ex); }
     }
 
     /// <summary>
@@ -739,6 +756,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Reg("file.open", Strings.Cmd_Open, "open", G(Key.O), _openCommand);
         Reg("file.save", Strings.Cmd_Save, "save", G(Key.S), _saveCommand);
         Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift), _saveAsCommand);
+        _reduceSizeCommand = new AsyncRelayCommand(ReduceSizeActiveAsync, () => _reduceSize is not null && ActiveDocument?.Session is not null);
+        Reg("file.reduceSize", Strings.Cmd_ReduceSize, "save", null, _reduceSizeCommand);
         _printCommand = new AsyncRelayCommand(PrintActiveAsync, CanPrintActive);
         Reg("file.print", Strings.Cmd_Print, "print", G(Key.P), _printCommand);
         Reg("file.prefs", Strings.Cmd_Preferences, null, null, new RelayCommand(() => PreferencesRequested?.Invoke(this, EventArgs.Empty)));

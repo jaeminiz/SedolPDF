@@ -97,6 +97,8 @@ public sealed partial class MainWindow : Window
         var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance, patcher, services.Assets), _settings, prompts);
         _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher, services.Assets));
+        _vm.AttachReduceSize(new ReduceSizeWorkflow(new AvaloniaReduceSizeDialogs(this), prompts,
+            new PdfEditor.Optimize.SizeReducer(new PdfEditor.Document.Output.OutputCopyBuilder(appearance, patcher, services.Assets))));
         _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance, patcher, services.Assets), _settings,
             new AvaloniaRecoveryUi(this), prompts);
         _recovery.Attach(workflow);
@@ -187,6 +189,9 @@ public sealed partial class MainWindow : Window
         flyout.Items.Add(new Separator());
         flyout.Items.Add(Item("file.save"));
         flyout.Items.Add(Item("file.saveAs"));
+        var saveOther = new MenuItem { Header = Strings.Cmd_SaveOther };
+        saveOther.Items.Add(Item("file.reduceSize"));
+        flyout.Items.Add(saveOther);
         flyout.Items.Add(new Separator());
         var printItem = Item("file.print");
         ToolTip.SetShowOnDisabled(printItem, true);

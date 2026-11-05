@@ -1,0 +1,26 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:res="using:PdfEditor.App.Resources"
+        x:Class="PdfEditor.App.Dialogs.ReduceTargetDialog"
+        Title="{x:Static res:Strings.Dlg_ReduceTitle}"
+        SizeToContent="Height" Width="420"
+        CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="#F3F3F3">
+  <StackPanel Margin="{DynamicResource InsetDialog}" Spacing="{DynamicResource Space12}">
+    <TextBlock x:Name="CurrentText" TextWrapping="Wrap" Foreground="#1A1A1A" IsVisible="False" />
+    <TextBlock Text="{x:Static res:Strings.Dlg_ReduceTarget}" Foreground="#1A1A1A" />
+    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource Space8}">
+      <TextBox x:Name="SizeBox" Width="110" Text="16" />
+      <Button x:Name="Preset8" MinWidth="64" Content="8 MB" />
+      <Button x:Name="Preset16" MinWidth="64" Content="16 MB" />
+      <Button x:Name="Preset20" MinWidth="64" Content="20 MB" />
+    </StackPanel>
+    <TextBlock TextWrapping="Wrap" Foreground="#555555" Text="{x:Static res:Strings.Dlg_ReduceHint}" />
+    <TextBlock x:Name="InvalidText" TextWrapping="Wrap" Foreground="#C42B1C" IsVisible="False"
+               Text="{x:Static res:Strings.Dlg_ReduceInvalid}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}" Margin="0,8,0,0">
+      <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Ok}" />
+      <Button x:Name="CancelButton" IsCancel="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Cancel}" />
+    </StackPanel>
+  </StackPanel>
+</Window>
