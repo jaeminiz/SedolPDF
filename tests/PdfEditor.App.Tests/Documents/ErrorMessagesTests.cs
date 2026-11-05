@@ -8,6 +8,13 @@ namespace PdfEditor.App.Tests.Documents;
 public class ErrorMessagesTests
 {
     [Fact]
+    public void ErrorMessages_ReduceVerificationFailure_HasItsOwnMessage()
+    {
+        Assert.Equal(Strings.Err_ReduceVerify, ErrorMessages.For(new PdfEditor.Optimize.ReduceVerificationException()));
+        Assert.NotEqual(Strings.Err_Unexpected, Strings.Err_ReduceVerify);
+    }
+
+    [Fact]
     public void ErrorMessages_MapsCodesAndStages()
     {
         Assert.Equal(Strings.Err_Pdfium_3, ErrorMessages.For(new PdfiumException(3, "dev")));

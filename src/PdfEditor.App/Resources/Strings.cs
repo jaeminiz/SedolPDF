@@ -231,6 +231,7 @@ public static class Strings
     public static string Msg_ReduceRasterWarn => Get(nameof(Msg_ReduceRasterWarn));
     public static string Msg_ReduceEncrypted => Get(nameof(Msg_ReduceEncrypted));
     public static string Msg_ReduceSameFile => Get(nameof(Msg_ReduceSameFile));
+    public static string Err_ReduceVerify => Get(nameof(Err_ReduceVerify));
     public static string Dlg_Save => Get(nameof(Dlg_Save));
     public static string Dlg_Discard => Get(nameof(Dlg_Discard));
     public static string Dlg_UnsavedTitle => Get(nameof(Dlg_UnsavedTitle));

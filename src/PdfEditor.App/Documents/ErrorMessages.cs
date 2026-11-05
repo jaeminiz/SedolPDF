@@ -33,6 +33,7 @@ public static class ErrorMessages
         },
         PdfEditor.Exchange.Xfdf.XfdfFormatException { Failure: PdfEditor.Exchange.Xfdf.XfdfFailure.TooLarge } => Strings.Err_XfdfTooLarge,
         PdfEditor.Exchange.Xfdf.XfdfFormatException => Strings.Err_XfdfInvalid,
+        PdfEditor.Optimize.ReduceVerificationException => Strings.Err_ReduceVerify,
         UnauthorizedAccessException => Strings.Err_AccessDenied,
         FileNotFoundException or DirectoryNotFoundException => Strings.Err_Pdfium_2,
         _ => Strings.Err_Unexpected,

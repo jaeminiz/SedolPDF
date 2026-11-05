@@ -203,6 +203,7 @@
   <data name="Msg_ReduceRasterWarn" xml:space="preserve"><value>쪽이 이미지로 바뀌어 글자 선택·검색·링크·주석이 사라집니다. 계속할까요?</value></data>
   <data name="Msg_ReduceEncrypted" xml:space="preserve"><value>암호가 있는 문서는 아직 지원하지 않습니다.</value></data>
   <data name="Msg_ReduceSameFile" xml:space="preserve"><value>원본과 다른 파일 이름으로 저장하세요.</value></data>
+  <data name="Err_ReduceVerify" xml:space="preserve"><value>줄인 파일이 원본과 달라 보여 저장하지 않았습니다. 목표 용량을 높여 다시 시도해 보세요.</value></data>
   <data name="Dlg_Save" xml:space="preserve"><value>저장</value></data>
   <data name="Dlg_Discard" xml:space="preserve"><value>저장 안 함</value></data>
   <data name="Dlg_UnsavedTitle" xml:space="preserve"><value>변경 내용 저장</value></data>

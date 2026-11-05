@@ -33,11 +33,7 @@ public static class Rasterizer
                 {
                     using var page = src.LoadPage(index);
                     var size = page.SizePt;
-                    double scale = level.MaxDpi / 72.0;
-                    long px = (long)Math.Ceiling(size.Width * scale) * (long)Math.Ceiling(size.Height * scale);
-                    if (px > MaxPixels) scale *= Math.Sqrt((double)MaxPixels / px);
-                    int pw = Math.Max(1, (int)Math.Ceiling(size.Width * scale));
-                    int ph = Math.Max(1, (int)Math.Ceiling(size.Height * scale));
+                    var (scale, pw, ph) = PixelSize(size.Width, size.Height, level.MaxDpi);
                     return (size.Width, size.Height, pw, ph, Pixels: page.RenderTile(scale, 0, 0, pw, ph, true));
                 }, ct).GetAwaiter().GetResult();
 
@@ -48,6 +44,15 @@ public static class Rasterizer
             outDoc.Save(outPath);
         }
         finally { src.Dispose(); }
+    }
+
+    /// <summary>쪽(pt)을 dpi로 그릴 때의 배율과 화소 크기. 쪽이 너무 크면(MaxPixels) 배율을 낮춘다. 검증(OutputVerifier)이 같은 값을 써서 같은 배율로 비교한다.</summary>
+    internal static (double Scale, int Width, int Height) PixelSize(double widthPt, double heightPt, int dpi)
+    {
+        double scale = dpi / 72.0;
+        long px = (long)Math.Ceiling(widthPt * scale) * (long)Math.Ceiling(heightPt * scale);
+        if (px > MaxPixels) scale *= Math.Sqrt((double)MaxPixels / px);
+        return (scale, Math.Max(1, (int)Math.Ceiling(widthPt * scale)), Math.Max(1, (int)Math.Ceiling(heightPt * scale)));
     }
 
     private static byte[] EncodeJpeg(byte[] bgra, int w, int h, int quality)

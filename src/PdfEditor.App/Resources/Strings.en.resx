@@ -203,6 +203,7 @@
   <data name="Msg_ReduceRasterWarn" xml:space="preserve"><value>Pages become images, so text selection, search, links and annotations are lost. Continue?</value></data>
   <data name="Msg_ReduceEncrypted" xml:space="preserve"><value>Password-protected documents are not supported yet.</value></data>
   <data name="Msg_ReduceSameFile" xml:space="preserve"><value>Save with a file name different from the original.</value></data>
+  <data name="Err_ReduceVerify" xml:space="preserve"><value>The reduced file does not look like the original, so it was not saved. Try a larger target size.</value></data>
   <data name="Dlg_Save" xml:space="preserve"><value>Save</value></data>
   <data name="Dlg_Discard" xml:space="preserve"><value>Don&apos;t Save</value></data>
   <data name="Dlg_UnsavedTitle" xml:space="preserve"><value>Save Changes</value></data>

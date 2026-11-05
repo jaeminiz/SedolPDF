@@ -137,8 +137,8 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
         ReduceMode mode, long original, IProgress<ReduceProgress>? progress)
     {
         progress?.Report(new ReduceProgress("verify", 0.9));
-        if (!OutputVerifier.Verify(s.Thread, copy, pending, null))
-            throw new InvalidOperationException("The reduced file does not look like the original.");
+        if (!OutputVerifier.Verify(s.Thread, copy, pending, null, mode == ReduceMode.Raster ? SizeLadder.Raster[level].MaxDpi : null))
+            throw new ReduceVerificationException();
         long size = new FileInfo(pending).Length;
         if (search.Level is null)
             return new ReduceResult(false, false, original, size, search.BytesAtStrongest, mode, level, pending);
