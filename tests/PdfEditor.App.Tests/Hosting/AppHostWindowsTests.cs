@@ -83,6 +83,29 @@ public sealed class AppHostWindowsTests : IDisposable
     }
 
     [Fact]
+    public void OpenAsync_SessionOwnedByOtherWindow_RevealsThatWindow()
+    {
+        string a = _scope.File("a.pdf");
+        TestPdfFactory.CreateBlank(a, 1, 595, 842);
+        Run(host =>
+        {
+            var w1 = host.CreateWindow(null);
+            var t = w1.ViewModel.OpenAsync(a);
+            PumpUntil(() => t.IsCompleted);
+            var session = w1.ViewModel.ActiveDocument!.Session;
+            var w2 = host.CreateWindow(w1);
+            Assert.Same(w2, host.Registry.LastActive);
+            t = w2.ViewModel.OpenAsync(a);
+            PumpUntil(() => t.IsCompleted);
+            t.GetAwaiter().GetResult();
+            Assert.Empty(w2.ViewModel.Documents);
+            Assert.Single(w1.ViewModel.Documents);
+            Assert.Same(session, w1.ViewModel.ActiveDocument!.Session);
+            Assert.Same(w1, host.Registry.LastActive);
+        });
+    }
+
+    [Fact]
     public void OpenExternal_GoesToLastActiveWindow()
     {
         string a = _scope.File("a.pdf");

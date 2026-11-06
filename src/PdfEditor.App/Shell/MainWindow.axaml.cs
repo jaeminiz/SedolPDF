@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window, IHostWindow
     {
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
+        _host.Registry.MarkActivated(this);   // 활성화 알림이 늦게 와도 대화상자 부모·외부 파일이 이 창을 따르게
     }
     private readonly AppHost _host;   // 앱 공유 서비스(PDFium 스레드·설정·파일 작업·복구)
     private bool _exitConfirmed;
@@ -119,6 +120,13 @@ public sealed partial class MainWindow : Window, IHostWindow
         AddHandler(DragDrop.DropEvent, OnDrop);
 
         _vm.NewWindowRequested += (_, _) => _host.CreateWindow(this);
+        // 한 파일은 앱 전체에서 한 번만 열린다: 다른 창 탭이면 그 창을 앞으로 가져와 그 탭을 보인다.
+        _vm.RevealElsewhere = s =>
+        {
+            if (_host.Registry.FindOwner(s) is not MainWindow w || w == this) return false;
+            w.BringToFront();
+            return w.ViewModel.SelectSession(s);
+        };
         _vm.ExitRequested += async (_, _) => await _host.ExitAllAsync();
         // 마지막 탭을 닫아 빈 창이 되면: 다른 창이 있으면 이 창도 닫는다. 창이 하나뿐이면 빈 화면으로 남는다(설계 4.4 A안).
         _vm.BecameEmpty += (_, _) => { if (_host.Registry.Count > 1) Close(); };

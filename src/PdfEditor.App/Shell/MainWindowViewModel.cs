@@ -389,12 +389,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (session is not null) Activate(session);
     }
 
+    /// <summary>
+    /// 세션이 이 창 탭에 없을 때 먼저 부른다. 다른 창이 그 세션을 갖고 있으면 그 창이 앞으로 나와 탭을 보이고 true(그러면 탭을 만들지 않는다).
+    /// 창이 채운다. 없으면 늘 이 창에 탭을 만든다.
+    /// </summary>
+    public Func<PdfEditor.Document.DocumentSession, bool>? RevealElsewhere { get; set; }
+
+    /// <summary>이 창에 그 세션의 탭이 있으면 활성화하고 true.</summary>
+    public bool SelectSession(PdfEditor.Document.DocumentSession session)
+    {
+        if (Documents.FirstOrDefault(d => ReferenceEquals(d.Session, session)) is not { } tab) return false;
+        ActiveDocument = tab;
+        return true;
+    }
+
     /// <summary>다른 곳에서 열린 세션(복구 등)을 탭으로 보여 준다.</summary>
     public void ShowSession(PdfEditor.Document.DocumentSession session) => Activate(session);
 
     private void Activate(PdfEditor.Document.DocumentSession session)
     {
         var tab = Documents.FirstOrDefault(d => ReferenceEquals(d.Session, session));
+        if (tab is null && RevealElsewhere?.Invoke(session) == true) return;   // 다른 창에 이미 열린 파일: 그 창을 앞으로
         if (tab is null)
         {
             tab = new DocumentTabViewModel(session, session.DisplayName, _post);
