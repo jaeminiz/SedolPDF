@@ -28,6 +28,7 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
         IProgress<ReduceProgress>? progress, CancellationToken ct)
     {
         if (s.IsEncrypted) throw new NotSupportedException("Encrypted documents are not supported.");
+        targetBytes += targetBytes / 20;   // 목표의 5%까지는 허용한다(16MB 목표면 16.8MB). 첨부 한도에는 여유가 있고, 허용하지 않으면 글자를 뭉개야만 맞는 파일이 생긴다.
         string target = Path.GetFullPath(targetPath);
         if (s.FilePath is { } fp && string.Equals(Path.GetFullPath(fp), target, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("The target must differ from the source file.", nameof(targetPath));

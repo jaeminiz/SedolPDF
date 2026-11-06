@@ -1,5 +1,6 @@
 using PdfEditor.TestFixtures;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
 
 namespace PdfEditor.Optimize.Tests;
@@ -64,5 +65,56 @@ public class LosslessCleanerTests : IDisposable
         byte[] after = LosslessCleaner.Clean(before);
         Assert.Equal(3, PageCount(after));
         Assert.Equal(ImageObjectCount(before), ImageObjectCount(after));
+    }
+}
+
+public class ContentRecompressionTests
+{
+    private static byte[] Deflate(byte[] raw, System.IO.Compression.CompressionLevel level)
+    {
+        using var ms = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(ms, level, true)) z.Write(raw);
+        return ms.ToArray();
+    }
+
+    private static string Commands(int seed, int count)
+    {
+        var rnd = new Random(seed);
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < count; i++) sb.Append($"{rnd.Next(0, 500)}.{rnd.Next(10, 99)} {rnd.Next(0, 700)}.{rnd.Next(10, 99)} m {rnd.Next(0, 500)} 100 l S\n");
+        return sb.ToString();
+    }
+
+    private static byte[] TwoWeaklyCompressedStreams(string a, string b)
+    {
+        using var doc = new PdfDocument();
+        var page = doc.AddPage();
+        foreach (var text in new[] { a, b })
+        {
+            var c = page.Contents.AppendContent();
+            c.Elements.SetName("/Filter", "/FlateDecode");
+            c.CreateStream(Deflate(System.Text.Encoding.ASCII.GetBytes(text), System.IO.Compression.CompressionLevel.Fastest));
+        }
+        doc.Options.CompressContentStreams = false;
+        using var o = new MemoryStream();
+        doc.Save(o, closeStream: false);
+        return o.ToArray();
+    }
+
+    [Fact]
+    public void Clean_MergesPageContentsAndRecompressesSmaller_WithSameCommands()
+    {
+        string a = Commands(1, 4000), b = Commands(2, 4000);
+        byte[] before = TwoWeaklyCompressedStreams(a, b);
+        byte[] after = LosslessCleaner.Clean(before);
+
+        Assert.True(after.Length < before.Length * 0.97, $"{before.Length} -> {after.Length}");
+        using var ms = new MemoryStream(after);
+        using var doc = PdfReader.Open(ms, PdfDocumentOpenMode.Import);
+        var contents = doc.Pages[0].Contents;
+        Assert.Single(contents.Elements.Items);
+        string decoded = System.Text.Encoding.ASCII.GetString(((PdfDictionary)((PdfReference)contents.Elements.Items[0]).Value).Stream.UnfilteredValue);
+        string[] expected = (a + b).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(expected, decoded.Split('\n', StringSplitOptions.RemoveEmptyEntries));
     }
 }

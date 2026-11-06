@@ -14,9 +14,9 @@ public class SizeLadderTests
         Assert.Equal(5, SizeLadder.Image.Count);
         Assert.Equal(new LadderLevel(300, 85), SizeLadder.Image[0]);
         Assert.Equal(new LadderLevel(96, 45), SizeLadder.Image[^1]);
-        Assert.Equal(4, SizeLadder.Raster.Count);
-        Assert.Equal(new LadderLevel(150, 70), SizeLadder.Raster[0]);
-        Assert.Equal(new LadderLevel(72, 40), SizeLadder.Raster[^1]);
+        Assert.Equal(3, SizeLadder.Raster.Count);
+        Assert.Equal(new LadderLevel(200, 75), SizeLadder.Raster[0]);
+        Assert.Equal(new LadderLevel(120, 55), SizeLadder.Raster[^1]);
         foreach (var ladder in new[] { SizeLadder.Image, SizeLadder.Raster })
             for (int i = 1; i < ladder.Count; i++)
             {

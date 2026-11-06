@@ -16,9 +16,9 @@ public static class SizeLadder
     public static IReadOnlyList<LadderLevel> Image { get; } =
         [new(300, 85), new(200, 80), new(150, 70), new(120, 60), new(96, 45)];
 
-    /// <summary>래스터화(쪽을 이미지로 바꿈) 단계. 쪽 전체를 이 dpi로 그린다.</summary>
+    /// <summary>래스터화(쪽을 이미지로 바꿈) 단계. 쪽 전체를 이 dpi로 그린다. 글자가 읽히려면 120dpi 밑으로는 내리지 않는다.</summary>
     public static IReadOnlyList<LadderLevel> Raster { get; } =
-        [new(150, 70), new(120, 60), new(96, 50), new(72, 40)];
+        [new(200, 75), new(150, 65), new(120, 55)];
 
     /// <summary>
     /// 단계가 클수록 결과가 작아진다고 보고, 목표 이하인 가장 약한 단계를 찾는다. measureBytes(i)는 단계 i를 실제로 적용한 결과 크기이며
