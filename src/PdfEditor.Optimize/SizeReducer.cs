@@ -91,13 +91,14 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
 
         int n = SizeLadder.Image.Count;
         var outputs = new Dictionary<int, byte[]>();
+        var bilevelCache = new BilevelCache();
         long Measure(int i)
         {
             ct.ThrowIfCancellationRequested();
             progress?.Report(new ReduceProgress("images", 0.2 + 0.6 * i / n));
             using var input = new MemoryStream(cleaned, writable: false);
             using var doc = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
-            ImageRecompressor.Recompress(doc, SizeLadder.Image[i], ct);
+            ImageRecompressor.Recompress(doc, SizeLadder.Image[i], ct, s.Thread, bilevelCache);
             doc.Options.CompressContentStreams = true;
             using var o = new MemoryStream();
             doc.Save(o, closeStream: false);

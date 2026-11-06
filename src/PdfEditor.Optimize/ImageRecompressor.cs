@@ -19,7 +19,10 @@ public sealed record RecompressStats(int Images, int Replaced, int Skipped, long
 /// </summary>
 public static class ImageRecompressor
 {
-    public static RecompressStats Recompress(PdfSharp.Pdf.PdfDocument doc, LadderLevel level, CancellationToken ct)
+    /// <param name="thread">주면 1비트 흑백 스캔 이미지도 줄인다(PDFium으로 풀어 JBIG2로 다시 압축). 없으면 건드리지 않는다.</param>
+    /// <param name="cache">단계를 바꿔 다시 부를 때 1비트 이미지 결과를 재사용한다.</param>
+    public static RecompressStats Recompress(PdfSharp.Pdf.PdfDocument doc, LadderLevel level, CancellationToken ct,
+        Pdf.Native.PdfiumThread? thread = null, BilevelCache? cache = null)
     {
         var candidates = new Dictionary<int, Candidate>();
         foreach (PdfPage page in doc.Pages)
@@ -41,6 +44,26 @@ public static class ImageRecompressor
             if (loaded.Data is not null) ObservePlacements(ContentLexer.Parse(loaded.Data), byName);
         }
 
+        var bilevel = new Dictionary<Candidate, int>();   // 1비트 후보 → 축소 배율
+        if (thread is not null)
+        {
+            cache ??= new BilevelCache();
+            var todo = new List<(Candidate C, int Obj, int Factor, byte[] Pdf)>();
+            foreach (var (num, c) in candidates)
+            {
+                if (!BilevelRecompressor.IsCandidate(c.Dict)) continue;
+                int factor = BilevelRecompressor.Factor(c.MaxDpi, level.MaxDpi);
+                bilevel[c] = factor;
+                if (!cache.Results.ContainsKey((num, factor))) todo.Add((c, num, factor, BilevelRecompressor.BuildTempPdf(c.Dict)));
+            }
+            var gate = new SemaphoreSlim(2);   // 큰 그림을 한꺼번에 많이 그리지 않는다(메모리)
+            Parallel.ForEach(todo, new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) }, item =>
+            {
+                var e = item.C.Dict.Elements;
+                cache.Results[(item.Obj, item.Factor)] = BilevelRecompressor.Compute(thread, item.Pdf, e.GetInteger("/Width"), e.GetInteger("/Height"), item.Factor, gate, ct);
+            });
+        }
+
         long before = 0, after = 0;
         int replaced = 0, skipped = 0;
         foreach (var c in candidates.Values)
@@ -49,6 +72,22 @@ public static class ImageRecompressor
             if (c.Dict.Stream is not { } stream) { skipped++; continue; }
             long oldLen = stream.Value.Length;
             before += oldLen;
+            if (bilevel.TryGetValue(c, out int bf))
+            {
+                var br = cache!.Results.GetValueOrDefault((c.Dict.Reference!.ObjectNumber, bf));
+                if (br is null || br.Jbig2.Length >= oldLen) { skipped++; after += oldLen; continue; }
+                var be = c.Dict.Elements;
+                stream.Value = br.Jbig2;
+                be.SetName("/Filter", "/JBIG2Decode");
+                be.SetInteger("/Width", br.Width);
+                be.SetInteger("/Height", br.Height);
+                be.SetName("/ColorSpace", "/DeviceGray");
+                be.SetInteger("/BitsPerComponent", 1);
+                be.Remove("/DecodeParms");
+                replaced++;
+                after += br.Jbig2.Length;
+                continue;
+            }
             var result = TryRecompress(c, stream, level);
             if (result is null || result.Jpeg.Length >= oldLen) { skipped++; after += oldLen; continue; }
             var e = c.Dict.Elements;
