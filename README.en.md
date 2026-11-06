@@ -33,7 +33,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 - Move, resize and delete images and shapes; add new text, images and shapes; multi-select.
 
 **Reducing file size**
-- File → Save in another format → Save with reduced size: enter a target size (MB) and the images are recompressed into a new file at or below it (for email; default 16 MB). Text, vector graphics and annotations are untouched. If the target cannot be met you can save as is, or convert pages to images (text, links and annotations are lost) to reach it. The original is never changed.
+- File → Save in another format → Save with reduced size: enter a target size (MB) and the images are recompressed into a new file at or below it (for email; default 16 MB). Text, vector graphics and annotations are untouched (black-and-white scans are recompressed with JBIG2). Up to 5% over the target is accepted. If the target cannot be met, one dialog lets you choose between saving as is, converting to color images, or drawing mode (lines and text kept as a high-resolution black-and-white layer with color added at low resolution; high, medium or lowest quality), with the expected size of each shown up front. Converting removes text, links and annotations. The original is never changed.
 
 **Tabs**
 - Right-click a tab for Open containing folder, Copy full path and Close this tab.
