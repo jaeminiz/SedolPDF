@@ -37,6 +37,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 
 **Tabs**
 - Right-click a tab for Open containing folder, Copy full path and Close this tab.
+- Multiple windows: File → New Window (Ctrl+Shift+N). Drag a tab out of the window to open it in a new window, or drop it on another window's tab row to move it there (Esc cancels). Move to new window and Move to another window on the tab's right-click menu do the same. Unsaved edits and undo history move with the tab.
 
 **Safety**
 - Saving writes a temporary file, verifies it, then replaces the original. Unknown annotation keys are preserved.

@@ -67,6 +67,16 @@ public sealed class AppHost : IDisposable
         var pos = at ?? (copyFrom is null ? null : new PixelPoint(copyFrom.Position.X + 32, copyFrom.Position.Y + 32));
         if (pos is { } p)
         {
+            // 화면 밖(작업 표시줄 아래, 모니터 바깥)에 뜨지 않게 놓을 모니터의 작업 영역 안으로 옮기고, 더 크면 줄인다.
+            var screens = copyFrom?.Screens;
+            if (screens is not null && screens.All.Count > 0 && !double.IsNaN(w.Width) && !double.IsNaN(w.Height))
+            {
+                double s = screens.ScreenFromPoint(p)?.Scaling ?? copyFrom!.RenderScaling;
+                var wanted = new PixelRect(p, PixelSize.FromSize(new Size(w.Width, w.Height), s));
+                var fit = WindowPlacement.FitToWorkArea(wanted, [.. screens.All.Select(x => x.WorkingArea)]);
+                p = fit.Position;
+                if (fit.Size != wanted.Size) { w.Width = fit.Width / s; w.Height = fit.Height / s; }
+            }
             w.WindowStartupLocation = WindowStartupLocation.Manual;
             w.Position = p;
         }
