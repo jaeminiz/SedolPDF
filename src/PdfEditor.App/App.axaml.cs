@@ -13,7 +13,9 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var window = new Shell.MainWindow(
+            Shell.MainWindow? first = null;
+            var host = new Hosting.AppHost(AppContext.BaseDirectory, () => first!);
+            var window = first = new Shell.MainWindow(host,
                 Program.Bench is not null ? [] : (desktop.Args ?? []).Where(x => !x.StartsWith("-") && File.Exists(x)).ToList());
             desktop.MainWindow = window;
             Program.Instance?.StartServer(paths => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>

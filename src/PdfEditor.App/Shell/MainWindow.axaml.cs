@@ -7,11 +7,8 @@ using System.IO;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Avalonia.Platform.Storage;
-using Pdf.Native;
 using PdfEditor.App.Dialogs;
-using PdfEditor.App.Settings;
-using PdfEditor.Document.Recovery;
-using PdfEditor.Document.Saving;
+using PdfEditor.App.Hosting;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
 
@@ -21,11 +18,9 @@ public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _vm = new();
     internal MainWindowViewModel ViewModel => _vm;
-    private readonly PdfiumThread _pdfium = new();   // 앱 전체에서 PdfiumThread는 하나
+    private readonly AppHost _host;   // 앱 공유 서비스(PDFium 스레드·설정·파일 작업·복구)
     private bool _exitConfirmed;
     private MenuItem _recentMenu = null!;
-    private readonly SettingsStore _settings;
-    private readonly RecoveryCoordinator _recovery;
 
     /// <summary>이미지 추가: PNG·JPEG 고르기. 너무 큰 파일은 읽지 않고 빈 배열로 넘겨 보관소의 검증 실패(안내)를 탄다.</summary>
     private async Task<byte[]?> PickImageBytesAsync()
@@ -42,19 +37,21 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowPreferencesAsync()
     {
-        var cur = _settings.Load();
+        var cur = _host.Settings.Load();
         var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName, cur.Language).ShowDialog<SettingsResult?>(this);
         if (result is null) return;
-        try { _settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName, Language = result.Language }); }
+        try { _host.Settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName, Language = result.Language }); }
         catch (Exception) { return; }
-        _recovery.Reschedule();
+        _host.Recovery.Reschedule();
         if (result.Language != cur.Language) await new MessageDialog(Strings.Dlg_InfoTitle, Strings.Msg_LanguageRestart, [Strings.Dlg_Ok]).ShowDialog(this);
     }
 
-    public MainWindow() : this([]) { }
+    public MainWindow() : this(null, []) { }
 
-    public MainWindow(IReadOnlyList<string> startupFiles)
+    /// <param name="host">앱 공유 서비스. null이면 이 창이 자기 호스트를 만든다(테스트에서 창만 띄울 때).</param>
+    public MainWindow(AppHost? host, IReadOnlyList<string> startupFiles)
     {
+        _host = host ?? new AppHost(AppContext.BaseDirectory, () => this);
         InitializeComponent();
         DataContext = _vm;
         BuildKeyBindings();
@@ -65,19 +62,16 @@ public sealed partial class MainWindow : Window
         PropertiesPanelSplitter.Reset += (_, _) => _vm.ResetPropertiesPanelWidth();
         TabStripPanel.ScrollStateChanged += _ => UpdateTabScrollButtons();
         FileTabButton.Flyout = BuildFileMenu();
-        var prompts = new AvaloniaPrompts(this);
-        // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
-        var services = AppearanceServices.Create(AppContext.BaseDirectory);
-        PdfEditor.App.Documents.DocumentTabViewModel.Appearance = services;
+        var prompts = _host.Prompts;
+        var services = _host.Services;
         var appearance = services.Appearance;
         var patcher = services.Patcher;
-        var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
-        _settings = new SettingsStore(paths.SettingsPath);
-        PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
-        try { var saved = _settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
+        var paths = _host.Paths;
+        var settings = _host.Settings;
+        try { var saved = settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
         _vm.PanelWidthsChanged += (_, _) =>
         {
-            try { _settings.Update(s => s with { LeftPanelWidths = _vm.LeftPanelWidths.ToDictionary(k => k.Key.ToString(), k => k.Value), PropertiesPanelWidth = _vm.SavedPropertiesPanelWidth }); }
+            try { settings.Update(s => s with { LeftPanelWidths = _vm.LeftPanelWidths.ToDictionary(k => k.Key.ToString(), k => k.Value), PropertiesPanelWidth = _vm.SavedPropertiesPanelWidth }); }
             catch (Exception) { /* 저장 실패가 화면 조작을 막지 않는다 */ }
         };
         _vm.PropertyChanged += (_, e) =>
@@ -86,7 +80,7 @@ public sealed partial class MainWindow : Window
                 or nameof(MainWindowViewModel.IsPropertiesPanelVisible))) return;
             try
             {
-                _settings.Update(s => s with
+                settings.Update(s => s with
                 {
                     LeftPanelVisible = _vm.IsLeftPanelVisible, LeftPanelKind = _vm.ActiveLeftPanel.ToString(),
                     PropertiesPanelVisible = _vm.IsPropertiesPanelVisible,
@@ -94,14 +88,12 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception) { /* 저장 실패가 화면 조작을 막지 않는다 */ }
         };
-        var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance, patcher, services.Assets), _settings, prompts);
+        var workflow = _host.Workflow;
         _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher, services.Assets));
         _vm.AttachReduceSize(new ReduceSizeWorkflow(new AvaloniaReduceSizeDialogs(this), prompts,
             new PdfEditor.Optimize.SizeReducer(new PdfEditor.Document.Output.OutputCopyBuilder(appearance, patcher, services.Assets))));
-        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance, patcher, services.Assets), _settings,
-            new AvaloniaRecoveryUi(this), prompts);
-        _recovery.Attach(workflow);
+        var recovery = _host.Recovery;
         _vm.PickImageBytes = PickImageBytesAsync;
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
         _vm.AboutRequested += async (_, _) => await new AboutDialog().ShowDialog(this);
@@ -121,10 +113,10 @@ public sealed partial class MainWindow : Window
             }
             try
             {
-                foreach (var s in await _recovery.RecoverAtStartupAsync()) _vm.ShowSession(s);
+                foreach (var s in await recovery.RecoverAtStartupAsync()) _vm.ShowSession(s);
             }
             catch (Exception) { /* 복구 실패가 시작을 막지 않는다 */ }
-            _recovery.Start(() => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => workflow.OpenSessions).GetTask());
+            recovery.Start(() => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => workflow.OpenSessions).GetTask());
             if (startupFiles.Count > 0) await _vm.OpenManyAsync(startupFiles);
         };
 
@@ -247,8 +239,7 @@ public sealed partial class MainWindow : Window
         if (await _vm.ConfirmExitAsync())
         {
             _exitConfirmed = true;
-            _recovery.Dispose();
-            _pdfium.Dispose();
+            _host.Dispose();   // 창 하나 = 앱 하나(여러 창이 되면 마지막 창이 닫힐 때로 옮긴다)
             Close();
         }
     }
