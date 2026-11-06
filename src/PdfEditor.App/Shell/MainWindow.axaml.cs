@@ -19,7 +19,16 @@ public sealed partial class MainWindow : Window, IHostWindow
     private readonly MainWindowViewModel _vm = new();
     public MainWindowViewModel ViewModel => _vm;
     public bool IsClosed { get; private set; }
-    public PixelRect? TabStripScreenRect => null;   // 단계 4(끌어내기)에서 채운다
+    /// <summary>탭 줄 칸(스크롤 단추 사이)의 화면 물리 픽셀 사각형. 보이지 않으면 null.</summary>
+    public PixelRect? TabStripScreenRect
+    {
+        get
+        {
+            var a = TabStripArea;
+            if (IsClosed || !a.IsEffectivelyVisible || a.Bounds.Width <= 0 || TopLevel.GetTopLevel(a) is null) return null;
+            return new PixelRect(a.PointToScreen(default), a.PointToScreen(new Point(a.Bounds.Width, a.Bounds.Height)));
+        }
+    }
 
     /// <summary>최소화돼 있으면 되살리고 앞으로 가져온다.</summary>
     public void BringToFront()
@@ -288,7 +297,6 @@ public sealed partial class MainWindow : Window, IHostWindow
     private DocumentTabViewModel? _tabPressed;
     private Point _tabPressPoint;
     private bool _tabDragging;
-    private int _tabSlot = -1;
 
     private void WireTabDrag()
     {
@@ -328,41 +336,115 @@ public sealed partial class MainWindow : Window, IHostWindow
         _tabPressPoint = e.GetPosition(DocTabs);
     }
 
+    // ---- 창 사이로 끌기 (0.8.0 여러 창 설계 6): 포인터를 붙잡은 채 화면 좌표로 놓을 곳을 정한다 ----
+
+    private DropTarget _dropTarget;
+    private PixelPoint _dropScreen;
+    private MainWindow? _lineWindow;   // 놓을 자리 선을 보이고 있는 창(이 창 또는 다른 창)
+
+    /// <summary>탭 줄 칸. 탭 위치·놓을 자리 선은 모두 이 칸 기준.</summary>
+    private Visual TabStripArea => (Visual)DocTabs.Parent!;
+
+    /// <summary>탭들의 위치(탭 줄 칸 기준 DIP). 스크롤된 만큼 옮겨진 실제 화면 위치다.</summary>
+    private IReadOnlyList<(double Left, double Width)> AreaTabs()
+    {
+        if (TabPanel is not { } p) return [];
+        double dx = p.TranslatePoint(default, TabStripArea)?.X ?? 0;
+        return [.. p.TabBounds().Select(t => (t.Left + dx, t.Width))];
+    }
+
+    /// <summary>끌기 판정용 이 창의 탭 줄 정보. 탭 줄이 보이지 않으면 null.</summary>
+    public StripInfo? GetStripInfo() => TabStripScreenRect is { } r ? new StripInfo(this, r, AreaTabs(), RenderScaling) : null;
+
+    /// <summary>탭 줄에 놓일 자리 선을 보이거나(slot) 숨긴다(null). 다른 창에서 끄는 동안에도 불린다.</summary>
+    public void ShowDropLine(int? slot)
+    {
+        if (slot is not { } s || s < 0) { TabDropLine.IsVisible = false; return; }
+        var tabs = AreaTabs();
+        double x = tabs.Count == 0 ? 0 : s < tabs.Count ? tabs[s].Left : tabs[^1].Left + tabs[^1].Width;
+        TabDropLine.Margin = new Thickness(Math.Max(0, x - 1.5), 0, 0, 3);
+        TabDropLine.IsVisible = true;
+    }
+
     private void OnTabMoved(object? sender, PointerEventArgs e)
     {
-        if (_tabPressed is null || TabPanel is not { } panel) return;
+        if (_tabPressed is null) return;
         if (!_tabDragging)
         {
             if (!e.GetCurrentPoint(DocTabs).Properties.IsLeftButtonPressed) { EndTabDrag(); return; }
-            if (Math.Abs(e.GetPosition(DocTabs).X - _tabPressPoint.X) < 6) return;
+            var d = e.GetPosition(DocTabs) - _tabPressPoint;
+            if (Math.Abs(d.X) < 6 && Math.Abs(d.Y) < 6) return;
             _tabDragging = true;
             e.Pointer.Capture(DocTabs);
         }
         e.Handled = true;
-        var tabs = panel.TabBounds();
-        _tabSlot = TabReorder.Slot(tabs, e.GetPosition(panel).X);
-        double x = tabs.Count == 0 ? 0 : _tabSlot < tabs.Count ? tabs[_tabSlot].Left : tabs[^1].Left + tabs[^1].Width;
-        var at = panel.TranslatePoint(new Point(x, 0), (Visual)DocTabs.Parent!) ?? default;
-        TabDropLine.Margin = new Thickness(Math.Max(0, at.X - 1.5), 0, 0, 3);
-        TabDropLine.IsVisible = true;
+        _dropScreen = this.PointToScreen(e.GetPosition(this));
+        var strips = _host.Registry.ByRecent.OfType<MainWindow>()
+            .Where(w => w.WindowState != WindowState.Minimized)
+            .Select(w => w.GetStripInfo()).Where(s => s.HasValue).Select(s => s!.Value).ToList();
+        _dropTarget = DropTargetFinder.Find(_dropScreen, this, strips, _vm.Documents.Count);
+        ShowDropFeedback();
     }
 
-    private void OnTabReleased(object? sender, PointerReleasedEventArgs e)
+    /// <summary>놓을 곳에 맞게 표시: 탭 줄이면 그 창에 자리 선, 새 창이면 포인터 옆에 탭 제목 배지, 아니면 아무것도.</summary>
+    private void ShowDropFeedback()
+    {
+        var lineIn = _dropTarget.Kind is DropKind.Reorder or DropKind.OtherWindow ? _dropTarget.Window as MainWindow : null;
+        if (_lineWindow is not null && _lineWindow != lineIn) _lineWindow.ShowDropLine(null);
+        _lineWindow = lineIn;
+        lineIn?.ShowDropLine(_dropTarget.Slot);
+
+        if (_dropTarget.Kind == DropKind.NewWindow && _tabPressed is { } tab)
+        {
+            TearOffBadgeText.Text = tab.Title;
+            var at = TabStripArea.PointToClient(_dropScreen);
+            TearOffBadge.HorizontalOffset = at.X + 14;
+            TearOffBadge.VerticalOffset = at.Y + 14;
+            TearOffBadge.IsOpen = true;
+        }
+        else TearOffBadge.IsOpen = false;
+    }
+
+    private async void OnTabReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (!_tabDragging) { _tabPressed = null; return; }
         var tab = _tabPressed;
-        int slot = _tabSlot;
+        var target = _dropTarget;
+        var screen = _dropScreen;
         EndTabDrag();
         e.Handled = true;
-        if (tab is not null && slot >= 0) _vm.MoveDocument(tab, slot);
+        if (tab is null) return;
+        switch (target.Kind)
+        {
+            case DropKind.Reorder:
+                _vm.MoveDocument(tab, target.Slot);
+                break;
+            case DropKind.OtherWindow when target.Window is MainWindow to:
+                if (await CommitPendingInputAsync()) _host.Transfer.MoveToWindow(this, tab, to, target.Slot);
+                break;
+            case DropKind.NewWindow:
+                if (await CommitPendingInputAsync()) _host.Transfer.MoveToNewWindow(this, tab, NewWindowOrigin(screen));
+                break;
+        }
+    }
+
+    /// <summary>새 창의 왼쪽 위: 놓은 곳에 새 창의 첫 탭이 오도록, 이 창에서 탭 줄이 창 모서리로부터 떨어진 만큼 당긴다.</summary>
+    private PixelPoint NewWindowOrigin(PixelPoint drop)
+    {
+        if (TabStripScreenRect is not { } r) return drop;
+        double s = RenderScaling;
+        return new PixelPoint(drop.X - (r.X - Position.X) - (int)(40 * s), drop.Y - (r.Y - Position.Y) - (int)(16 * s));
     }
 
     private void EndTabDrag()
     {
         _tabDragging = false;
         _tabPressed = null;
-        _tabSlot = -1;
+        _dropTarget = default;
+        _lineWindow?.ShowDropLine(null);
+        _lineWindow = null;
         TabDropLine.IsVisible = false;
+        TearOffBadge.IsOpen = false;
     }
 
     /// <summary>탭 줄이 넘칠 때만 왼쪽·오른쪽 스크롤 단추를 보이고, 끝에 닿은 쪽은 사용하지 않게 한다.</summary>
