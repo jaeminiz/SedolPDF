@@ -20,8 +20,8 @@ public static class SizeLadder
     public static IReadOnlyList<LadderLevel> Raster { get; } =
         [new(200, 75), new(150, 65), new(120, 55)];
 
-    /// <summary>흑백 변환(쪽을 1비트 JBIG2 그림으로 바꿈) 단계. 화질 값은 쓰지 않는다. 200dpi 밑으로는 내리지 않는다.</summary>
-    public static IReadOnlyList<LadderLevel> Mono { get; } = [new(300, 0), new(200, 0)];
+    /// <summary>흑백 변환(쪽을 1비트 JBIG2 그림으로 바꿈)의 화질 3등급: 높음 600·중간 300·최저 200dpi. 화질 값은 쓰지 않는다. 사용자가 고른다.</summary>
+    public static IReadOnlyList<LadderLevel> Mono { get; } = [new(600, 0), new(300, 0), new(200, 0)];
 
     /// <summary>
     /// 단계가 클수록 결과가 작아진다고 보고, 목표 이하인 가장 약한 단계를 찾는다. measureBytes(i)는 단계 i를 실제로 적용한 결과 크기이며

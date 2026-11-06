@@ -18,6 +18,9 @@ public sealed class FakeReduceDialogs : IReduceSizeDialogs
     public List<(string Message, bool RasterAvailable)> NotAchieved { get; } = [];
     public int ConfirmCalls { get; private set; }
     public List<bool> ConfirmedMonochrome { get; } = [];
+    public int? MonoPick { get; set; }
+    public List<(IReadOnlyList<MonoOption> Options, long Target)> MonoAsked { get; } = [];
+    public Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes) { MonoAsked.Add((options, targetBytes)); return Task.FromResult(MonoPick); }
 
     public Task<long?> AskTargetBytesAsync(long currentBytes) { AskTargetCalls++; CurrentSeen = currentBytes; return Task.FromResult(Target); }
     public Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable) { NotAchieved.Add((message, rasterAvailable)); return Task.FromResult(Choice); }
@@ -207,17 +210,52 @@ public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task NotAchieved_Monochrome_Confirmed_AsksWithMonochromeWarning_AndRunsMonochromeMode()
+    public async Task NotAchieved_Monochrome_ShowsThreeSizes_AndSavesTheChosenOne()
     {
         var s = await BlankAsync();
         _ui.Target = 100;
         _ui.Choice = NotAchievedChoice.Monochrome;
+        _ui.MonoPick = 1;   // 중간
         string target = P("mono.pdf");
         _p.SavePicks.Enqueue(target);
         await Wf().RunAsync(s);
+
         Assert.Equal([true], _ui.ConfirmedMonochrome);
-        Assert.Equal(2, _ui.NotAchieved.Count);        // 흑백으로도 100바이트는 못 맞춰 다시 묻는다
-        Assert.False(_ui.NotAchieved[1].RasterAvailable);
+        var (options, askedTarget) = Assert.Single(_ui.MonoAsked);
+        Assert.Equal([600, 300, 200], options.Select(o => o.Dpi).ToArray());
+        Assert.Equal(100, askedTarget);
+        Assert.True(File.Exists(target));
+        Assert.Equal(options[1].Bytes, new FileInfo(target).Length);
+        Assert.Single(_p.Infos);
+        Assert.Contains(ByteSize.Format(options[1].Bytes), _p.Infos[0]);
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task NotAchieved_Monochrome_PickCancelled_WritesNothing()
+    {
+        var s = await BlankAsync();
+        _ui.Target = 100;
+        _ui.Choice = NotAchievedChoice.Monochrome;
+        _ui.MonoPick = null;
+        string target = P("mono2.pdf");
+        _p.SavePicks.Enqueue(target);
+        await Wf().RunAsync(s);
+        Assert.Single(_ui.MonoAsked);
+        Assert.False(File.Exists(target));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task NotAchieved_Monochrome_NotConfirmed_DoesNotBuildAnything()
+    {
+        var s = await BlankAsync();
+        _ui.Target = 100;
+        _ui.Choice = NotAchievedChoice.Monochrome;
+        _ui.ConfirmRaster = false;
+        _p.SavePicks.Enqueue(P("mono3.pdf"));
+        await Wf().RunAsync(s);
+        Assert.Empty(_ui.MonoAsked);
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
@@ -245,5 +283,6 @@ public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
             return choices.Dequeue();
         }
         public Task<bool> ConfirmRasterizeAsync(bool monochrome) => inner.ConfirmRasterizeAsync(monochrome);
+        public Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes) => inner.PickMonochromeLevelAsync(options, targetBytes);
     }
 }

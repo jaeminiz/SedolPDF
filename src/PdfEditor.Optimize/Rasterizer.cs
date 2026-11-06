@@ -50,33 +50,65 @@ public static class Rasterizer
     /// 흑백 변환: 쪽마다 PDFium으로 그려 어두운 화소(어느 색 성분이든 170 미만)를 검정으로 하는 1비트 그림을 JBIG2로 압축한 이미지 한 장짜리 새 PDF를 만든다.
     /// 선 위주의 도면에 알맞고 색·음영·글자 객체는 사라진다. 쪽 크기는 그대로다.
     /// </summary>
-    public static void BuildMonochrome(PdfiumThread t, string sourcePath, string? password, string outPath, LadderLevel level, CancellationToken ct)
+    public static void BuildMonochrome(PdfiumThread t, string sourcePath, string? password, string outPath, LadderLevel level, CancellationToken ct, IProgress<double>? progress = null)
     {
         ct.ThrowIfCancellationRequested();
         var src = t.InvokeAsync(() => Pdf.Native.PdfDocument.Open(t, sourcePath, password), ct).GetAwaiter().GetResult();
         try
         {
             int pageCount = t.InvokeAsync(() => src.PageCount, ct).GetAwaiter().GetResult();
-            using var outDoc = new PdfSharp.Pdf.PdfDocument();
-            for (int i = 0; i < pageCount; i++)
+            // 그리기는 PDFium 스레드에서 차례로, JBIG2 압축은 여러 쪽을 동시에(큰 쪽은 메모리가 크므로 동시 3쪽까지).
+            var gate = new SemaphoreSlim(Math.Clamp(Environment.ProcessorCount - 1, 1, 3));
+            var encoded = new Task<(double W, double H, int Pw, int Ph, byte[] Jbig2)>[pageCount];
+            int done = 0;
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                int index = i;
-                var r = t.InvokeAsync(() =>
+                for (int i = 0; i < pageCount; i++)
                 {
-                    using var page = src.LoadPage(index);
-                    var size = page.SizePt;
-                    var (scale, pw, ph) = PixelSize(size.Width, size.Height, level.MaxDpi);
-                    return (size.Width, size.Height, pw, ph, Pixels: page.RenderTile(scale, 0, 0, pw, ph, true));
-                }, ct).GetAwaiter().GetResult();
-
-                var bits = new byte[r.pw * r.ph];
-                for (int p = 0; p < bits.Length; p++)
-                {
-                    int o = p * 4;
-                    if (r.Pixels[o] < 170 || r.Pixels[o + 1] < 170 || r.Pixels[o + 2] < 170) bits[p] = 1;
+                    gate.Wait(ct);
+                    int index = i;
+                    (double Width, double Height, int pw, int ph, byte[] Pixels) r;
+                    try
+                    {
+                        r = t.InvokeAsync(() =>
+                        {
+                            using var page = src.LoadPage(index);
+                            var size = page.SizePt;
+                            var (scale, pw, ph) = PixelSize(size.Width, size.Height, level.MaxDpi);
+                            return ((double)size.Width, (double)size.Height, pw, ph, page.RenderTile(scale, 0, 0, pw, ph, true));
+                        }, ct).GetAwaiter().GetResult();
+                    }
+                    catch { gate.Release(); throw; }
+                    encoded[i] = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var bits = new byte[r.pw * r.ph];
+                            var px = r.Pixels;
+                            for (int p = 0; p < bits.Length; p++)
+                            {
+                                int o = p * 4;
+                                if (px[o] < 170 || px[o + 1] < 170 || px[o + 2] < 170) bits[p] = 1;
+                            }
+                            var jb = Jbig2Encoder.EncodePdfStream(bits, r.pw, r.ph);
+                            progress?.Report((double)Interlocked.Increment(ref done) / pageCount);
+                            return (r.Width, r.Height, r.pw, r.ph, jb);
+                        }
+                        finally { gate.Release(); }
+                    }, CancellationToken.None);
                 }
-                AddImagePage(outDoc, r.Width, r.Height, r.pw, r.ph, Jbig2Encoder.EncodePdfStream(bits, r.pw, r.ph), mono: true);
+            }
+            finally
+            {
+                // 취소·오류여도 이미 시작한 압축이 끝날 때까지 기다린 뒤(파일·메모리 정리) 나간다.
+                foreach (var task in encoded) { try { task?.GetAwaiter().GetResult(); } catch { } }
+            }
+
+            using var outDoc = new PdfSharp.Pdf.PdfDocument();
+            foreach (var task in encoded)
+            {
+                var (w, h, pw, ph, jb) = task.GetAwaiter().GetResult();
+                AddImagePage(outDoc, w, h, pw, ph, jb, mono: true);
             }
             ct.ThrowIfCancellationRequested();
             outDoc.Save(outPath);

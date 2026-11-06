@@ -228,6 +228,13 @@ public static class Strings
     public static string Msg_ReduceFewImages => Get(nameof(Msg_ReduceFewImages));
     public static string Btn_ReduceKeep => Get(nameof(Btn_ReduceKeep));
     public static string Btn_ReduceRasterize => Get(nameof(Btn_ReduceRasterize));
+    public static string Dlg_MonoHint => Get(nameof(Dlg_MonoHint));
+    public static string Dlg_MonoOption => Get(nameof(Dlg_MonoOption));
+    public static string Dlg_MonoHigh => Get(nameof(Dlg_MonoHigh));
+    public static string Dlg_MonoMid => Get(nameof(Dlg_MonoMid));
+    public static string Dlg_MonoLow => Get(nameof(Dlg_MonoLow));
+    public static string Dlg_MonoFits => Get(nameof(Dlg_MonoFits));
+    public static string Dlg_MonoOver => Get(nameof(Dlg_MonoOver));
     public static string Btn_ReduceMono => Get(nameof(Btn_ReduceMono));
     public static string Msg_ReduceMonoWarn => Get(nameof(Msg_ReduceMonoWarn));
     public static string Msg_ReduceRasterWarn => Get(nameof(Msg_ReduceRasterWarn));

@@ -7,6 +7,9 @@ namespace PdfEditor.App.Documents;
 /// <summary>목표를 못 맞췄을 때 사용자의 선택. 래스터화는 쪽을 이미지로 바꾸는 것(글자·링크·주석이 사라진다).</summary>
 public enum NotAchievedChoice { KeepBestEffort, Rasterize, Monochrome, Cancel }
 
+/// <summary>흑백 변환 화질 하나: 해상도와 그 결과 파일의 크기.</summary>
+public sealed record MonoOption(int Dpi, long Bytes);
+
 /// <summary>용량 줄이기의 대화상자들. 실제 구현은 Dialogs/AvaloniaReduceSizeDialogs, 시험에서는 가짜로 바꾼다.</summary>
 public interface IReduceSizeDialogs
 {
@@ -16,6 +19,8 @@ public interface IReduceSizeDialogs
     Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable);
     /// <summary>래스터화(monochrome이면 흑백 변환)의 부작용(글자·링크·주석, 색이 사라짐)을 경고하고 계속할지 묻는다.</summary>
     Task<bool> ConfirmRasterizeAsync(bool monochrome);
+    /// <summary>흑백 변환의 화질(높은 해상도부터)을 크기와 함께 보여 주고 고르게 한다. 고른 번호, 취소하면 null.</summary>
+    Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes);
 }
 
 /// <summary>
@@ -68,12 +73,18 @@ public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts promp
                     await prompts.ShowInfoAsync(Done(r)).ConfigureAwait(true);
                     return;
                 }
-                if (choice is NotAchievedChoice.Rasterize or NotAchievedChoice.Monochrome && rasterAvailable
-                    && await ui.ConfirmRasterizeAsync(choice == NotAchievedChoice.Monochrome).ConfigureAwait(true))
+                if (choice == NotAchievedChoice.Monochrome && rasterAvailable && await ui.ConfirmRasterizeAsync(true).ConfigureAwait(true))
                 {
                     reducer.Discard(r);
                     pending = null;
-                    r = await ReduceWithProgressAsync(s, path, target, choice == NotAchievedChoice.Monochrome ? ReduceMode.Monochrome : ReduceMode.Raster).ConfigureAwait(true);
+                    await RunMonochromeAsync(s, path, target).ConfigureAwait(true);
+                    return;
+                }
+                if (choice == NotAchievedChoice.Rasterize && rasterAvailable && await ui.ConfirmRasterizeAsync(false).ConfigureAwait(true))
+                {
+                    reducer.Discard(r);
+                    pending = null;
+                    r = await ReduceWithProgressAsync(s, path, target, ReduceMode.Raster).ConfigureAwait(true);
                     continue;
                 }
                 return;   // 취소·확인 거절 (finally가 임시 결과를 버린다)
@@ -86,6 +97,27 @@ public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts promp
         finally
         {
             if (pending is not null) reducer.Discard(pending);
+        }
+    }
+
+    /// <summary>흑백 변환: 화질 3등급을 모두 만들어 크기를 보여 주고, 고른 것을 저장한다. 취소하면 아무것도 남기지 않는다.</summary>
+    private async Task RunMonochromeAsync(DocumentSession s, string path, long target)
+    {
+        MonoVariants? variants = null;
+        bool finished = await prompts.RunWithProgressAsync(Strings.Dlg_ReduceTitle, Strings.Msg_ReduceProgress, 100,
+            async (progress, ct) => variants = await reducer.BuildMonochromeVariantsAsync(s, path, new Percent(progress), ct).ConfigureAwait(false)).ConfigureAwait(true);
+        if (!finished || variants is null) return;
+        try
+        {
+            var options = variants.Items.Select(v => new MonoOption(v.Dpi, v.Bytes)).ToList();
+            if (await ui.PickMonochromeLevelAsync(options, target).ConfigureAwait(true) is not { } pick || pick < 0 || pick >= options.Count) return;
+            reducer.CommitMonochrome(variants, pick, path);
+            await prompts.ShowInfoAsync(string.Format(Strings.Msg_ReduceDone, ByteSize.Format(variants.OriginalBytes), ByteSize.Format(options[pick].Bytes))).ConfigureAwait(true);
+            variants = null;
+        }
+        finally
+        {
+            if (variants is not null && variants.Items.Any(v => File.Exists(v.Path))) reducer.DiscardMonochrome(variants);
         }
     }
 

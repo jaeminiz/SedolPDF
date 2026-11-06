@@ -200,6 +200,13 @@
   <data name="Msg_ReduceFewImages" xml:space="preserve"><value>이미지가 거의 없어 더 줄일 수 없습니다.</value></data>
   <data name="Btn_ReduceKeep" xml:space="preserve"><value>그 상태로 저장</value></data>
   <data name="Btn_ReduceRasterize" xml:space="preserve"><value>이미지로 변환해 저장</value></data>
+  <data name="Dlg_MonoHint" xml:space="preserve"><value>흑백 변환 화질을 고르세요. 화질이 높을수록 선이 또렷하고 파일이 큽니다. 용량은 저장될 파일의 크기입니다.</value></data>
+  <data name="Dlg_MonoOption" xml:space="preserve"><value>{0} ({1}dpi) — {2} · {3}</value></data>
+  <data name="Dlg_MonoHigh" xml:space="preserve"><value>높음</value></data>
+  <data name="Dlg_MonoMid" xml:space="preserve"><value>중간</value></data>
+  <data name="Dlg_MonoLow" xml:space="preserve"><value>최저</value></data>
+  <data name="Dlg_MonoFits" xml:space="preserve"><value>목표 이내</value></data>
+  <data name="Dlg_MonoOver" xml:space="preserve"><value>목표 초과</value></data>
   <data name="Btn_ReduceMono" xml:space="preserve"><value>흑백으로 변환해 저장</value></data>
   <data name="Msg_ReduceMonoWarn" xml:space="preserve"><value>쪽이 흑백 그림으로 바뀌어 색·회색 음영과 글자 선택·검색·링크·주석이 사라집니다. 선 위주의 도면에 알맞습니다. 계속할까요?</value></data>
   <data name="Msg_ReduceRasterWarn" xml:space="preserve"><value>쪽이 이미지로 바뀌어 글자 선택·검색·링크·주석이 사라집니다. 계속할까요?</value></data>

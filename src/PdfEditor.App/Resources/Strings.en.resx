@@ -200,6 +200,13 @@
   <data name="Msg_ReduceFewImages" xml:space="preserve"><value>There are few images, so it cannot be reduced further.</value></data>
   <data name="Btn_ReduceKeep" xml:space="preserve"><value>Save as is</value></data>
   <data name="Btn_ReduceRasterize" xml:space="preserve"><value>Convert to images and save</value></data>
+  <data name="Dlg_MonoHint" xml:space="preserve"><value>Choose the black-and-white quality. Higher quality keeps lines crisper but makes a larger file. Sizes are those of the file that will be saved.</value></data>
+  <data name="Dlg_MonoOption" xml:space="preserve"><value>{0} ({1} dpi) — {2} · {3}</value></data>
+  <data name="Dlg_MonoHigh" xml:space="preserve"><value>High</value></data>
+  <data name="Dlg_MonoMid" xml:space="preserve"><value>Medium</value></data>
+  <data name="Dlg_MonoLow" xml:space="preserve"><value>Lowest</value></data>
+  <data name="Dlg_MonoFits" xml:space="preserve"><value>within target</value></data>
+  <data name="Dlg_MonoOver" xml:space="preserve"><value>over target</value></data>
   <data name="Btn_ReduceMono" xml:space="preserve"><value>Convert to black and white and save</value></data>
   <data name="Msg_ReduceMonoWarn" xml:space="preserve"><value>Pages become black-and-white pictures, so colors, gray shades, text selection, search, links and annotations are lost. This suits line drawings. Continue?</value></data>
   <data name="Msg_ReduceRasterWarn" xml:space="preserve"><value>Pages become images, so text selection, search, links and annotations are lost. Continue?</value></data>

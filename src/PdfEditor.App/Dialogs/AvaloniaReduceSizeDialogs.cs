@@ -26,6 +26,9 @@ public sealed class AvaloniaReduceSizeDialogs(Window owner) : IReduceSizeDialogs
         };
     }
 
+    public async Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes)
+        => await new MonoQualityDialog(options, targetBytes).ShowDialog<int?>(owner);
+
     public async Task<bool> ConfirmRasterizeAsync(bool monochrome)
     {
         var dlg = new MessageDialog(Strings.Dlg_ReduceTitle, monochrome ? Strings.Msg_ReduceMonoWarn : Strings.Msg_ReduceRasterWarn, [Strings.Dlg_Ok, Strings.Dlg_Cancel], defaultIndex: 1);

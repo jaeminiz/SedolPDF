@@ -208,35 +208,58 @@ public sealed class SizeReducerTests : IDisposable
     }
 
     [Fact]
-    public async Task Reduce_MonochromeMode_MakesPagesOneBitJbig2_WithSamePageCount()
+    public async Task MonochromeVariants_ThreeLevelsHighestFirst_AllJbig2WithSamePageCount_AndCommitKeepsOnlyTheChosen()
     {
-        string src = P("lines.pdf");
-        TestPdfFactory.CreateTextLines(src, ["Monochrome conversion test line one", "second line of text"]);
-        string pdfCopy = P("lines3.pdf");
-        TestPdfFactory.CreateLabeled(pdfCopy, [(595, 842), (842, 595), (300, 400)]);
-        await using var s = await OpenAsync(pdfCopy);
+        string src = P("lines3.pdf");
+        TestPdfFactory.CreateLabeled(src, [(595, 842), (842, 595), (300, 400)]);
+        await using var s = await OpenAsync(src);
         string target = P("mono.pdf");
-        var r = await NewReducer().ReduceAsync(s, target, 1, ReduceMode.Monochrome, null, CancellationToken.None);
-        Assert.Equal(ReduceMode.Monochrome, r.Mode);
-        Assert.False(r.Achieved);   // 1바이트는 못 맞춘다 → 임시 결과가 남는다
-        Assert.NotNull(r.PendingPath);
-        Assert.Equal(3, await PageCount(r.PendingPath!));
-        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(r.PendingPath!, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
-        var img = doc.Pages[0].Resources!.Elements.GetDictionary("/XObject")!.Elements.GetDictionary("/Im0")!;
-        Assert.Equal("/JBIG2Decode", img.Elements.GetName("/Filter"));
-        Assert.Equal(1, img.Elements.GetInteger("/BitsPerComponent"));
-        NewReducer().Discard(r);
+        var reducer = NewReducer();
+        var v = await reducer.BuildMonochromeVariantsAsync(s, target, null, CancellationToken.None);
+
+        Assert.Equal([600, 300, 200], v.Items.Select(x => x.Dpi).ToArray());
+        Assert.True(v.OriginalBytes > 0);
+        foreach (var item in v.Items)
+        {
+            Assert.True(File.Exists(item.Path));
+            Assert.Equal(3, await PageCount(item.Path));
+            Assert.Equal(new FileInfo(item.Path).Length, item.Bytes);
+        }
+        using (var doc = PdfSharp.Pdf.IO.PdfReader.Open(v.Items[1].Path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+        {
+            var img = doc.Pages[0].Resources!.Elements.GetDictionary("/XObject")!.Elements.GetDictionary("/Im0")!;
+            Assert.Equal("/JBIG2Decode", img.Elements.GetName("/Filter"));
+            Assert.Equal(1, img.Elements.GetInteger("/BitsPerComponent"));
+        }
+
+        reducer.CommitMonochrome(v, 1, target);
+        Assert.True(File.Exists(target));
+        Assert.Equal(3, await PageCount(target));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
     [Fact]
-    public async Task Reduce_MonochromeMode_PicksMildestFittingDpi()
+    public async Task MonochromeVariants_Discard_RemovesAllTemporaryFiles()
     {
-        string src = P("lines.pdf");
+        string src = P("lines2.pdf");
         TestPdfFactory.CreateLabeled(src, [(595, 842), (595, 842)]);
         await using var s = await OpenAsync(src);
-        string target = P("mono-fit.pdf");
-        var r = await NewReducer().ReduceAsync(s, target, 10_000_000, ReduceMode.Monochrome, null, CancellationToken.None);
-        Assert.Equal(ReduceMode.Monochrome, r.Mode);
-        Assert.True(r.Achieved || r.AlreadySmallEnough);
+        var reducer = NewReducer();
+        var v = await reducer.BuildMonochromeVariantsAsync(s, P("m.pdf"), null, CancellationToken.None);
+        reducer.DiscardMonochrome(v);
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+        Assert.False(File.Exists(P("m.pdf")));
+    }
+
+    [Fact]
+    public async Task MonochromeVariants_Cancelled_LeavesNoTemporaryFiles()
+    {
+        string src = P("lines2c.pdf");
+        TestPdfFactory.CreateLabeled(src, [(595, 842), (595, 842)]);
+        await using var s = await OpenAsync(src);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => NewReducer().BuildMonochromeVariantsAsync(s, P("c.pdf"), null, cts.Token));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 }
