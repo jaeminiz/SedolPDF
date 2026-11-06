@@ -4,7 +4,7 @@ using PdfSharp.Pdf.IO;
 
 namespace PdfEditor.Optimize;
 
-public enum ReduceMode { Images, Raster }
+public enum ReduceMode { Images, Raster, Layered }
 
 /// <param name="Stage">"copy", "clean", "images", "raster", "verify" 중 하나.</param>
 /// <param name="Fraction">전체 진행 비율(0~1).</param>
@@ -17,11 +17,11 @@ public sealed record ReduceProgress(string Stage, double Fraction);
 public sealed record ReduceResult(bool AlreadySmallEnough, bool Achieved, long OriginalBytes, long FinalBytes,
     long MinPossibleBytes, ReduceMode Mode, int Level, string? PendingPath);
 
-/// <summary>흑백 변환의 한 등급 결과. Dpi: 변환 해상도, Bytes: 그 파일의 크기, Path: 임시 파일.</summary>
-public sealed record MonoVariant(int Dpi, long Bytes, string Path);
+/// <summary>변환 방식별 예상 용량. Layered는 도면용(색 유지) 3등급(높은 해상도부터), ColorImagesBytes는 컬러 이미지 변환의 가장 센 단계 예상 크기.</summary>
+public sealed record ConversionEstimates(long ColorImagesBytes, IReadOnlyList<GradeEstimate> Layered);
 
-/// <summary>흑백 변환의 등급별 결과(높은 해상도부터)와 원본 크기.</summary>
-public sealed record MonoVariants(IReadOnlyList<MonoVariant> Items, long OriginalBytes);
+/// <summary>도면용 변환 한 등급의 해상도와 예상 용량.</summary>
+public sealed record GradeEstimate(int Dpi, long Bytes);
 
 /// <summary>
 /// 용량 줄여 저장(스펙 2026-11-05). 편집 중인 문서는 <see cref="OutputCopyBuilder"/>로 임시 사본을 만들어(편집 세션은 그대로) 그 사본을 줄인다.
@@ -31,7 +31,7 @@ public sealed record MonoVariants(IReadOnlyList<MonoVariant> Items, long Origina
 public sealed class SizeReducer(OutputCopyBuilder builder)
 {
     public async Task<ReduceResult> ReduceAsync(DocumentSession s, string targetPath, long targetBytes, ReduceMode mode,
-        IProgress<ReduceProgress>? progress, CancellationToken ct)
+        IProgress<ReduceProgress>? progress, CancellationToken ct, int level = 0)
     {
         if (s.IsEncrypted) throw new NotSupportedException("Encrypted documents are not supported.");
         targetBytes += targetBytes / 20;   // 목표의 5%까지는 허용한다(16MB 목표면 16.8MB). 첨부 한도에는 여유가 있고, 허용하지 않으면 글자를 뭉개야만 맞는 파일이 생긴다.
@@ -52,7 +52,7 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
             bool hasFile = s.FilePath is { } sp && File.Exists(sp);
             long fileBytes = hasFile ? new FileInfo(s.FilePath!).Length : copyBytes;
             long original = Math.Max(fileBytes, copyBytes);
-            if (copyBytes <= targetBytes)
+            if (mode != ReduceMode.Layered && copyBytes <= targetBytes)
             {
                 // 디스크의 파일도 목표 이하면 줄일 필요가 없다. 파일은 크지만(증분 저장으로 쌓인 옛 객체 등) 다시 쓴 사본이 목표 안이면 그 사본이 곧 결과다.
                 if (fileBytes <= targetBytes)
@@ -61,7 +61,9 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
                 return new ReduceResult(false, true, original, copyBytes, copyBytes, mode, -1, null);
             }
 
-            var result = await Task.Run(() => mode == ReduceMode.Images
+            var result = await Task.Run(() => mode == ReduceMode.Layered
+                ? RunLayered(s, copy, target, pending, level, original, progress, ct)
+                : mode == ReduceMode.Images
                 ? RunImages(s, copy, target, pending, targetBytes, original, progress, ct)
                 : RunRaster(s, copy, target, pending, levelFiles, targetBytes, original, progress, ct), ct).ConfigureAwait(false);
             keepPending = result.PendingPath is not null;
@@ -156,16 +158,13 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
     }
 
     /// <summary>
-    /// 흑백 변환의 화질 3등급(<see cref="SizeLadder.Mono"/>)을 모두 만들어 크기를 알려 준다. 사용자가 하나를 고르면 <see cref="CommitMonochrome"/>, 아니면 <see cref="DiscardMonochrome"/>.
-    /// 쪽을 1비트 JBIG2 그림으로 바꾸므로 색·음영·글자 객체가 사라진다. 각 결과는 150dpi에서 원본을 같은 흑백 기준으로 바꾼 것과 비교해 검증하고, 어긋나는 등급은 뺀다.
+    /// 변환했을 때의 용량을 표본 쪽(최대 12쪽, 고르게)으로 미리 재서 쪽 수만큼 늘려 예상한다(실제와 몇 % 차이). 도면용(색 유지) 3등급과 컬러 이미지 변환(가장 센 단계)을 잰다.
+    /// 결과는 선택 창에 보여 주려는 숫자이고 임시 파일은 모두 지운다.
     /// </summary>
-    public async Task<MonoVariants> BuildMonochromeVariantsAsync(DocumentSession s, string targetPath, IProgress<ReduceProgress>? progress, CancellationToken ct)
+    public async Task<ConversionEstimates> EstimateConversionsAsync(DocumentSession s, string targetPath, IProgress<ReduceProgress>? progress, CancellationToken ct)
     {
         if (s.IsEncrypted) throw new NotSupportedException("Encrypted documents are not supported.");
         string target = Path.GetFullPath(targetPath);
-        if (s.FilePath is { } fp && string.Equals(Path.GetFullPath(fp), target, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("The target must differ from the source file.", nameof(targetPath));
-
         string copy = target + ".copy.tmp";
         var files = new List<string>();
         try
@@ -173,55 +172,54 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
             ct.ThrowIfCancellationRequested();
             progress?.Report(new ReduceProgress("copy", 0));
             await builder.BuildAsync(s, copy, ct).ConfigureAwait(false);
-            long copyBytes = new FileInfo(copy).Length;
-            long original = s.FilePath is { } sp && File.Exists(sp) ? Math.Max(new FileInfo(sp).Length, copyBytes) : copyBytes;
+            int total = await s.Thread.InvokeAsync(() =>
+            {
+                using var doc = Pdf.Native.PdfDocument.Open(s.Thread, copy, null);
+                return doc.PageCount;
+            }, ct).ConfigureAwait(false);
+            int k = Math.Min(total, 12);
+            var sample = Enumerable.Range(0, k).Select(j => (int)((long)j * (total - 1) / Math.Max(1, k - 1))).Distinct().ToList();
+            double scale = (double)total / sample.Count;
 
+            string Tmp(string name) { string p = target + $".e{name}.tmp"; files.Add(p); return p; }
+            var layered = new List<GradeEstimate>();
             var ladder = SizeLadder.Mono;
-            var items = new List<MonoVariant>();
             for (int i = 0; i < ladder.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
+                progress?.Report(new ReduceProgress("estimate", 0.1 + 0.7 * i / (ladder.Count + 1)));
                 int index = i;
-                string path = target + $".m{ladder[i].MaxDpi}.tmp";
-                files.Add(path);
-                double baseFraction = 0.05 + 0.8 * i / ladder.Count, span = 0.8 / ladder.Count;
-                var pageProgress = new Progress<double>(f => progress?.Report(new ReduceProgress("mono", baseFraction + span * f)));
-                await Task.Run(() => Rasterizer.BuildMonochrome(s.Thread, copy, null, path, ladder[index], ct, pageProgress), ct).ConfigureAwait(false);
-                items.Add(new MonoVariant(ladder[i].MaxDpi, new FileInfo(path).Length, path));
+                string p = Tmp(ladder[i].MaxDpi.ToString());
+                await Task.Run(() => Rasterizer.BuildMonochrome(s.Thread, copy, null, p, ladder[index], ct, null, keepColor: true, pages: sample), ct).ConfigureAwait(false);
+                layered.Add(new GradeEstimate(ladder[i].MaxDpi, (long)(new FileInfo(p).Length * scale)));
             }
-
-            progress?.Report(new ReduceProgress("verify", 0.9));
-            var verified = new List<MonoVariant>();
-            foreach (var v in items)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (await Task.Run(() => OutputVerifier.Verify(s.Thread, copy, v.Path, null, VerifyDpi, binarize: true), ct).ConfigureAwait(false)) verified.Add(v);
-                else TryDelete(v.Path);
-            }
-            if (verified.Count == 0) throw new ReduceVerificationException();
-            files.Clear();   // 이제 호출자가 소유한다
-            progress?.Report(new ReduceProgress("verify", 1.0));
-            return new MonoVariants(verified, original);
+            progress?.Report(new ReduceProgress("estimate", 0.8));
+            string pc = Tmp("c");
+            await Task.Run(() => Rasterizer.Build(s.Thread, copy, null, pc, SizeLadder.Raster[^1], ct, sample), ct).ConfigureAwait(false);
+            long color = (long)(new FileInfo(pc).Length * scale);
+            progress?.Report(new ReduceProgress("estimate", 1.0));
+            return new ConversionEstimates(color, layered);
         }
-        catch
+        finally
         {
+            TryDelete(copy);
             foreach (var f in files) TryDelete(f);
-            throw;
         }
-        finally { TryDelete(copy); }
     }
 
-    /// <summary>고른 등급(Items의 번호)을 targetPath로 옮기고 나머지는 지운다.</summary>
-    public void CommitMonochrome(MonoVariants v, int index, string targetPath)
+    /// <summary>도면용(색 유지) 변환: 고른 등급(SizeLadder.Mono의 번호)으로 쪽을 만들어 검증하고 target에 쓴다. 목표 용량을 넘어도 고른 대로 쓴다.</summary>
+    private ReduceResult RunLayered(DocumentSession s, string copy, string target, string pending, int level, long original, IProgress<ReduceProgress>? progress, CancellationToken ct)
     {
-        File.Move(v.Items[index].Path, Path.GetFullPath(targetPath), overwrite: true);
-        for (int i = 0; i < v.Items.Count; i++) if (i != index) TryDelete(v.Items[i].Path);
-    }
-
-    /// <summary>모든 등급의 임시 결과를 버린다.</summary>
-    public void DiscardMonochrome(MonoVariants v)
-    {
-        foreach (var item in v.Items) TryDelete(item.Path);
+        var step = SizeLadder.Mono[level];
+        var pageProgress = new Progress<double>(f => progress?.Report(new ReduceProgress("layered", 0.05 + 0.8 * f)));
+        Rasterizer.BuildMonochrome(s.Thread, copy, null, pending, step, ct, pageProgress, keepColor: true);
+        progress?.Report(new ReduceProgress("verify", 0.9));
+        if (!OutputVerifier.Verify(s.Thread, copy, pending, null, VerifyDpi, binarize: true, binarizeThreshold: Rasterizer.InkThreshold))
+            throw new ReduceVerificationException();
+        long size = new FileInfo(pending).Length;
+        File.Move(pending, target, overwrite: true);
+        progress?.Report(new ReduceProgress("verify", 1.0));
+        return new ReduceResult(false, true, original, size, size, ReduceMode.Layered, level, null);
     }
 
     private const int VerifyDpi = 150;

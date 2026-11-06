@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
+using PdfEditor.Optimize;
 
 namespace PdfEditor.App.Dialogs;
 
@@ -10,29 +11,14 @@ public sealed class AvaloniaReduceSizeDialogs(Window owner) : IReduceSizeDialogs
     public async Task<long?> AskTargetBytesAsync(long currentBytes)
         => await new ReduceTargetDialog(currentBytes).ShowDialog<long?>(owner);
 
-    public async Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable)
+    public async Task<NotAchievedDecision> AskNotAchievedAsync(string message, long bestEffortBytes, long targetBytes, ConversionEstimates? estimates)
     {
-        IReadOnlyList<string> buttons = rasterAvailable
-            ? [Strings.Btn_ReduceKeep, Strings.Btn_ReduceRasterize, Strings.Btn_ReduceMono, Strings.Dlg_Cancel]
-            : [Strings.Btn_ReduceKeep, Strings.Dlg_Cancel];
-        var dlg = new MessageDialog(Strings.Dlg_ReduceTitle, message, buttons);
-        await dlg.ShowDialog(owner);
-        return dlg.Result switch
-        {
-            0 => NotAchievedChoice.KeepBestEffort,
-            1 when rasterAvailable => NotAchievedChoice.Rasterize,
-            2 when rasterAvailable => NotAchievedChoice.Monochrome,
-            _ => NotAchievedChoice.Cancel,
-        };
-    }
+        if (estimates is not null)
+            return await new NotAchievedDialog(message, bestEffortBytes, targetBytes, estimates).ShowDialog<NotAchievedDecision?>(owner)
+                ?? new NotAchievedDecision(NotAchievedKind.Cancel);
 
-    public async Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes)
-        => await new MonoQualityDialog(options, targetBytes).ShowDialog<int?>(owner);
-
-    public async Task<bool> ConfirmRasterizeAsync(bool monochrome)
-    {
-        var dlg = new MessageDialog(Strings.Dlg_ReduceTitle, monochrome ? Strings.Msg_ReduceMonoWarn : Strings.Msg_ReduceRasterWarn, [Strings.Dlg_Ok, Strings.Dlg_Cancel], defaultIndex: 1);
+        var dlg = new MessageDialog(Strings.Dlg_ReduceTitle, message, [Strings.Btn_ReduceKeep, Strings.Dlg_Cancel]);
         await dlg.ShowDialog(owner);
-        return dlg.Result == 0;
+        return new NotAchievedDecision(dlg.Result == 0 ? NotAchievedKind.KeepBestEffort : NotAchievedKind.Cancel);
     }
 }

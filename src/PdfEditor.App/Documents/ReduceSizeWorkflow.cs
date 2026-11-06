@@ -4,28 +4,31 @@ using PdfEditor.Optimize;
 
 namespace PdfEditor.App.Documents;
 
-/// <summary>목표를 못 맞췄을 때 사용자의 선택. 래스터화는 쪽을 이미지로 바꾸는 것(글자·링크·주석이 사라진다).</summary>
-public enum NotAchievedChoice { KeepBestEffort, Rasterize, Monochrome, Cancel }
+/// <summary>
+/// 목표를 못 맞췄을 때 사용자의 선택. ColorImages: 쪽을 컬러 이미지로 바꾼다(글자·링크·주석이 사라진다).
+/// Layered: 도면용(색 유지) 변환 — 선·글자는 고해상도 흑백 마스크, 색은 저해상도 색층. Level은 <see cref="SizeLadder.Mono"/>의 번호(0 = 높음).
+/// </summary>
+public enum NotAchievedKind { KeepBestEffort, ColorImages, Layered, Cancel }
 
-/// <summary>흑백 변환 화질 하나: 해상도와 그 결과 파일의 크기.</summary>
-public sealed record MonoOption(int Dpi, long Bytes);
+/// <param name="Kind">고른 방식.</param>
+/// <param name="Level">Kind가 Layered일 때 고른 화질 번호(높음 0, 중간 1, 최저 2).</param>
+public sealed record NotAchievedDecision(NotAchievedKind Kind, int Level = 0);
 
 /// <summary>용량 줄이기의 대화상자들. 실제 구현은 Dialogs/AvaloniaReduceSizeDialogs, 시험에서는 가짜로 바꾼다.</summary>
 public interface IReduceSizeDialogs
 {
     /// <summary>목표 용량을 묻는다(기본 16 MB, 프리셋 8·16·20). 취소하면 null. currentBytes가 0이면 현재 용량을 모른다.</summary>
     Task<long?> AskTargetBytesAsync(long currentBytes);
-    /// <summary>목표를 못 맞췄다고 알리고 고르게 한다. rasterAvailable가 false이면 "이미지로 변환" 선택지를 보이지 않는다. 창을 닫으면 Cancel.</summary>
-    Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable);
-    /// <summary>래스터화(monochrome이면 흑백 변환)의 부작용(글자·링크·주석, 색이 사라짐)을 경고하고 계속할지 묻는다.</summary>
-    Task<bool> ConfirmRasterizeAsync(bool monochrome);
-    /// <summary>흑백 변환의 화질(높은 해상도부터)을 크기와 함께 보여 주고 고르게 한다. 고른 번호, 취소하면 null.</summary>
-    Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes);
+    /// <summary>
+    /// 목표를 못 맞췄다고 알리고 저장 방식을 고르게 한다. 그 상태로 저장할 때의 크기(bestEffortBytes)와, 변환할 때의 예상 용량(estimates)을 한 화면에 보여 준다.
+    /// estimates가 null이면 변환 선택지 없이 "그 상태로 저장"과 취소만 있다. 창을 닫으면 Cancel.
+    /// </summary>
+    Task<NotAchievedDecision> AskNotAchievedAsync(string message, long bestEffortBytes, long targetBytes, ConversionEstimates? estimates);
 }
 
 /// <summary>
-/// "용량 줄여 저장" 흐름(UI 스레드). 목표 용량 → 저장 위치 → 진행 창에서 줄이기 → 달성/못 맞춤 안내. 못 맞추면 그 상태로 저장·이미지로 변환·취소를 묻는다.
-/// 원본은 건드리지 않고 항상 새 파일로 저장한다.
+/// "용량 줄여 저장" 흐름(UI 스레드). 목표 용량 → 저장 위치 → 진행 창에서 줄이기 → 달성/못 맞춤 안내. 못 맞추면 변환했을 때의 예상 용량을 미리 재서
+/// 그 상태로 저장·컬러 이미지로 변환·도면용(색 유지) 변환 3등급·취소 중에서 한 화면에서 고르게 한다. 원본은 건드리지 않고 항상 새 파일로 저장한다.
 /// </summary>
 public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts prompts, SizeReducer reducer)
 {
@@ -47,7 +50,7 @@ public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts promp
         ReduceResult? pending = null;
         try
         {
-            var r = await ReduceWithProgressAsync(s, path, target, ReduceMode.Images).ConfigureAwait(true);
+            var r = await ReduceWithProgressAsync(s, path, target, ReduceMode.Images, 0).ConfigureAwait(true);
             while (r is not null)
             {
                 if (r.AlreadySmallEnough)
@@ -64,34 +67,44 @@ public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts promp
                 pending = r;
                 string message = string.Format(Strings.Msg_ReduceNotAchieved, ByteSize.Format(r.MinPossibleBytes), ByteSize.Format(target));
                 if (r.MinPossibleBytes >= r.OriginalBytes * 0.9) message += " " + Strings.Msg_ReduceFewImages;
-                bool rasterAvailable = r.Mode == ReduceMode.Images;   // 이미지 모드에서 못 맞췄을 때만 변환을 권한다
-                var choice = await ui.AskNotAchievedAsync(message, rasterAvailable).ConfigureAwait(true);
-                if (choice == NotAchievedChoice.KeepBestEffort)
+
+                // 이미지 모드에서 못 맞췄을 때만 변환을 권한다. 변환했을 때의 용량을 선택 창에 미리 보여 주려고 표본 쪽으로 먼저 잰다.
+                ConversionEstimates? estimates = null;
+                if (r.Mode == ReduceMode.Images)
+                {
+                    var estimated = await EstimateWithProgressAsync(s, path).ConfigureAwait(true);
+                    if (estimated.Cancelled) return;   // 취소 (finally가 임시 결과를 버린다)
+                    estimates = estimated.Estimates;
+                }
+
+                var decision = await ui.AskNotAchievedAsync(message, r.MinPossibleBytes, target, estimates).ConfigureAwait(true);
+                if (decision.Kind == NotAchievedKind.KeepBestEffort)
                 {
                     reducer.Commit(r, path);
                     pending = null;
                     await prompts.ShowInfoAsync(Done(r)).ConfigureAwait(true);
                     return;
                 }
-                if (choice == NotAchievedChoice.Monochrome && rasterAvailable && await ui.ConfirmRasterizeAsync(true).ConfigureAwait(true))
+                if (estimates is not null && decision.Kind == NotAchievedKind.ColorImages)
                 {
                     reducer.Discard(r);
                     pending = null;
-                    await RunMonochromeAsync(s, path, target).ConfigureAwait(true);
-                    return;
-                }
-                if (choice == NotAchievedChoice.Rasterize && rasterAvailable && await ui.ConfirmRasterizeAsync(false).ConfigureAwait(true))
-                {
-                    reducer.Discard(r);
-                    pending = null;
-                    r = await ReduceWithProgressAsync(s, path, target, ReduceMode.Raster).ConfigureAwait(true);
+                    r = await ReduceWithProgressAsync(s, path, target, ReduceMode.Raster, 0).ConfigureAwait(true);
                     continue;
                 }
-                return;   // 취소·확인 거절 (finally가 임시 결과를 버린다)
+                if (estimates is not null && decision.Kind == NotAchievedKind.Layered && decision.Level >= 0 && decision.Level < SizeLadder.Mono.Count)
+                {
+                    reducer.Discard(r);
+                    pending = null;
+                    r = await ReduceWithProgressAsync(s, path, target, ReduceMode.Layered, decision.Level).ConfigureAwait(true);
+                    continue;
+                }
+                return;   // 취소 (finally가 임시 결과를 버린다)
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            ErrorLog.Write("reduce", ex);
             await prompts.ShowErrorAsync(ErrorMessages.For(ex)).ConfigureAwait(true);
         }
         finally
@@ -100,36 +113,27 @@ public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts promp
         }
     }
 
-    /// <summary>흑백 변환: 화질 3등급을 모두 만들어 크기를 보여 주고, 고른 것을 저장한다. 취소하면 아무것도 남기지 않는다.</summary>
-    private async Task RunMonochromeAsync(DocumentSession s, string path, long target)
-    {
-        MonoVariants? variants = null;
-        bool finished = await prompts.RunWithProgressAsync(Strings.Dlg_ReduceTitle, Strings.Msg_ReduceProgress, 100,
-            async (progress, ct) => variants = await reducer.BuildMonochromeVariantsAsync(s, path, new Percent(progress), ct).ConfigureAwait(false)).ConfigureAwait(true);
-        if (!finished || variants is null) return;
-        try
-        {
-            var options = variants.Items.Select(v => new MonoOption(v.Dpi, v.Bytes)).ToList();
-            if (await ui.PickMonochromeLevelAsync(options, target).ConfigureAwait(true) is not { } pick || pick < 0 || pick >= options.Count) return;
-            reducer.CommitMonochrome(variants, pick, path);
-            await prompts.ShowInfoAsync(string.Format(Strings.Msg_ReduceDone, ByteSize.Format(variants.OriginalBytes), ByteSize.Format(options[pick].Bytes))).ConfigureAwait(true);
-            variants = null;
-        }
-        finally
-        {
-            if (variants is not null && variants.Items.Any(v => File.Exists(v.Path))) reducer.DiscardMonochrome(variants);
-        }
-    }
-
     private static string Done(ReduceResult r) => string.Format(Strings.Msg_ReduceDone, ByteSize.Format(r.OriginalBytes), ByteSize.Format(r.FinalBytes));
 
     /// <summary>진행 창(취소 가능)에서 줄인다. 사용자가 취소하면 null.</summary>
-    private async Task<ReduceResult?> ReduceWithProgressAsync(DocumentSession s, string path, long target, ReduceMode mode)
+    private async Task<ReduceResult?> ReduceWithProgressAsync(DocumentSession s, string path, long target, ReduceMode mode, int level)
     {
         ReduceResult? result = null;
         bool finished = await prompts.RunWithProgressAsync(Strings.Dlg_ReduceTitle, Strings.Msg_ReduceProgress, 100,
-            async (progress, ct) => result = await reducer.ReduceAsync(s, path, target, mode, new Percent(progress), ct).ConfigureAwait(false)).ConfigureAwait(true);
+            async (progress, ct) => result = await reducer.ReduceAsync(s, path, target, mode, new Percent(progress), ct, level).ConfigureAwait(false)).ConfigureAwait(true);
         return finished ? result : null;
+    }
+
+    /// <summary>변환 예상 용량을 진행 창에서 잰다. 사용자가 취소하면 Cancelled, 재다가 실패하면(기록을 남기고) 예상 없이 계속한다.</summary>
+    private async Task<(bool Cancelled, ConversionEstimates? Estimates)> EstimateWithProgressAsync(DocumentSession s, string path)
+    {
+        ConversionEstimates? estimates = null;
+        bool finished = await prompts.RunWithProgressAsync(Strings.Dlg_ReduceTitle, Strings.Msg_ReduceProgress, 100, async (progress, ct) =>
+        {
+            try { estimates = await reducer.EstimateConversionsAsync(s, path, new Percent(progress), ct).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { ErrorLog.Write("estimate", ex); }
+        }).ConfigureAwait(true);
+        return (!finished, estimates);
     }
 
     private sealed class Percent(IProgress<int> inner) : IProgress<ReduceProgress>

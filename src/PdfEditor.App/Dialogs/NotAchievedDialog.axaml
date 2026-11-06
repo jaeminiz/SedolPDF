@@ -1,14 +1,16 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:res="using:PdfEditor.App.Resources"
-        x:Class="PdfEditor.App.Dialogs.MonoQualityDialog"
+        x:Class="PdfEditor.App.Dialogs.NotAchievedDialog"
         Title="{x:Static res:Strings.Dlg_ReduceTitle}"
-        SizeToContent="Height" Width="480"
+        SizeToContent="Height" Width="560"
         CanResize="False" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="#F3F3F3">
   <StackPanel Margin="{DynamicResource InsetDialog}" Spacing="{DynamicResource Space12}">
-    <TextBlock TextWrapping="Wrap" Foreground="#1A1A1A" Text="{x:Static res:Strings.Dlg_MonoHint}" />
+    <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="#1A1A1A" />
+    <TextBlock TextWrapping="Wrap" Foreground="#555555" Text="{x:Static res:Strings.Dlg_NaHint}" />
     <StackPanel x:Name="OptionsPanel" Spacing="{DynamicResource Space8}" />
+    <TextBlock TextWrapping="Wrap" Foreground="#555555" Text="{x:Static res:Strings.Dlg_NaNote}" />
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}" Margin="0,8,0,0">
       <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Ok}" />
       <Button x:Name="CancelButton" IsCancel="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Cancel}" />

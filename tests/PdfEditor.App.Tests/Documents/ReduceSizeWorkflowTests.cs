@@ -11,20 +11,19 @@ namespace PdfEditor.App.Tests.Documents;
 public sealed class FakeReduceDialogs : IReduceSizeDialogs
 {
     public long? Target { get; set; }
-    public NotAchievedChoice Choice { get; set; } = NotAchievedChoice.Cancel;
-    public bool ConfirmRaster { get; set; } = true;
+    public NotAchievedDecision Decision { get; set; } = new(NotAchievedKind.Cancel);
+    /// <summary>비어 있지 않으면 질문마다 하나씩 꺼내 쓴다(두 번째 질문 등). 비면 Decision.</summary>
+    public Queue<NotAchievedDecision> Decisions { get; } = new();
     public int AskTargetCalls { get; private set; }
     public long CurrentSeen { get; private set; }
-    public List<(string Message, bool RasterAvailable)> NotAchieved { get; } = [];
-    public int ConfirmCalls { get; private set; }
-    public List<bool> ConfirmedMonochrome { get; } = [];
-    public int? MonoPick { get; set; }
-    public List<(IReadOnlyList<MonoOption> Options, long Target)> MonoAsked { get; } = [];
-    public Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes) { MonoAsked.Add((options, targetBytes)); return Task.FromResult(MonoPick); }
+    public List<(string Message, long BestEffortBytes, long TargetBytes, ConversionEstimates? Estimates)> NotAchieved { get; } = [];
 
     public Task<long?> AskTargetBytesAsync(long currentBytes) { AskTargetCalls++; CurrentSeen = currentBytes; return Task.FromResult(Target); }
-    public Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable) { NotAchieved.Add((message, rasterAvailable)); return Task.FromResult(Choice); }
-    public Task<bool> ConfirmRasterizeAsync(bool monochrome) { ConfirmCalls++; ConfirmedMonochrome.Add(monochrome); return Task.FromResult(ConfirmRaster); }
+    public Task<NotAchievedDecision> AskNotAchievedAsync(string message, long bestEffortBytes, long targetBytes, ConversionEstimates? estimates)
+    {
+        NotAchieved.Add((message, bestEffortBytes, targetBytes, estimates));
+        return Task.FromResult(Decisions.Count > 0 ? Decisions.Dequeue() : Decision);
+    }
 }
 
 public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
@@ -145,17 +144,20 @@ public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task NotAchieved_KeepBestEffort_WritesFile()
+    public async Task NotAchieved_KeepBestEffort_WritesFile_AndShowedEstimatesUpFront()
     {
         var s = await BlankAsync();
         _ui.Target = 100;   // 빈 쪽 하나는 이보다 작아질 수 없다
-        _ui.Choice = NotAchievedChoice.KeepBestEffort;
+        _ui.Decision = new(NotAchievedKind.KeepBestEffort);
         string target = P("blank_small.pdf");
         _p.SavePicks.Enqueue(target);
         await Wf().RunAsync(s);
         Assert.True(File.Exists(target));
         var asked = Assert.Single(_ui.NotAchieved);
-        Assert.True(asked.RasterAvailable);
+        Assert.NotNull(asked.Estimates);   // 변환 예상 용량이 선택 창에 함께 전달된다
+        Assert.Equal([600, 300, 200], asked.Estimates!.Layered.Select(g => g.Dpi).ToArray());
+        Assert.Equal(100, asked.TargetBytes);
+        Assert.Equal(new FileInfo(target).Length, asked.BestEffortBytes);
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
@@ -164,7 +166,7 @@ public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
     {
         var s = await BlankAsync();
         _ui.Target = 100;
-        _ui.Choice = NotAchievedChoice.Cancel;
+        _ui.Decision = new(NotAchievedKind.Cancel);
         string target = P("c.pdf");
         _p.SavePicks.Enqueue(target);
         await Wf().RunAsync(s);
@@ -173,116 +175,51 @@ public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task NotAchieved_RasterizeButNotConfirmed_WritesNothing()
+    public async Task NotAchieved_Layered_SavesTheChosenGrade_WithoutAskingAgain()
     {
         var s = await BlankAsync();
         _ui.Target = 100;
-        _ui.Choice = NotAchievedChoice.Rasterize;
-        _ui.ConfirmRaster = false;
-        string target = P("r.pdf");
+        _ui.Decision = new(NotAchievedKind.Layered, 1);   // 중간
+        string target = P("layered.pdf");
         _p.SavePicks.Enqueue(target);
         await Wf().RunAsync(s);
-        Assert.Equal(1, _ui.ConfirmCalls);
-        Assert.False(File.Exists(target));
-        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+
         Assert.Single(_ui.NotAchieved);
+        Assert.True(File.Exists(target));
+        var info = Assert.Single(_p.Infos);
+        Assert.Contains(ByteSize.Format(new FileInfo(target).Length), info);
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
     [Fact]
-    public async Task NotAchieved_Rasterize_Confirmed_RunsRasterMode_AndAsksAgainWithoutRasterOption()
+    public async Task NotAchieved_ColorImages_RunsRasterMode_AndAsksAgainWithoutConversions()
     {
         var s = await BlankAsync();
-        _ui.Target = 100;   // 래스터화해도 100바이트는 못 맞춘다
-        _ui.Choice = NotAchievedChoice.Rasterize;
+        _ui.Target = 100;   // 변환해도 100바이트는 못 맞춘다
+        _ui.Decisions.Enqueue(new(NotAchievedKind.ColorImages));
+        _ui.Decisions.Enqueue(new(NotAchievedKind.KeepBestEffort));
         string target = P("raster.pdf");
         _p.SavePicks.Enqueue(target);
-        // 두 번째 질문에서는 래스터 선택지가 없으므로 Rasterize를 고르면 취소와 같다 → 그 상태로 저장을 고르게 바꾼다.
-        var wf = Wf();
-        _ui.Choice = NotAchievedChoice.Rasterize;
-        var run = wf.RunAsync(s);
-        await run;
+        await Wf().RunAsync(s);
+
         Assert.Equal(2, _ui.NotAchieved.Count);
-        Assert.True(_ui.NotAchieved[0].RasterAvailable);
-        Assert.False(_ui.NotAchieved[1].RasterAvailable);
-        Assert.Equal(1, _ui.ConfirmCalls);
-        Assert.False(File.Exists(target));   // 두 번째 질문의 Rasterize는 선택지가 아니므로 저장하지 않는다
-        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
-    }
-
-    [Fact]
-    public async Task NotAchieved_Monochrome_ShowsThreeSizes_AndSavesTheChosenOne()
-    {
-        var s = await BlankAsync();
-        _ui.Target = 100;
-        _ui.Choice = NotAchievedChoice.Monochrome;
-        _ui.MonoPick = 1;   // 중간
-        string target = P("mono.pdf");
-        _p.SavePicks.Enqueue(target);
-        await Wf().RunAsync(s);
-
-        Assert.Equal([true], _ui.ConfirmedMonochrome);
-        var (options, askedTarget) = Assert.Single(_ui.MonoAsked);
-        Assert.Equal([600, 300, 200], options.Select(o => o.Dpi).ToArray());
-        Assert.Equal(100, askedTarget);
+        Assert.NotNull(_ui.NotAchieved[0].Estimates);
+        Assert.Null(_ui.NotAchieved[1].Estimates);   // 두 번째 질문에는 변환 선택지가 없다
         Assert.True(File.Exists(target));
-        Assert.Equal(options[1].Bytes, new FileInfo(target).Length);
-        Assert.Single(_p.Infos);
-        Assert.Contains(ByteSize.Format(options[1].Bytes), _p.Infos[0]);
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
     [Fact]
-    public async Task NotAchieved_Monochrome_PickCancelled_WritesNothing()
+    public async Task NotAchieved_ConversionChosenOnTheSecondQuestion_IsIgnored()
     {
         var s = await BlankAsync();
         _ui.Target = 100;
-        _ui.Choice = NotAchievedChoice.Monochrome;
-        _ui.MonoPick = null;
-        string target = P("mono2.pdf");
+        _ui.Decisions.Enqueue(new(NotAchievedKind.ColorImages));
+        _ui.Decisions.Enqueue(new(NotAchievedKind.Layered, 0));   // 변환 선택지가 없는 질문에서는 취소와 같다
+        string target = P("raster3.pdf");
         _p.SavePicks.Enqueue(target);
         await Wf().RunAsync(s);
-        Assert.Single(_ui.MonoAsked);
         Assert.False(File.Exists(target));
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
-    }
-
-    [Fact]
-    public async Task NotAchieved_Monochrome_NotConfirmed_DoesNotBuildAnything()
-    {
-        var s = await BlankAsync();
-        _ui.Target = 100;
-        _ui.Choice = NotAchievedChoice.Monochrome;
-        _ui.ConfirmRaster = false;
-        _p.SavePicks.Enqueue(P("mono3.pdf"));
-        await Wf().RunAsync(s);
-        Assert.Empty(_ui.MonoAsked);
-        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
-    }
-
-    [Fact]
-    public async Task NotAchieved_AfterRaster_KeepBestEffort_WritesRasterFile()
-    {
-        var s = await BlankAsync();
-        _ui.Target = 100;
-        string target = P("raster2.pdf");
-        _p.SavePicks.Enqueue(target);
-        var choices = new Queue<NotAchievedChoice>([NotAchievedChoice.Rasterize, NotAchievedChoice.KeepBestEffort]);
-        var ui = new SequenceDialogs(_ui, choices);
-        await new ReduceSizeWorkflow(ui, _p, new SizeReducer(new OutputCopyBuilder(null, null, null))).RunAsync(s);
-        Assert.True(File.Exists(target));
-        Assert.Equal(2, _ui.NotAchieved.Count);
-        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
-    }
-
-    private sealed class SequenceDialogs(FakeReduceDialogs inner, Queue<NotAchievedChoice> choices) : IReduceSizeDialogs
-    {
-        public Task<long?> AskTargetBytesAsync(long currentBytes) => inner.AskTargetBytesAsync(currentBytes);
-        public async Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable)
-        {
-            await inner.AskNotAchievedAsync(message, rasterAvailable);
-            return choices.Dequeue();
-        }
-        public Task<bool> ConfirmRasterizeAsync(bool monochrome) => inner.ConfirmRasterizeAsync(monochrome);
-        public Task<int?> PickMonochromeLevelAsync(IReadOnlyList<MonoOption> options, long targetBytes) => inner.PickMonochromeLevelAsync(options, targetBytes);
     }
 }

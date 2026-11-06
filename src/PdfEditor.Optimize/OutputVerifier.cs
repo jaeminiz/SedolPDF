@@ -17,11 +17,11 @@ public static class OutputVerifier
     private const double MaxMeanBlockDiff = 10.0;   // 0~255, 모든 블록의 평균 차이
     private const double MaxSingleBlockDiff = 90.0; // 0~255, 한 블록의 최대 차이
 
-    public static bool Verify(PdfiumThread t, string originalPath, string reducedPath, string? password, int? atDpi = null, bool binarize = false)
-        => Check(t, originalPath, reducedPath, password, atDpi, binarize).Ok;
+    public static bool Verify(PdfiumThread t, string originalPath, string reducedPath, string? password, int? atDpi = null, bool binarize = false, int binarizeThreshold = 170)
+        => Check(t, originalPath, reducedPath, password, atDpi, binarize, binarizeThreshold).Ok;
 
     /// <summary>Verify와 같은 검사. 가장 나쁜 쪽의 블록 평균 차이(WorstMean)와 한 블록 최대 차이(WorstMax)도 돌려준다(시험·진단용).</summary>
-    internal static (bool Ok, double WorstMean, double WorstMax) Check(PdfiumThread t, string originalPath, string reducedPath, string? password, int? atDpi = null, bool binarize = false)
+    internal static (bool Ok, double WorstMean, double WorstMax) Check(PdfiumThread t, string originalPath, string reducedPath, string? password, int? atDpi = null, bool binarize = false, int binarizeThreshold = 170)
         => t.InvokeAsync(() =>
         {
             using var a = Pdf.Native.PdfDocument.Open(t, originalPath, password);
@@ -33,8 +33,8 @@ public static class OutputVerifier
             for (int k = 0; k < samples; k++)
             {
                 int i = samples == n ? k : (int)((long)k * (n - 1) / Math.Max(1, samples - 1));
-                var ba = BlockMeans(a, i, atDpi, binarize);
-                var bb = BlockMeans(b, i, atDpi, binarize);
+                var ba = BlockMeans(a, i, atDpi, binarize, binarizeThreshold);
+                var bb = BlockMeans(b, i, atDpi, binarize, binarizeThreshold);
                 if (ba.Length != bb.Length) return (false, double.NaN, double.NaN);
                 double sum = 0, max = 0;
                 for (int j = 0; j < ba.Length; j++)
@@ -50,7 +50,7 @@ public static class OutputVerifier
         }).GetAwaiter().GetResult();
 
     /// <summary>쪽을 그려(atDpi가 있으면 그 배율, 없으면 ThumbWidth 폭) 16×16 블록마다 (R+G+B)/3 평균을 낸다.</summary>
-    private static double[] BlockMeans(Pdf.Native.PdfDocument doc, int index, int? atDpi, bool binarize)
+    private static double[] BlockMeans(Pdf.Native.PdfDocument doc, int index, int? atDpi, bool binarize, int threshold)
     {
         using var page = doc.LoadPage(index);
         var size = page.SizePt;
@@ -75,7 +75,7 @@ public static class OutputVerifier
                     for (int x = bx * Block; x < Math.Min(w, (bx + 1) * Block); x++)
                     {
                         int o = (y * w + x) * 4;
-                        sum += binarize ? (px[o] < 170 || px[o + 1] < 170 || px[o + 2] < 170 ? 0 : 765) : px[o] + px[o + 1] + px[o + 2];
+                        sum += binarize ? (px[o] < threshold || px[o + 1] < threshold || px[o + 2] < threshold ? 0 : 765) : px[o] + px[o + 1] + px[o + 2];
                         cnt++;
                     }
                 means[by * bw + bx] = sum / (cnt * 3.0);

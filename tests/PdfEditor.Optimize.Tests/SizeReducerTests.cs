@@ -207,59 +207,53 @@ public sealed class SizeReducerTests : IDisposable
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
-    [Fact]
-    public async Task MonochromeVariants_ThreeLevelsHighestFirst_AllJbig2WithSamePageCount_AndCommitKeepsOnlyTheChosen()
+    private string TenColorPages()
     {
-        string src = P("lines3.pdf");
-        TestPdfFactory.CreateLabeled(src, [(595, 842), (842, 595), (300, 400)]);
-        await using var s = await OpenAsync(src);
-        string target = P("mono.pdf");
+        string src = P("ten.pdf");
+        TestPdfFactory.CreateLabeled(src, Enumerable.Repeat((595f, 842f), 10).ToList());
+        return src;
+    }
+
+    [Fact]
+    public async Task EstimateConversions_ThreeLayeredGradesHighestFirst_AndCloseToTheRealSize_AndLeavesNoTempFiles()
+    {
+        await using var s = await OpenAsync(TenColorPages());
         var reducer = NewReducer();
-        var v = await reducer.BuildMonochromeVariantsAsync(s, target, null, CancellationToken.None);
+        var est = await reducer.EstimateConversionsAsync(s, P("est.pdf"), null, CancellationToken.None);
 
-        Assert.Equal([600, 300, 200], v.Items.Select(x => x.Dpi).ToArray());
-        Assert.True(v.OriginalBytes > 0);
-        foreach (var item in v.Items)
-        {
-            Assert.True(File.Exists(item.Path));
-            Assert.Equal(3, await PageCount(item.Path));
-            Assert.Equal(new FileInfo(item.Path).Length, item.Bytes);
-        }
-        using (var doc = PdfSharp.Pdf.IO.PdfReader.Open(v.Items[1].Path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
-        {
-            var img = doc.Pages[0].Resources!.Elements.GetDictionary("/XObject")!.Elements.GetDictionary("/Im0")!;
-            Assert.Equal("/JBIG2Decode", img.Elements.GetName("/Filter"));
-            Assert.Equal(1, img.Elements.GetInteger("/BitsPerComponent"));
-        }
+        Assert.Equal([600, 300, 200], est.Layered.Select(g => g.Dpi).ToArray());
+        Assert.True(est.ColorImagesBytes > 0);
+        Assert.All(est.Layered, g => Assert.True(g.Bytes > 0));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
 
-        reducer.CommitMonochrome(v, 1, target);
-        Assert.True(File.Exists(target));
-        Assert.Equal(3, await PageCount(target));
+        // 실제로 300dpi 등급을 만들어 예상과 비교한다(열 쪽이 같은 모양이라 오차가 작다).
+        var r = await reducer.ReduceAsync(s, P("real.pdf"), 1, ReduceMode.Layered, null, CancellationToken.None, level: 1);
+        double ratio = (double)est.Layered[1].Bytes / r.FinalBytes;
+        Assert.InRange(ratio, 0.7, 1.3);
+    }
+
+    [Fact]
+    public async Task Layered_WritesTheChosenGradeEvenWhenOverTheTarget_WithSamePageCount_AndNoTempFiles()
+    {
+        await using var s = await OpenAsync(TenColorPages());
+        string target = P("layered.pdf");
+        var r = await NewReducer().ReduceAsync(s, target, 1, ReduceMode.Layered, null, CancellationToken.None, level: 2);
+        Assert.Equal(ReduceMode.Layered, r.Mode);
+        Assert.True(r.Achieved);
+        Assert.Equal(2, r.Level);
+        Assert.Equal(10, await PageCount(target));
+        Assert.Equal(new FileInfo(target).Length, r.FinalBytes);
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
 
     [Fact]
-    public async Task MonochromeVariants_Discard_RemovesAllTemporaryFiles()
+    public async Task Layered_Cancelled_LeavesNoTemporaryFiles()
     {
-        string src = P("lines2.pdf");
-        TestPdfFactory.CreateLabeled(src, [(595, 842), (595, 842)]);
-        await using var s = await OpenAsync(src);
-        var reducer = NewReducer();
-        var v = await reducer.BuildMonochromeVariantsAsync(s, P("m.pdf"), null, CancellationToken.None);
-        reducer.DiscardMonochrome(v);
-        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
-        Assert.False(File.Exists(P("m.pdf")));
-    }
-
-    [Fact]
-    public async Task MonochromeVariants_Cancelled_LeavesNoTemporaryFiles()
-    {
-        string src = P("lines2c.pdf");
-        TestPdfFactory.CreateLabeled(src, [(595, 842), (595, 842)]);
-        await using var s = await OpenAsync(src);
+        await using var s = await OpenAsync(TenColorPages());
         using var cts = new CancellationTokenSource();
         cts.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => NewReducer().BuildMonochromeVariantsAsync(s, P("c.pdf"), null, cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => NewReducer().ReduceAsync(s, P("c.pdf"), 1, ReduceMode.Layered, null, cts.Token, level: 0));
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+        Assert.False(File.Exists(P("c.pdf")));
     }
 }
