@@ -49,6 +49,16 @@ public sealed partial class MainWindowViewModel
 
     public void ResetPropertiesPanelWidth() => SetPropertiesPanelWidth(PropertiesPanelDefaultWidth);
 
+    /// <summary>다른 창의 패널 폭을 그대로 가져온다(새 창).</summary>
+    private void CopyPanelWidthsFrom(MainWindowViewModel other)
+    {
+        _leftWidths.Clear();
+        foreach (var (k, v) in other._leftWidths) _leftWidths[k] = v;
+        _propertiesWidth = other._propertiesWidth;
+        OnPropertyChanged(nameof(LeftPanelWidth));
+        OnPropertyChanged(nameof(PropertiesPanelWidth));
+    }
+
     /// <summary>저장된 폭을 되살린다(범위 밖·알 수 없는 값은 무시).</summary>
     public void ApplyPanelWidths(PdfEditor.App.Settings.AppSettings s)
     {

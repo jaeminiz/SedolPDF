@@ -21,6 +21,7 @@
   <data name="Cmd_QuickCommandPlaceholder" xml:space="preserve"><value>빠른 실행 (Ctrl+.)</value></data>
   <data name="Cmd_New" xml:space="preserve"><value>새로 만들기</value></data>
   <data name="Cmd_Open" xml:space="preserve"><value>열기</value></data>
+  <data name="Cmd_NewWindow" xml:space="preserve"><value>새 창</value></data>
   <data name="Cmd_RecentDocs" xml:space="preserve"><value>최근 문서</value></data>
   <data name="Cmd_NoRecent" xml:space="preserve"><value>최근 문서 없음</value></data>
   <data name="Cmd_Save" xml:space="preserve"><value>저장</value></data>

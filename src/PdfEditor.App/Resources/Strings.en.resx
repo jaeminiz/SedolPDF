@@ -21,6 +21,7 @@
   <data name="Cmd_QuickCommandPlaceholder" xml:space="preserve"><value>Quick command (Ctrl+.)</value></data>
   <data name="Cmd_New" xml:space="preserve"><value>New</value></data>
   <data name="Cmd_Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Cmd_NewWindow" xml:space="preserve"><value>New Window</value></data>
   <data name="Cmd_RecentDocs" xml:space="preserve"><value>Recent documents</value></data>
   <data name="Cmd_NoRecent" xml:space="preserve"><value>No recent documents</value></data>
   <data name="Cmd_Save" xml:space="preserve"><value>Save</value></data>

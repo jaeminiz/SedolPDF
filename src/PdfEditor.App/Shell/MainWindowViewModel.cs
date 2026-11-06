@@ -110,6 +110,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (s.LeftPanelKind is { } k && Enum.TryParse<PanelKind>(k, out var kind) && Enum.IsDefined(kind)) ActiveLeftPanel = kind;
         if (s.PropertiesPanelVisible is { } pv) IsPropertiesPanelVisible = pv;
     }
+
+    /// <summary>새 창이 원래 창의 지금 배치(패널 보임·종류·폭, 리본 탭)로 시작하게 한다(0.8.0 여러 창).</summary>
+    public void CopyWindowStateFrom(MainWindowViewModel other)
+    {
+        IsLeftPanelVisible = other.IsLeftPanelVisible;
+        ActiveLeftPanel = other.ActiveLeftPanel;
+        IsPropertiesPanelVisible = other.IsPropertiesPanelVisible;
+        CopyPanelWidthsFrom(other);
+        if (other.SelectedRibbonTab != FormatTabId) SelectedRibbonTab = other.SelectedRibbonTab;   // 서식 탭은 고른 주석이 있어야 보인다
+    }
+
+    /// <summary>파일 > 새 창. 창이 받아 새 창을 띄운다.</summary>
+    public event EventHandler? NewWindowRequested;
     public IRelayCommand<DocumentTabViewModel> CloseDocumentCommand { get; }
     private FileWorkflow? _workflow;
     private IUserPrompts? _prompts;
@@ -754,6 +767,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             () => ActiveDocument is not null);
         Reg("file.new", Strings.Cmd_New, "note", G(Key.N), _newCommand);
         Reg("file.open", Strings.Cmd_Open, "open", G(Key.O), _openCommand);
+        Reg("file.newWindow", Strings.Cmd_NewWindow, null, G(Key.N, KeyModifiers.Control | KeyModifiers.Shift),
+            new RelayCommand(() => NewWindowRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.save", Strings.Cmd_Save, "save", G(Key.S), _saveCommand);
         Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift), _saveAsCommand);
         _reduceSizeCommand = new AsyncRelayCommand(ReduceSizeActiveAsync, () => _reduceSize is not null && ActiveDocument?.Session is not null);

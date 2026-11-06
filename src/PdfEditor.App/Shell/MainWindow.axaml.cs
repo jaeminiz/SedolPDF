@@ -14,10 +14,19 @@ using PdfEditor.App.Resources;
 
 namespace PdfEditor.App.Shell;
 
-public sealed partial class MainWindow : Window
+public sealed partial class MainWindow : Window, IHostWindow
 {
     private readonly MainWindowViewModel _vm = new();
-    internal MainWindowViewModel ViewModel => _vm;
+    public MainWindowViewModel ViewModel => _vm;
+    public bool IsClosed { get; private set; }
+    public PixelRect? TabStripScreenRect => null;   // 단계 4(끌어내기)에서 채운다
+
+    /// <summary>최소화돼 있으면 되살리고 앞으로 가져온다.</summary>
+    public void BringToFront()
+    {
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+    }
     private readonly AppHost _host;   // 앱 공유 서비스(PDFium 스레드·설정·파일 작업·복구)
     private bool _exitConfirmed;
     private MenuItem _recentMenu = null!;
@@ -46,12 +55,20 @@ public sealed partial class MainWindow : Window
         if (result.Language != cur.Language) await new MessageDialog(Strings.Dlg_InfoTitle, Strings.Msg_LanguageRestart, [Strings.Dlg_Ok]).ShowDialog(this);
     }
 
-    public MainWindow() : this(null, []) { }
+    public MainWindow() : this(null) { }
 
     /// <param name="host">앱 공유 서비스. null이면 이 창이 자기 호스트를 만든다(테스트에서 창만 띄울 때).</param>
-    public MainWindow(AppHost? host, IReadOnlyList<string> startupFiles)
+    public MainWindow(AppHost? host)
     {
-        _host = host ?? new AppHost(AppContext.BaseDirectory, () => this);
+        _host = host ?? new AppHost(AppContext.BaseDirectory);
+        _host.Registry.Add(this);
+        Activated += (_, _) => _host.Registry.MarkActivated(this);
+        Closed += (_, _) =>
+        {
+            IsClosed = true;
+            _host.Registry.Remove(this);
+            if (_host.Registry.Count == 0) _host.Dispose();   // 마지막 창이 닫히면 앱 공유 서비스도 끝낸다
+        };
         InitializeComponent();
         DataContext = _vm;
         BuildKeyBindings();
@@ -66,7 +83,6 @@ public sealed partial class MainWindow : Window
         var services = _host.Services;
         var appearance = services.Appearance;
         var patcher = services.Patcher;
-        var paths = _host.Paths;
         var settings = _host.Settings;
         try { var saved = settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
         _vm.PanelWidthsChanged += (_, _) =>
@@ -93,7 +109,6 @@ public sealed partial class MainWindow : Window
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher, services.Assets));
         _vm.AttachReduceSize(new ReduceSizeWorkflow(new AvaloniaReduceSizeDialogs(this), prompts,
             new PdfEditor.Optimize.SizeReducer(new PdfEditor.Document.Output.OutputCopyBuilder(appearance, patcher, services.Assets))));
-        var recovery = _host.Recovery;
         _vm.PickImageBytes = PickImageBytesAsync;
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
         _vm.AboutRequested += async (_, _) => await new AboutDialog().ShowDialog(this);
@@ -102,24 +117,8 @@ public sealed partial class MainWindow : Window
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
-        // 명령줄 인자로 받은 파일은 창이 뜬 뒤에 연다.
-        // 먼저 이전에 남은 복구 항목을 묻고, 그다음 명령줄 파일을 연다(같은 파일이면 복구한 탭으로 전환됨).
-        Opened += async (_, _) =>
-        {
-            if (paths.FellBackFromPortable)
-            {
-                try { await prompts.ShowInfoAsync(Strings.Msg_PortableFolderReadOnly); }
-                catch (Exception) { /* 안내 실패가 시작을 막지 않는다 */ }
-            }
-            try
-            {
-                foreach (var s in await recovery.RecoverAtStartupAsync()) _vm.ShowSession(s);
-            }
-            catch (Exception) { /* 복구 실패가 시작을 막지 않는다 */ }
-            recovery.Start(() => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => workflow.OpenSessions).GetTask());
-            if (startupFiles.Count > 0) await _vm.OpenManyAsync(startupFiles);
-        };
 
+        _vm.NewWindowRequested += (_, _) => _host.CreateWindow(this);
         _vm.ExitRequested += (_, _) => Close();
         // 패널이 막 보이게 된 직후라서 레이아웃 뒤에 초점을 준다.
         _vm.FocusSearchRequested += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(SearchPanelView.FocusQuery,
@@ -175,6 +174,7 @@ public sealed partial class MainWindow : Window
 
         flyout.Items.Add(Item("file.new"));
         flyout.Items.Add(Item("file.open"));
+        flyout.Items.Add(Item("file.newWindow"));
         _recentMenu = new MenuItem { Header = Strings.Cmd_RecentDocs };
         flyout.Items.Add(_recentMenu);
         flyout.Opening += (_, _) => RefreshRecentMenu();
@@ -239,7 +239,6 @@ public sealed partial class MainWindow : Window
         if (await _vm.ConfirmExitAsync())
         {
             _exitConfirmed = true;
-            _host.Dispose();   // 창 하나 = 앱 하나(여러 창이 되면 마지막 창이 닫힐 때로 옮긴다)
             Close();
         }
     }
