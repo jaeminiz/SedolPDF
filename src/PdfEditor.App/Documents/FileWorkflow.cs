@@ -141,14 +141,45 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         Released?.Invoke(s);
     }
 
+    private readonly Dictionary<DocumentSession, int> _busy = [];
+
+    /// <summary>저장·용량 줄이기처럼 세션을 쓰는 긴 일이 진행 중이면 true. 이런 세션의 탭은 다른 창으로 옮기지 않는다.</summary>
+    public bool IsBusy(DocumentSession s) => _busy.ContainsKey(s);
+
+    /// <summary>세션을 진행 중으로 표시한다. 돌려준 것을 Dispose하면 풀린다(겹쳐 불러도 마지막 하나가 풀릴 때 풀림).</summary>
+    public IDisposable MarkBusy(DocumentSession s)
+    {
+        _busy[s] = _busy.GetValueOrDefault(s) + 1;
+        return new BusyMark(this, s);
+    }
+
+    private void Unmark(DocumentSession s)
+    {
+        if (!_busy.TryGetValue(s, out int n)) return;
+        if (n <= 1) _busy.Remove(s); else _busy[s] = n - 1;
+    }
+
+    private sealed class BusyMark(FileWorkflow owner, DocumentSession s) : IDisposable
+    {
+        private bool _done;
+        public void Dispose()
+        {
+            if (_done) return;
+            _done = true;
+            owner.Unmark(s);
+        }
+    }
+
     public async Task<bool> SaveAsync(DocumentSession s)
     {
+        using var _ = MarkBusy(s);
         if (s.FilePath is null || !CanOverwrite(s)) return await SaveAsAsync(s).ConfigureAwait(true);
         return await TrySaveAsync(s, s.FilePath).ConfigureAwait(true);
     }
 
     public async Task<bool> SaveAsAsync(DocumentSession s)
     {
+        using var _ = MarkBusy(s);
         // 암호화가 유지되지 않으면 사용자에게 먼저 알린다 (V6, 설계서 8.2).
         if (s.IsEncrypted && !preservesEncryption)
             await prompts.ShowInfoAsync(Strings.Msg_EncryptionWillBeRemoved).ConfigureAwait(true);

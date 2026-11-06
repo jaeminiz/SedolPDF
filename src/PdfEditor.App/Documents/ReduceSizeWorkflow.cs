@@ -30,10 +30,12 @@ public interface IReduceSizeDialogs
 /// "용량 줄여 저장" 흐름(UI 스레드). 목표 용량 → 저장 위치 → 진행 창에서 줄이기 → 달성/못 맞춤 안내. 못 맞추면 변환했을 때의 예상 용량을 미리 재서
 /// 그 상태로 저장·컬러 이미지로 변환·도면용(색 유지) 변환 3등급·취소 중에서 한 화면에서 고르게 한다. 원본은 건드리지 않고 항상 새 파일로 저장한다.
 /// </summary>
-public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts prompts, SizeReducer reducer)
+public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts prompts, SizeReducer reducer, FileWorkflow? files = null)
 {
     public async Task RunAsync(DocumentSession s)
     {
+        // 줄이는 동안 이 세션의 탭을 다른 창으로 옮기지 못하게 표시한다(0.8.0 여러 창).
+        using var _ = files?.MarkBusy(s);
         if (s.IsEncrypted) { await prompts.ShowInfoAsync(Strings.Msg_ReduceEncrypted).ConfigureAwait(true); return; }
 
         long current = s.FilePath is { } own && File.Exists(own) ? new FileInfo(own).Length : 0;

@@ -109,7 +109,7 @@ public sealed partial class MainWindow : Window, IHostWindow
         _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher, services.Assets));
         _vm.AttachReduceSize(new ReduceSizeWorkflow(new AvaloniaReduceSizeDialogs(this), prompts,
-            new PdfEditor.Optimize.SizeReducer(new PdfEditor.Document.Output.OutputCopyBuilder(appearance, patcher, services.Assets))));
+            new PdfEditor.Optimize.SizeReducer(new PdfEditor.Document.Output.OutputCopyBuilder(appearance, patcher, services.Assets)), workflow));
         _vm.PickImageBytes = PickImageBytesAsync;
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
         _vm.AboutRequested += async (_, _) => await new AboutDialog().ShowDialog(this);

@@ -39,8 +39,11 @@ public sealed class FakePrompts : IUserPrompts
     {
         SavePickCalls++;
         SuggestedNames.Add(suggestedName);
+        OnPickSave?.Invoke();
         return Task.FromResult(SavePicks.Count > 0 ? SavePicks.Dequeue() : null);
     }
+    /// <summary>저장 위치를 고르는 순간 불린다(진행 중 상태를 시험에서 엿보려고).</summary>
+    public Action? OnPickSave { get; set; }
     public string? XfdfPick { get; set; }
     public List<string> XfdfSuggested { get; } = [];
     public Task<string?> PickSaveXfdfAsync(string suggestedName) { XfdfSuggested.Add(suggestedName); return Task.FromResult(XfdfPick); }
@@ -93,6 +96,39 @@ public class FileWorkflowTests : IAsyncLifetime
         var s = await wf.OpenAsync(path);
         if (s is not null) _sessions.Add(s);
         return s;
+    }
+
+    [Fact]
+    public async Task IsBusy_TrueDuringSave_FalseAfter()
+    {
+        string path = P("a.pdf");
+        TestPdfFactory.CreateBlank(path, 1, 200, 200);
+        var wf = Wf();
+        var s = (await Open(wf, path))!;
+        bool? during = null;
+        _p.OnPickSave = () => during = wf.IsBusy(s);
+        _p.SavePicks.Enqueue(P("b.pdf"));
+        Assert.False(wf.IsBusy(s));
+        Assert.True(await wf.SaveAsAsync(s));
+        Assert.True(during);
+        Assert.False(wf.IsBusy(s));
+    }
+
+    [Fact]
+    public async Task MarkBusy_Nested_ClearsOnLastDispose()
+    {
+        string path = P("a.pdf");
+        TestPdfFactory.CreateBlank(path, 1, 200, 200);
+        var wf = Wf();
+        var s = (await Open(wf, path))!;
+        var outer = wf.MarkBusy(s);
+        var inner = wf.MarkBusy(s);
+        inner.Dispose();
+        Assert.True(wf.IsBusy(s));
+        inner.Dispose();   // 두 번 풀어도 한 번만 센다
+        Assert.True(wf.IsBusy(s));
+        outer.Dispose();
+        Assert.False(wf.IsBusy(s));
     }
 
     [Fact]
