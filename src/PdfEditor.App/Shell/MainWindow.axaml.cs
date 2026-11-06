@@ -398,6 +398,28 @@ public sealed partial class MainWindow : Window, IHostWindow
         copy.Click += async (_, _) => { if (path is { Length: > 0 } && Clipboard is { } cb) await cb.SetTextAsync(path); };
         var close = new MenuItem { Header = Strings.TabMenu_Close };
         close.Click += (_, _) => _vm.CloseDocumentCommand.Execute(d);
-        new ContextMenu { ItemsSource = new object[] { reveal, copy, new Separator(), close } }.Open(item);
+
+        // 창 사이 이동(0.8.0): 새 창으로(탭이 하나면 끔), 다른 창으로 ▸ 창마다 그 창의 활성 탭 제목(다른 창이 있을 때만)
+        var toNew = new MenuItem { Header = Strings.TabMenu_MoveToNewWindow, IsEnabled = _vm.Documents.Count > 1 };
+        toNew.Click += async (_, _) => { if (await CommitPendingInputAsync()) _host.Transfer.MoveToNewWindow(this, d); };
+        var items = new List<object> { reveal, copy, new Separator(), toNew };
+        var others = _host.Registry.ByRecent.OfType<MainWindow>().Where(w => w != this).ToList();
+        if (others.Count > 0)
+        {
+            var sub = new List<MenuItem>();
+            foreach (var w in others)
+            {
+                var target = new MenuItem { Header = w.ViewModel.ActiveDocument?.Title ?? w.Title };
+                target.Click += async (_, _) => { if (await CommitPendingInputAsync()) _host.Transfer.MoveToWindow(this, d, w, w.ViewModel.Documents.Count); };
+                sub.Add(target);
+            }
+            items.Add(new MenuItem { Header = Strings.TabMenu_MoveToWindow, ItemsSource = sub });
+        }
+        items.Add(new Separator());
+        items.Add(close);
+        new ContextMenu { ItemsSource = items }.Open(item);
     }
+
+    /// <summary>탭을 다른 창으로 옮기기 전에 문서 화면에서 입력 중인 글을 확정한다. 확정할 수 없으면 false(옮기지 않음).</summary>
+    public Task<bool> CommitPendingInputAsync() => DocView.CommitPendingInputAsync();
 }

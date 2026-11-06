@@ -184,6 +184,9 @@ public static class Strings
     public static string TabMenu_Close => Get(nameof(TabMenu_Close));
     public static string TabMenu_CopyPath => Get(nameof(TabMenu_CopyPath));
     public static string TabMenu_RevealInFolder => Get(nameof(TabMenu_RevealInFolder));
+    public static string TabMenu_MoveToNewWindow => Get(nameof(TabMenu_MoveToNewWindow));
+    public static string TabMenu_MoveToWindow => Get(nameof(TabMenu_MoveToWindow));
+    public static string Msg_TabBusyCannotMove => Get(nameof(Msg_TabBusyCannotMove));
     public static string Tip_NewTab => Get(nameof(Tip_NewTab));
     public static string Tip_FirstPage => Get(nameof(Tip_FirstPage));
     public static string Tip_PrevPage => Get(nameof(Tip_PrevPage));

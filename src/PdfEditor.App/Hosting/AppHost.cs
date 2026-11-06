@@ -39,6 +39,7 @@ public sealed class AppHost : IDisposable
         Recovery = new RecoveryCoordinator(Pdfium, new RecoveryStore(Paths.RecoveryFolder, appearance, patcher, Services.Assets), Settings,
             new AvaloniaRecoveryUi(owner), Prompts);
         Recovery.Attach(Workflow);
+        Transfer = new TabTransfer(this);
     }
 
     public PdfiumThread Pdfium { get; } = new();   // 앱 전체에서 PdfiumThread는 하나
@@ -49,6 +50,7 @@ public sealed class AppHost : IDisposable
     public FileWorkflow Workflow { get; }
     public RecoveryCoordinator Recovery { get; }
     public WindowRegistry Registry { get; } = new();
+    public TabTransfer Transfer { get; }
 
     /// <summary>
     /// 새 창을 만들어 띄운다. copyFrom이 있으면 그 창의 패널 배치로 시작하고, 크기는 같게(최대화면 기본 크기),
