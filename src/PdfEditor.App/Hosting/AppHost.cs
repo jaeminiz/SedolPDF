@@ -21,11 +21,12 @@ public sealed class AppHost : IDisposable
 {
     private bool _disposed;
 
-    public AppHost(string baseDirectory)
+    /// <param name="prompts">시험용 대화상자 대역. null이면 실제 대화상자.</param>
+    public AppHost(string baseDirectory, IUserPrompts? prompts = null)
     {
         // 앱 공통 대화상자(저장 확인·암호·복구 등)는 마지막으로 활성화된, 아직 닫히지 않은 창 위에 띄운다.
         Func<Window> owner = () => (Window)Registry.LastActive!;
-        Prompts = new AvaloniaPrompts(owner);
+        Prompts = prompts ?? new AvaloniaPrompts(owner);
         // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
         Services = AppearanceServices.Create(baseDirectory);
         DocumentTabViewModel.Appearance = Services;
@@ -97,6 +98,15 @@ public sealed class AppHost : IDisposable
         await w.ViewModel.OpenManyAsync(paths);
         w.Activate();
     }
+
+    /// <summary>파일 > 끝내기: 창을 최근 순서로 하나씩 닫는다. 어느 창에서든 취소하면 거기서 멈추고 남은 창은 그대로.</summary>
+    public async Task ExitAllAsync()
+    {
+        foreach (var w in Registry.ByRecent.OfType<MainWindow>().ToList())
+            if (!await w.TryCloseAsync()) return;
+    }
+
+    public bool IsDisposed => _disposed;
 
     /// <summary>복구 타이머를 멈추고 PDFium 스레드를 끝낸다(이 순서). 두 번 불러도 한 번만 한다.</summary>
     public void Dispose()

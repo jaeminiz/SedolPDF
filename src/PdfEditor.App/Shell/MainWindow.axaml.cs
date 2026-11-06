@@ -119,7 +119,9 @@ public sealed partial class MainWindow : Window, IHostWindow
         AddHandler(DragDrop.DropEvent, OnDrop);
 
         _vm.NewWindowRequested += (_, _) => _host.CreateWindow(this);
-        _vm.ExitRequested += (_, _) => Close();
+        _vm.ExitRequested += async (_, _) => await _host.ExitAllAsync();
+        // 마지막 탭을 닫아 빈 창이 되면: 다른 창이 있으면 이 창도 닫는다. 창이 하나뿐이면 빈 화면으로 남는다(설계 4.4 A안).
+        _vm.BecameEmpty += (_, _) => { if (_host.Registry.Count > 1) Close(); };
         // 패널이 막 보이게 된 직후라서 레이아웃 뒤에 초점을 준다.
         _vm.FocusSearchRequested += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(SearchPanelView.FocusQuery,
             Avalonia.Threading.DispatcherPriority.Input);
@@ -236,11 +238,25 @@ public sealed partial class MainWindow : Window, IHostWindow
         base.OnClosing(e);
         if (_exitConfirmed) return;
         e.Cancel = true;
-        if (await _vm.ConfirmExitAsync())
-        {
-            _exitConfirmed = true;
-            Close();
-        }
+        await TryCloseAsync();
+    }
+
+    private Task<bool>? _closeTask;
+
+    /// <summary>이 창의 탭마다 저장 여부를 묻고, 다 닫히면 창을 닫고 true. 하나라도 취소하면 창은 그대로 false. 묻는 중에 또 부르면 같은 결과를 기다린다.</summary>
+    public Task<bool> TryCloseAsync()
+    {
+        if (IsClosed) return Task.FromResult(true);
+        if (_closeTask is { IsCompleted: false } running) return running;
+        return _closeTask = TryCloseCoreAsync();
+    }
+
+    private async Task<bool> TryCloseCoreAsync()
+    {
+        if (!await _vm.ConfirmExitAsync()) return false;
+        _exitConfirmed = true;
+        Close();
+        return true;
     }
 
     private void OnFormatTabClick(object? sender, RoutedEventArgs e) => _vm.SelectRibbonTabCommand.Execute(MainWindowViewModel.FormatTabId);

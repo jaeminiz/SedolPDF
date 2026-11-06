@@ -28,15 +28,16 @@ public sealed class AppHostWindowsTests : IDisposable
         throw new TimeoutException("조건이 제때 되지 않음");
     }
 
-    internal static void Run(Action<AppHost> body)
+    internal static void Run(Action<AppHost> body, PdfEditor.App.Documents.IUserPrompts? prompts = null)
     {
         HeadlessUi.Run(() =>
         {
             using var styles = new EnglishLayoutTests.AppStyles();
-            var host = new AppHost(AppContext.BaseDirectory);
+            var host = new AppHost(AppContext.BaseDirectory, prompts);
             try { body(host); }
             finally
             {
+                if (prompts is PdfEditor.App.Tests.Documents.FakePrompts fake) fake.SaveChoice = PdfEditor.App.Documents.UnsavedChoice.Discard;   // 정리할 때는 버리고 닫는다
                 var open = host.Registry.ByRecent.OfType<MainWindow>().ToList();
                 foreach (var w in open) w.Close();
                 PumpUntil(() => open.All(w => w.IsClosed));

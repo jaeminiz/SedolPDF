@@ -553,15 +553,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
             _workflow?.Release(session);
             await session.DisposeAsync();
         }
+        if (Documents.Count == 0 && !_closingAll) BecameEmpty?.Invoke(this, EventArgs.Empty);
         return true;
     }
 
-    /// <summary>앱을 닫아도 되는지: 열린 탭마다 확인하고 하나라도 취소면 false. 닫기로 한 탭은 정리한다.</summary>
+    /// <summary>탭 하나를 닫아 탭이 없어졌을 때(창 전체를 닫는 중에는 알리지 않는다). 창이 받아 다른 창이 있으면 스스로 닫는다.</summary>
+    public event EventHandler? BecameEmpty;
+    private bool _closingAll;
+
+    /// <summary>창을 닫아도 되는지: 열린 탭마다 확인하고 하나라도 취소면 false. 닫기로 한 탭은 정리한다.</summary>
     public async Task<bool> ConfirmExitAsync()
     {
-        foreach (var d in Documents.ToList())
-            if (!await CloseDocumentAsync(d)) return false;
-        return true;
+        _closingAll = true;
+        try
+        {
+            foreach (var d in Documents.ToList())
+                if (!await CloseDocumentAsync(d)) return false;
+            return true;
+        }
+        finally { _closingAll = false; }
     }
 
     /// <summary>XFDF 내보내기(M3b Task 5): 저장 위치를 묻고 문서의 모든 주석을 쓴다. 실패는 알림으로.</summary>
