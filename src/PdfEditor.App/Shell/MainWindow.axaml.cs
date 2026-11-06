@@ -354,7 +354,9 @@ public sealed partial class MainWindow : Window, IHostWindow
     }
 
     /// <summary>끌기 판정용 이 창의 탭 줄 정보. 탭 줄이 보이지 않으면 null.</summary>
-    public StripInfo? GetStripInfo() => TabStripScreenRect is { } r ? new StripInfo(this, r, AreaTabs(), RenderScaling) : null;
+    public StripInfo? GetStripInfo() => TabStripScreenRect is { } r
+        ? new StripInfo(this, r, AreaTabs(), RenderScaling, new PixelRect(Position, PixelSize.FromSize(ClientSize, RenderScaling)))
+        : null;
 
     /// <summary>탭 줄에 놓일 자리 선을 보이거나(slot) 숨긴다(null). 다른 창에서 끄는 동안에도 불린다.</summary>
     public void ShowDropLine(int? slot)

@@ -68,6 +68,19 @@ public class DropTargetFinderTests
     }
 
     [Fact]
+    public void FrontWindowBody_HidesStripOfWindowBehind()
+    {
+        // 앞 창 B(본문 0..800 × 300..900)가 뒤 창 A의 탭 줄(y 400)을 덮고 있다: 그 위에 놓으면 A로 가지 않는다
+        var front = new StripInfo(B, new PixelRect(0, 300, 600, 32), ThreeTabs, 1.0, new PixelRect(0, 300, 800, 600));
+        var behind = new StripInfo(A, new PixelRect(0, 400, 600, 32), ThreeTabs, 1.0, new PixelRect(0, 400, 800, 600));
+        var t = DropTargetFinder.Find(new PixelPoint(50, 410), B, [front, behind], 3);
+        Assert.Equal(DropKind.NewWindow, t.Kind);
+        // 앞 창 밖이면 뒤 창 탭 줄에 놓인다
+        behind = behind with { StripRect = new PixelRect(1000, 400, 600, 32), WindowRect = new PixelRect(1000, 400, 800, 600) };
+        Assert.Equal(DropKind.OtherWindow, DropTargetFinder.Find(new PixelPoint(1050, 410), B, [front, behind], 3).Kind);
+    }
+
+    [Fact]
     public void Scaling150_SlotUsesDip()
     {
         // 물리 x 300 → DIP 200: 세 번째 탭(200..300)의 가운데보다 왼쪽 → 자리 2

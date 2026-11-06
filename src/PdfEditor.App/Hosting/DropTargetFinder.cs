@@ -3,8 +3,12 @@ using PdfEditor.App.Shell;
 
 namespace PdfEditor.App.Hosting;
 
-/// <summary>창 하나의 탭 줄: 화면 물리 픽셀 사각형, 탭들의 탭 줄 안 위치(DIP), 그 창의 화면 배율.</summary>
-public readonly record struct StripInfo(object Window, PixelRect StripRect, IReadOnlyList<(double Left, double Width)> Tabs, double Scaling);
+/// <summary>
+/// 창 하나의 탭 줄: 화면 물리 픽셀 사각형, 탭들의 탭 줄 안 위치(DIP), 그 창의 화면 배율.
+/// WindowRect(창 전체, 물리 픽셀)가 있으면 그 창이 덮은 곳에서는 뒤 창의 탭 줄을 보지 않는다.
+/// </summary>
+public readonly record struct StripInfo(object Window, PixelRect StripRect, IReadOnlyList<(double Left, double Width)> Tabs, double Scaling,
+    PixelRect? WindowRect = null);
 
 /// <summary>탭을 놓았을 때 할 일: 없음 / 같은 창 순서 바꾸기 / 다른 창 탭 줄에 넣기 / 새 창으로 끌어내기.</summary>
 public enum DropKind { None, Reorder, OtherWindow, NewWindow }
@@ -28,7 +32,11 @@ public static class DropTargetFinder
         {
             double margin = TearOffDistanceDip * s.Scaling;
             var r = s.StripRect;
-            if (screen.X < r.X || screen.X >= r.Right || screen.Y < r.Y - margin || screen.Y > r.Bottom + margin) continue;
+            if (screen.X < r.X || screen.X >= r.Right || screen.Y < r.Y - margin || screen.Y > r.Bottom + margin)
+            {
+                if (s.WindowRect is { } wr && wr.Contains(screen)) break;   // 이 창 본문 위: 뒤에 가린 창들의 탭 줄은 보이지 않는다
+                continue;
+            }
             int slot = TabReorder.Slot(s.Tabs, (screen.X - r.X) / s.Scaling);
             return new(ReferenceEquals(s.Window, source) ? DropKind.Reorder : DropKind.OtherWindow, s.Window, slot);
         }
