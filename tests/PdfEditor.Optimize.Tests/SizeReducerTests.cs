@@ -206,4 +206,37 @@ public sealed class SizeReducerTests : IDisposable
         Assert.Equal(3, await PageCount(target));
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
     }
+
+    [Fact]
+    public async Task Reduce_MonochromeMode_MakesPagesOneBitJbig2_WithSamePageCount()
+    {
+        string src = P("lines.pdf");
+        TestPdfFactory.CreateTextLines(src, ["Monochrome conversion test line one", "second line of text"]);
+        string pdfCopy = P("lines3.pdf");
+        TestPdfFactory.CreateLabeled(pdfCopy, [(595, 842), (842, 595), (300, 400)]);
+        await using var s = await OpenAsync(pdfCopy);
+        string target = P("mono.pdf");
+        var r = await NewReducer().ReduceAsync(s, target, 1, ReduceMode.Monochrome, null, CancellationToken.None);
+        Assert.Equal(ReduceMode.Monochrome, r.Mode);
+        Assert.False(r.Achieved);   // 1바이트는 못 맞춘다 → 임시 결과가 남는다
+        Assert.NotNull(r.PendingPath);
+        Assert.Equal(3, await PageCount(r.PendingPath!));
+        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(r.PendingPath!, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var img = doc.Pages[0].Resources!.Elements.GetDictionary("/XObject")!.Elements.GetDictionary("/Im0")!;
+        Assert.Equal("/JBIG2Decode", img.Elements.GetName("/Filter"));
+        Assert.Equal(1, img.Elements.GetInteger("/BitsPerComponent"));
+        NewReducer().Discard(r);
+    }
+
+    [Fact]
+    public async Task Reduce_MonochromeMode_PicksMildestFittingDpi()
+    {
+        string src = P("lines.pdf");
+        TestPdfFactory.CreateLabeled(src, [(595, 842), (595, 842)]);
+        await using var s = await OpenAsync(src);
+        string target = P("mono-fit.pdf");
+        var r = await NewReducer().ReduceAsync(s, target, 10_000_000, ReduceMode.Monochrome, null, CancellationToken.None);
+        Assert.Equal(ReduceMode.Monochrome, r.Mode);
+        Assert.True(r.Achieved || r.AlreadySmallEnough);
+    }
 }

@@ -68,4 +68,14 @@ public sealed class OutputVerifierTests : IDisposable
         ImagePdfFactory.Create(picture, new ImageSpec(300, 300, ImageKind.FlateGray, 612, 792));
         Assert.False(OutputVerifier.Verify(_t, blank, picture, null));
     }
+
+    [Fact]
+    public void Verify_MonochromeConversion_PassesOnlyWhenBinarized()
+    {
+        string src = P("color.pdf");
+        TestPdfFactory.CreateLabeled(src, [(300, 400), (400, 300)]);
+        string mono = P("mono.pdf");
+        Rasterizer.BuildMonochrome(_t, src, null, mono, SizeLadder.Mono[1], CancellationToken.None);
+        Assert.True(OutputVerifier.Verify(_t, src, mono, null, SizeLadder.Mono[1].MaxDpi, binarize: true));
+    }
 }

@@ -4,7 +4,7 @@ using PdfSharp.Pdf.IO;
 
 namespace PdfEditor.Optimize;
 
-public enum ReduceMode { Images, Raster }
+public enum ReduceMode { Images, Raster, Monochrome }
 
 /// <param name="Stage">"copy", "clean", "images", "raster", "verify" 중 하나.</param>
 /// <param name="Fraction">전체 진행 비율(0~1).</param>
@@ -57,7 +57,7 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
 
             var result = await Task.Run(() => mode == ReduceMode.Images
                 ? RunImages(s, copy, target, pending, targetBytes, original, progress, ct)
-                : RunRaster(s, copy, target, pending, levelFiles, targetBytes, original, progress, ct), ct).ConfigureAwait(false);
+                : RunRaster(s, copy, target, pending, levelFiles, targetBytes, original, progress, ct, mode), ct).ConfigureAwait(false);
             keepPending = result.PendingPath is not null;
             return result;
         }
@@ -113,9 +113,10 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
     }
 
     private ReduceResult RunRaster(DocumentSession s, string copy, string target, string pending, List<string> levelFiles, long targetBytes, long original,
-        IProgress<ReduceProgress>? progress, CancellationToken ct)
+        IProgress<ReduceProgress>? progress, CancellationToken ct, ReduceMode mode)
     {
-        int n = SizeLadder.Raster.Count;
+        var ladder = mode == ReduceMode.Monochrome ? SizeLadder.Mono : SizeLadder.Raster;
+        int n = ladder.Count;
         string PathOf(int i) => target + $".r{i}.tmp";
         long Measure(int i)
         {
@@ -123,7 +124,8 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
             progress?.Report(new ReduceProgress("raster", 0.1 + 0.7 * i / n));
             string p = PathOf(i);
             levelFiles.Add(p);
-            Rasterizer.Build(s.Thread, copy, null, p, SizeLadder.Raster[i], ct);
+            if (mode == ReduceMode.Monochrome) Rasterizer.BuildMonochrome(s.Thread, copy, null, p, ladder[i], ct);
+            else Rasterizer.Build(s.Thread, copy, null, p, ladder[i], ct);
             return new FileInfo(p).Length;
         }
 
@@ -131,7 +133,7 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
         int level = search.Level ?? n - 1;
         File.Move(PathOf(level), pending, overwrite: true);
         levelFiles.Remove(PathOf(level));
-        return Finish(s, copy, target, pending, search, level, ReduceMode.Raster, original, progress);
+        return Finish(s, copy, target, pending, search, level, mode, original, progress);
     }
 
     /// <summary>pending에 있는 선택한 결과를 검증하고, 목표를 맞췄으면 target으로 옮긴다. 못 맞췄으면 pending으로 남긴다.</summary>
@@ -139,7 +141,7 @@ public sealed class SizeReducer(OutputCopyBuilder builder)
         ReduceMode mode, long original, IProgress<ReduceProgress>? progress)
     {
         progress?.Report(new ReduceProgress("verify", 0.9));
-        if (!OutputVerifier.Verify(s.Thread, copy, pending, null, mode == ReduceMode.Raster ? SizeLadder.Raster[level].MaxDpi : null))
+        if (!OutputVerifier.Verify(s.Thread, copy, pending, null, mode == ReduceMode.Raster ? SizeLadder.Raster[level].MaxDpi : mode == ReduceMode.Monochrome ? SizeLadder.Mono[level].MaxDpi : null, binarize: mode == ReduceMode.Monochrome))
             throw new ReduceVerificationException();
         long size = new FileInfo(pending).Length;
         if (search.Level is null)

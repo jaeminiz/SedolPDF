@@ -13,7 +13,7 @@ public sealed class AvaloniaReduceSizeDialogs(Window owner) : IReduceSizeDialogs
     public async Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable)
     {
         IReadOnlyList<string> buttons = rasterAvailable
-            ? [Strings.Btn_ReduceKeep, Strings.Btn_ReduceRasterize, Strings.Dlg_Cancel]
+            ? [Strings.Btn_ReduceKeep, Strings.Btn_ReduceRasterize, Strings.Btn_ReduceMono, Strings.Dlg_Cancel]
             : [Strings.Btn_ReduceKeep, Strings.Dlg_Cancel];
         var dlg = new MessageDialog(Strings.Dlg_ReduceTitle, message, buttons);
         await dlg.ShowDialog(owner);
@@ -21,13 +21,14 @@ public sealed class AvaloniaReduceSizeDialogs(Window owner) : IReduceSizeDialogs
         {
             0 => NotAchievedChoice.KeepBestEffort,
             1 when rasterAvailable => NotAchievedChoice.Rasterize,
+            2 when rasterAvailable => NotAchievedChoice.Monochrome,
             _ => NotAchievedChoice.Cancel,
         };
     }
 
-    public async Task<bool> ConfirmRasterizeAsync()
+    public async Task<bool> ConfirmRasterizeAsync(bool monochrome)
     {
-        var dlg = new MessageDialog(Strings.Dlg_ReduceTitle, Strings.Msg_ReduceRasterWarn, [Strings.Dlg_Ok, Strings.Dlg_Cancel], defaultIndex: 1);
+        var dlg = new MessageDialog(Strings.Dlg_ReduceTitle, monochrome ? Strings.Msg_ReduceMonoWarn : Strings.Msg_ReduceRasterWarn, [Strings.Dlg_Ok, Strings.Dlg_Cancel], defaultIndex: 1);
         await dlg.ShowDialog(owner);
         return dlg.Result == 0;
     }

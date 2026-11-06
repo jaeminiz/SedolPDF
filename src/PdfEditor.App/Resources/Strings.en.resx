@@ -200,6 +200,8 @@
   <data name="Msg_ReduceFewImages" xml:space="preserve"><value>There are few images, so it cannot be reduced further.</value></data>
   <data name="Btn_ReduceKeep" xml:space="preserve"><value>Save as is</value></data>
   <data name="Btn_ReduceRasterize" xml:space="preserve"><value>Convert to images and save</value></data>
+  <data name="Btn_ReduceMono" xml:space="preserve"><value>Convert to black and white and save</value></data>
+  <data name="Msg_ReduceMonoWarn" xml:space="preserve"><value>Pages become black-and-white pictures, so colors, gray shades, text selection, search, links and annotations are lost. This suits line drawings. Continue?</value></data>
   <data name="Msg_ReduceRasterWarn" xml:space="preserve"><value>Pages become images, so text selection, search, links and annotations are lost. Continue?</value></data>
   <data name="Msg_ReduceEncrypted" xml:space="preserve"><value>Password-protected documents are not supported yet.</value></data>
   <data name="Msg_ReduceSameFile" xml:space="preserve"><value>Save with a file name different from the original.</value></data>

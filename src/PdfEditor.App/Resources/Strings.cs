@@ -228,6 +228,8 @@ public static class Strings
     public static string Msg_ReduceFewImages => Get(nameof(Msg_ReduceFewImages));
     public static string Btn_ReduceKeep => Get(nameof(Btn_ReduceKeep));
     public static string Btn_ReduceRasterize => Get(nameof(Btn_ReduceRasterize));
+    public static string Btn_ReduceMono => Get(nameof(Btn_ReduceMono));
+    public static string Msg_ReduceMonoWarn => Get(nameof(Msg_ReduceMonoWarn));
     public static string Msg_ReduceRasterWarn => Get(nameof(Msg_ReduceRasterWarn));
     public static string Msg_ReduceEncrypted => Get(nameof(Msg_ReduceEncrypted));
     public static string Msg_ReduceSameFile => Get(nameof(Msg_ReduceSameFile));

@@ -200,6 +200,8 @@
   <data name="Msg_ReduceFewImages" xml:space="preserve"><value>이미지가 거의 없어 더 줄일 수 없습니다.</value></data>
   <data name="Btn_ReduceKeep" xml:space="preserve"><value>그 상태로 저장</value></data>
   <data name="Btn_ReduceRasterize" xml:space="preserve"><value>이미지로 변환해 저장</value></data>
+  <data name="Btn_ReduceMono" xml:space="preserve"><value>흑백으로 변환해 저장</value></data>
+  <data name="Msg_ReduceMonoWarn" xml:space="preserve"><value>쪽이 흑백 그림으로 바뀌어 색·회색 음영과 글자 선택·검색·링크·주석이 사라집니다. 선 위주의 도면에 알맞습니다. 계속할까요?</value></data>
   <data name="Msg_ReduceRasterWarn" xml:space="preserve"><value>쪽이 이미지로 바뀌어 글자 선택·검색·링크·주석이 사라집니다. 계속할까요?</value></data>
   <data name="Msg_ReduceEncrypted" xml:space="preserve"><value>암호가 있는 문서는 아직 지원하지 않습니다.</value></data>
   <data name="Msg_ReduceSameFile" xml:space="preserve"><value>원본과 다른 파일 이름으로 저장하세요.</value></data>

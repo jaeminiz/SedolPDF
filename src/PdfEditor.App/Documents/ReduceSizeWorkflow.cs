@@ -5,7 +5,7 @@ using PdfEditor.Optimize;
 namespace PdfEditor.App.Documents;
 
 /// <summary>목표를 못 맞췄을 때 사용자의 선택. 래스터화는 쪽을 이미지로 바꾸는 것(글자·링크·주석이 사라진다).</summary>
-public enum NotAchievedChoice { KeepBestEffort, Rasterize, Cancel }
+public enum NotAchievedChoice { KeepBestEffort, Rasterize, Monochrome, Cancel }
 
 /// <summary>용량 줄이기의 대화상자들. 실제 구현은 Dialogs/AvaloniaReduceSizeDialogs, 시험에서는 가짜로 바꾼다.</summary>
 public interface IReduceSizeDialogs
@@ -14,8 +14,8 @@ public interface IReduceSizeDialogs
     Task<long?> AskTargetBytesAsync(long currentBytes);
     /// <summary>목표를 못 맞췄다고 알리고 고르게 한다. rasterAvailable가 false이면 "이미지로 변환" 선택지를 보이지 않는다. 창을 닫으면 Cancel.</summary>
     Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable);
-    /// <summary>래스터화의 부작용(글자·링크·주석이 사라짐)을 경고하고 계속할지 묻는다.</summary>
-    Task<bool> ConfirmRasterizeAsync();
+    /// <summary>래스터화(monochrome이면 흑백 변환)의 부작용(글자·링크·주석, 색이 사라짐)을 경고하고 계속할지 묻는다.</summary>
+    Task<bool> ConfirmRasterizeAsync(bool monochrome);
 }
 
 /// <summary>
@@ -59,7 +59,7 @@ public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts promp
                 pending = r;
                 string message = string.Format(Strings.Msg_ReduceNotAchieved, ByteSize.Format(r.MinPossibleBytes), ByteSize.Format(target));
                 if (r.MinPossibleBytes >= r.OriginalBytes * 0.9) message += " " + Strings.Msg_ReduceFewImages;
-                bool rasterAvailable = r.Mode == ReduceMode.Images;
+                bool rasterAvailable = r.Mode == ReduceMode.Images;   // 이미지 모드에서 못 맞췄을 때만 변환을 권한다
                 var choice = await ui.AskNotAchievedAsync(message, rasterAvailable).ConfigureAwait(true);
                 if (choice == NotAchievedChoice.KeepBestEffort)
                 {
@@ -68,11 +68,12 @@ public sealed class ReduceSizeWorkflow(IReduceSizeDialogs ui, IUserPrompts promp
                     await prompts.ShowInfoAsync(Done(r)).ConfigureAwait(true);
                     return;
                 }
-                if (choice == NotAchievedChoice.Rasterize && rasterAvailable && await ui.ConfirmRasterizeAsync().ConfigureAwait(true))
+                if (choice is NotAchievedChoice.Rasterize or NotAchievedChoice.Monochrome && rasterAvailable
+                    && await ui.ConfirmRasterizeAsync(choice == NotAchievedChoice.Monochrome).ConfigureAwait(true))
                 {
                     reducer.Discard(r);
                     pending = null;
-                    r = await ReduceWithProgressAsync(s, path, target, ReduceMode.Raster).ConfigureAwait(true);
+                    r = await ReduceWithProgressAsync(s, path, target, choice == NotAchievedChoice.Monochrome ? ReduceMode.Monochrome : ReduceMode.Raster).ConfigureAwait(true);
                     continue;
                 }
                 return;   // 취소·확인 거절 (finally가 임시 결과를 버린다)

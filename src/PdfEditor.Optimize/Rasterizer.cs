@@ -46,6 +46,44 @@ public static class Rasterizer
         finally { src.Dispose(); }
     }
 
+    /// <summary>
+    /// 흑백 변환: 쪽마다 PDFium으로 그려 어두운 화소(어느 색 성분이든 170 미만)를 검정으로 하는 1비트 그림을 JBIG2로 압축한 이미지 한 장짜리 새 PDF를 만든다.
+    /// 선 위주의 도면에 알맞고 색·음영·글자 객체는 사라진다. 쪽 크기는 그대로다.
+    /// </summary>
+    public static void BuildMonochrome(PdfiumThread t, string sourcePath, string? password, string outPath, LadderLevel level, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var src = t.InvokeAsync(() => Pdf.Native.PdfDocument.Open(t, sourcePath, password), ct).GetAwaiter().GetResult();
+        try
+        {
+            int pageCount = t.InvokeAsync(() => src.PageCount, ct).GetAwaiter().GetResult();
+            using var outDoc = new PdfSharp.Pdf.PdfDocument();
+            for (int i = 0; i < pageCount; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                int index = i;
+                var r = t.InvokeAsync(() =>
+                {
+                    using var page = src.LoadPage(index);
+                    var size = page.SizePt;
+                    var (scale, pw, ph) = PixelSize(size.Width, size.Height, level.MaxDpi);
+                    return (size.Width, size.Height, pw, ph, Pixels: page.RenderTile(scale, 0, 0, pw, ph, true));
+                }, ct).GetAwaiter().GetResult();
+
+                var bits = new byte[r.pw * r.ph];
+                for (int p = 0; p < bits.Length; p++)
+                {
+                    int o = p * 4;
+                    if (r.Pixels[o] < 170 || r.Pixels[o + 1] < 170 || r.Pixels[o + 2] < 170) bits[p] = 1;
+                }
+                AddImagePage(outDoc, r.Width, r.Height, r.pw, r.ph, Jbig2Encoder.EncodePdfStream(bits, r.pw, r.ph), mono: true);
+            }
+            ct.ThrowIfCancellationRequested();
+            outDoc.Save(outPath);
+        }
+        finally { src.Dispose(); }
+    }
+
     /// <summary>쪽(pt)을 dpi로 그릴 때의 배율과 화소 크기. 쪽이 너무 크면(MaxPixels) 배율을 낮춘다. 검증(OutputVerifier)이 같은 값을 써서 같은 배율로 비교한다.</summary>
     internal static (double Scale, int Width, int Height) PixelSize(double widthPt, double heightPt, int dpi)
     {
@@ -65,7 +103,7 @@ public static class Rasterizer
         return data.ToArray();
     }
 
-    private static void AddImagePage(PdfSharp.Pdf.PdfDocument doc, double widthPt, double heightPt, int pw, int ph, byte[] jpeg)
+    private static void AddImagePage(PdfSharp.Pdf.PdfDocument doc, double widthPt, double heightPt, int pw, int ph, byte[] jpeg, bool mono = false)
     {
         var page = doc.AddPage();
         page.Width = new XUnitPt(widthPt);
@@ -75,9 +113,9 @@ public static class Rasterizer
         img.Elements["/Subtype"] = new PdfName("/Image");
         img.Elements["/Width"] = new PdfInteger(pw);
         img.Elements["/Height"] = new PdfInteger(ph);
-        img.Elements["/BitsPerComponent"] = new PdfInteger(8);
-        img.Elements["/ColorSpace"] = new PdfName("/DeviceRGB");
-        img.Elements["/Filter"] = new PdfName("/DCTDecode");
+        img.Elements["/BitsPerComponent"] = new PdfInteger(mono ? 1 : 8);
+        img.Elements["/ColorSpace"] = new PdfName(mono ? "/DeviceGray" : "/DeviceRGB");
+        img.Elements["/Filter"] = new PdfName(mono ? "/JBIG2Decode" : "/DCTDecode");
         img.CreateStream(jpeg);
         doc.Internals.AddObject(img);
         var xo = new PdfDictionary(doc);

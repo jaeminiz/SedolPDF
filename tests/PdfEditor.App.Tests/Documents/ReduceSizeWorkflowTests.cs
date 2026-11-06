@@ -17,10 +17,11 @@ public sealed class FakeReduceDialogs : IReduceSizeDialogs
     public long CurrentSeen { get; private set; }
     public List<(string Message, bool RasterAvailable)> NotAchieved { get; } = [];
     public int ConfirmCalls { get; private set; }
+    public List<bool> ConfirmedMonochrome { get; } = [];
 
     public Task<long?> AskTargetBytesAsync(long currentBytes) { AskTargetCalls++; CurrentSeen = currentBytes; return Task.FromResult(Target); }
     public Task<NotAchievedChoice> AskNotAchievedAsync(string message, bool rasterAvailable) { NotAchieved.Add((message, rasterAvailable)); return Task.FromResult(Choice); }
-    public Task<bool> ConfirmRasterizeAsync() { ConfirmCalls++; return Task.FromResult(ConfirmRaster); }
+    public Task<bool> ConfirmRasterizeAsync(bool monochrome) { ConfirmCalls++; ConfirmedMonochrome.Add(monochrome); return Task.FromResult(ConfirmRaster); }
 }
 
 public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
@@ -206,6 +207,21 @@ public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task NotAchieved_Monochrome_Confirmed_AsksWithMonochromeWarning_AndRunsMonochromeMode()
+    {
+        var s = await BlankAsync();
+        _ui.Target = 100;
+        _ui.Choice = NotAchievedChoice.Monochrome;
+        string target = P("mono.pdf");
+        _p.SavePicks.Enqueue(target);
+        await Wf().RunAsync(s);
+        Assert.Equal([true], _ui.ConfirmedMonochrome);
+        Assert.Equal(2, _ui.NotAchieved.Count);        // 흑백으로도 100바이트는 못 맞춰 다시 묻는다
+        Assert.False(_ui.NotAchieved[1].RasterAvailable);
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    [Fact]
     public async Task NotAchieved_AfterRaster_KeepBestEffort_WritesRasterFile()
     {
         var s = await BlankAsync();
@@ -228,6 +244,6 @@ public sealed class ReduceSizeWorkflowTests : IAsyncLifetime
             await inner.AskNotAchievedAsync(message, rasterAvailable);
             return choices.Dequeue();
         }
-        public Task<bool> ConfirmRasterizeAsync() => inner.ConfirmRasterizeAsync();
+        public Task<bool> ConfirmRasterizeAsync(bool monochrome) => inner.ConfirmRasterizeAsync(monochrome);
     }
 }
