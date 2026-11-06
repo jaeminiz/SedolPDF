@@ -29,6 +29,7 @@
 • 쪽 편집: 쪽 추가·삭제·회전·순서 바꾸기, 썸네일, 파일 끌어 놓아 넣기
 • 직접 편집: 글자 고치기(굵은 글·색·크기를 원본에 맞춤), 글자 형식 보기와 바꾸기, 문단 편집, 이미지·도형 넣기와 옮기기
 • 탭 오른쪽 클릭 메뉴(폴더 열기, 경로 복사, 닫기), 마우스 휠 버튼으로 화면 이동
+• 용량 줄여 저장: 목표 용량(MB)을 정하면 이미지를 다시 압축해 새 파일로 저장(메일 첨부용), 못 맞추면 변환 방식을 골라 예상 용량 확인
 • 주석 요약 PDF 만들기, 주석 가져오기/내보내기(XFDF)
 • 인쇄, 자동 복구
 • Windows 11 디자인(Fluent), 한국어·영어 화면
@@ -36,6 +37,7 @@
 제작: Park Jaemin, Park Sehyeon. MIT 라이선스 오픈소스 — https://github.com/jaeminiz/SedolPDF
 
 **이 버전의 새 기능 (릴리스 노트):**
+0.7.0: 용량 줄여 저장(파일 → 다른 형식으로 저장 → 용량 줄여 저장: 목표 용량을 정하면 이미지를 다시 압축, 흑백 스캔은 JBIG2, 못 맞추면 컬러 이미지·도면용 변환 중에서 예상 용량을 보고 선택, 원본은 바뀌지 않음), 다른 PDF 프로그램이 만든 사각형·타원(/RD 여백)과 타자기 글자 주석도 선택·편집.
 0.6.0: 텍스트 편집 개선(겹쳐 찍은 굵은 글에서 글이 사라지던 문제 해결, 편집 가능한 글 조각 미리 표시, 반투명 제자리 편집 칸, 편집한 글의 굵기·색·크기를 원본에 맞춤), 탭 오른쪽 클릭 메뉴(포함하는 폴더 열기·전체 경로 복사·이 탭 닫기), 속성 패널의 글자 형식(글꼴·크기·색·굵게·기울임·명조) 보기와 바꾸기, 마우스 휠 버튼으로 화면 이동.
 기본 기능은 사용할 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요.
 
@@ -55,13 +57,14 @@ Features
 • Page tools: add, delete, rotate, reorder pages; thumbnails; drag-and-drop files in
 • Direct editing: fix text (edited text keeps the original weight, color and size), view and change text format, edit paragraphs, add and move images and shapes
 • Tab right-click menu (open folder, copy path, close); pan with the mouse wheel button
+• Save with reduced size: set a target (MB) and images are recompressed into a new file (for email); if it can't be met, pick a conversion with its expected size shown
 • Annotation summary PDF, annotation import/export (XFDF)
 • Printing and auto-recovery
 • Windows 11 Fluent design, Korean and English interface
 
 By Park Jaemin and Park Sehyeon. MIT-licensed open source — https://github.com/jaeminiz/SedolPDF
 
-**Release notes:** 0.6.0 — better text editing (fixes text vanishing from overprinted bold text, editable text pieces previewed, translucent in-place editor, edited text keeps the original weight/color/size), tab right-click menu (open containing folder, copy full path, close tab), text format (font, size, color, bold, italic, serif) in the properties panel, and panning with the mouse wheel button. Core features are usable but still being polished; keep a backup of important files.
+**Release notes:** 0.7.0 — save with reduced size (File → Save in another format → Save with reduced size: set a target size and images are recompressed, black-and-white scans use JBIG2; if the target can't be met, choose between color-image and drawing-mode conversion with expected sizes shown; the original is never changed), and rectangles/ellipses with /RD margins and typewriter text annotations made by other PDF tools can now be selected and edited. 0.6.0 — better text editing (fixes text vanishing from overprinted bold text, editable text pieces previewed, translucent in-place editor, edited text keeps the original weight/color/size), tab right-click menu (open containing folder, copy full path, close tab), text format (font, size, color, bold, italic, serif) in the properties panel, and panning with the mouse wheel button. Core features are usable but still being polished; keep a backup of important files.
 
 **Keywords:** PDF, PDF editor, PDF viewer, annotate, highlight, free PDF, open source
 
