@@ -30,6 +30,7 @@ public static class Strings
     public static string Cmd_QuickCommandPlaceholder => Get(nameof(Cmd_QuickCommandPlaceholder));
     public static string Cmd_New => Get(nameof(Cmd_New));
     public static string Cmd_Open => Get(nameof(Cmd_Open));
+    public static string Cmd_NewWindow => Get(nameof(Cmd_NewWindow));
     public static string Cmd_RecentDocs => Get(nameof(Cmd_RecentDocs));
     public static string Cmd_NoRecent => Get(nameof(Cmd_NoRecent));
     public static string Cmd_Save => Get(nameof(Cmd_Save));
@@ -183,6 +184,9 @@ public static class Strings
     public static string TabMenu_Close => Get(nameof(TabMenu_Close));
     public static string TabMenu_CopyPath => Get(nameof(TabMenu_CopyPath));
     public static string TabMenu_RevealInFolder => Get(nameof(TabMenu_RevealInFolder));
+    public static string TabMenu_MoveToNewWindow => Get(nameof(TabMenu_MoveToNewWindow));
+    public static string TabMenu_MoveToWindow => Get(nameof(TabMenu_MoveToWindow));
+    public static string Msg_TabBusyCannotMove => Get(nameof(Msg_TabBusyCannotMove));
     public static string Tip_NewTab => Get(nameof(Tip_NewTab));
     public static string Tip_FirstPage => Get(nameof(Tip_FirstPage));
     public static string Tip_PrevPage => Get(nameof(Tip_PrevPage));

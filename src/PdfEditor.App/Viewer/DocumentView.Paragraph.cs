@@ -190,6 +190,18 @@ public sealed partial class DocumentView
         finally { _paraCommitting = false; }
     }
 
+    /// <summary>
+    /// 탭을 다른 창으로 옮기기 전에 열린 입력(메모·글 상자·선 편집·본문 직접 편집)을 확정한다. 탭을 바꿀 때처럼 메모·글·선은 확정하고,
+    /// 본문 편집은 확인 단추처럼 확정한다. 본문 글을 확정할 수 없으면(쪽을 넘는 등) 편집 창을 열어 둔 채 false — 옮기지 않는다.
+    /// </summary>
+    internal async Task<bool> CommitPendingInputAsync()
+    {
+        CloseStickyEditor(commit: true);
+        CloseFreeTextEditor(commit: true);
+        CloseLineEditor(commit: true);
+        return _para is null || await TryAcceptParagraphAsync();
+    }
+
     private void CloseParagraphEditor()
     {
         if (_para is null && _paraPopup is not { IsOpen: true }) return;

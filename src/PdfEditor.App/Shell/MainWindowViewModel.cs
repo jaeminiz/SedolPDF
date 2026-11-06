@@ -110,6 +110,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (s.LeftPanelKind is { } k && Enum.TryParse<PanelKind>(k, out var kind) && Enum.IsDefined(kind)) ActiveLeftPanel = kind;
         if (s.PropertiesPanelVisible is { } pv) IsPropertiesPanelVisible = pv;
     }
+
+    /// <summary>새 창이 원래 창의 지금 배치(패널 보임·종류·폭, 리본 탭)로 시작하게 한다(0.8.0 여러 창).</summary>
+    public void CopyWindowStateFrom(MainWindowViewModel other)
+    {
+        IsLeftPanelVisible = other.IsLeftPanelVisible;
+        ActiveLeftPanel = other.ActiveLeftPanel;
+        IsPropertiesPanelVisible = other.IsPropertiesPanelVisible;
+        CopyPanelWidthsFrom(other);
+        if (other.SelectedRibbonTab != FormatTabId) SelectedRibbonTab = other.SelectedRibbonTab;   // 서식 탭은 고른 주석이 있어야 보인다
+    }
+
+    /// <summary>파일 > 새 창. 창이 받아 새 창을 띄운다.</summary>
+    public event EventHandler? NewWindowRequested;
     public IRelayCommand<DocumentTabViewModel> CloseDocumentCommand { get; }
     private FileWorkflow? _workflow;
     private IUserPrompts? _prompts;
@@ -376,12 +389,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (session is not null) Activate(session);
     }
 
+    /// <summary>
+    /// 세션이 이 창 탭에 없을 때 먼저 부른다. 다른 창이 그 세션을 갖고 있으면 그 창이 앞으로 나와 탭을 보이고 true(그러면 탭을 만들지 않는다).
+    /// 창이 채운다. 없으면 늘 이 창에 탭을 만든다.
+    /// </summary>
+    public Func<PdfEditor.Document.DocumentSession, bool>? RevealElsewhere { get; set; }
+
+    /// <summary>이 창에 그 세션의 탭이 있으면 활성화하고 true.</summary>
+    public bool SelectSession(PdfEditor.Document.DocumentSession session)
+    {
+        if (Documents.FirstOrDefault(d => ReferenceEquals(d.Session, session)) is not { } tab) return false;
+        ActiveDocument = tab;
+        return true;
+    }
+
     /// <summary>다른 곳에서 열린 세션(복구 등)을 탭으로 보여 준다.</summary>
     public void ShowSession(PdfEditor.Document.DocumentSession session) => Activate(session);
 
     private void Activate(PdfEditor.Document.DocumentSession session)
     {
         var tab = Documents.FirstOrDefault(d => ReferenceEquals(d.Session, session));
+        if (tab is null && RevealElsewhere?.Invoke(session) == true) return;   // 다른 창에 이미 열린 파일: 그 창을 앞으로
         if (tab is null)
         {
             tab = new DocumentTabViewModel(session, session.DisplayName, _post);
@@ -389,6 +417,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
             RestoreViewState(tab);
             Documents.Add(tab);
         }
+        ActiveDocument = tab;
+    }
+
+    /// <summary>
+    /// 탭을 다른 창으로 옮기려고 이 창에서 뺀다. 세션은 닫지 않고(목록에서 빼지도, 해제하지도 않음) 보던 쪽·배율과 함께 돌려준다.
+    /// 저장·용량 줄이기가 진행 중인 세션이거나 이 창의 탭이 아니면 null(그대로 둔다).
+    /// </summary>
+    public Hosting.TabTransferPacket? DetachForTransfer(DocumentTabViewModel tab)
+    {
+        if (tab.Session is not { } session || (_workflow?.IsBusy(session) ?? false)) return null;
+        int i = Documents.IndexOf(tab);
+        if (i < 0) return null;
+        var view = tab.CaptureViewState(requirePath: false);
+        Documents.RemoveAt(i);
+        if (ActiveDocument == tab)
+            ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
+        tab.Detach();
+        return new(session, view);
+    }
+
+    /// <summary>다른 창에서 뺀 탭을 slot 자리(범위 밖이면 끝쪽으로 맞춤)에 새 탭으로 넣고 활성화한다.</summary>
+    public void AcceptTransfer(Hosting.TabTransferPacket p, int slot)
+    {
+        var tab = new DocumentTabViewModel(p.Session, p.Session.DisplayName, _post);
+        AttachPageEditing(tab);
+        tab.ApplyViewState(p.View);
+        Documents.Insert(Math.Clamp(slot, 0, Documents.Count), tab);
         ActiveDocument = tab;
     }
 
@@ -540,15 +595,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
             _workflow?.Release(session);
             await session.DisposeAsync();
         }
+        if (Documents.Count == 0 && !_closingAll) BecameEmpty?.Invoke(this, EventArgs.Empty);
         return true;
     }
 
-    /// <summary>앱을 닫아도 되는지: 열린 탭마다 확인하고 하나라도 취소면 false. 닫기로 한 탭은 정리한다.</summary>
+    /// <summary>탭 하나를 닫아 탭이 없어졌을 때(창 전체를 닫는 중에는 알리지 않는다). 창이 받아 다른 창이 있으면 스스로 닫는다.</summary>
+    public event EventHandler? BecameEmpty;
+    private bool _closingAll;
+
+    /// <summary>창을 닫아도 되는지: 열린 탭마다 확인하고 하나라도 취소면 false. 닫기로 한 탭은 정리한다.</summary>
     public async Task<bool> ConfirmExitAsync()
     {
-        foreach (var d in Documents.ToList())
-            if (!await CloseDocumentAsync(d)) return false;
-        return true;
+        _closingAll = true;
+        try
+        {
+            foreach (var d in Documents.ToList())
+                if (!await CloseDocumentAsync(d)) return false;
+            return true;
+        }
+        finally { _closingAll = false; }
     }
 
     /// <summary>XFDF 내보내기(M3b Task 5): 저장 위치를 묻고 문서의 모든 주석을 쓴다. 실패는 알림으로.</summary>
@@ -754,6 +819,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             () => ActiveDocument is not null);
         Reg("file.new", Strings.Cmd_New, "note", G(Key.N), _newCommand);
         Reg("file.open", Strings.Cmd_Open, "open", G(Key.O), _openCommand);
+        Reg("file.newWindow", Strings.Cmd_NewWindow, null, G(Key.N, KeyModifiers.Control | KeyModifiers.Shift),
+            new RelayCommand(() => NewWindowRequested?.Invoke(this, EventArgs.Empty)));
         Reg("file.save", Strings.Cmd_Save, "save", G(Key.S), _saveCommand);
         Reg("file.saveAs", Strings.Cmd_SaveAs, "save", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift), _saveAsCommand);
         _reduceSizeCommand = new AsyncRelayCommand(ReduceSizeActiveAsync, () => _reduceSize is not null && ActiveDocument?.Session is not null);

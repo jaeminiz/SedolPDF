@@ -7,25 +7,39 @@ using System.IO;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Avalonia.Platform.Storage;
-using Pdf.Native;
 using PdfEditor.App.Dialogs;
-using PdfEditor.App.Settings;
-using PdfEditor.Document.Recovery;
-using PdfEditor.Document.Saving;
+using PdfEditor.App.Hosting;
 using PdfEditor.App.Documents;
 using PdfEditor.App.Resources;
 
 namespace PdfEditor.App.Shell;
 
-public sealed partial class MainWindow : Window
+public sealed partial class MainWindow : Window, IHostWindow
 {
     private readonly MainWindowViewModel _vm = new();
-    internal MainWindowViewModel ViewModel => _vm;
-    private readonly PdfiumThread _pdfium = new();   // 앱 전체에서 PdfiumThread는 하나
+    public MainWindowViewModel ViewModel => _vm;
+    public bool IsClosed { get; private set; }
+    /// <summary>탭 줄 칸(스크롤 단추 사이)의 화면 물리 픽셀 사각형. 보이지 않으면 null.</summary>
+    public PixelRect? TabStripScreenRect
+    {
+        get
+        {
+            var a = TabStripArea;
+            if (IsClosed || !a.IsEffectivelyVisible || a.Bounds.Width <= 0 || TopLevel.GetTopLevel(a) is null) return null;
+            return new PixelRect(a.PointToScreen(default), a.PointToScreen(new Point(a.Bounds.Width, a.Bounds.Height)));
+        }
+    }
+
+    /// <summary>최소화돼 있으면 되살리고 앞으로 가져온다.</summary>
+    public void BringToFront()
+    {
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        _host.Registry.MarkActivated(this);   // 활성화 알림이 늦게 와도 대화상자 부모·외부 파일이 이 창을 따르게
+    }
+    private readonly AppHost _host;   // 앱 공유 서비스(PDFium 스레드·설정·파일 작업·복구)
     private bool _exitConfirmed;
     private MenuItem _recentMenu = null!;
-    private readonly SettingsStore _settings;
-    private readonly RecoveryCoordinator _recovery;
 
     /// <summary>이미지 추가: PNG·JPEG 고르기. 너무 큰 파일은 읽지 않고 빈 배열로 넘겨 보관소의 검증 실패(안내)를 탄다.</summary>
     private async Task<byte[]?> PickImageBytesAsync()
@@ -42,19 +56,29 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowPreferencesAsync()
     {
-        var cur = _settings.Load();
+        var cur = _host.Settings.Load();
         var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName, cur.Language).ShowDialog<SettingsResult?>(this);
         if (result is null) return;
-        try { _settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName, Language = result.Language }); }
+        try { _host.Settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName, Language = result.Language }); }
         catch (Exception) { return; }
-        _recovery.Reschedule();
+        _host.Recovery.Reschedule();
         if (result.Language != cur.Language) await new MessageDialog(Strings.Dlg_InfoTitle, Strings.Msg_LanguageRestart, [Strings.Dlg_Ok]).ShowDialog(this);
     }
 
-    public MainWindow() : this([]) { }
+    public MainWindow() : this(null) { }
 
-    public MainWindow(IReadOnlyList<string> startupFiles)
+    /// <param name="host">앱 공유 서비스. null이면 이 창이 자기 호스트를 만든다(테스트에서 창만 띄울 때).</param>
+    public MainWindow(AppHost? host)
     {
+        _host = host ?? new AppHost(AppContext.BaseDirectory);
+        _host.Registry.Add(this);
+        Activated += (_, _) => _host.Registry.MarkActivated(this);
+        Closed += (_, _) =>
+        {
+            IsClosed = true;
+            _host.Registry.Remove(this);
+            if (_host.Registry.Count == 0) _host.Dispose();   // 마지막 창이 닫히면 앱 공유 서비스도 끝낸다
+        };
         InitializeComponent();
         DataContext = _vm;
         BuildKeyBindings();
@@ -65,19 +89,15 @@ public sealed partial class MainWindow : Window
         PropertiesPanelSplitter.Reset += (_, _) => _vm.ResetPropertiesPanelWidth();
         TabStripPanel.ScrollStateChanged += _ => UpdateTabScrollButtons();
         FileTabButton.Flyout = BuildFileMenu();
-        var prompts = new AvaloniaPrompts(this);
-        // 한글 글꼴(Noto Sans KR)은 앱 출력 폴더의 assets/fonts에서 한 번 읽어 AP·패치·화면이 함께 쓴다. 없으면 글꼴이 필요한 주석에서 예외.
-        var services = AppearanceServices.Create(AppContext.BaseDirectory);
-        PdfEditor.App.Documents.DocumentTabViewModel.Appearance = services;
+        var prompts = _host.Prompts;
+        var services = _host.Services;
         var appearance = services.Appearance;
         var patcher = services.Patcher;
-        var paths = AppPaths.Resolve(AppContext.BaseDirectory, AppPaths.CanWriteFolder);
-        _settings = new SettingsStore(paths.SettingsPath);
-        PdfEditor.App.Documents.DocumentTabViewModel.Settings = _settings;
-        try { var saved = _settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
+        var settings = _host.Settings;
+        try { var saved = settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
         _vm.PanelWidthsChanged += (_, _) =>
         {
-            try { _settings.Update(s => s with { LeftPanelWidths = _vm.LeftPanelWidths.ToDictionary(k => k.Key.ToString(), k => k.Value), PropertiesPanelWidth = _vm.SavedPropertiesPanelWidth }); }
+            try { settings.Update(s => s with { LeftPanelWidths = _vm.LeftPanelWidths.ToDictionary(k => k.Key.ToString(), k => k.Value), PropertiesPanelWidth = _vm.SavedPropertiesPanelWidth }); }
             catch (Exception) { /* 저장 실패가 화면 조작을 막지 않는다 */ }
         };
         _vm.PropertyChanged += (_, e) =>
@@ -86,7 +106,7 @@ public sealed partial class MainWindow : Window
                 or nameof(MainWindowViewModel.IsPropertiesPanelVisible))) return;
             try
             {
-                _settings.Update(s => s with
+                settings.Update(s => s with
                 {
                     LeftPanelVisible = _vm.IsLeftPanelVisible, LeftPanelKind = _vm.ActiveLeftPanel.ToString(),
                     PropertiesPanelVisible = _vm.IsPropertiesPanelVisible,
@@ -94,14 +114,11 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception) { /* 저장 실패가 화면 조작을 막지 않는다 */ }
         };
-        var workflow = new FileWorkflow(_pdfium, new SaveService([], appearance, patcher, services.Assets), _settings, prompts);
+        var workflow = _host.Workflow;
         _vm.AttachWorkflow(workflow, prompts);
         _vm.AttachPrinting(new Printing.AvaloniaPrintService(this, prompts, appearance, patcher, services.Assets));
         _vm.AttachReduceSize(new ReduceSizeWorkflow(new AvaloniaReduceSizeDialogs(this), prompts,
-            new PdfEditor.Optimize.SizeReducer(new PdfEditor.Document.Output.OutputCopyBuilder(appearance, patcher, services.Assets))));
-        _recovery = new RecoveryCoordinator(_pdfium, new RecoveryStore(paths.RecoveryFolder, appearance, patcher, services.Assets), _settings,
-            new AvaloniaRecoveryUi(this), prompts);
-        _recovery.Attach(workflow);
+            new PdfEditor.Optimize.SizeReducer(new PdfEditor.Document.Output.OutputCopyBuilder(appearance, patcher, services.Assets)), workflow));
         _vm.PickImageBytes = PickImageBytesAsync;
         _vm.PreferencesRequested += async (_, _) => await ShowPreferencesAsync();
         _vm.AboutRequested += async (_, _) => await new AboutDialog().ShowDialog(this);
@@ -110,25 +127,18 @@ public sealed partial class MainWindow : Window
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
-        // 명령줄 인자로 받은 파일은 창이 뜬 뒤에 연다.
-        // 먼저 이전에 남은 복구 항목을 묻고, 그다음 명령줄 파일을 연다(같은 파일이면 복구한 탭으로 전환됨).
-        Opened += async (_, _) =>
-        {
-            if (paths.FellBackFromPortable)
-            {
-                try { await prompts.ShowInfoAsync(Strings.Msg_PortableFolderReadOnly); }
-                catch (Exception) { /* 안내 실패가 시작을 막지 않는다 */ }
-            }
-            try
-            {
-                foreach (var s in await _recovery.RecoverAtStartupAsync()) _vm.ShowSession(s);
-            }
-            catch (Exception) { /* 복구 실패가 시작을 막지 않는다 */ }
-            _recovery.Start(() => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => workflow.OpenSessions).GetTask());
-            if (startupFiles.Count > 0) await _vm.OpenManyAsync(startupFiles);
-        };
 
-        _vm.ExitRequested += (_, _) => Close();
+        _vm.NewWindowRequested += (_, _) => _host.CreateWindow(this);
+        // 한 파일은 앱 전체에서 한 번만 열린다: 다른 창 탭이면 그 창을 앞으로 가져와 그 탭을 보인다.
+        _vm.RevealElsewhere = s =>
+        {
+            if (_host.Registry.FindOwner(s) is not MainWindow w || w == this) return false;
+            w.BringToFront();
+            return w.ViewModel.SelectSession(s);
+        };
+        _vm.ExitRequested += async (_, _) => await _host.ExitAllAsync();
+        // 마지막 탭을 닫아 빈 창이 되면: 다른 창이 있으면 이 창도 닫는다. 창이 하나뿐이면 빈 화면으로 남는다(설계 4.4 A안).
+        _vm.BecameEmpty += (_, _) => { if (_host.Registry.Count > 1) Close(); };
         // 패널이 막 보이게 된 직후라서 레이아웃 뒤에 초점을 준다.
         _vm.FocusSearchRequested += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(SearchPanelView.FocusQuery,
             Avalonia.Threading.DispatcherPriority.Input);
@@ -183,6 +193,7 @@ public sealed partial class MainWindow : Window
 
         flyout.Items.Add(Item("file.new"));
         flyout.Items.Add(Item("file.open"));
+        flyout.Items.Add(Item("file.newWindow"));
         _recentMenu = new MenuItem { Header = Strings.Cmd_RecentDocs };
         flyout.Items.Add(_recentMenu);
         flyout.Opening += (_, _) => RefreshRecentMenu();
@@ -244,13 +255,25 @@ public sealed partial class MainWindow : Window
         base.OnClosing(e);
         if (_exitConfirmed) return;
         e.Cancel = true;
-        if (await _vm.ConfirmExitAsync())
-        {
-            _exitConfirmed = true;
-            _recovery.Dispose();
-            _pdfium.Dispose();
-            Close();
-        }
+        await TryCloseAsync();
+    }
+
+    private Task<bool>? _closeTask;
+
+    /// <summary>이 창의 탭마다 저장 여부를 묻고, 다 닫히면 창을 닫고 true. 하나라도 취소하면 창은 그대로 false. 묻는 중에 또 부르면 같은 결과를 기다린다.</summary>
+    public Task<bool> TryCloseAsync()
+    {
+        if (IsClosed) return Task.FromResult(true);
+        if (_closeTask is { IsCompleted: false } running) return running;
+        return _closeTask = TryCloseCoreAsync();
+    }
+
+    private async Task<bool> TryCloseCoreAsync()
+    {
+        if (!await _vm.ConfirmExitAsync()) return false;
+        _exitConfirmed = true;
+        Close();
+        return true;
     }
 
     private void OnFormatTabClick(object? sender, RoutedEventArgs e) => _vm.SelectRibbonTabCommand.Execute(MainWindowViewModel.FormatTabId);
@@ -274,7 +297,6 @@ public sealed partial class MainWindow : Window
     private DocumentTabViewModel? _tabPressed;
     private Point _tabPressPoint;
     private bool _tabDragging;
-    private int _tabSlot = -1;
 
     private void WireTabDrag()
     {
@@ -314,41 +336,117 @@ public sealed partial class MainWindow : Window
         _tabPressPoint = e.GetPosition(DocTabs);
     }
 
+    // ---- 창 사이로 끌기 (0.8.0 여러 창 설계 6): 포인터를 붙잡은 채 화면 좌표로 놓을 곳을 정한다 ----
+
+    private DropTarget _dropTarget;
+    private PixelPoint _dropScreen;
+    private MainWindow? _lineWindow;   // 놓을 자리 선을 보이고 있는 창(이 창 또는 다른 창)
+
+    /// <summary>탭 줄 칸. 탭 위치·놓을 자리 선은 모두 이 칸 기준.</summary>
+    private Visual TabStripArea => (Visual)DocTabs.Parent!;
+
+    /// <summary>탭들의 위치(탭 줄 칸 기준 DIP). 스크롤된 만큼 옮겨진 실제 화면 위치다.</summary>
+    private IReadOnlyList<(double Left, double Width)> AreaTabs()
+    {
+        if (TabPanel is not { } p) return [];
+        double dx = p.TranslatePoint(default, TabStripArea)?.X ?? 0;
+        return [.. p.TabBounds().Select(t => (t.Left + dx, t.Width))];
+    }
+
+    /// <summary>끌기 판정용 이 창의 탭 줄 정보. 탭 줄이 보이지 않으면 null.</summary>
+    public StripInfo? GetStripInfo() => TabStripScreenRect is { } r
+        ? new StripInfo(this, r, AreaTabs(), RenderScaling, new PixelRect(Position, PixelSize.FromSize(ClientSize, RenderScaling)))
+        : null;
+
+    /// <summary>탭 줄에 놓일 자리 선을 보이거나(slot) 숨긴다(null). 다른 창에서 끄는 동안에도 불린다.</summary>
+    public void ShowDropLine(int? slot)
+    {
+        if (slot is not { } s || s < 0) { TabDropLine.IsVisible = false; return; }
+        var tabs = AreaTabs();
+        double x = tabs.Count == 0 ? 0 : s < tabs.Count ? tabs[s].Left : tabs[^1].Left + tabs[^1].Width;
+        TabDropLine.Margin = new Thickness(Math.Max(0, x - 1.5), 0, 0, 3);
+        TabDropLine.IsVisible = true;
+    }
+
     private void OnTabMoved(object? sender, PointerEventArgs e)
     {
-        if (_tabPressed is null || TabPanel is not { } panel) return;
+        if (_tabPressed is null) return;
         if (!_tabDragging)
         {
             if (!e.GetCurrentPoint(DocTabs).Properties.IsLeftButtonPressed) { EndTabDrag(); return; }
-            if (Math.Abs(e.GetPosition(DocTabs).X - _tabPressPoint.X) < 6) return;
+            var d = e.GetPosition(DocTabs) - _tabPressPoint;
+            if (Math.Abs(d.X) < 6 && Math.Abs(d.Y) < 6) return;
             _tabDragging = true;
             e.Pointer.Capture(DocTabs);
         }
         e.Handled = true;
-        var tabs = panel.TabBounds();
-        _tabSlot = TabReorder.Slot(tabs, e.GetPosition(panel).X);
-        double x = tabs.Count == 0 ? 0 : _tabSlot < tabs.Count ? tabs[_tabSlot].Left : tabs[^1].Left + tabs[^1].Width;
-        var at = panel.TranslatePoint(new Point(x, 0), (Visual)DocTabs.Parent!) ?? default;
-        TabDropLine.Margin = new Thickness(Math.Max(0, at.X - 1.5), 0, 0, 3);
-        TabDropLine.IsVisible = true;
+        _dropScreen = this.PointToScreen(e.GetPosition(this));
+        var strips = _host.Registry.ByRecent.OfType<MainWindow>()
+            .Where(w => w.WindowState != WindowState.Minimized)
+            .Select(w => w.GetStripInfo()).Where(s => s.HasValue).Select(s => s!.Value).ToList();
+        _dropTarget = DropTargetFinder.Find(_dropScreen, this, strips, _vm.Documents.Count);
+        ShowDropFeedback();
     }
 
-    private void OnTabReleased(object? sender, PointerReleasedEventArgs e)
+    /// <summary>놓을 곳에 맞게 표시: 탭 줄이면 그 창에 자리 선, 새 창이면 포인터 옆에 탭 제목 배지, 아니면 아무것도.</summary>
+    private void ShowDropFeedback()
+    {
+        var lineIn = _dropTarget.Kind is DropKind.Reorder or DropKind.OtherWindow ? _dropTarget.Window as MainWindow : null;
+        if (_lineWindow is not null && _lineWindow != lineIn) _lineWindow.ShowDropLine(null);
+        _lineWindow = lineIn;
+        lineIn?.ShowDropLine(_dropTarget.Slot);
+
+        if (_dropTarget.Kind == DropKind.NewWindow && _tabPressed is { } tab)
+        {
+            TearOffBadgeText.Text = tab.Title;
+            var at = TabStripArea.PointToClient(_dropScreen);
+            TearOffBadge.HorizontalOffset = at.X + 14;
+            TearOffBadge.VerticalOffset = at.Y + 14;
+            TearOffBadge.IsOpen = true;
+        }
+        else TearOffBadge.IsOpen = false;
+    }
+
+    private async void OnTabReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (!_tabDragging) { _tabPressed = null; return; }
         var tab = _tabPressed;
-        int slot = _tabSlot;
+        var target = _dropTarget;
+        var screen = _dropScreen;
         EndTabDrag();
         e.Handled = true;
-        if (tab is not null && slot >= 0) _vm.MoveDocument(tab, slot);
+        if (tab is null) return;
+        switch (target.Kind)
+        {
+            case DropKind.Reorder:
+                _vm.MoveDocument(tab, target.Slot);
+                break;
+            case DropKind.OtherWindow when target.Window is MainWindow to:
+                if (await CommitPendingInputAsync()) _host.Transfer.MoveToWindow(this, tab, to, target.Slot);
+                break;
+            case DropKind.NewWindow:
+                if (await CommitPendingInputAsync()) _host.Transfer.MoveToNewWindow(this, tab, NewWindowOrigin(screen));
+                break;
+        }
+    }
+
+    /// <summary>새 창의 왼쪽 위: 놓은 곳에 새 창의 첫 탭이 오도록, 이 창에서 탭 줄이 창 모서리로부터 떨어진 만큼 당긴다.</summary>
+    private PixelPoint NewWindowOrigin(PixelPoint drop)
+    {
+        if (TabStripScreenRect is not { } r) return drop;
+        double s = RenderScaling;
+        return new PixelPoint(drop.X - (r.X - Position.X) - (int)(40 * s), drop.Y - (r.Y - Position.Y) - (int)(16 * s));
     }
 
     private void EndTabDrag()
     {
         _tabDragging = false;
         _tabPressed = null;
-        _tabSlot = -1;
+        _dropTarget = default;
+        _lineWindow?.ShowDropLine(null);
+        _lineWindow = null;
         TabDropLine.IsVisible = false;
+        TearOffBadge.IsOpen = false;
     }
 
     /// <summary>탭 줄이 넘칠 때만 왼쪽·오른쪽 스크롤 단추를 보이고, 끝에 닿은 쪽은 사용하지 않게 한다.</summary>
@@ -384,6 +482,28 @@ public sealed partial class MainWindow : Window
         copy.Click += async (_, _) => { if (path is { Length: > 0 } && Clipboard is { } cb) await cb.SetTextAsync(path); };
         var close = new MenuItem { Header = Strings.TabMenu_Close };
         close.Click += (_, _) => _vm.CloseDocumentCommand.Execute(d);
-        new ContextMenu { ItemsSource = new object[] { reveal, copy, new Separator(), close } }.Open(item);
+
+        // 창 사이 이동(0.8.0): 새 창으로(탭이 하나면 끔), 다른 창으로 ▸ 창마다 그 창의 활성 탭 제목(다른 창이 있을 때만)
+        var toNew = new MenuItem { Header = Strings.TabMenu_MoveToNewWindow, IsEnabled = _vm.Documents.Count > 1 };
+        toNew.Click += async (_, _) => { if (await CommitPendingInputAsync()) _host.Transfer.MoveToNewWindow(this, d); };
+        var items = new List<object> { reveal, copy, new Separator(), toNew };
+        var others = _host.Registry.ByRecent.OfType<MainWindow>().Where(w => w != this).ToList();
+        if (others.Count > 0)
+        {
+            var sub = new List<MenuItem>();
+            foreach (var w in others)
+            {
+                var target = new MenuItem { Header = w.ViewModel.ActiveDocument?.Title ?? w.Title };
+                target.Click += async (_, _) => { if (await CommitPendingInputAsync()) _host.Transfer.MoveToWindow(this, d, w, w.ViewModel.Documents.Count); };
+                sub.Add(target);
+            }
+            items.Add(new MenuItem { Header = Strings.TabMenu_MoveToWindow, ItemsSource = sub });
+        }
+        items.Add(new Separator());
+        items.Add(close);
+        new ContextMenu { ItemsSource = items }.Open(item);
     }
+
+    /// <summary>탭을 다른 창으로 옮기기 전에 문서 화면에서 입력 중인 글을 확정한다. 확정할 수 없으면 false(옮기지 않음).</summary>
+    public Task<bool> CommitPendingInputAsync() => DocView.CommitPendingInputAsync();
 }

@@ -295,6 +295,13 @@
             <!-- 탭을 끌어 옮길 때 놓일 자리를 보여 주는 선 -->
             <Border Name="TabDropLine" Width="3" CornerRadius="1.5" Background="#005FB8" HorizontalAlignment="Left"
                     Height="22" VerticalAlignment="Bottom" Margin="0,0,0,3" IsHitTestVisible="False" IsVisible="False" />
+            <!-- 탭을 창 밖으로 끌어낼 때 포인터 옆에 따라다니는 탭 제목(놓으면 새 창). 창 밖에도 그려지도록 별도 팝업 창 -->
+            <Popup Name="TearOffBadge" Placement="AnchorAndGravity" PlacementAnchor="TopLeft" PlacementGravity="BottomRight"
+                   PlacementRect="0,0,1,1" IsLightDismissEnabled="False" IsHitTestVisible="False">
+              <Border Background="#FFFFFF" BorderBrush="#005FB8" BorderThickness="1" CornerRadius="4" Padding="10,4" Opacity="0.95">
+                <TextBlock Name="TearOffBadgeText" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+              </Border>
+            </Popup>
             </Panel>
             <Button Name="TabScrollRight" Grid.Column="2" Classes="quick" Width="24" Height="26" VerticalAlignment="Bottom" Margin="0,0,0,1"
                     IsVisible="False" ToolTip.Tip="{x:Static res:Strings.Tip_TabScrollRight}" Click="OnTabScrollRight">
@@ -315,7 +322,7 @@
               </Border>
               <ScrollViewer Grid.Row="2" Name="DocScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                             IsVisible="{Binding !HasNoDocument}">
-                <viewer:DocumentView Tab="{Binding ActiveDocument}" />
+                <viewer:DocumentView x:Name="DocView" Tab="{Binding ActiveDocument}" />
               </ScrollViewer>
             <TextBlock Grid.Row="1" Text="{x:Static res:Strings.Msg_NoDocument}" IsVisible="{Binding HasNoDocument}"
                        Foreground="#5C5C5C" HorizontalAlignment="Center" VerticalAlignment="Center" />

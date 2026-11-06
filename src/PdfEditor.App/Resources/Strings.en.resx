@@ -21,6 +21,7 @@
   <data name="Cmd_QuickCommandPlaceholder" xml:space="preserve"><value>Quick command (Ctrl+.)</value></data>
   <data name="Cmd_New" xml:space="preserve"><value>New</value></data>
   <data name="Cmd_Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Cmd_NewWindow" xml:space="preserve"><value>New Window</value></data>
   <data name="Cmd_RecentDocs" xml:space="preserve"><value>Recent documents</value></data>
   <data name="Cmd_NoRecent" xml:space="preserve"><value>No recent documents</value></data>
   <data name="Cmd_Save" xml:space="preserve"><value>Save</value></data>
@@ -155,6 +156,9 @@
   <data name="TabMenu_Close" xml:space="preserve"><value>Close this tab</value></data>
   <data name="TabMenu_CopyPath" xml:space="preserve"><value>Copy full file path</value></data>
   <data name="TabMenu_RevealInFolder" xml:space="preserve"><value>Show in folder</value></data>
+  <data name="TabMenu_MoveToNewWindow" xml:space="preserve"><value>Move to new window</value></data>
+  <data name="TabMenu_MoveToWindow" xml:space="preserve"><value>Move to another window</value></data>
+  <data name="Msg_TabBusyCannotMove" xml:space="preserve"><value>This document is being saved. Try again when it finishes.</value></data>
   <data name="Tip_NewTab" xml:space="preserve"><value>Open document</value></data>
   <data name="Tip_FirstPage" xml:space="preserve"><value>First page</value></data>
   <data name="Tip_PrevPage" xml:space="preserve"><value>Previous page</value></data>
