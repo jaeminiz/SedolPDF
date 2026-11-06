@@ -420,6 +420,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ActiveDocument = tab;
     }
 
+    /// <summary>
+    /// 탭을 다른 창으로 옮기려고 이 창에서 뺀다. 세션은 닫지 않고(목록에서 빼지도, 해제하지도 않음) 보던 쪽·배율과 함께 돌려준다.
+    /// 저장·용량 줄이기가 진행 중인 세션이거나 이 창의 탭이 아니면 null(그대로 둔다).
+    /// </summary>
+    public Hosting.TabTransferPacket? DetachForTransfer(DocumentTabViewModel tab)
+    {
+        if (tab.Session is not { } session || (_workflow?.IsBusy(session) ?? false)) return null;
+        int i = Documents.IndexOf(tab);
+        if (i < 0) return null;
+        var view = tab.CaptureViewState(requirePath: false);
+        Documents.RemoveAt(i);
+        if (ActiveDocument == tab)
+            ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
+        tab.Detach();
+        return new(session, view);
+    }
+
+    /// <summary>다른 창에서 뺀 탭을 slot 자리(범위 밖이면 끝쪽으로 맞춤)에 새 탭으로 넣고 활성화한다.</summary>
+    public void AcceptTransfer(Hosting.TabTransferPacket p, int slot)
+    {
+        var tab = new DocumentTabViewModel(p.Session, p.Session.DisplayName, _post);
+        AttachPageEditing(tab);
+        tab.ApplyViewState(p.View);
+        Documents.Insert(Math.Clamp(slot, 0, Documents.Count), tab);
+        ActiveDocument = tab;
+    }
+
     /// <summary>새 탭을 만들 때 그 파일의 마지막 보던 쪽·배율을 되살린다(설정을 읽지 못하거나 값이 맞지 않으면 처음 열 때처럼).</summary>
     private static void RestoreViewState(DocumentTabViewModel tab)
     {

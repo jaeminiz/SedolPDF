@@ -389,11 +389,16 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     // ---- 보던 위치 기억 (0.4.0 Task 11) ----
 
-    /// <summary>지금 보는 쪽·배율·방식. 저장된 파일이 없는 탭(제목 없음·복구본)이거나 쪽이 없으면 null.</summary>
-    public PdfEditor.App.Settings.ViewStateEntry? CaptureViewState()
+    /// <summary>
+    /// 지금 보는 쪽·배율·방식. 쪽이 없으면 null. 저장된 파일이 없는 탭(제목 없음·복구본)은 requirePath면 null,
+    /// 아니면 Path를 ""로 담는다(탭을 다른 창으로 옮길 때 — 파일별 기록에는 쓰지 않는다).
+    /// </summary>
+    public PdfEditor.App.Settings.ViewStateEntry? CaptureViewState(bool requirePath = true)
     {
-        if (Session?.FilePath is not { Length: > 0 } path || PageCount <= 0) return null;
-        return new(System.IO.Path.GetFullPath(path), CurrentPageIndex, Scale, ViewMode.ToString(), PageCount);
+        if (PageCount <= 0) return null;
+        string path = Session?.FilePath is { Length: > 0 } own ? System.IO.Path.GetFullPath(own) : "";
+        if (requirePath && path.Length == 0) return null;
+        return new(path, CurrentPageIndex, Scale, ViewMode.ToString(), PageCount);
     }
 
     /// <summary>저장된 보기 상태를 적용한다(쪽 수가 같고 값이 범위 안일 때만). 적용했으면 true.</summary>
