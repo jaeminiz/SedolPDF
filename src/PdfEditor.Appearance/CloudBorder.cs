@@ -21,12 +21,19 @@ internal static class CloudBorder
         ];
     }
 
-    public static ImmutableArray<PathSeg> Build(IReadOnlyList<PdfPointF> poly, float intensity)
+    /// <summary>
+    /// Square 클라우드의 반원 지름 상한. 작은 상자는 RD가 짧은 변의 1/4로 줄어드므로 반원도 그만큼 줄여야
+    /// 볼록한 높이(반지름 + 두께/2)가 Rect(= AP BBox) 안에 든다 — 아니면 테두리가 BBox에서 잘린다(2026-11-10 사용자 보고).
+    /// </summary>
+    public static float RectMaxDiameter(PdfRectF rect, float intensity, float borderWidth)
+        => Math.Max(0.5f, 2f * (AnnotationGeometry.CloudRectInset(rect, intensity, borderWidth) - borderWidth / 2f));
+
+    public static ImmutableArray<PathSeg> Build(IReadOnlyList<PdfPointF> poly, float intensity, float maxDiameter = float.PositiveInfinity)
     {
         var path = ImmutableArray.CreateBuilder<PathSeg>();
         int n = poly.Count;
         if (n < 3) return path.ToImmutable();
-        float d = AnnotationGeometry.CloudDiameter(intensity);
+        float d = Math.Min(AnnotationGeometry.CloudDiameter(intensity), maxDiameter);
 
         double area2 = 0;
         for (int i = 0; i < n; i++)
