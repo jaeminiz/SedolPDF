@@ -242,4 +242,22 @@ public sealed class OutputCopyTests : IDisposable
         int i = (221 * 298 + 112) * 4;
         Assert.True(px[i] > 150 && px[i + 2] < 100, $"straddling blue line missing: BGR {px[i]},{px[i + 1]},{px[i + 2]}");
     }
+
+    [Fact]
+    public async Task Save_FileWithUnmatchedRestore_FromEarlierVersion_IsRepaired()
+    {
+        // 0.8.0까지의 저장이 만든 모양: 앞 스트림이 걸친 q를 잃어 뒤 스트림에 짝 없는 Q
+        string src = P(Guid.NewGuid().ToString("N") + ".pdf");
+        using (var doc = new PdfSharp.Pdf.PdfDocument())
+        {
+            var page = doc.AddPage();
+            page.Contents.Elements.Clear();
+            foreach (var c in new[] { "q 1 0 0 RG 2 w 50 100 m 250 100 l S Q\n", "0 0 1 RG 3 w 50 400 m 400 400 l S Q\nq 0 1 0 rg 300 600 80 80 re f Q\n" })
+                page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(c));
+            doc.Save(src);
+        }
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await new SaveService([], new PdfEditor.Appearance.PdfAppearanceSource(), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, P("repaired.pdf"));
+        AssertQBalanced(P("repaired.pdf"));
+    }
 }

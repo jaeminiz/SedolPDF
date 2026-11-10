@@ -15,8 +15,31 @@ namespace PdfEditor.Appearance.Patching;
 /// 패치 계획을 SaveCopy로 만든 임시 파일에 적용한다(PDFsharp 6.2.x, Modify 모드).
 /// 파일만 읽고 쓰며 편집 중인 PDFium 문서는 건드리지 않는다. 계획은 상태가 없으므로 같은 입력에서 항상 같은 결과가 나온다.
 /// </summary>
-public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher, IContentRewriteProbe, IContentRewriteReport, IDisposable
+public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher, IContentRewriteProbe, IContentRewriteReport, IContentRepairer, IDisposable
 {
+    /// <summary>
+    /// 모든 쪽을 본다. "스트림이 여러 개인 쪽만"으로 줄이려 했지만 PDFsharp가 /Contents 배열을 스트림 하나로 보여 주는 파일이 있어(2026-11-10 사용자 PDF) 놓쳤다.
+    /// 고친 쪽은 스트림 하나로 합친다. 고칠 것이 없으면 파일을 다시 쓰지 않는다.
+    /// </summary>
+    public int RepairUnmatchedRestores(string pdfPath, string? password)
+    {
+        byte[] bytes = File.ReadAllBytes(pdfPath);
+        using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
+        int removed = 0;
+        foreach (var page in doc.Pages)
+        {
+            var loaded = PageContent.Load(page);
+            if (loaded.Data is null) continue;
+            var (fixedData, n) = ContentRepair.RemoveUnmatchedRestores(loaded.Data);
+            if (fixedData is null) continue;
+            page.Contents.Elements.Clear();
+            page.Contents.AppendContent().CreateStream(fixedData);
+            removed += n;
+        }
+        if (removed > 0) doc.Save(pdfPath);
+        return removed;
+    }
+
     // 글꼴 바이트 공급자. AddApFont가 처음 나올 때 한 번 AppFont로 올려 두고 계속 쓴다(셰이핑은 AppFont 안에서 직렬화됨).
     private readonly Func<byte[]> _fontData = fontData;
     private readonly object _fontLock = new();

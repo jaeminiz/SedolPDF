@@ -97,6 +97,14 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             var changed = await s.Thread.InvokeAsync(() => FindChangedPages(s.Thread, path, pw, rewrite.Look, rewrite.Masks), ct).ConfigureAwait(false);
             if (changed.Count > 0) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
         }
+
+        // 0.8.0까지의 저장이 남긴 짝 없는 Q 고치기(Acrobat에서 쪽 일부가 사라짐). 저장·복구만 — 인쇄 사본(always 거짓)은 화면과 같은 PDFium이 그리므로 필요 없다.
+        if (always && SavePolicy.CanPatch(s) && patcher is IContentRepairer repairer)
+        {
+            ct.ThrowIfCancellationRequested();
+            string? pw = s.Password;
+            await Task.Run(() => repairer.RepairUnmatchedRestores(path, pw), ct).ConfigureAwait(false);
+        }
         return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0);
     }
 
