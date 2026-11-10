@@ -474,16 +474,17 @@ public sealed class DocumentSession : IAsyncDisposable
     /// 전용 스레드 전용. 개체 복제(<see cref="DuplicateObjectEdit"/>)의 재료를 돌려준다: 원천 쪽을 편집 없이 따로 한 번 더 불러온 핸들(같은 쪽이라도)에서
     /// 원본 객체를 꺼낸다(원천 쪽 replay가 그 객체를 옮기거나 껐을 수 있기 때문). Lifetime을 버리면 그 핸들들을 닫는다.
     /// </summary>
-    public (DuplicateSource Source, IDisposable Lifetime) CreateDuplicateSource()
+    public (DuplicateSource Source, IDisposable Lifetime) CreateDuplicateSource(PdfDocument? from = null)
     {
         Thread.AssertOnThread();
+        var source = from ?? _doc;   // 저장 사본(from)에서 replay할 때는 같은 문서의 쪽을 써야 한다(글꼴 핸들이 문서 단위)
         var pages = new Dictionary<PageId, PdfPage?>();
         PdfPageObject? Get(PageId pid, int index)
         {
             if (!pages.TryGetValue(pid, out var pg))
             {
                 int idx = _order.IndexOf(pid);
-                pages[pid] = pg = idx < 0 ? null : _doc.LoadPage(idx);
+                pages[pid] = pg = idx < 0 ? null : source.LoadPage(idx);
             }
             return pg is not null && index >= 0 && index < pg.ObjectCount ? pg.GetObject(index) : null;
         }
