@@ -152,6 +152,15 @@ public static class Strings
     public static string Ctx_FindSelected => Get(nameof(Ctx_FindSelected));
     public static string Ctx_HandTool => Get(nameof(Ctx_HandTool));
     public static string Ctx_TextSelectTool => Get(nameof(Ctx_TextSelectTool));
+    public static string Msg_ObjCopy_OtherDocument => Get(nameof(Msg_ObjCopy_OtherDocument));
+    public static string Msg_ObjCopy_NoPermission => Get(nameof(Msg_ObjCopy_NoPermission));
+    public static string Msg_ObjCopy_Partial => Get(nameof(Msg_ObjCopy_Partial));
+    public static string Msg_DeletePage_HasCopies => Get(nameof(Msg_DeletePage_HasCopies));
+    public static string Menu_Cut => Get(nameof(Menu_Cut));
+    public static string Menu_Copy => Get(nameof(Menu_Copy));
+    public static string Menu_Paste => Get(nameof(Menu_Paste));
+    public static string Menu_Duplicate => Get(nameof(Menu_Duplicate));
+    public static string Menu_Delete => Get(nameof(Menu_Delete));
     public static string Tip_Snapshot => Get(nameof(Tip_Snapshot));
     public static string Cmd_Snapshot => Get(nameof(Cmd_Snapshot));
     public static string Group_Capture => Get(nameof(Group_Capture));

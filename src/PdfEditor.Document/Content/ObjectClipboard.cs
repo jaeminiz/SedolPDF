@@ -16,7 +16,8 @@ public sealed record OriginalClip(PageId SourcePage, int SourceIndex, PdfMatrix 
 /// <summary>앱이 넣은 개체: 넣기 편집(도형은 최신 스타일을 반영한 사본)과, 그 개체에 쌓인 TransformEdit를 접은 행렬.</summary>
 public sealed record InsertedClip(ContentEdit Recipe, PdfMatrix Then, PdfRectF Bounds) : ClipItem(Bounds);
 
-public sealed record CopyResult(ImmutableArray<ClipItem> Items, int Skipped);
+/// <summary>CopiedRefs = Items[i]를 만든 객체(잘라내기가 이것만 지운다).</summary>
+public sealed record CopyResult(ImmutableArray<ClipItem> Items, int Skipped, ImmutableArray<ObjectRef> CopiedRefs = default);
 
 /// <summary>고른 개체 → 클립보드 항목. 복사할 수 없는 개체(문단 줄·찾아 바꾸기 조각·원래 글꼴로 다시 쓴 줄·화면 사본을 못 만드는 개체)는 Skipped.</summary>
 public static class ObjectCopyBuilder
@@ -28,7 +29,7 @@ public static class ObjectCopyBuilder
         var edits = s.Content.For(page);
         var entries = s.GetObjectIndex(page).Entries.ToDictionary(e => e.Ref);
         var (source, life) = s.CreateDuplicateSource();
-        var items = new List<(int Order, ClipItem Item)>();
+        var items = new List<(int Order, ClipItem Item, ObjectRef Ref)>();
         int skipped = 0;
         try
         {
@@ -66,11 +67,12 @@ public static class ObjectCopyBuilder
                     if (o is not null && DuplicateScreen.CanDuplicate(o))
                         item = new OriginalClip(page, r.OriginalIndex, then, o.Type == PdfPageObjectType.Text ? color : null, entry.Bounds);
                 }
-                if (item is null) skipped++; else items.Add((entry.Order, item));
+                if (item is null) skipped++; else items.Add((entry.Order, item, r));
             }
         }
         finally { life.Dispose(); }
-        return new CopyResult([.. items.OrderBy(x => x.Order).Select(x => x.Item)], skipped);
+        var sorted = items.OrderBy(x => x.Order).ToList();
+        return new CopyResult([.. sorted.Select(x => x.Item)], skipped, [.. sorted.Select(x => x.Ref)]);
     }
 
     private static PdfMatrix Fold(IEnumerable<ContentEdit> edits, ObjectRef r)
