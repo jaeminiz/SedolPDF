@@ -119,7 +119,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         for (int i = 0; i < n; i++)
         {
             var o = page.GetObject(i);
-            o.Matrix = o.Matrix;   // FPDFPageObj_SetMatrix가 객체를 dirty로 표시한다
+            try { o.Matrix = o.Matrix; }   // FPDFPageObj_SetMatrix가 객체를 dirty로 표시한다
+            catch (PdfiumException) { }   // 셰이딩 객체는 행렬을 읽지 못한다 — 건너뛴다(병합 때 발견: ContentRewriteSaveTests)
         }
     }
 
