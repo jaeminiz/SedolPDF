@@ -97,7 +97,30 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             var changed = await s.Thread.InvokeAsync(() => FindChangedPages(s.Thread, path, pw, rewrite.Look, rewrite.Masks), ct).ConfigureAwait(false);
             if (changed.Count > 0) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
         }
+
+        // 0.8.0까지의 저장이 남긴 짝 없는 Q 고치기(Acrobat에서 쪽 일부가 사라짐). 저장·복구만 — 인쇄 사본(always 거짓)은 화면과 같은 PDFium이 그리므로 필요 없다.
+        if (always && SavePolicy.CanPatch(s) && patcher is IContentRepairer repairer)
+        {
+            ct.ThrowIfCancellationRequested();
+            string? pw = s.Password;
+            await Task.Run(() => repairer.RepairUnmatchedRestores(path, pw), ct).ConfigureAwait(false);
+        }
         return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0);
+    }
+
+    /// <summary>
+    /// PDFium은 쪽 내용이 여러 스트림이면 바뀐 객체가 든 스트림만 다시 쓴다. 객체가 스트림 경계에 걸쳐 있으면(앞 스트림 끝 "q 색 굵기", 뒤 스트림에서 "m l S Q")
+    /// 다시 쓴 스트림이 걸친 q를 빠뜨려 뒤 스트림에 짝 없는 Q가 남는다 — Acrobat은 거기서 오류로 보고 쪽의 나머지를 그리지 않는다(2026-11-10 사용자 PDF, 약 200KB씩 나뉜 도면).
+    /// 모든 객체를 바뀐 것으로 표시해 쪽 전체를 한 번에 다시 쓰게 한다. 스트림이 하나인 쪽은 원래도 통째로 다시 쓰므로 결과가 같다.
+    /// </summary>
+    private static void MarkAllObjectsDirty(PdfPage page)
+    {
+        int n = page.ObjectCount;
+        for (int i = 0; i < n; i++)
+        {
+            var o = page.GetObject(i);
+            o.Matrix = o.Matrix;   // FPDFPageObj_SetMatrix가 객체를 dirty로 표시한다
+        }
     }
 
     private const double GuardMaxSide = 640;
@@ -205,6 +228,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                         ContentReplayer.Apply(page, edits, ReplayMode.OutputPdfium, s.Assets);
                         if (pass == 0) look[index] = (RenderGuard(page, out int w, out int h), w, h);
                         if (level[index] > 0) ContentReplayer.NormalizeColors(page, includeText: level[index] > 1);
+                        MarkAllObjectsDirty(page);
                         page.GenerateContent();
                     }
                     copy.SaveCopy(gen);
