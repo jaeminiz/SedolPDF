@@ -3,6 +3,7 @@ using System.Text;
 using Pdf.Native;
 using PdfEditor.Appearance.Patching;
 using PdfEditor.ContentStream;
+using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.Document.Content;
@@ -99,5 +100,54 @@ public class ContentRewritePlannerTests
         Assert.False(ContentRewritePlanner.Plan([new InsertTextLikeEdit(1, ObjectRef.Original(0), "x")]).Ok);
         Assert.False(ContentRewritePlanner.Plan([new SetShapeStyleEdit(1, ObjectRef.Original(0), ShapeStyle.Default)]).Ok);
         Assert.False(ContentRewritePlanner.Plan([new DeactivateEdit(1, ObjectRef.Inserted(77))]).Ok);
+    }
+
+    [Fact]
+    public void Plan_Duplicate_FoldsLaterTransformAndColor()
+    {
+        var plan = ContentRewritePlanner.Plan([
+            new DuplicateObjectEdit(5, new PageId(1), 3, PdfMatrix.Translate(10, -10)),
+            new TransformEdit(6, ObjectRef.Inserted(5), PdfMatrix.Translate(4, 0)),
+            new SetTextColorEdit(7, ObjectRef.Inserted(5), new PdfColor(255, 0, 0)),
+        ]);
+        Assert.True(plan.Ok, plan.Failure);
+        var sn = Assert.Single(plan.Snippets);
+        Assert.NotNull(sn.Dup);
+        Assert.Equal(new PageId(1), sn.Dup!.Source);
+        Assert.Equal(3, sn.Dup.SourceIndex);
+        Assert.Equal(new Mat(1, 0, 0, 1, 14, -10), sn.Dup.M);
+        Assert.Equal(new PdfColor(255, 0, 0), sn.Dup.TextColor);
+    }
+
+    [Fact]
+    public void Plan_DeactivatedDuplicate_HasNoSnippet()
+    {
+        var plan = ContentRewritePlanner.Plan([
+            new DuplicateObjectEdit(5, new PageId(1), 3, PdfMatrix.Identity),
+            new DeactivateEdit(6, ObjectRef.Inserted(5)),
+        ]);
+        Assert.True(plan.Ok, plan.Failure);
+        Assert.Empty(plan.Snippets);
+    }
+
+    [Fact]
+    public void Plan_TransformOfUnknownDuplicate_Fails()
+    {
+        var plan = ContentRewritePlanner.Plan([new TransformEdit(6, ObjectRef.Inserted(5), PdfMatrix.Translate(1, 1))]);
+        Assert.False(plan.Ok);
+    }
+
+    [Fact]
+    public void Plan_Duplicate_KeepsInsertionOrder_AppTextLast()
+    {
+        var plan = ContentRewritePlanner.Plan([
+            new InsertAppTextEdit(1, new AppTextSpec("A", 12, new PdfColor(0, 0, 0), PdfMatrix.Identity, new PdfRectF(0, 0, 10, 10), [], "BT /{F} 12 Tf <0001> Tj ET\n", new FontUse([], []))),
+            new DuplicateObjectEdit(2, new PageId(1), 0, PdfMatrix.Identity),
+            new InsertShapeEdit(3, Rect()),
+        ]);
+        Assert.True(plan.Ok, plan.Failure);
+        Assert.Equal(3, plan.Snippets.Count);
+        Assert.NotNull(plan.Snippets[0].Dup);
+        Assert.NotNull(plan.Snippets[2].Font);
     }
 }
