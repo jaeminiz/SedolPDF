@@ -321,6 +321,21 @@ public class AnnotationPainterTests
         Assert.True(op2.Path.OfType<CubicTo>().Count() < op.Path.OfType<CubicTo>().Count());
     }
 
+    [Theory]
+    [InlineData(407.75f, 109.46f, 428.5f, 148.71f, 1.5f, 1f)]   // 2026-11-10 user PDF: RD clamped to 5.19, long-edge bumps poked out of /Rect (clipped)
+    [InlineData(0f, 0f, 16f, 60f, 1.5f, 2f)]
+    [InlineData(0f, 0f, 12f, 12f, 3f, 1f)]
+    public void Cloud_SmallSquare_StaysInsideRect(float l, float b, float r, float t, float width, float intensity)
+    {
+        // RD is clamped to a quarter of the short side for small boxes; the bumps must shrink with it or the AP is cut at the BBox
+        var a = new Annotation
+        {
+            Kind = AnnotKind.Square, Rect = new PdfRectF(l, b, r, t), Color = Red, BorderWidth = width, CloudIntensity = intensity,
+        };
+        var d = AnnotationPainter.Paint(a, 0);
+        AssertWithin(d.Bounds, a.Rect, "small cloud square");
+    }
+
     [Fact]
     public void Cloud_Polygon_EdgeOf3Point4Diameters_RoundsArcCountUp()
     {
