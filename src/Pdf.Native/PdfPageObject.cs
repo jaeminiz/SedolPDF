@@ -112,6 +112,19 @@ public sealed unsafe class PdfPageObject
         }
     }
 
+    /// <summary>
+    /// 그림 객체를 마스크까지 적용해 그린 결과(BGRA). 그림이 아니거나 실패하면 null.
+    /// 개체 복사의 화면 사본에 쓴다(PDFium에 그림 객체를 그대로 복제하는 함수가 없다).
+    /// </summary>
+    public (byte[] Bgra, int W, int H)? RenderImageBgra(PdfPage page)
+    {
+        if (Type != PdfPageObjectType.Image) return null;
+        var bmp = NativeMethods.FPDFImageObj_GetRenderedBitmap(page.DocHandleInternal, page.Handle, Handle);
+        if (bmp == IntPtr.Zero) return null;
+        try { return PdfPage.CopyBitmapToBgra(bmp); }
+        finally { NativeMethods.FPDFBitmap_Destroy(bmp); }
+    }
+
     /// <summary>false면 그리기·내용 생성에서 빠진다(객체는 메모리에 남음, 번호 그대로).</summary>
     public bool IsActive
     {

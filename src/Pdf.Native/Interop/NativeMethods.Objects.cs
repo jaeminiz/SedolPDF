@@ -42,6 +42,12 @@ internal static unsafe partial class NativeMethods
     [LibraryImport(Lib)] public static partial IntPtr FPDFFormObj_GetObject(IntPtr form, nuint index);
 
     [LibraryImport(Lib)] public static partial IntPtr FPDFPageObj_NewImageObj(IntPtr doc);
+    [LibraryImport(Lib)] public static partial IntPtr FPDFImageObj_GetRenderedBitmap(IntPtr doc, IntPtr page, IntPtr imageObj);
+    [LibraryImport(Lib)] public static partial IntPtr FPDFBitmap_GetBuffer(IntPtr bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetWidth(IntPtr bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetHeight(IntPtr bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetStride(IntPtr bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetFormat(IntPtr bitmap);
     [LibraryImport(Lib)] public static partial int FPDFImageObj_SetBitmap(IntPtr* pages, int count, IntPtr imageObj, IntPtr bitmap);
 
     [LibraryImport(Lib)] public static partial IntPtr FPDFPageObj_CreateNewPath(float x, float y);
