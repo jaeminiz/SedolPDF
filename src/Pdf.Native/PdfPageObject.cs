@@ -65,6 +65,9 @@ public sealed unsafe class PdfPageObject
 
     public bool IsAttached { get { _t.AssertOnThread(); return _attached; } }
 
+    /// <summary>이 객체가 속한(또는 만들어진) 쪽.</summary>
+    public PdfPage Page => _page;
+
     public PdfPageObjectType Type
     {
         get
