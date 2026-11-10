@@ -125,6 +125,38 @@ public sealed class DuplicateSaveTests : IDisposable
     }
 
     [Fact]
+    public async Task Duplicate_OfDuplicate_SavesOneSnippetFromOriginal()
+    {
+        await using var s = await OpenWith(p => ContentPdfFactory.CreateDocumentLike(p));
+        var id = s.Pages[0].Id;
+        var (idx, b, count) = await _t.InvokeAsync(() =>
+        {
+            var e = s.GetObjectIndex(id).Entries.Where(x => x.Type == PdfPageObjectType.Path && x.Bounds.Width < 400).OrderBy(x => x.Order).First();
+            return (e.Ref.OriginalIndex, e.Bounds, s.GetLoadedPage(id).ObjectCount);
+        });
+        long did = s.Content.NewId();
+        await s.Commands.ExecuteAsync(new ContentEditCommand(id, [new DuplicateObjectEdit(did, id, idx, PdfMatrix.Translate(0, -100))]));
+        // 사본을 복사해 붙이면 사본이 아니라 원본 하나를 가리키는 편집이 된다(합친 행렬)
+        var copy = await _t.InvokeAsync(() => ObjectCopyBuilder.Build(s, id, [ObjectRef.Inserted(did)]));
+        var (edits, _) = ObjectPasteBuilder.Build(s.Content, copy.Items, PdfMatrix.Translate(0, -100));
+        var d2 = Assert.IsType<DuplicateObjectEdit>(Assert.Single(edits));
+        Assert.Equal(idx, d2.SourceIndex);
+        Assert.Equal(PdfMatrix.Translate(0, -200), d2.Then);
+        await s.Commands.ExecuteAsync(new ContentEditCommand(id, edits));
+        string outPath = P("out.pdf");
+        await Builder(s).BuildAsync(s, outPath);
+        await _t.InvokeAsync(() =>
+        {
+            using var doc = PdfDocument.Open(_t, outPath, null);
+            using var page = doc.LoadPage(0);
+            Assert.Equal(count + 2, page.ObjectCount);
+            var last = page.GetObject(page.ObjectCount - 1).Bounds;
+            Assert.InRange(last.Bottom, b.Bottom - 200 - 1, b.Bottom - 200 + 1);
+            return 0;
+        });
+    }
+
+    [Fact]
     public async Task Duplicate_OnUnpatchableDocument_RefusesSave()
     {
         await using var s = await OpenWith(p => ContentPdfFactory.CreateDocumentLike(p), password: "pw");
