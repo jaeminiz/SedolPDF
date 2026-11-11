@@ -38,6 +38,19 @@ public class TileCacheTests
     }
 
     [Fact]
+    public void Cache_Fallback_ShowsPreviousVersionUntilNewTilesArrive()
+    {
+        var c = new TileCache<string>(1000, _ => { });
+        c.Add(K(1, 1, 1000, 0, 0), "old1", 1);
+        c.Add(K(1, 1, 1000, 1, 0), "old2", 1);
+        c.Add(K(1, 0, 1000, 0, 0), "older", 1);
+        Assert.Equal(new[] { "old1", "old2" }, c.FallbackFor(new PageId(1), 2, 0, 1000).Select(f => f.Image).OrderBy(s => s));   // 가장 높은 앞 버전만
+        c.RemoveStaleVersions(new PageId(1), 2, 1);
+        Assert.False(c.TryGet(K(1, 0, 1000, 0, 0), out _));
+        Assert.True(c.TryGet(K(1, 1, 1000, 0, 0), out _));
+    }
+
+    [Fact]
     public void Cache_RemoveStaleVersions_And_RemovePage()
     {
         var evicted = new List<string>();
