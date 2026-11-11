@@ -126,6 +126,12 @@ public sealed class ObjectSelectionController
 
     private float _angle0;
 
+    /// <summary>회전 손잡이를 끄는 중인가.</summary>
+    public bool IsRotating => IsDragging && _drag == ObjectHandle.Rotate;
+
+    /// <summary>회전을 시작한 방향(쪽 좌표, 라디안): 중심에서 처음 누른 곳을 본 각. 부채꼴 그리기에 쓴다.</summary>
+    public float RotationStartAngle => _angle0;
+
     /// <summary>선택한 객체의 회전 손잡이, 모서리 손잡이(화면 8 DIP) 또는 몸통.</summary>
     public ObjectHandle HitHandle(PdfPointF p, float ptPerDip, int pageRotation = 0)
     {
