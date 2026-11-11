@@ -110,4 +110,28 @@ public class ContentRepairTests
         Assert.Equal(expected.Removed, restores);
         Assert.Equal(expected.Data, data);
     }
+
+    [Fact]
+    public void AlreadyMergedPage4_DanglingFragmentRemoved()
+    {
+        // 0.9.0 이하가 스트림을 하나로 합친 뒤의 모양(실제 파일 4쪽): 경계가 없어도 `cm` 뒤의 `S Q`는 꼬리 조각이다
+        var merged = string.Join("\n", Page4Like().Select(Str));
+        var (data, fragments, _) = ContentRepair.RepairStreams([LexerTests.B(merged)]);
+        Assert.Equal(1, fragments);
+        Assert.DoesNotContain("cm\nS Q", Str(data!));
+        Assert.Contains("841.92 cm", Str(data!));
+        Assert.Contains("30 30 m 40 30 l S Q", Str(data!));
+        Assert.Equal((0, 0), Depth(data!));
+    }
+
+    [Fact]
+    public void Dangling_PaintOnly_IsRemoved_ButPathsAndContinuationsAreKept()
+    {
+        var (data, n) = ContentRepair.RemoveDanglingFragments(LexerTests.B("q 1 w S Q q 0 0 m 10 10 l S Q"));
+        Assert.Equal(1, n);
+        Assert.Equal("q 1 w   q 0 0 m 10 10 l S Q", Str(data!));
+        Assert.Equal((null, 0), ContentRepair.RemoveDanglingFragments(LexerTests.B("q 0 0 m 10 10 l S Q 0 0 5 5 re W n 1 1 m 2 2 l f")));
+        // 점이 딸린 조각(실제 파일 6쪽: 다시 쓴 스트림이 길 한가운데에 끼어 `l l S Q`가 남음)은 건드리지 않는다
+        Assert.Equal((null, 0), ContentRepair.RemoveDanglingFragments(LexerTests.B("q 0 0 m 1 1 l q 5 5 m 6 6 l S Q 2 2 l 3 3 l S Q Q")));
+    }
 }

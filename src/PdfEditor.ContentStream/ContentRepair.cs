@@ -88,9 +88,56 @@ public static class ContentRepair
         }
 
         var joined = Join(cleaned);
-        var (data, restores) = RemoveUnmatchedRestores(joined);
+        // 스트림이 이미 하나로 합쳐진 파일(0.9.0 이하의 고치기가 합쳤다)은 경계가 없어 위 규칙이 못 본다 — 꼬리 조각의 모양으로 찾는다.
+        var (noFragments, merged) = RemoveDanglingFragments(joined);
+        fragments += merged;
+        var (data, restores) = RemoveUnmatchedRestores(noFragments ?? joined);
         if (fragments == 0 && restores == 0) return (null, 0, 0);
-        return (data ?? joined, fragments, restores);
+        return (data ?? noFragments ?? joined, fragments, restores);
+    }
+
+    private static readonly HashSet<string> PaintOps = ["S", "s", "f", "F", "f*", "B", "B*", "b", "b*"];
+
+    /// <summary>
+    /// 이미 합쳐진 내용에서 꼬리 조각을 찾는다: 현재 점이 없는데(길 연산자 m·re·l …이 하나도 없음) 칠하기(S f B …)가 나오고, 칠하기만 이어지다가 곧바로 `Q`가 오는 모양(4쪽의 `S Q`).
+    /// 처음부터 그렇게 쓴 파일은 없다(현재 점 없는 칠하기는 규격 오류) — 앞 스트림을 다시 쓸 때 이미 통째로 그려진 길의 남은 꼬리와 그것이 꺼 버리는 `Q`다. 그 둘을 지운다. 길 연산자가 딸린 조각(`l l S Q`)은 건드리지 않는다(실제 파일 6쪽: 다시 쓴 스트림이 길 한가운데에 끼어 있다).
+    /// </summary>
+    public static (byte[]? Data, int Removed) RemoveDanglingFragments(byte[] data)
+    {
+        var pc = ContentLexer.Parse(data);
+        if (!pc.Ok) return (null, 0);
+        var ops = pc.Ops;
+        var drop = new List<(int Start, int End)>();
+        bool havePoint = false;
+        for (int i = 0; i < ops.Count; i++)
+        {
+            string n = ops[i].Name;
+            if (n is "m" or "re" or "l" or "c" or "v" or "y" or "h") { havePoint = true; continue; }   // 길 연산자가 하나라도 있었으면 칠하기는 그 길을 그린다(m 없이 이어진 l도 센다)
+            if (n == "n") { havePoint = false; continue; }   // W 뒤의 끝맺음
+            bool isPaint = PaintOps.Contains(n);
+            if (!isPaint) continue;
+            if (havePoint) { havePoint = false; continue; }   // 정상: 칠하면 현재 점이 사라진다
+            // 현재 점 없는 칠하기: 칠하기만 이어지다가 곧바로 Q인가
+            int j = i;
+            while (j < ops.Count && PaintOps.Contains(ops[j].Name)) j++;
+            if (j < ops.Count && ops[j].Name == "Q")
+            {
+                drop.Add((ops[i].Start, ops[j].End));
+                i = j;
+                havePoint = false;
+            }
+        }
+        if (drop.Count == 0) return (null, 0);
+        using var ms = new MemoryStream(data.Length);
+        int at = 0;
+        foreach (var (start, end) in drop)
+        {
+            ms.Write(data, at, start - at);
+            ms.WriteByte((byte)' ');
+            at = end;
+        }
+        ms.Write(data, at, data.Length - at);
+        return (ms.ToArray(), drop.Count);
     }
 
     private static byte[] Join(IReadOnlyList<byte[]> streams)
