@@ -299,6 +299,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                 IDisposable? life = null;
                 ReplayResult rr;
                 var kinds = new Dictionary<long, PdfPageObjectType>();
+                var srcBounds = new Dictionary<long, PdfRectF>();
                 try
                 {
                     DuplicateSource? dsrc = null;
@@ -309,7 +310,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                         dsrc = (pid, oi) =>
                         {
                             var o = inner(pid, oi);
-                            if (o is not null) foreach (var d in dups) if (d.SourcePage == pid && d.SourceIndex == oi) kinds[d.Id] = o.Type;
+                            if (o is not null) foreach (var d in dups) if (d.SourcePage == pid && d.SourceIndex == oi) { kinds[d.Id] = o.Type; srcBounds[d.Id] = o.Bounds; }
                             return o;
                         };
                     }
@@ -323,6 +324,12 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                         {
                             var bb = io.Bounds.Inflate(2);
                             rects.Add((bb.Left, bb.Bottom, bb.Right, bb.Top));
+                            // 화면 사본은 글꼴·자간이 달라 폭이 다를 수 있다 — 원본 개체의 진짜 경계를 같은 행렬로 옮긴 자리도 함께 뺀다.
+                            if (srcBounds.TryGetValue(d.Id, out var sb))
+                            {
+                                var pts = new[] { new PdfPointF(sb.Left, sb.Bottom), new PdfPointF(sb.Left, sb.Top), new PdfPointF(sb.Right, sb.Bottom), new PdfPointF(sb.Right, sb.Top) }.Select(p => d.Then.Apply(p)).ToList();
+                                rects.Add((pts.Min(p => p.X) - 2, pts.Min(p => p.Y) - 2, pts.Max(p => p.X) + 2, pts.Max(p => p.Y) + 2));
+                            }
                         }
                     if (rects.Count > 0)
                     {

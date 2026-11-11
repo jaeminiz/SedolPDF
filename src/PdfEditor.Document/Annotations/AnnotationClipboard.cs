@@ -33,7 +33,7 @@ public static class AnnotationCopyBuilder
         if (group.Count > 1) return group.All(a => a.Kind is AnnotKind.StrikeOut or AnnotKind.Caret);   // 바꾸기 묶음
         var a = group[0];
         if (a.InReplyTo is not null) return false;                       // 답글·검토 상태·묶음 없이 떨어진 Caret
-        if (a.Kind is AnnotKind.Highlight or AnnotKind.Underline or AnnotKind.StrikeOut) return false;   // 글자에 붙는 표시
+        if (a.Kind is AnnotKind.Highlight or AnnotKind.Underline or AnnotKind.StrikeOut && !AnnotationGeometry.IsRectHighlight(a)) return false;   // 글자에 붙는 표시(영역 강조 = 사각형 하나짜리 형광펜은 복사한다)
         return true;
     }
 }
@@ -41,7 +41,7 @@ public static class AnnotationCopyBuilder
 /// <summary>클립보드 항목 → 붙여넣기 명령(주석 모델만 바꾼다). 실행 취소 한 번에 모두 돌아온다.</summary>
 public static class AnnotationPasteBuilder
 {
-    /// <param name="offset">이동만(E,F)이 쓰인다.</param>
+    /// <param name="offset">이동 또는 90° 단위 회전·이동(다른 회전의 쪽으로 붙일 때).</param>
     /// <param name="newId">새 주석 Id를 만든다(보통 <c>session.Annotations.NewId</c>).</param>
     public static IAnnotationCommand Build(PageId target, int targetPageRotation, int sourcePageRotation, IReadOnlyList<Annotation> items,
         PdfMatrix offset, Func<AnnotId> newId, string? author, DateTimeOffset now)
@@ -52,7 +52,7 @@ public static class AnnotationPasteBuilder
         var changes = new List<AnnotationChange>(items.Count);
         foreach (var a in items)
         {
-            var n = AnnotationGeometry.Translate(a, offset.E, offset.F) with
+            var n = AnnotationGeometry.Transform(a, offset) with
             {
                 Id = map[a.Id],
                 Name = Guid.NewGuid().ToString("N"),

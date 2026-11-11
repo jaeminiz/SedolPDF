@@ -67,7 +67,8 @@ public static class ObjectCopyBuilder
                     if (o is not null && DuplicateScreen.CanDuplicate(o))
                         item = new OriginalClip(page, r.OriginalIndex, then, o.Type == PdfPageObjectType.Text ? color : null, entry.Bounds);
                 }
-                if (item is null) skipped++; else items.Add((entry.Order, item, r));
+                if (item is null) { if (entry.Bounds.Width > 0 || entry.Bounds.Height > 0) skipped++; }   // 보이지 않는 빈 객체는 조용히 뺀다(알림 없음)
+                else items.Add((entry.Order, item, r));
             }
         }
         finally { life.Dispose(); }
@@ -170,6 +171,15 @@ public static class PasteOffset
         return 0;
     }
 
+    /// <summary>사각형들의 경계 합집합.</summary>
+    public static PdfRectF UnionRects(IEnumerable<PdfRectF> rects)
+    {
+        PdfRectF? u = null;
+        foreach (var i in rects)
+            u = u is null ? i : new PdfRectF(Math.Min(u.Value.Left, i.Left), Math.Min(u.Value.Bottom, i.Bottom), Math.Max(u.Value.Right, i.Right), Math.Max(u.Value.Top, i.Top));
+        return u ?? default;
+    }
+
     /// <summary>항목들의 경계 합집합.</summary>
     public static PdfRectF Union(IEnumerable<ClipItem> items)
     {
@@ -177,5 +187,62 @@ public static class PasteOffset
         foreach (var i in items)
             u = u is null ? i.Bounds : new PdfRectF(Math.Min(u.Value.Left, i.Bounds.Left), Math.Min(u.Value.Bottom, i.Bounds.Bottom), Math.Max(u.Value.Right, i.Bounds.Right), Math.Max(u.Value.Top, i.Bounds.Top));
         return u ?? default;
+    }
+}
+
+/// <summary>화면 방향(오른쪽 +x, 위쪽 +y) 이동량을 쪽 좌표 이동량으로 바꾼다. 쪽이 회전돼 있으면 방향키가 화면 기준으로 움직이게 한다.</summary>
+public static class ScreenDirection
+{
+    public static (float Dx, float Dy) ToPage(int pageRotation, float right, float up) => (((pageRotation % 4) + 4) % 4) switch
+    {
+        0 => (right, up),
+        1 => (-up, right),
+        2 => (-right, -up),
+        _ => (up, -right),
+    };
+}
+
+/// <summary>
+/// 회전이 다른 쪽으로 붙일 때(0.9.0): 보이는 자리와 방향이 그대로가 되도록 쪽 좌표 변환을 만든다.
+/// 원천 쪽 좌표 → (회전 적용한 화면 좌표) → 대상 쪽 좌표. 쪽 크기가 달라 밖으로 나가면 안으로 당긴다.
+/// </summary>
+public static class PageFrame
+{
+    /// <summary>쪽 상자 왼쪽 아래를 원점으로 한 쪽 좌표 → 위쪽이 위인 화면 좌표(보이는 방향). W,H = 회전 전 쪽 폭·높이.</summary>
+    public static PdfMatrix ToView(int rotation, float w, float h) => (((rotation % 4) + 4) % 4) switch
+    {
+        0 => PdfMatrix.Identity,
+        1 => new PdfMatrix(0, -1, 1, 0, 0, w),
+        2 => new PdfMatrix(-1, 0, 0, -1, w, h),
+        _ => new PdfMatrix(0, 1, -1, 0, h, 0),
+    };
+
+    /// <summary>ToView의 역(직교 변환이라 간단히 구한다).</summary>
+    public static PdfMatrix FromView(int rotation, float w, float h)
+    {
+        var m = ToView(rotation, w, h);
+        float det = m.A * m.D - m.B * m.C;
+        float a = m.D / det, b = -m.B / det, c = -m.C / det, d = m.A / det;
+        return new PdfMatrix(a, b, c, d, -(m.E * a + m.F * c), -(m.E * b + m.F * d));
+    }
+
+    /// <summary>원천 쪽 좌표 → 같은 화면 자리의 대상 쪽 좌표.</summary>
+    public static PdfMatrix Between(int srcRotation, PdfRectF srcBox, int dstRotation, PdfRectF dstBox)
+    {
+        return PdfMatrix.Translate(-srcBox.Left, -srcBox.Bottom)
+            .Then(ToView(srcRotation, srcBox.Width, srcBox.Height))
+            .Then(FromView(dstRotation, dstBox.Width, dstBox.Height))
+            .Then(PdfMatrix.Translate(dstBox.Left, dstBox.Bottom));
+    }
+
+    /// <summary>Between에, 변환한 경계(itemsBounds)가 대상 쪽 안에 들도록 당기는 이동을 더한다.</summary>
+    public static PdfMatrix Place(int srcRotation, PdfRectF srcBox, int dstRotation, PdfRectF dstBox, PdfRectF itemsBounds)
+    {
+        var m = Between(srcRotation, srcBox, dstRotation, dstBox);
+        var pts = new[] { m.Apply(new(itemsBounds.Left, itemsBounds.Bottom)), m.Apply(new(itemsBounds.Left, itemsBounds.Top)),
+            m.Apply(new(itemsBounds.Right, itemsBounds.Bottom)), m.Apply(new(itemsBounds.Right, itemsBounds.Top)) };
+        var moved = new PdfRectF(pts.Min(p => p.X), pts.Min(p => p.Y), pts.Max(p => p.X), pts.Max(p => p.Y));
+        var pull = PasteOffset.Compute(false, 1, 0, moved, dstBox);
+        return m.Then(pull);
     }
 }

@@ -99,7 +99,7 @@ public sealed partial class DocumentView
         bool toggle = (e.Mods & (KeyModifiers.Control | KeyModifiers.Shift)) != 0;
 
         // 이미 고른 객체의 손잡이·몸통이면 그대로 끌기
-        if (!cycle && !toggle && tab.Tool == ToolKind.EditObject && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip) is var hh && hh != ObjectHandle.None)
+        if (!cycle && !toggle && tab.Tool == ToolKind.EditObject && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip, g.Rotation) is var hh && hh != ObjectHandle.None)
         {
             StartObjectDrag(e.Pointer, hh, pt, e.PageIndex, g);
             return true;
@@ -206,8 +206,11 @@ public sealed partial class DocumentView
             Key.Left => (-step, 0f), Key.Right => (step, 0f), Key.Up => (0f, step), Key.Down => (0f, -step), _ => null,
         };
         if (d is not { } v || (e.KeyModifiers & ~KeyModifiers.Shift) != 0) return false;
-        // 화면 위쪽 = PDF y 증가(회전 없는 쪽 기준). 회전된 쪽은 쪽 좌표 방향으로 움직인다(검증 필요: 회전 쪽에서의 체감).
-        _ = RunObjectEditAsync(st, sel.Page, st.Tab.Objects.All.Select(x => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), x.Ref, PdfMatrix.Translate(v.dx, v.dy))).ToArray());
+        // 방향키는 화면 기준이다: 회전된 쪽은 화면의 오른쪽·위쪽을 쪽 좌표 방향으로 바꿔서 옮긴다.
+        int rot = 0;
+        if (_layoutPages.FirstOrDefault(p => p.Id == sel.Page) is { } pi && TryGetGeom(st, pi, out var g)) rot = g.Rotation;
+        var (px, py) = ScreenDirection.ToPage(rot, v.dx, v.dy);
+        _ = RunObjectEditAsync(st, sel.Page, st.Tab.Objects.All.Select(x => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), x.Ref, PdfMatrix.Translate(px, py))).ToArray());
         if (annotMode) return false;
         e.Handled = true;
         return true;
@@ -234,6 +237,23 @@ public sealed partial class DocumentView
             var v = tr.ToView(RectangleF.FromLTRB(r.Left, r.Bottom, r.Right, r.Top));
             last = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(1, v.W), Math.Max(1, v.H));
             ctx.DrawRectangle(null, pen, last);
+        }
+        // 회전 손잡이(경계 위쪽 가운데에서 위로 뻗은 동그라미). 끄는 동안은 돌아가는 모양의 점선 상자를 보인다.
+        var gb = ctl.GroupBounds;
+        float ptPerDip = (float)(1.0 / scale);
+        Point ToV(PdfPointF q) { var v = tr.ToView(new RectangleF(q.X, q.Y, 0, 0)); return new Point(pr.X + v.X, pr.Y + v.Y); }
+        if (ctl.IsDragging && ctl.RotationPreview != 0)
+        {
+            var m = ObjectSelectionController.RotateAbout(ctl.RotationPreview, (gb.Left + gb.Right) / 2, (gb.Bottom + gb.Top) / 2);
+            var cs = new[] { new PdfPointF(gb.Left, gb.Bottom), new PdfPointF(gb.Right, gb.Bottom), new PdfPointF(gb.Right, gb.Top), new PdfPointF(gb.Left, gb.Top) }.Select(q => ToV(m.Apply(q))).ToArray();
+            for (int i = 0; i < 4; i++) ctx.DrawLine(pen, cs[i], cs[(i + 1) % 4]);
+        }
+        else if (!ctl.IsDragging)
+        {
+            var hp = ToV(ObjectSelectionController.RotateHandlePos(gb, g.Rotation, ptPerDip));
+            var edge = ToV(ObjectSelectionController.RotateHandlePos(gb, g.Rotation, 0));
+            ctx.DrawLine(new Pen(SelAccent, 1), edge, hp);
+            ctx.DrawEllipse(Brushes.White, new Pen(SelAccent, 1.5), hp, 5, 5);
         }
         if (ctl.IsDragging || ctl.All.Count != 1) return;
         const double h = ObjectSelectionController.HandleDip;

@@ -172,6 +172,12 @@ public sealed class ClipboardController
             if (s.IndexOf(target) < 0) return ((PdfMatrix, PdfRectF)?)null;
             var union = Union(objects, annots);
             var box = PdfRectF.FromLtrbRectangle(s.GetLoadedPage(target).BoundsPt);
+            if (!samePage && s.IndexOf(entry.FromPage) >= 0)
+            {
+                var src = PdfRectF.FromLtrbRectangle(s.GetLoadedPage(entry.FromPage).BoundsPt);
+                if (entry.FromRotation != targetRotation || src != box)   // 회전·크기가 다른 쪽: 보이는 자리와 방향을 그대로 옮긴다
+                    return (PageFrame.Place(entry.FromRotation, src, targetRotation, box, union), box);
+            }
             return (PasteOffset.Compute(samePage, k, targetRotation, union, box), box);
         });
         if (plan is not { } pl) return false;   // 붙일 쪽이 그사이 지워짐: 조용히 무시
@@ -200,6 +206,7 @@ public sealed class ClipboardController
         catch (Exception) { return !newRefs.IsDefaultOrEmpty; }   // 쪽이 그사이 지워짐 등
 
         // 붙인 새 개체·주석을 고른다.
+        foreach (var r in newRefs.IsDefault ? [] : newRefs) tab.Objects.PastedIds.Add(r.InsertedId);
         if (!newRefs.IsDefaultOrEmpty)
         {
             var picked = await s.Thread.InvokeAsync(() =>

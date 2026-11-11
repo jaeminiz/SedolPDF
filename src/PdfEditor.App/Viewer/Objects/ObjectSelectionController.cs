@@ -4,7 +4,7 @@ using PdfEditor.Document.Content;
 
 namespace PdfEditor.App.Viewer.Objects;
 
-public enum ObjectHandle { None, Body, BottomLeft, BottomRight, TopLeft, TopRight }
+public enum ObjectHandle { None, Body, BottomLeft, BottomRight, TopLeft, TopRight, Rotate }
 
 /// <summary>고른 쪽 객체 하나(M4는 한 번에 하나, 결정 C8). Bounds는 쪽 좌표(pt).</summary>
 public sealed record SelectedObject(PageId Page, ObjectRef Ref, PdfPageObjectType Type, PdfRectF Bounds);
@@ -24,6 +24,9 @@ public sealed class ObjectSelectionController
     private PdfRectF _origin;
 
     private readonly List<SelectedObject> _all = [];
+
+    /// <summary>붙여넣기·복제로 만든 개체의 넣기 번호. 개체 편집 도구의 사각형 끌기가 (편집 탭으로 넣은 개체와 달리) 이것들은 함께 고른다.</summary>
+    public HashSet<long> PastedIds { get; } = [];
 
     /// <summary>대표(첫 번째) 선택. 여러 개를 골랐으면 크기 조절은 못 하고 함께 옮기기·지우기만 한다.</summary>
     public SelectedObject? Selected => _all.Count > 0 ? _all[0] : null;
@@ -97,11 +100,39 @@ public sealed class ObjectSelectionController
         return hits[0];
     }
 
-    /// <summary>선택한 객체의 모서리 손잡이(화면 8 DIP) 또는 몸통.</summary>
-    public ObjectHandle HitHandle(PdfPointF p, float ptPerDip)
+    public const double RotateHandleOffsetDip = 24;
+
+    /// <summary>고른 객체 모두를 감싼 경계(쪽 좌표).</summary>
+    public PdfRectF GroupBounds => _all.Count == 0 ? default : PasteOffset.UnionRects(_all.Select(x => x.Bounds));
+
+    /// <summary>
+    /// 회전 손잡이 자리(쪽 좌표): 화면에서 경계 위쪽 가운데에서 RotateHandleOffsetDip 위. 회전된 쪽은 화면 위쪽이 쪽 좌표의 다른 방향이다.
+    /// </summary>
+    public static PdfPointF RotateHandlePos(PdfRectF b, int pageRotation, float ptPerDip)
+    {
+        float d = (float)RotateHandleOffsetDip * ptPerDip;
+        float cx = (b.Left + b.Right) / 2, cy = (b.Bottom + b.Top) / 2;
+        return (((pageRotation % 4) + 4) % 4) switch
+        {
+            0 => new PdfPointF(cx, b.Top + d),
+            1 => new PdfPointF(b.Left - d, cy),
+            2 => new PdfPointF(cx, b.Bottom - d),
+            _ => new PdfPointF(b.Right + d, cy),
+        };
+    }
+
+    /// <summary>끄는 중인 회전 각(라디안, 쪽 좌표 기준 반시계가 +). 회전하지 않을 때 0.</summary>
+    public float RotationPreview { get; private set; }
+
+    private float _angle0;
+
+    /// <summary>선택한 객체의 회전 손잡이, 모서리 손잡이(화면 8 DIP) 또는 몸통.</summary>
+    public ObjectHandle HitHandle(PdfPointF p, float ptPerDip, int pageRotation = 0)
     {
         if (Selected is not { } s) return ObjectHandle.None;
         float h = (float)(HandleDip / 2) * ptPerDip;
+        var rp = RotateHandlePos(GroupBounds, pageRotation, ptPerDip);
+        if (Math.Abs(p.X - rp.X) <= h * 1.3f && Math.Abs(p.Y - rp.Y) <= h * 1.3f) return ObjectHandle.Rotate;
         if (_all.Count > 1) return _all.Any(x => x.Bounds.Inflate(h).Contains(p)) ? ObjectHandle.Body : ObjectHandle.None;
         var b = s.Bounds;
         bool Near(float x, float y) => Math.Abs(p.X - x) <= h && Math.Abs(p.Y - y) <= h;
@@ -117,6 +148,14 @@ public sealed class ObjectSelectionController
         if (Selected is null || handle == ObjectHandle.None) return;
         _drag = handle;
         _start = start;
+        if (handle == ObjectHandle.Rotate)
+        {
+            _origin = GroupBounds;
+            Preview = _origin;
+            RotationPreview = 0;
+            _angle0 = AngleAround(start);
+            return;
+        }
         _origin = Selected.Bounds;
         Preview = _origin;
     }
@@ -124,6 +163,14 @@ public sealed class ObjectSelectionController
     public void Drag(PdfPointF p, bool shift)
     {
         if (!IsDragging || Selected is not { } s) return;
+        if (_drag == ObjectHandle.Rotate)
+        {
+            float a = AngleAround(p) - _angle0;
+            if (shift) a = (float)(Math.Round(a / (Math.PI / 12)) * (Math.PI / 12));   // Shift: 15도 단위
+            RotationPreview = a;
+            Changed?.Invoke();
+            return;
+        }
         float dx = p.X - _start.X, dy = p.Y - _start.Y;
         var o = _origin;
         if (_drag == ObjectHandle.Body) { Preview = o.Offset(dx, dy); Changed?.Invoke(); return; }
@@ -149,6 +196,14 @@ public sealed class ObjectSelectionController
     public PdfMatrix? EndDrag()
     {
         if (!IsDragging) return null;
+        if (_drag == ObjectHandle.Rotate)
+        {
+            float ang = RotationPreview; var c = _origin;
+            CancelDrag();
+            Changed?.Invoke();
+            if (Math.Abs(ang) < 0.002f) return null;
+            return RotateAbout(ang, (c.Left + c.Right) / 2, (c.Bottom + c.Top) / 2);
+        }
         var from = _origin;
         var to = Preview ?? from;
         CancelDrag();
@@ -163,6 +218,20 @@ public sealed class ObjectSelectionController
     {
         _drag = ObjectHandle.None;
         Preview = null;
+        RotationPreview = 0;
+    }
+
+    private float AngleAround(PdfPointF p)
+    {
+        var c = _origin;
+        return (float)Math.Atan2(p.Y - (c.Bottom + c.Top) / 2, p.X - (c.Left + c.Right) / 2);
+    }
+
+    /// <summary>(cx, cy)를 중심으로 angle 라디안(반시계) 돌리는 행렬.</summary>
+    public static PdfMatrix RotateAbout(float angle, float cx, float cy)
+    {
+        float cos = (float)Math.Cos(angle), sin = (float)Math.Sin(angle);
+        return PdfMatrix.Translate(-cx, -cy).Then(new PdfMatrix(cos, sin, -sin, cos, 0, 0)).Then(PdfMatrix.Translate(cx, cy));
     }
 
     /// <summary>쪽 좌표에서 사각형 from을 to로 옮기는 행렬(크기 비율 + 이동).</summary>

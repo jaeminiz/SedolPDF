@@ -33,6 +33,51 @@ public class ObjectSelectionControllerTests
     }
 
     [Fact]
+    public void Rotate_HandleAboveTop_Drag90Degrees_RotatesAboutCenter()
+    {
+        var c = new ObjectSelectionController();
+        var b = new PdfRectF(100, 100, 300, 200);   // 중심 (200, 150)
+        c.Select(new SelectedObject(Page, ObjectRef.Original(1), PdfPageObjectType.Path, b));
+        var hp = ObjectSelectionController.RotateHandlePos(b, 0, 1f);
+        Assert.Equal(200f, hp.X, 3); Assert.True(hp.Y > 200f);
+        Assert.Equal(ObjectHandle.Rotate, c.HitHandle(hp, 1f));
+        c.BeginDrag(ObjectHandle.Rotate, hp);
+        c.Drag(new PdfPointF(100, 150), shift: false);   // 위쪽에서 왼쪽으로 = 반시계 90도
+        var m = c.EndDrag()!.Value;
+        var q = m.Apply(new PdfPointF(300, 150));   // 오른쪽 끝 → 위쪽 끝
+        Assert.Equal(200f, q.X, 2); Assert.Equal(250f, q.Y, 2);
+        var center = m.Apply(new PdfPointF(200, 150));
+        Assert.Equal(200f, center.X, 2); Assert.Equal(150f, center.Y, 2);
+    }
+
+    [Fact]
+    public void Rotate_NoMovement_ReturnsNull_ShiftSnaps15()
+    {
+        var c = new ObjectSelectionController();
+        var b = new PdfRectF(100, 100, 300, 200);
+        c.Select(new SelectedObject(Page, ObjectRef.Original(1), PdfPageObjectType.Path, b));
+        var hp = ObjectSelectionController.RotateHandlePos(b, 0, 1f);
+        c.BeginDrag(ObjectHandle.Rotate, hp);
+        Assert.Null(c.EndDrag());
+        c.BeginDrag(ObjectHandle.Rotate, hp);
+        c.Drag(new PdfPointF(200 + 100 * (float)Math.Sin(-0.3), 150 + 100 * (float)Math.Cos(-0.3)), shift: true);   // 왼쪽으로 약 17도(반시계 +) → 15도
+        Assert.Equal(Math.PI / 12, c.RotationPreview, 3);
+        c.CancelDrag();
+        Assert.Equal(0f, c.RotationPreview);
+    }
+
+    [Theory]
+    [InlineData(1, 90f, 150f)]
+    [InlineData(2, 200f, 90f)]
+    [InlineData(3, 310f, 150f)]
+    public void RotateHandle_FollowsScreenUpOnRotatedPages(int rot, float x, float y)
+    {
+        var b = new PdfRectF(100, 100, 300, 200);
+        var hp = ObjectSelectionController.RotateHandlePos(b, rot, 10f / 24f);   // 거리 10pt
+        Assert.Equal(x, hp.X, 2); Assert.Equal(y, hp.Y, 2);
+    }
+
+    [Fact]
     public void Drag_Body_Moves_ResizeKeepsAspectForImages_ShiftFree()
     {
         var c = new ObjectSelectionController();

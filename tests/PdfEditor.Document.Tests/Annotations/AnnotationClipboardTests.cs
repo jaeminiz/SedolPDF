@@ -111,14 +111,14 @@ public sealed class AnnotationClipboardTests : IDisposable
     }
 
     [Fact]
-    public async Task Copy_HighlightAndReply_AreSkipped()
+    public async Task Copy_UnderlineAndReply_AreSkipped()
     {
         await using var s = await Open();
         var page = s.Pages[0].Id;
         var sq = Square(s);
         var hi = new Annotation
         {
-            Id = s.Annotations.NewId(), Kind = AnnotKind.Highlight, Rect = new PdfRectF(10, 10, 90, 25),
+            Id = s.Annotations.NewId(), Kind = AnnotKind.Underline, Rect = new PdfRectF(10, 10, 90, 25),
             Quads = [new PdfQuadF(new(10, 25), new(90, 25), new(10, 10), new(90, 10))],
         };
         var reply = new Annotation { Id = s.Annotations.NewId(), Kind = AnnotKind.Text, Rect = new PdfRectF(10, 10, 30, 30), InReplyTo = sq.Id, ReplyKind = ReplyType.Reply };
@@ -129,6 +129,28 @@ public sealed class AnnotationClipboardTests : IDisposable
         var ok = AnnotationCopyBuilder.Build(s.Annotations.Get(page), [sq.Id, hi.Id]);
         Assert.Single(ok.Items);
         Assert.Equal(1, ok.Skipped);
+    }
+
+    [Fact]
+    public async Task Copy_RectHighlight_AreaHighlight_IsCopied_AndRotatesWithMatrix()
+    {
+        await using var s = await Open();
+        var page = s.Pages[0].Id;
+        var hi = new Annotation
+        {
+            Id = s.Annotations.NewId(), Kind = AnnotKind.Highlight, Rect = new PdfRectF(10, 10, 90, 25),
+            Quads = [new PdfQuadF(new(10, 25), new(90, 25), new(10, 10), new(90, 10))],
+        };
+        await s.Commands.ExecuteAsync(new ChangeAnnotationsCommand(page, [new(null, hi)]));
+        var copy = AnnotationCopyBuilder.Build(s.Annotations.Get(page), [hi.Id]);
+        Assert.Equal(0, copy.Skipped);
+        Assert.Single(copy.Items);
+        // 180° 돌린 쪽(폭 300, 높이 300)으로: (x,y) → (300-x, 300-y)
+        var flip = new PdfMatrix(-1, 0, 0, -1, 300, 300);
+        await s.Commands.ExecuteAsync(AnnotationPasteBuilder.Build(page, 2, 0, copy.Items, flip, s.Annotations.NewId, "me", Now));
+        var pasted = s.Annotations.Get(page).Items.Select(v => v.Data).Last();
+        Assert.Equal(210f, pasted.Rect.Left, 3); Assert.Equal(290f, pasted.Rect.Right, 3);
+        Assert.Equal(275f, pasted.Rect.Bottom, 3); Assert.Equal(290f, pasted.Rect.Top, 3);
     }
 
     [Fact]
