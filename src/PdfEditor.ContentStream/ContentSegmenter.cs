@@ -1,4 +1,4 @@
-namespace PdfEditor.ContentStream;
+﻿namespace PdfEditor.ContentStream;
 
 /// <summary>PDFium <c>PdfPageObjectType</c>과 같은 값(Text=1, Path=2, Image=3, Shading=4, Form=5).</summary>
 public enum ObjectKind { Text = 1, Path = 2, Image = 3, Shading = 4, Form = 5 }
@@ -30,6 +30,11 @@ public sealed class TextSnapshot
     public bool Movable { get; internal set; }
 }
 
+/// <summary>
+/// 상속한 잘림의 재료. Paths: 쪽 공간 절대 좌표로 적은 잘림 경로들(`… W n`). ClipDepth: 처음 잘림이 걸린 q 깊이(0이면 풀리지 않음). OuterCtm: 그 q 바깥의 CTM. ObjectDepth: 객체를 그린 q 깊이.
+/// </summary>
+public sealed record ClipSrc(string[] Paths, int ClipDepth, Mat OuterCtm, int ObjectDepth);
+
 /// <summary>쪽 객체 하나(PDFium 객체 목록의 한 항목에 대응).</summary>
 public sealed class PageObject
 {
@@ -46,6 +51,8 @@ public sealed class PageObject
     public bool InheritsClip { get; init; }
     /// <summary>상속한 잘림이 축에 맞는 사각형 하나(들의 교집합)일 때 그 쪽 공간 상자. 아니면 null(모름).</summary>
     public Box? ClipBox { get; init; }
+    /// <summary>상속한 잘림을 쪽 공간으로 다시 쓸 수 있을 때의 재료(잘림이 없거나 못 옮기면 null).</summary>
+    public ClipSrc? ClipSource { get; init; }
     /// <summary>쪽 공간 경계 사각형(경로: 점 모음, 그림/폼: 단위 정사각형/BBox 변환). 모르면 null(셰이딩·글).</summary>
     public Box? Bounds { get; init; }
     /// <summary>글 객체의 글 원점(쪽 공간). 위치를 모르면 null.</summary>
@@ -81,6 +88,9 @@ public static class ContentSegmenter
         public int Tr, FontOp = -1;
         public bool Clip;        // 이 상태에서 잘림이 걸려 있는가(q로 저장, Q로 되돌림)
         public Box? ClipBox;     // 잘림이 모두 축에 맞는 사각형(re)이면 그 교집합, 아니면 null(모름)
+        public string[]? ClipPaths = [];   // 잘림 경로를 쪽 공간 절대 좌표로 다시 쓴 것(`m l l h W n` 한 덩어리씩). 하나라도 못 옮겼으면 null(모름)
+        public int ClipDepth;    // 처음 잘림이 걸린 곳의 q 깊이(0이면 쪽 맨 바깥 — 끝까지 안 풀린다)
+        public Mat ClipOuterCtm = Mat.Identity;   // 그 q가 열리기 전의 CTM(잘림이 풀린 뒤의 CTM)
         public int[] Fill = [], Stroke = [], Misc = [];
         public GState Clone() => (GState)MemberwiseClone();   // 배열은 바꾸지 않고 새로 만들어 갈아 끼우므로 얕은 복사로 충분
     }
@@ -111,7 +121,24 @@ public static class ContentSegmenter
             if (!haveBox) { minX = maxX = px; minY = maxY = py; haveBox = true; }
             else { minX = Math.Min(minX, px); maxX = Math.Max(maxX, px); minY = Math.Min(minY, py); maxY = Math.Max(maxY, py); }
         }
-        void ResetPath() { pathFirst = -1; points = 0; closedDot = false; pathClip = false; boxOk = true; haveBox = false; reCount = 0; onlyRe = true; }
+        var pathAbs = new List<string>(); bool pathAbsOk = true, evenOdd = false;
+        void ResetPath() { pathFirst = -1; points = 0; closedDot = false; pathClip = false; boxOk = true; haveBox = false; reCount = 0; onlyRe = true; pathAbs.Clear(); pathAbsOk = true; evenOdd = false; }
+        // 경로 연산자 하나를 현재 CTM을 곱한 절대 좌표로 적어 둔다(잘림 경로를 쪽 공간에서 다시 쓰려는 것).
+        string Pt(double x, double y) { var (px, py) = g.Ctm.Apply(x, y); return Mat.Fmt(px) + " " + Mat.Fmt(py); }
+        void AbsPath(ContentOp o, double[]? v)
+        {
+            if (v is null) { pathAbsOk = false; return; }
+            switch (o.Name)
+            {
+                case "m": case "l": pathAbs.Add(Pt(v[0], v[1]) + " " + o.Name); break;
+                case "c": pathAbs.Add(Pt(v[0], v[1]) + " " + Pt(v[2], v[3]) + " " + Pt(v[4], v[5]) + " c"); break;
+                case "v": case "y": pathAbs.Add(Pt(v[0], v[1]) + " " + Pt(v[2], v[3]) + " " + o.Name); break;
+                case "re":
+                    pathAbs.Add(Pt(v[0], v[1]) + " m " + Pt(v[0] + v[2], v[1]) + " l " + Pt(v[0] + v[2], v[1] + v[3]) + " l " + Pt(v[0], v[1] + v[3]) + " l h");
+                    break;
+            }
+        }
+        ClipSrc? Src() => g.Clip && g.ClipPaths is { } cp ? new ClipSrc(cp, g.ClipDepth, g.ClipOuterCtm, stack.Count) : null;
         // W/W*가 걸린 경로가 끝났을 때 잘림 상태를 갱신한다. `re` 하나이고 CTM이 축에 맞으면 상자를 알고, 아니면 모른다(null).
         void ApplyClip()
         {
@@ -119,6 +146,9 @@ public static class ContentSegmenter
             Box? rect = onlyRe && reCount == 1 && boxOk && haveBox && axis ? new Box(minX, minY, maxX, maxY) : null;
             if (g.Clip) g.ClipBox = g.ClipBox is { } old && rect is { } r ? new Box(Math.Max(old.L, r.L), Math.Max(old.B, r.B), Math.Min(old.R, r.R), Math.Min(old.T, r.T)) : null;
             else g.ClipBox = rect;
+            if (g.ClipPaths is { } cps && pathAbsOk) g.ClipPaths = [.. cps, string.Join(' ', pathAbs) + (evenOdd ? " W* n" : " W n")];
+            else g.ClipPaths = null;
+            if (!g.Clip) { g.ClipDepth = stack.Count; g.ClipOuterCtm = stack.Count > 0 ? stack.Peek().Ctm : Mat.Identity; }
             g.Clip = true;
         }
 
@@ -148,33 +178,34 @@ public static class ContentSegmenter
                     onlyRe = false;
                     if (pathFirst < 0) pathFirst = i;
                     points++;
-                    if (Nums(op, 2, out var p2)) AddPt(p2[0], p2[1]); else boxOk = false;
+                    if (Nums(op, 2, out var p2)) { AddPt(p2[0], p2[1]); AbsPath(op, p2); } else { boxOk = false; AbsPath(op, null); }
                     break;
                 case "c":
                     onlyRe = false;
                     if (pathFirst < 0) pathFirst = i;
                     points++;
-                    if (Nums(op, 6, out var p6)) { AddPt(p6[0], p6[1]); AddPt(p6[2], p6[3]); AddPt(p6[4], p6[5]); } else boxOk = false;
+                    if (Nums(op, 6, out var p6)) { AddPt(p6[0], p6[1]); AddPt(p6[2], p6[3]); AddPt(p6[4], p6[5]); AbsPath(op, p6); } else { boxOk = false; AbsPath(op, null); }
                     break;
                 case "v": case "y":
                     onlyRe = false;
                     if (pathFirst < 0) pathFirst = i;
                     points++;
-                    if (Nums(op, 4, out var p4)) { AddPt(p4[0], p4[1]); AddPt(p4[2], p4[3]); } else boxOk = false;
+                    if (Nums(op, 4, out var p4)) { AddPt(p4[0], p4[1]); AddPt(p4[2], p4[3]); AbsPath(op, p4); } else { boxOk = false; AbsPath(op, null); }
                     break;
                 case "re":
                     reCount++;
                     if (pathFirst < 0) pathFirst = i;
                     points += 4;
                     if (Nums(op, 4, out var r))
-                    { AddPt(r[0], r[1]); AddPt(r[0] + r[2], r[1]); AddPt(r[0], r[1] + r[3]); AddPt(r[0] + r[2], r[1] + r[3]); }
-                    else boxOk = false;
+                    { AddPt(r[0], r[1]); AddPt(r[0] + r[2], r[1]); AddPt(r[0], r[1] + r[3]); AddPt(r[0] + r[2], r[1] + r[3]); AbsPath(op, r); }
+                    else { boxOk = false; AbsPath(op, null); }
                     break;
                 case "h":
                     if (pathFirst < 0) pathFirst = i;
                     if (points == 1) closedDot = true;
+                    pathAbs.Add("h");
                     break;
-                case "W": case "W*": pathClip = true; break;
+                case "W": case "W*": pathClip = true; evenOdd = op.Name == "W*"; break;
                 case "n": if (pathClip) ApplyClip(); ResetPath(); break;
                 default:
                     if (PathPaint.Contains(op.Name))
@@ -184,7 +215,7 @@ public static class ContentSegmenter
                             double scale = Math.Sqrt(Math.Abs(g.Ctm.Determinant));
                             objects.Add(new PageObject
                             {
-                                Kind = ObjectKind.Path, OpIndex = i, FirstOpIndex = pathFirst, Ctm = g.Ctm, HasOwnClip = pathClip, InheritsClip = g.Clip, ClipBox = g.ClipBox,
+                                Kind = ObjectKind.Path, OpIndex = i, FirstOpIndex = pathFirst, Ctm = g.Ctm, HasOwnClip = pathClip, InheritsClip = g.Clip, ClipBox = g.ClipBox, ClipSource = Src(),
                                 ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke],
                                 Bounds = boxOk && haveBox ? new Box(minX, minY, maxX, maxY) : null,
                                 StrokeWidth = StrokePaint.Contains(op.Name) ? g.LineWidth * scale : 0,
@@ -237,7 +268,7 @@ public static class ContentSegmenter
                         if (inText) textInBt.Add(snap);
                         (double, double)? origin = null;
                         if (tmKnown) { var (ox, oy) = tm.Then(g.Ctm).Apply(0, g.Ts); origin = (ox, oy); }
-                        objects.Add(new PageObject { Kind = ObjectKind.Text, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, Origin = origin, Text = snap, ReplayOps = snap.ReplayOps, DeviceFontSize = tmKnown ? g.FontSize * Math.Sqrt(Math.Abs(tm.Then(g.Ctm).Determinant)) : 0 });
+                        objects.Add(new PageObject { Kind = ObjectKind.Text, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, ClipSource = Src(), Origin = origin, Text = snap, ReplayOps = snap.ReplayOps, DeviceFontSize = tmKnown ? g.FontSize * Math.Sqrt(Math.Abs(tm.Then(g.Ctm).Determinant)) : 0 });
                     }
                     tmKnown = false;   // 글자 폭을 모르므로 보인 뒤의 Tm은 모른다(다음 Tm/Td/T*가 다시 알려 준다)
                     break;
@@ -245,10 +276,10 @@ public static class ContentSegmenter
 
                 // --- 그림·셰이딩 ---
                 case "sh":
-                    objects.Add(new PageObject { Kind = ObjectKind.Shading, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
+                    objects.Add(new PageObject { Kind = ObjectKind.Shading, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, ClipSource = Src(), ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
                     break;
                 case "BI":
-                    objects.Add(new PageObject { Kind = ObjectKind.Image, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, Bounds = UnitBox(g.Ctm), ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
+                    objects.Add(new PageObject { Kind = ObjectKind.Image, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, ClipSource = Src(), Bounds = UnitBox(g.Ctm), ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
                     break;
                 case "Do":
                 {
@@ -259,7 +290,7 @@ public static class ContentSegmenter
                     if (info.Kind == ObjectKind.Image) b = UnitBox(g.Ctm);
                     else if (info.BBox is { } bb) b = BoxOf(info.FormMatrix.GetValueOrDefault(Mat.Identity).Then(g.Ctm), bb.L, bb.B, bb.R, bb.T);
                     else b = null;
-                    objects.Add(new PageObject { Kind = info.Kind, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, Bounds = b, XObjectName = name, ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
+                    objects.Add(new PageObject { Kind = info.Kind, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, InheritsClip = g.Clip, ClipBox = g.ClipBox, ClipSource = Src(), Bounds = b, XObjectName = name, ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
                     break;
                 }
             }
