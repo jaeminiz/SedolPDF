@@ -659,6 +659,16 @@ public class AnnotationReaderTests : IDisposable
     }
 
     [Fact]
+    public void AcrobatResaved_RcWinsOverDs()
+    {
+        var a = AcrobatFt(5);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);       // 테두리 = /DA RG
+        Assert.Equal(new PdfColor(0, 0, 0), a.TextColor);     // 글자 = /RC body (DS 빨강이 아님)
+        Assert.Equal(20f, a.FontSizePt);
+        Assert.Equal(TextFontFamily.Sans, a.TextFamily);
+    }
+
+    [Fact]
     public void Sedol090Shape_Unchanged()
     {
         var a = AcrobatFt(4);

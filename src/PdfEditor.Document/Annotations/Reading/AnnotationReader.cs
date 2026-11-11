@@ -424,10 +424,14 @@ public static class AnnotationReader
         if (hasDs)
         {
             var (dsz, dsColor, dsFam) = DefaultStyle.Parse(ds);
-            var (_, rcColor, rcFam) = DefaultStyle.Parse(RcBodyStyle(Str(e, "/RC")));
-            dsSize = dsz; dsFamily = dsFam; rcFamily = rcFam;
+            string? rc = Str(e, "/RC");
+            var (_, bodyColor, bodyFam) = DefaultStyle.Parse(RcStyle(rc, "body"));
+            var (_, spanColor, spanFam) = DefaultStyle.Parse(RcStyle(rc, "span"));
+            dsSize = dsz;
+            // Acrobat은 사용자가 바꾼 글자 색·글꼴을 /RC에 쓰고 /DS는 처음 값으로 남긴다(실측: /DS 빨강, /RC 검정) → /RC가 먼저.
+            dsFamily = bodyFam ?? spanFam ?? dsFam; rcFamily = null;
             stroke ??= color;
-            color = dsColor ?? rcColor ?? color;
+            color = bodyColor ?? spanColor ?? dsColor ?? color;
         }
         int rotation = AnnotationRotation.Quarter(Int(e, "/Rotate") ?? 0) * 90;
         float fontSize = size is > 0f ? size.Value : dsSize is > 0f ? dsSize.Value : 12f;   // 0 = 자동 크기: /DS의 크기, 그것도 없으면 12
@@ -489,11 +493,11 @@ public static class AnnotationReader
             : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation, hasDs, Family: family, Fmt: fmt);
     }
 
-    /// <summary>/RC(서식 있는 글) 본문 `&lt;body style="…"&gt;`의 style 값. 없거나 해석할 수 없으면 null — /DS가 없을 때 글자 색을 찾는 용도.</summary>
-    private static string? RcBodyStyle(string? rc)
+    /// <summary>/RC(서식 있는 글)에서 처음 나오는 `&lt;body|span style="…"&gt;`의 style 값. 없거나 해석할 수 없으면 null.</summary>
+    private static string? RcStyle(string? rc, string tag)
     {
         if (string.IsNullOrEmpty(rc)) return null;
-        var m = System.Text.RegularExpressions.Regex.Match(rc, @"<body\b[^>]*?\bstyle\s*=\s*(?:""([^""]*)""|'([^']*)')", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var m = System.Text.RegularExpressions.Regex.Match(rc, @"<" + tag + @"\b[^>]*?\bstyle\s*=\s*(?:""([^""]*)""|'([^']*)')", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return m.Success ? System.Net.WebUtility.HtmlDecode(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value) : null;
     }
 

@@ -374,7 +374,11 @@ public static class AnnotatedPdfFactory
             "font: '맑은 고딕',sans-serif 20.0pt; text-align:left; color:#000000 ",
             "<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\" style=\"font-size:20.0pt;text-align:left;color:#000000;font-weight:400;font-style:normal\"><p dir=\"ltr\"><span style=\"font-size:20.0pt\">한글</span></p></body>");
         var old = Ft(400, "0 0 0 rg 1 0 0 RG /Helv 20 Tf", null);
-        SetAnnots(doc, page, [tank, h3368, j001, utf16, old]);
+        // [5] Acrobat XI 11.0.23이 사용자가 바꾼 뒤 다시 저장한 실제 값: /DS는 처음 값(빨강), /RC가 지금 값(검정), 글꼴은 span에.
+        var resaved = Ft(300, "1 0 0 RG 1 0 0 rg 0 Tc 0 Tw 100 Tz 0 TL 0 Ts 0 Tr /MalgunGothic 20 Tf",
+            "font: '맑은 고딕',sans-serif 20.0pt; text-align:left; color:#FF0000 ",
+            "<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\" style=\"font-size:20.0pt;text-align:left;color:#000000;font-weight:400;font-style:normal\"><p dir=\"ltr\"><span style=\"font-family:'맑은 고딕'\">한글</span></p></body>");
+        SetAnnots(doc, page, [tank, h3368, j001, utf16, old, resaved]);
         Save(doc, path);
     }
 }
