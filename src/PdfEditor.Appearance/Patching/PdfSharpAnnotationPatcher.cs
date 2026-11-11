@@ -19,25 +19,26 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
 {
     /// <summary>
     /// 모든 쪽을 본다. "스트림이 여러 개인 쪽만"으로 줄이려 했지만 PDFsharp가 /Contents 배열을 스트림 하나로 보여 주는 파일이 있어(2026-11-10 사용자 PDF) 놓쳤다.
-    /// 고친 쪽은 스트림 하나로 합친다. 고칠 것이 없으면 파일을 다시 쓰지 않는다.
+    /// 스트림별 규칙(ContentRepair.RepairStreams, 0.10.0)으로 고친다. 고친 쪽은 스트림 하나로 합친다. 고칠 것이 없으면 파일을 다시 쓰지 않는다.
     /// </summary>
-    public int RepairUnmatchedRestores(string pdfPath, string? password)
+    public IReadOnlyList<int> RepairContent(string pdfPath, string? password)
     {
         byte[] bytes = File.ReadAllBytes(pdfPath);
         using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
-        int removed = 0;
-        foreach (var page in doc.Pages)
+        var repaired = new List<int>();
+        for (int i = 0; i < doc.PageCount; i++)
         {
-            var loaded = PageContent.Load(page);
-            if (loaded.Data is null) continue;
-            var (fixedData, n) = ContentRepair.RemoveUnmatchedRestores(loaded.Data);
+            var page = doc.Pages[i];
+            var loaded = PageContent.LoadStreams(page);
+            if (loaded.Streams is null) continue;
+            var (fixedData, _, _) = ContentRepair.RepairStreams(loaded.Streams);
             if (fixedData is null) continue;
             page.Contents.Elements.Clear();
             page.Contents.AppendContent().CreateStream(fixedData);
-            removed += n;
+            repaired.Add(i);
         }
-        if (removed > 0) doc.Save(pdfPath);
-        return removed;
+        if (repaired.Count > 0) doc.Save(pdfPath);
+        return repaired;
     }
 
     // 글꼴 바이트 공급자. AddApFont가 처음 나올 때 한 번 AppFont로 올려 두고 계속 쓴다(셰이핑은 AppFont 안에서 직렬화됨).

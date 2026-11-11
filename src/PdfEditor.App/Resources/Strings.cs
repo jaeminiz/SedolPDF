@@ -624,6 +624,8 @@ public static class Strings
     public static string Prop_Para_Title => Get(nameof(Prop_Para_Title));
     public static string Prop_Para_Width => Get(nameof(Prop_Para_Width));
     public static string Msg_ParagraphHiddenText => Get(nameof(Msg_ParagraphHiddenText));
+    public static string Msg_PagesRepaired => Get(nameof(Msg_PagesRepaired));
+    public static string Btn_Reopen => Get(nameof(Btn_Reopen));
     public static string Msg_ParagraphCommitFailed => Get(nameof(Msg_ParagraphCommitFailed));
     public static string Panel_Replace => Get(nameof(Panel_Replace));
     public static string Panel_Close => Get(nameof(Panel_Close));

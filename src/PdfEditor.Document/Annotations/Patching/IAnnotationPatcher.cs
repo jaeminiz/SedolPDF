@@ -11,12 +11,13 @@ public interface IAnnotationPatcher
 }
 
 /// <summary>
-/// 선택 기능(2026-11-10): 저장한 파일의 쪽 내용에서 짝 없는 Q를 지운다(Acrobat은 거기서 쪽 그리기를 멈춘다, ContentRepair).
-/// 0.8.0까지의 저장이 만든 파일을 다시 저장할 때 고치려는 것. 고친 쪽이 있을 때만 같은 경로에 다시 저장하고, 고친 연산자 수를 돌려준다.
+/// 선택 기능(2026-11-10): 저장한 파일의 쪽 내용을 고친다(ContentRepair). 짝 없는 Q는 Acrobat이 쪽 그리기를 멈추게 하고, 꼬리 조각은 쪽 일부를 뒤집어 그리게 한다(0.10.0).
+/// 0.8.0까지의 저장이 만든 파일을 다시 저장할 때 고치려는 것. 고친 쪽이 있을 때만 같은 경로에 다시 저장하고, 고친 쪽 번호를 돌려준다.
 /// </summary>
 public interface IContentRepairer
 {
-    int RepairUnmatchedRestores(string pdfPath, string? password);
+    /// <summary>고친 쪽의 번호(0부터). 고친 쪽이 없으면 빈 목록이고 파일은 그대로다.</summary>
+    IReadOnlyList<int> RepairContent(string pdfPath, string? password);
 }
 
 /// <summary>선택 기능(M5 C12): 가장 최근 <see cref="IAnnotationPatcher.Apply"/>에서 지우지 못하고 숨김으로 남긴 원본 글 객체 수.</summary>

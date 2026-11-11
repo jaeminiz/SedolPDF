@@ -14,12 +14,20 @@ public sealed class SaveService(
     /// <summary>마지막 저장에서 지운 원본 글 중 연산자째 지우지 못해 보이지 않는 글자로 남긴 수(M5 C12). 0보다 크면 옛 글이 검색에 나올 수 있다고 알린다.</summary>
     public int LastHiddenTextCount { get; private set; }
 
+    /// <summary>마지막 저장에서 쪽 내용을 고친 쪽 중 이 문서에서 아직 알리지 않은 쪽의 번호(0부터). 없으면 빈 목록. 저장마다 처음에 비운다(0.10.0).</summary>
+    public IReadOnlyList<int> LastRepairedPages { get; private set; } = [];
+
+    private sealed class PageSet : HashSet<int>;
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<DocumentSession, PageSet> _reported = new();
+
     public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default)
     {
         LastHiddenTextCount = 0;
+        LastRepairedPages = [];
         string dir = Path.GetDirectoryName(Path.GetFullPath(targetPath))!;
         string tmp = Path.Combine(dir, "~" + Path.GetFileName(targetPath) + ".tmp");
         var stage = SaveStage.Write;
+        IReadOnlyList<int> repaired = [];
         try
         {
             // ① 쓰기(주석 Flush + SaveCopy) ② 객체 편집 확정 + 패치(PDFsharp) — 모두 임시 파일에만 (OutputCopyBuilder, M4)
@@ -28,6 +36,7 @@ public sealed class SaveService(
             var built = await output.BuildAsync(s, tmp, ct, onCopied: () => stage = SaveStage.PostProcess).ConfigureAwait(false);
             int[] expected = built.ExpectedAnnotCounts;
             LastHiddenTextCount = built.HiddenTextCount;
+            repaired = built.RepairedPages ?? [];
 
             stage = SaveStage.PostProcess;
             foreach (var pp in postProcessors)
@@ -56,6 +65,9 @@ public sealed class SaveService(
             if (s.Content.HasEdits) await Task.Run(s.RetainFontSource, ct).ConfigureAwait(false);
             if (File.Exists(targetPath)) File.Replace(tmp, targetPath, null);
             else File.Move(tmp, targetPath);
+            // 교체까지 끝난 저장만 알린다. 다시 열기 전에는 메모리의 문서가 그대로라 저장할 때마다 같은 쪽을 또 고치게 되므로, 이미 알린 쪽은 다시 알리지 않는다.
+            var seen = _reported.GetOrCreateValue(s);
+            lock (seen) LastRepairedPages = [.. repaired.Where(seen.Add)];
         }
         catch (Exception e)
         {

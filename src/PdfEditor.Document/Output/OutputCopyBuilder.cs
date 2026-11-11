@@ -9,7 +9,8 @@ namespace PdfEditor.Document.Output;
 
 /// <summary>사본을 만든 결과. ExpectedAnnotCounts: 쪽별 주석 수(패치 반영), 검증에 쓴다.</summary>
 /// <param name="HiddenTextCount">지운 원본 글 중 연산자째 지우지 못하고 보이지 않는 글자(3 Tr)로 남긴 수(M5 C12) — 0보다 크면 옛 글이 검색으로 나올 수 있다고 알린다.</param>
-public sealed record OutputCopy(int[] ExpectedAnnotCounts, bool ContentApplied, bool Patched, int HiddenTextCount = 0);
+/// <param name="RepairedPages">저장하면서 쪽 내용을 고친 쪽의 번호(0부터, ContentRepair). 없으면 null/빈 목록 — 이전 버전 저장으로 망가진 쪽을 알리는 데 쓴다.</param>
+public sealed record OutputCopy(int[] ExpectedAnnotCounts, bool ContentApplied, bool Patched, int HiddenTextCount = 0, IReadOnlyList<int>? RepairedPages = null);
 
 /// <summary>
 /// 파일을 만드는 모든 경로(저장·자동 복구·인쇄·요약)가 거치는 한 곳(M4 계획 C13, 설계서 4.2-6).
@@ -98,14 +99,15 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             if (changed.Count > 0) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
         }
 
-        // 0.8.0까지의 저장이 남긴 짝 없는 Q 고치기(Acrobat에서 쪽 일부가 사라짐). 저장·복구만 — 인쇄 사본(always 거짓)은 화면과 같은 PDFium이 그리므로 필요 없다.
+        // 0.8.0까지의 저장이 남긴 망가진 쪽 내용 고치기(짝 없는 Q → Acrobat에서 쪽 일부가 사라짐, 꼬리 조각 → 뒤집혀 그려짐). 저장·복구만 — 인쇄 사본(always 거짓)은 화면과 같은 PDFium이 그리므로 필요 없다.
+        IReadOnlyList<int>? repairedPages = null;
         if (always && SavePolicy.CanPatch(s) && patcher is IContentRepairer repairer)
         {
             ct.ThrowIfCancellationRequested();
             string? pw = s.Password;
-            await Task.Run(() => repairer.RepairUnmatchedRestores(path, pw), ct).ConfigureAwait(false);
+            repairedPages = await Task.Run(() => repairer.RepairContent(path, pw), ct).ConfigureAwait(false);
         }
-        return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0);
+        return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0, repairedPages);
     }
 
     /// <summary>
