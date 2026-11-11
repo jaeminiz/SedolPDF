@@ -398,4 +398,58 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
         });
         Assert.Empty(Items(h));
     }
+
+    [Fact]
+    public async Task RotateHandle_DragsLineQuarterTurn_AndSnapsSquare_Undo()
+    {
+        var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
+        var h = Show(s);
+        double k = ZoomMath.PointsToDip;
+        SetTool(h, ToolKind.Line);
+        Drag(h, At(h, 100, 100), At(h, 300, 100));
+        WaitCount(h, 1);
+        SetTool(h, ToolKind.Rectangle);
+        Drag(h, At(h, 100, 200), At(h, 160, 240));
+        WaitCount(h, 2);
+        SetTool(h, ToolKind.AnnotSelect);
+        // 선과 사각형을 함께 고른다(마퀴)
+        Drag(h, At(h, 50, 60), At(h, 340, 280), steps: 8);
+        HeadlessUi.Run(() => { Pump(() => h.Tab.Selection.Ids.Count == 2); return 0; });
+        var page = s.Annotations.Get(s.Pages[0].Id);
+        var b = SelectionController.RotatableBounds(page, h.Tab.Selection)!.Value;
+        double cx = (b.Left + b.Right) / 2, cy = (b.Bottom + b.Top) / 2;
+        // 손잡이: 경계 위쪽 가운데에서 24 DIP 위 (쪽 y는 위가 +, 화면 y는 아래가 +)
+        var handle = At(h, cx * k, (600 - b.Top) * k - 24);
+        var center = At(h, cx * k, (600 - cy) * k);
+        var shot = Path.Combine(Path.GetTempPath(), "rot-annot-mid.png");
+        HeadlessUi.Run(() =>
+        {
+            h.Window.MouseMove(handle);
+            h.Window.MouseDown(handle, MouseButton.Left);
+            // 시계 방향 90° (위 → 오른쪽)
+            var r = handle.Y - center.Y;
+            for (int i = 1; i <= 6; i++)
+            {
+                double ang = -Math.PI / 2 + (Math.PI / 2) * i / 6;   // 화면: 위(-90°)에서 오른쪽(0°)으로
+                h.Window.MouseMove(new Point(center.X + Math.Abs(r) * Math.Cos(ang), center.Y + Math.Abs(r) * Math.Sin(ang)));
+            }
+            Dispatcher.UIThread.RunJobs();
+            if (h.Window.CaptureRenderedFrame() is { } bmp) { using var fs = File.Create(shot); bmp.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions()); }
+            h.Window.MouseUp(new Point(center.X + Math.Abs(r), center.Y), MouseButton.Left);
+            return 0;
+        });
+        HeadlessUi.Run(() =>
+        {
+            Pump(() => { var l = Items(h).First(a => a.Kind == AnnotKind.Line); return Math.Abs(l.Vertices[1].X - l.Vertices[0].X) < 1.5; });   // 가로 선이 세로로 섰다
+            return 0;
+        });
+        var line = Items(h).First(a => a.Kind == AnnotKind.Line);
+        Assert.Equal(line.Vertices[0].X, line.Vertices[1].X, 1.5);   // 세로선
+        var sq = Items(h).First(a => a.Kind == AnnotKind.Square);
+        Assert.Equal(30f, sq.Rect.Width, 1);   // 90°로 맞춰져 너비·높이가 바뀜 (45x30pt → 30x45pt)
+        Assert.Equal(45f, sq.Rect.Height, 1);
+        await s.Commands.UndoAsync();
+        HeadlessUi.Run(() => { Pump(() => { var l = Items(h).First(a => a.Kind == AnnotKind.Line); return Math.Abs(l.Vertices[1].X - l.Vertices[0].X) > 100; }); return 0; });
+        Assert.Equal(45f, Items(h).First(a => a.Kind == AnnotKind.Square).Rect.Width, 1);
+    }
 }
