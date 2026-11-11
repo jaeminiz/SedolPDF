@@ -452,4 +452,42 @@ public class DocumentViewAnnotationInputTests : IAsyncLifetime
         HeadlessUi.Run(() => { Pump(() => { var l = Items(h).First(a => a.Kind == AnnotKind.Line); return Math.Abs(l.Vertices[1].X - l.Vertices[0].X) > 100; }); return 0; });
         Assert.Equal(45f, Items(h).First(a => a.Kind == AnnotKind.Square).Rect.Width, 1);
     }
+
+    [Fact]
+    public async Task ObjectDrag_ShowsObjectImage_AndDropsItOnRelease()
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateFrameWithInner(p));
+        var h = Show(s);
+        double k = ZoomMath.PointsToDip;
+        SetTool(h, ToolKind.EditObject);
+        HeadlessUi.Run(() =>
+        {
+            h.View.InvalidateVisual();
+            var st = typeof(DocumentView).GetField("_state", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(h.View)!;
+            var idx = (System.Collections.IDictionary)st.GetType().GetField("ObjIndex")!.GetValue(st)!;
+            Pump(() => { h.Window.UpdateLayout(); _ = h.Window.CaptureRenderedFrame(); return idx.Count > 0; });   // 객체 목록이 올 때까지
+            return 0;
+        });
+        var green = At(h, 400 * k, 450 * k);   // 초록 칠한 사각형: 위에서 (350,400) 크기 100x100의 가운데
+        var field = typeof(DocumentView).GetField("_dragImage", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var shot = Path.Combine(Path.GetTempPath(), "obj-drag-image.png");
+        HeadlessUi.Run(() =>
+        {
+            // 객체 목록은 비동기로 온다: 선택될 때까지 눌러 본다
+            Pump(() =>
+            {
+                h.Window.MouseMove(green); h.Window.MouseDown(green, MouseButton.Left); h.Window.MouseUp(green, MouseButton.Left);
+                return h.Tab.Objects.Selected is not null;
+            });
+            h.Window.MouseMove(green);
+            h.Window.MouseDown(green, MouseButton.Left);
+            for (int i = 1; i <= 5; i++) h.Window.MouseMove(new Point(green.X - 40 * i, green.Y + 20 * i));
+            Pump(() => field.GetValue(h.View) is not null);
+            Dispatcher.UIThread.RunJobs();
+            if (h.Window.CaptureRenderedFrame() is { } bmp) { using var fs = File.Create(shot); bmp.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions()); }
+            h.Window.MouseUp(new Point(green.X - 200, green.Y + 100), MouseButton.Left);
+            return 0;
+        });
+        Assert.Null(field.GetValue(h.View));   // 놓으면 그림을 버린다
+    }
 }

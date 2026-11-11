@@ -484,7 +484,7 @@ public sealed partial class DocumentView
             || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
         var action = st.Tab.EscapePressed(viewDrawing, editorFocused);
         if (action == EscapeAction.None) return false;
-        if (action == EscapeAction.CancelDrawing) { CancelGesture(); st.Tab.Objects.CancelDrag(); }
+        if (action == EscapeAction.CancelDrawing) { CancelGesture(); st.Tab.Objects.CancelDrag(); DropDragImage(); }
         InvalidateVisual();
         e.Handled = true;
         return true;

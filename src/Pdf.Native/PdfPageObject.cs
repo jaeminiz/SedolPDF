@@ -51,6 +51,12 @@ public sealed unsafe class PdfPageObject
         _attached = attached;
     }
 
+    /// <summary>같은 쪽의 같은 객체인가. GetObject는 부를 때마다 새 래퍼를 돌려주므로 래퍼끼리는 ==로 비교할 수 없다.</summary>
+    public bool IsSameObject(PdfPageObject? other) => other is not null && Handle == other.Handle;
+
+    /// <summary>객체를 가리키는 값(같은 쪽 안에서 객체마다 다르다). 많은 객체를 집합으로 비교할 때 쓴다.</summary>
+    public nint NativeId => Handle;
+
     internal IntPtr Handle
     {
         get

@@ -140,9 +140,58 @@ public sealed partial class DocumentView
         return true;
     }
 
+    // ---- 끄는 동안의 객체 그림(0.10.0, 설계서 7절) ----
+
+    private Avalonia.Media.Imaging.WriteableBitmap? _dragImage;
+    private int _dragImageEpoch;   // 끌기마다 올린다. 그림이 늦게 도착했을 때 지금 끌기가 부탁한 것인지 가린다.
+
+    private void DropDragImage()
+    {
+        _dragImageEpoch++;
+        if (_dragImage is null) return;
+        _dragImage.Dispose();
+        _dragImage = null;
+    }
+
+    /// <summary>
+    /// 고른 객체의 그림을 문서 스레드에 부탁한다. 오기 전이나 실패하면(편집 탭으로 넣은 객체·너무 큰 선택 포함) 점선 상자만 보인다.
+    /// 쪽 회전은 그릴 때 돌려 맞춘다. 그림은 끌기가 끝나거나 취소되면 버린다.
+    /// </summary>
+    private async Task LoadDragImageAsync(ViewState st, int epoch)
+    {
+        var ctl = st.Tab.Objects;
+        var sels = ctl.All.ToList();
+        if (sels.Count == 0 || _layout is not { } lay) return;
+        var page = sels[0].Page;
+        var bounds = ctl.GroupBounds;
+        double scale = lay.Scale;
+        (byte[] Bgra, int W, int H)? img = null;
+        try
+        {
+            img = await st.Session.Thread.InvokeAsync(() =>
+            {
+                if (st.Session.IndexOf(page) < 0) return ((byte[], int, int)?)null;
+                var replay = st.Session.GetReplay(page);
+                var objs = sels.Select(x => replay.Resolve(x.Ref)).ToList();
+                if (objs.Any(o => o is null)) return null;
+                return ObjectDragImage.Render(st.Session.GetLoadedPage(page), objs!, bounds, scale);
+            });
+        }
+        catch (Exception) { return; }   // 그림이 없어도 끌기는 된다
+        if (img is not { } r || epoch != _dragImageEpoch || st.Disposed || !ctl.IsDragging) return;
+        var bmp = new Avalonia.Media.Imaging.WriteableBitmap(new PixelSize(r.W, r.H), new Vector(96, 96),
+            Avalonia.Platform.PixelFormat.Bgra8888, Avalonia.Platform.AlphaFormat.Unpremul);
+        using (var fb = bmp.Lock())
+            System.Runtime.InteropServices.Marshal.Copy(r.Bgra, 0, fb.Address, Math.Min(r.Bgra.Length, fb.RowBytes * fb.Size.Height));
+        _dragImage = bmp;
+        InvalidateVisual();
+    }
+
     private void StartObjectDrag(IPointer pointer, ObjectHandle h, PdfPointF pt, int page, PageGeom g)
     {
         _state!.Tab.Objects.BeginDrag(h, pt);
+        DropDragImage();
+        if (h != ObjectHandle.Rotate && _state is { } dst) _ = LoadDragImageAsync(dst, _dragImageEpoch);
         _objDragging = true;
         _objPage = page;
         _objGeom = g;
@@ -168,6 +217,7 @@ public sealed partial class DocumentView
         if (HandleShapePointerReleased(e)) return true;
         if (!_objDragging || _state is not { } st) return false;
         _objDragging = false;
+        DropDragImage();
         e.Pointer.Capture(null);
         var sels = st.Tab.Objects.All.ToList();
         var m = st.Tab.Objects.EndDrag();
@@ -218,6 +268,28 @@ public sealed partial class DocumentView
 
     // ---- 그리기 ----
 
+    /// <summary>끄는 동안 객체 그림을 미리보기 경계(하나면 Preview, 여러 개면 묶음 경계를 끈 만큼 옮긴 것)에 늘여 반투명으로 그린다. 회전하는 끌기에는 쓰지 않는다.</summary>
+    private void DrawDragImage(DrawingContext ctx, ObjectSelectionController ctl, PageTransform tr, Rect pr, int pageRotation)
+    {
+        if (_dragImage is not { } bmp || !ctl.IsDragging || ctl.IsRotating) return;
+        var gb = ctl.GroupBounds;
+        var (dx, dy) = ctl.DragDelta;
+        var dst = ctl.All.Count == 1 ? ctl.Preview ?? gb : gb.Offset(dx, dy);
+        var v = tr.ToView(RectangleF.FromLTRB(dst.Left, dst.Bottom, dst.Right, dst.Top));
+        var vr = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(1, v.W), Math.Max(1, v.H));
+        int q = ((pageRotation % 4) + 4) % 4;
+        var src = new Rect(0, 0, bmp.PixelSize.Width, bmp.PixelSize.Height);
+        using (ctx.PushOpacity(ObjectDragImage.Opacity))
+        {
+            if (q == 0) { ctx.DrawImage(bmp, src, vr); return; }
+            // 그림은 쪽을 똑바로 세운 방향이다. 회전한 쪽에서는 그림 자체를 쪽 회전만큼 돌려 보이는 사각형에 맞춘다.
+            var c = vr.Center;
+            var unrotated = q % 2 == 1 ? new Rect(c.X - vr.Height / 2, c.Y - vr.Width / 2, vr.Height, vr.Width) : new Rect(c.X - vr.Width / 2, c.Y - vr.Height / 2, vr.Width, vr.Height);
+            var m = Matrix.CreateTranslation(-c.X, -c.Y) * Matrix.CreateRotation(q * Math.PI / 2) * Matrix.CreateTranslation(c.X, c.Y);
+            using (ctx.PushTransform(m)) ctx.DrawImage(bmp, src, unrotated);
+        }
+    }
+
     private void DrawObjectSelection(DrawingContext ctx, ViewState st, PageInfo info, Rect pr, double scale)
     {
         DrawTextBoxes(ctx, st, info, pr, scale);
@@ -230,6 +302,7 @@ public sealed partial class DocumentView
         var pen = new Pen(SelAccent, 1, new DashStyle([4, 3], 0));
         var (dx, dy) = ctl.DragDelta;
         Rect last = default;
+        DrawDragImage(ctx, ctl, tr, pr, g.Rotation);
         foreach (var s in ctl.All)
         {
             // 하나만 고른 채 끌면 미리보기 경계(크기 조절 포함), 여러 개면 모두 같은 양만큼 옮겨 그린다
