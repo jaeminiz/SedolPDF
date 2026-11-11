@@ -359,7 +359,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _prompts = prompts;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
         // 저장하면서 고친 쪽이 있을 때 "다시 열기"를 고르면 그 세션의 탭이 있는 창이 다시 연다(0.10.0).
-        workflow.ReopenRequested += s => { if (Documents.Any(d => ReferenceEquals(d.Session, s))) _ = ReopenAsync(s); };
+        if (workflow is not null) workflow.ReopenRequested += s => { if (Documents.Any(d => ReferenceEquals(d.Session, s))) _ = ReopenAsync(s); };
         NotifyFileCommands();
     }
 
