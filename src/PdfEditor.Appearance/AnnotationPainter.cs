@@ -134,7 +134,8 @@ public static class AnnotationPainter
         if (a.FillColor is null && stroke is null) return;
         if (a.CloudIntensity > 0)
         {
-            var cloud = CloudBorder.Build(CloudBorder.RectPolygon(a.Rect, a.CloudIntensity, a.BorderWidth), a.CloudIntensity);
+            var cloud = CloudBorder.Build(CloudBorder.RectPolygon(a.Rect, a.CloudIntensity, a.BorderWidth), a.CloudIntensity,
+                CloudBorder.RectMaxDiameter(a.Rect, a.CloudIntensity, a.BorderWidth));
             ops.Add(new PaintOp(cloud, a.FillColor, stroke, a.BorderWidth, LineCap.Butt, LineJoin.Round));
             return;
         }

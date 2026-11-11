@@ -15,6 +15,7 @@ using PdfEditor.App.Viewer.Annotations;
 using PdfEditor.Appearance.Fonts;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations;
+using PdfEditor.Document.Content;
 using Point = Avalonia.Point;
 using Rect = Avalonia.Rect;
 
@@ -137,7 +138,7 @@ public sealed partial class DocumentView
             {
                 // 이미 고른 객체(편집 탭으로 넣은 도형·이미지·텍스트)의 몸통·손잡이를 누르면 그대로 끈다
                 if (!toggle && tab.CanEditContent && tab.Objects.Selected is { } picked && picked.Page == info.Id
-                    && tab.Objects.HitHandle(pt, ptPerDip) is var oh && oh != PdfEditor.App.Viewer.Objects.ObjectHandle.None)
+                    && tab.Objects.HitHandle(pt, ptPerDip, g.Rotation) is var oh && oh != PdfEditor.App.Viewer.Objects.ObjectHandle.None)
                 {
                     StartObjectDrag(e.Pointer, oh, pt, e.PageIndex, g);
                     return true;
@@ -305,7 +306,9 @@ public sealed partial class DocumentView
         if (!tab.CanEditContent || _gPage < 0 || _gPage >= _layoutPages.Length || !TryGetObjectIndex(st, _layoutPages[_gPage], out var idx)) return;
         bool objectTool = tab.Tool == ToolKind.EditObject;
         // 개체 편집 도구의 끌기: 원래 쪽 내용 객체만(주석과 편집 탭으로 넣은 것은 주석 선택 도구의 몫 — 2026-10-20 사용자 요청, 서로 다른 종류).
-        var hits = idx.Entries.Where(e => !e.IsFrame && !e.Ref.IsInserted
+        var pasted = st.Session.Content.For(page).OfType<DuplicateObjectEdit>().Select(d => d.Id).ToHashSet();
+        pasted.UnionWith(tab.Objects.PastedIds);
+        var hits = idx.Entries.Where(e => !e.IsFrame && (!e.Ref.IsInserted || (objectTool && pasted.Contains(e.Ref.InsertedId)))
             && (objectTool ? e.Bounds.Left >= l && e.Bounds.Right <= r && e.Bounds.Bottom >= b && e.Bounds.Top <= t
                            : e.Bounds.Left <= r && e.Bounds.Right >= l && e.Bounds.Bottom <= t && e.Bounds.Top >= b))
             .Select(e => new PdfEditor.App.Viewer.Objects.SelectedObject(page, e.Ref, e.Type, e.Bounds)).ToList();

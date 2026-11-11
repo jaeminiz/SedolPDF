@@ -20,6 +20,8 @@ public sealed class IconView : Control
     public string? Key { get => GetValue(KeyProperty); set => SetValue(KeyProperty, value); }
     public IBrush? Foreground { get => GetValue(ForegroundProperty); set => SetValue(ForegroundProperty, value); }
 
+    private static readonly IBrush AreaFill = new SolidColorBrush(Color.FromRgb(0xFF, 0xEB, 0x3B));
+
     public static Geometry? Lookup(string? key)
     {
         var app = Application.Current;
@@ -37,6 +39,10 @@ public sealed class IconView : Control
         if (g is null) return;
         double s = Math.Min(Bounds.Width, Bounds.Height) / 20.0;
         using (context.PushTransform(Matrix.CreateScale(s, s)))
+        {
+            // 영역 강조: 사각 도형 아이콘과 윤곽이 같아서, 안쪽을 형광 노랑으로 채워 구별한다.
+            if (Key == "area") context.DrawRectangle(AreaFill, null, new RoundedRect(new Rect(3, 5, 14, 10), 2));
             context.DrawGeometry(Foreground ?? Brushes.Black, null, g);
+        }
     }
 }

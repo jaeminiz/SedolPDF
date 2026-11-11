@@ -89,6 +89,18 @@ public sealed class TileCache<TImage> where TImage : class
                             .Select(kv => (kv.Key, kv.Value.Value.Image)).ToList();
             if (older.Count > 0) return older;
 
+            // 내용만 바뀐 직후: 같은 배율의 다른(앞) 버전 타일을 새 타일이 올 때까지 그대로 보여 준다(미리보기 제외, 가장 높은 버전 하나).
+            int staleVersion = int.MinValue;
+            foreach (var k in _map.Keys)
+                if (k.Page == page && k.Version != version && k.ScaleKey == scaleKey && k.ScaleKey > 0 && k.Version > staleVersion) staleVersion = k.Version;
+            if (staleVersion != int.MinValue)
+            {
+                var stale = _map.Where(kv => kv.Key.Page == page && kv.Key.Version == staleVersion && kv.Key.ScaleKey == scaleKey)
+                                .OrderBy(kv => kv.Key.AnnotRevision)
+                                .Select(kv => (kv.Key, kv.Value.Value.Image)).ToList();
+                if (stale.Count > 0) return stale;
+            }
+
             int bestScale = -1; double bestD = double.MaxValue;
             foreach (var k in _map.Keys)
             {
@@ -116,7 +128,11 @@ public sealed class TileCache<TImage> where TImage : class
     public void RemovePage(PageId page) => RemoveWhere(k => k.Page == page);
 
     /// <summary>currentVersion이 아닌 버전의 타일을 모두 지운다 (되돌리기로 번호가 내려갈 수도 있어 != 로 비교).</summary>
-    public void RemoveStaleVersions(PageId page, int currentVersion) => RemoveWhere(k => k.Page == page && k.Version != currentVersion);
+    public void RemoveStaleVersions(PageId page, int currentVersion) => RemoveStaleVersions(page, currentVersion, currentVersion);
+
+    /// <summary>currentVersion과 keepVersion(바로 앞 버전, 대체 그림용) 외의 타일을 지운다.</summary>
+    public void RemoveStaleVersions(PageId page, int currentVersion, int keepVersion) =>
+        RemoveWhere(k => k.Page == page && k.Version != currentVersion && k.Version != keepVersion);
 
     private void RemoveWhere(Func<TileKey, bool> pred)
     {

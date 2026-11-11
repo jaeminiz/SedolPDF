@@ -97,7 +97,31 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             var changed = await s.Thread.InvokeAsync(() => FindChangedPages(s.Thread, path, pw, rewrite.Look, rewrite.Masks), ct).ConfigureAwait(false);
             if (changed.Count > 0) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
         }
+
+        // 0.8.0까지의 저장이 남긴 짝 없는 Q 고치기(Acrobat에서 쪽 일부가 사라짐). 저장·복구만 — 인쇄 사본(always 거짓)은 화면과 같은 PDFium이 그리므로 필요 없다.
+        if (always && SavePolicy.CanPatch(s) && patcher is IContentRepairer repairer)
+        {
+            ct.ThrowIfCancellationRequested();
+            string? pw = s.Password;
+            await Task.Run(() => repairer.RepairUnmatchedRestores(path, pw), ct).ConfigureAwait(false);
+        }
         return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0);
+    }
+
+    /// <summary>
+    /// PDFium은 쪽 내용이 여러 스트림이면 바뀐 객체가 든 스트림만 다시 쓴다. 객체가 스트림 경계에 걸쳐 있으면(앞 스트림 끝 "q 색 굵기", 뒤 스트림에서 "m l S Q")
+    /// 다시 쓴 스트림이 걸친 q를 빠뜨려 뒤 스트림에 짝 없는 Q가 남는다 — Acrobat은 거기서 오류로 보고 쪽의 나머지를 그리지 않는다(2026-11-10 사용자 PDF, 약 200KB씩 나뉜 도면).
+    /// 모든 객체를 바뀐 것으로 표시해 쪽 전체를 한 번에 다시 쓰게 한다. 스트림이 하나인 쪽은 원래도 통째로 다시 쓰므로 결과가 같다.
+    /// </summary>
+    private static void MarkAllObjectsDirty(PdfPage page)
+    {
+        int n = page.ObjectCount;
+        for (int i = 0; i < n; i++)
+        {
+            var o = page.GetObject(i);
+            try { o.Matrix = o.Matrix; }   // FPDFPageObj_SetMatrix가 객체를 dirty로 표시한다
+            catch (PdfiumException) { }   // 셰이딩 객체는 행렬을 읽지 못한다 — 건너뛴다(병합 때 발견: ContentRewriteSaveTests)
+        }
     }
 
     private const double GuardMaxSide = 640;
@@ -159,6 +183,23 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         var look = new Dictionary<int, (byte[] Pixels, int W, int H)>();
         var level = edited.ToDictionary(x => x.Index, _ => 0);   // 0 = 색을 건드리지 않음, 1 = 도형 색 정규화, 2 = 도형·글 색 정규화
         var rewritePages = force && canRewrite ? edited.Select(x => x.Index).ToHashSet() : new HashSet<int>();   // PDFium이 못 다시 쓰는 쪽 → 내용 스트림 고쳐 쓰기(M4x)
+        // 개체 복제(0.9.0)가 있는 쪽은 PDFium GenerateContent가 화면용 근사 객체를 쓰게 되므로 반드시 고쳐 쓰기로만 저장한다. 원천 쪽이 자기 편집을 갖고 있으면
+        // PDFium이 객체 번호를 바꿔 버리므로 그 쪽도 고쳐 쓰기로 보낸다(원천은 어느 쪽도 고치기 전에 해석한다).
+        var dupEdited = edited.Where(x => x.Edits.OfType<DuplicateObjectEdit>().Any()).ToList();
+        if (dupEdited.Count > 0)
+        {
+            if (!canRewrite) throw new ContentRegenerationException(dupEdited[0].Index + 1, "copied objects need the content-stream rewrite, which is not available for this document");
+            foreach (var x in dupEdited)
+            {
+                rewritePages.Add(x.Index);
+                foreach (var d in x.Edits.OfType<DuplicateObjectEdit>())
+                {
+                    int si = s.IndexOf(d.SourcePage);
+                    if (si < 0) throw new ContentRegenerationException(x.Index + 1, "copied object source page is gone");
+                    if (edited.Any(e => e.Index == si)) rewritePages.Add(si);
+                }
+            }
+        }
         string gen = path + ".gen";
         try
         {
@@ -188,6 +229,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                         ContentReplayer.Apply(page, edits, ReplayMode.OutputPdfium, s.Assets);
                         if (pass == 0) look[index] = (RenderGuard(page, out int w, out int h), w, h);
                         if (level[index] > 0) ContentReplayer.NormalizeColors(page, includeText: level[index] > 1);
+                        MarkAllObjectsDirty(page);
                         page.GenerateContent();
                     }
                     copy.SaveCopy(gen);
@@ -228,38 +270,79 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         masks = [];
         var rewrites = ImmutableArray.CreateBuilder<PageContentRewrite>();
         using var copy = PdfDocument.Open(s.Thread, path, pw);
+        ImmutableArray<ReferenceObj> ReadRefs(int index)
+        {
+            if (refCache is not null && refCache.TryGetValue(index, out var cachedRefs)) return cachedRefs;
+            using var p = copy.LoadPage(index);
+            var refs = ImmutableArray.CreateBuilder<ReferenceObj>(p.ObjectCount);
+            for (int i = 0; i < p.ObjectCount; i++)
+            {
+                var o = p.GetObject(i);
+                var b = o.Bounds;
+                refs.Add(new ReferenceObj((int)o.Type, b.Left, b.Bottom, b.Right, b.Top));
+            }
+            var list = refs.MoveToImmutable();
+            if (refCache is not null) refCache[index] = list;
+            return list;
+        }
         foreach (var (index, edits) in pages)
         {
             using var page = copy.LoadPage(index);
-            ImmutableArray<ReferenceObj> refList;
-            if (refCache is not null && refCache.TryGetValue(index, out var cachedRefs)) refList = cachedRefs;
-            else
-            {
-                var refs = ImmutableArray.CreateBuilder<ReferenceObj>(page.ObjectCount);
-                for (int i = 0; i < page.ObjectCount; i++)
-                {
-                    var o = page.GetObject(i);
-                    var b = o.Bounds;
-                    refs.Add(new ReferenceObj((int)o.Type, b.Left, b.Bottom, b.Right, b.Top));
-                }
-                refList = refs.MoveToImmutable();
-                if (refCache is not null) refCache[index] = refList;
-            }
+            var refList = ReadRefs(index);
+            // 개체 복제(0.9.0): 원천 쪽(같은 쪽 포함)마다 저장 사본의 쪽 번호와 편집 전 객체 목록을 싣는다.
+            var dups = edits.OfType<DuplicateObjectEdit>().ToList();
+            var sources = ImmutableArray<SourcePageRef>.Empty;
+            if (dups.Count > 0)
+                sources = [.. dups.Select(d => d.SourcePage).Distinct().Select(sp => new SourcePageRef(sp, s.IndexOf(sp), ReadRefs(s.IndexOf(sp))))];
             if (screenLook is not null)
             {
-                ContentReplayer.Apply(page, edits, ReplayMode.Screen, s.Assets);
-                screenLook[index] = (RenderGuard(page, out int w, out int h), w, h);
-                var rects = ParagraphMasks(edits);
-                if (rects.Count > 0)
+                IDisposable? life = null;
+                ReplayResult rr;
+                var kinds = new Dictionary<long, PdfPageObjectType>();
+                var srcBounds = new Dictionary<long, PdfRectF>();
+                try
                 {
-                    var size = page.SizePt;
-                    int rot = page.Rotation & 3;
-                    bool odd = rot % 2 != 0;
-                    masks[index] = new MaskInfo(rects, rot, odd ? size.Height : size.Width, odd ? size.Width : size.Height,
-                        Math.Min(1.0, GuardMaxSide / Math.Max(1, Math.Max(size.Width, size.Height))));
+                    DuplicateSource? dsrc = null;
+                    if (dups.Count > 0)
+                    {
+                        var (inner, lf) = s.CreateDuplicateSource(copy);
+                        life = lf;
+                        dsrc = (pid, oi) =>
+                        {
+                            var o = inner(pid, oi);
+                            if (o is not null) foreach (var d in dups) if (d.SourcePage == pid && d.SourceIndex == oi) { kinds[d.Id] = o.Type; srcBounds[d.Id] = o.Bounds; }
+                            return o;
+                        };
+                    }
+                    rr = ContentReplayer.Apply(page, edits, ReplayMode.Screen, s.Assets, dsrc);
+                    screenLook[index] = (RenderGuard(page, out int w, out int h), w, h);
+                    var rects = ParagraphMasks(edits);
+                    // 복제한 글자와 폼·셰이딩은 화면 사본이 근사(자간 없음 / 그림)라서 비교에서 뺀다. 경로·그림 사본은 비교한다.
+                    foreach (var d in dups)
+                        if (kinds.TryGetValue(d.Id, out var k) && k is PdfPageObjectType.Text or PdfPageObjectType.Form or PdfPageObjectType.Shading
+                            && rr.Inserted.TryGetValue(d.Id, out var io) && io.IsActive)
+                        {
+                            var bb = io.Bounds.Inflate(2);
+                            rects.Add((bb.Left, bb.Bottom, bb.Right, bb.Top));
+                            // 화면 사본은 글꼴·자간이 달라 폭이 다를 수 있다 — 원본 개체의 진짜 경계를 같은 행렬로 옮긴 자리도 함께 뺀다.
+                            if (srcBounds.TryGetValue(d.Id, out var sb))
+                            {
+                                var pts = new[] { new PdfPointF(sb.Left, sb.Bottom), new PdfPointF(sb.Left, sb.Top), new PdfPointF(sb.Right, sb.Bottom), new PdfPointF(sb.Right, sb.Top) }.Select(p => d.Then.Apply(p)).ToList();
+                                rects.Add((pts.Min(p => p.X) - 2, pts.Min(p => p.Y) - 2, pts.Max(p => p.X) + 2, pts.Max(p => p.Y) + 2));
+                            }
+                        }
+                    if (rects.Count > 0)
+                    {
+                        var size = page.SizePt;
+                        int rot = page.Rotation & 3;
+                        bool odd = rot % 2 != 0;
+                        masks[index] = new MaskInfo(rects, rot, odd ? size.Height : size.Width, odd ? size.Width : size.Height,
+                            Math.Min(1.0, GuardMaxSide / Math.Max(1, Math.Max(size.Width, size.Height))));
+                    }
                 }
+                finally { life?.Dispose(); }
             }
-            rewrites.Add(new PageContentRewrite(index, edits, refList));
+            rewrites.Add(new PageContentRewrite(index, edits, refList, sources));
         }
         return rewrites.ToImmutable();
     }

@@ -250,11 +250,12 @@ public static class ContentRewriter
         insert(show.End, $" {obj.Text!.Tr} Tr", OrderClose);
     }
 
-    private static string TextCopy(byte[] data, List<ContentOp> ops, ContentOp show, TextSnapshot s, string open)
+    internal static string TextCopy(byte[] data, List<ContentOp> ops, ContentOp show, TextSnapshot s, string open, string? colorOps = null)
     {
         var sb = new StringBuilder();
         sb.Append('\n').Append(open);
         foreach (int k in s.ReplayOps) sb.Append(Slice(data, ops[k])).Append(' ');
+        if (colorOps is not null) sb.Append(colorOps).Append(' ');   // 개체 복사: 글자 색을 바꾼 사본은 상태 재현 뒤에 색을 덮어쓴다
         sb.Append(Slice(data, ops[s.FontOp])).Append(' ');
         sb.Append($"{Mat.Fmt(s.Tc)} Tc {Mat.Fmt(s.Tw)} Tw {Mat.Fmt(s.Tz)} Tz {Mat.Fmt(s.TL)} TL {Mat.Fmt(s.Ts)} Ts {s.Tr} Tr ");
         sb.Append($"BT {s.Tm.ToOperands()} Tm ");

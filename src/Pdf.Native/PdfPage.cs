@@ -190,6 +190,74 @@ public sealed class PdfPage : IDisposable
         return buffer;
     }
 
+    /// <summary>
+    /// 쪽 좌표 사각형 하나만 투명 배경 BGRA로 그린다(주석 없음). 쪽 회전은 무시하고 쪽 좌표 방향 그대로(위가 위)다.
+    /// 폼·셰이딩 개체의 화면 사본을 그림으로 만들 때 쓴다(켜 둔 객체만 그려진다).
+    /// </summary>
+    public unsafe (byte[] Bgra, int W, int H) RenderRegionTransparent(PdfRectF regionPt, double scale)
+    {
+        Check();
+        int w = Math.Max(1, (int)Math.Ceiling(regionPt.Width * scale));
+        int h = Math.Max(1, (int)Math.Ceiling(regionPt.Height * scale));
+        // 목표: 쪽 좌표 (X,Y) → 비트맵 ((X-L)·s, (T-Y)·s). PDFium은 쪽 회전을 먼저 적용하므로 회전 변환의 역을 곱해 상쇄한다.
+        var bounds = BoundsPt;
+        var dev = new PageTransform(bounds, Rotation, 1).Matrix;
+        var want = new PageTransform(System.Drawing.RectangleF.FromLTRB(regionPt.Left, regionPt.Bottom, regionPt.Right, regionPt.Top), 0, scale).Matrix;
+        // 점 → (x*M11 + y*M21 + Ox, x*M12 + y*M22 + Oy). m = dev⁻¹ then want.
+        double det = dev.M11 * dev.M22 - dev.M12 * dev.M21;
+        double i11 = dev.M22 / det, i12 = -dev.M12 / det, i21 = -dev.M21 / det, i22 = dev.M11 / det;
+        double ie = -(dev.OffsetX * i11 + dev.OffsetY * i21), jf = -(dev.OffsetX * i12 + dev.OffsetY * i22);
+        var m = new FsMatrix
+        {
+            A = (float)(i11 * want.M11 + i12 * want.M21), B = (float)(i11 * want.M12 + i12 * want.M22),
+            C = (float)(i21 * want.M11 + i22 * want.M21), D = (float)(i21 * want.M12 + i22 * want.M22),
+            E = (float)(ie * want.M11 + jf * want.M21 + want.OffsetX), F = (float)(ie * want.M12 + jf * want.M22 + want.OffsetY),
+        };
+        var buffer = new byte[checked(w * h * 4)];
+        fixed (byte* p = buffer)
+        {
+            IntPtr bmp = NativeMethods.FPDFBitmap_CreateEx(w, h, NativeMethods.FPDFBitmap_BGRA, (IntPtr)p, w * 4);
+            if (bmp == IntPtr.Zero) throw new PdfiumException(0, "비트맵 생성 실패");
+            try
+            {
+                NativeMethods.FPDFBitmap_FillRect(bmp, 0, 0, w, h, 0x00000000);
+                var clip = new FsRectF { Left = 0, Top = 0, Right = w, Bottom = h };
+                NativeMethods.FPDF_RenderPageBitmapWithMatrix(bmp, _handle, &m, &clip, 0);
+            }
+            finally { NativeMethods.FPDFBitmap_Destroy(bmp); }
+        }
+        return (buffer, w, h);
+    }
+
+    internal IntPtr DocHandleInternal => DocHandle;
+
+    /// <summary>PDFium 비트맵(BGRA·BGRx·회색)을 BGRA 바이트로 복사한다. 비트맵은 호출자가 닫는다.</summary>
+    internal static unsafe (byte[] Bgra, int W, int H)? CopyBitmapToBgra(IntPtr bmp)
+    {
+        int w = NativeMethods.FPDFBitmap_GetWidth(bmp), h = NativeMethods.FPDFBitmap_GetHeight(bmp);
+        int stride = NativeMethods.FPDFBitmap_GetStride(bmp), fmt = NativeMethods.FPDFBitmap_GetFormat(bmp);
+        var src = (byte*)NativeMethods.FPDFBitmap_GetBuffer(bmp);
+        if (w <= 0 || h <= 0 || src == null) return null;
+        var dst = new byte[checked(w * h * 4)];
+        // FPDFBitmap_Gray=1, BGR=2, BGRx=3, BGRA=4
+        for (int y = 0; y < h; y++)
+        {
+            byte* row = src + (long)y * stride;
+            int o = y * w * 4;
+            for (int x = 0; x < w; x++, o += 4)
+            {
+                switch (fmt)
+                {
+                    case 1: dst[o] = dst[o + 1] = dst[o + 2] = row[x]; dst[o + 3] = 255; break;
+                    case 2: dst[o] = row[x * 3]; dst[o + 1] = row[x * 3 + 1]; dst[o + 2] = row[x * 3 + 2]; dst[o + 3] = 255; break;
+                    case 3: dst[o] = row[x * 4]; dst[o + 1] = row[x * 4 + 1]; dst[o + 2] = row[x * 4 + 2]; dst[o + 3] = 255; break;
+                    default: dst[o] = row[x * 4]; dst[o + 1] = row[x * 4 + 1]; dst[o + 2] = row[x * 4 + 2]; dst[o + 3] = row[x * 4 + 3]; break;
+                }
+            }
+        }
+        return (dst, w, h);
+    }
+
     // ---- 쪽 객체 (M4) ----
 
     public int ObjectCount { get { Check(); return NativeMethods.FPDFPage_CountObjects(_handle); } }

@@ -520,6 +520,15 @@
   <data name="Ctx_FindSelected" xml:space="preserve"><value>Find selected text</value></data>
   <data name="Ctx_HandTool" xml:space="preserve"><value>Switch to Hand tool</value></data>
   <data name="Ctx_TextSelectTool" xml:space="preserve"><value>Switch to Select Text tool</value></data>
+  <data name="Msg_ObjCopy_OtherDocument" xml:space="preserve"><value>Objects from another document cannot be pasted yet.</value></data>
+  <data name="Msg_ObjCopy_NoPermission" xml:space="preserve"><value>This document's permissions do not allow copying objects.</value></data>
+  <data name="Msg_ObjCopy_Partial" xml:space="preserve"><value>Some items could not be copied.</value></data>
+  <data name="Msg_DeletePage_HasCopies" xml:space="preserve"><value>Objects copied from this page are pasted on another page, so it cannot be deleted. Delete the pasted objects first.</value></data>
+  <data name="Menu_Cut" xml:space="preserve"><value>Cut</value></data>
+  <data name="Menu_Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="Menu_Paste" xml:space="preserve"><value>Paste</value></data>
+  <data name="Menu_Duplicate" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="Menu_Delete" xml:space="preserve"><value>Delete</value></data>
   <data name="Tip_Snapshot" xml:space="preserve"><value>Copies the dragged area to the clipboard as a picture. A single click copies the whole page.</value></data>
   <data name="Msg_SnapshotCopied" xml:space="preserve"><value>The selected area was copied to the clipboard as a picture.</value></data>
   <data name="Msg_SnapshotFailed" xml:space="preserve"><value>The snapshot could not be copied to the clipboard.</value></data>

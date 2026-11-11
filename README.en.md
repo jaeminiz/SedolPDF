@@ -31,6 +31,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 - Fixed text disappearing from bold text made by overprinting the same text. Editable text pieces are previewed as boxes, the in-place editor is translucent so you edit right over the original, and edited text keeps the original weight, color and size.
 - Text format: see and change font, size, color, bold, italic and serif in the properties panel.
 - Move, resize and delete images and shapes; add new text, images and shapes; multi-select.
+- Copy and paste objects and annotations (Ctrl+C/X/V/D) within a document, with a right-click menu; multiple items at once, one undo.
 
 **Reducing file size**
 - File → Save in another format → Save with reduced size: enter a target size (MB) and the images are recompressed into a new file at or below it (for email; default 16 MB). Text, vector graphics and annotations are untouched (black-and-white scans are recompressed with JBIG2). Up to 5% over the target is accepted. If the target cannot be met, one dialog lets you choose between saving as is, converting to color images, or drawing mode (lines and text kept as a high-resolution black-and-white layer with color added at low resolution; high, medium or lowest quality), with the expected size of each shown up front. Converting removes text, links and annotations. The original is never changed.

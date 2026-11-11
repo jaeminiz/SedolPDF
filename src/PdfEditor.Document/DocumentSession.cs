@@ -456,11 +456,44 @@ public sealed class DocumentSession : IAsyncDisposable
         var edits = Content.For(id);
         if (edits.Length > 0)
         {
-            try { _replay[id] = (page, ContentReplayer.Apply(page, edits, ReplayMode.Screen, Assets)); }
+            IDisposable? life = null;
+            try
+            {
+                DuplicateSource? src = null;
+                if (edits.Any(e => e is DuplicateObjectEdit)) (src, life) = CreateDuplicateSource();
+                _replay[id] = (page, ContentReplayer.Apply(page, edits, ReplayMode.Screen, Assets, src));
+            }
             catch { page.Dispose(); throw; }
+            finally { life?.Dispose(); }
         }
         else _replay.Remove(id);
         return page;
+    }
+
+    /// <summary>
+    /// 전용 스레드 전용. 개체 복제(<see cref="DuplicateObjectEdit"/>)의 재료를 돌려준다: 원천 쪽을 편집 없이 따로 한 번 더 불러온 핸들(같은 쪽이라도)에서
+    /// 원본 객체를 꺼낸다(원천 쪽 replay가 그 객체를 옮기거나 껐을 수 있기 때문). Lifetime을 버리면 그 핸들들을 닫는다.
+    /// </summary>
+    public (DuplicateSource Source, IDisposable Lifetime) CreateDuplicateSource(PdfDocument? from = null)
+    {
+        Thread.AssertOnThread();
+        var source = from ?? _doc;   // 저장 사본(from)에서 replay할 때는 같은 문서의 쪽을 써야 한다(글꼴 핸들이 문서 단위)
+        var pages = new Dictionary<PageId, PdfPage?>();
+        PdfPageObject? Get(PageId pid, int index)
+        {
+            if (!pages.TryGetValue(pid, out var pg))
+            {
+                int idx = _order.IndexOf(pid);
+                pages[pid] = pg = idx < 0 ? null : source.LoadPage(idx);
+            }
+            return pg is not null && index >= 0 && index < pg.ObjectCount ? pg.GetObject(index) : null;
+        }
+        return (Get, new DuplicateLifetime(pages));
+    }
+
+    private sealed class DuplicateLifetime(Dictionary<PageId, PdfPage?> pages) : IDisposable
+    {
+        public void Dispose() { foreach (var p in pages.Values) p?.Dispose(); pages.Clear(); }
     }
 
     /// <summary>전용 스레드 전용. 지금 쪽 핸들의 객체 표(편집을 적용한 뒤). 핸들은 다음 GetLoaded* 호출 너머로 쥐지 않는다.</summary>

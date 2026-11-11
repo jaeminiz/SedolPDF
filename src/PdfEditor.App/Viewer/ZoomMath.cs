@@ -4,8 +4,8 @@ namespace PdfEditor.App.Viewer;
 
 public static class ZoomMath
 {
-    public const double MinScale = 0.10;
-    public const double MaxScale = 16.0;
+    public const double MinScale = 0.01;
+    public const double MaxScale = 64.0;
 
     /// <summary>
     /// PDF 1pt가 100% 배율에서 차지하는 화면 크기(DIP). 100% = 실제 종이 크기(96dpi 기준, 2026-10-16 사용자 결정).
@@ -16,7 +16,7 @@ public static class ZoomMath
     /// <summary>사용자 배율 → 1pt당 DIP. PageLayout.Scale과 같은 단위.</summary>
     public static double DipPerPoint(double zoom) => zoom * PointsToDip;
 
-    private static readonly double[] Steps = { 0.10, 0.25, 0.50, 0.75, 1.00, 1.25, 1.50, 2.00, 3.00, 4.00, 6.00, 8.00, 12.00, 16.00 };
+    private static readonly double[] Steps = { 0.01, 0.02, 0.05, 0.10, 0.25, 0.50, 0.75, 1.00, 1.25, 1.50, 2.00, 3.00, 4.00, 6.00, 8.00, 12.00, 16.00, 24.00, 32.00, 48.00, 64.00 };
 
     public static double Clamp(double scale) => Math.Clamp(scale, MinScale, MaxScale);
 

@@ -11,6 +11,9 @@ public enum ReplayMode
     OutputPdfium,
 }
 
+/// <summary>원본 개체 복제(<see cref="DuplicateObjectEdit"/>)의 재료: page 쪽의 원본 originalIndex번 객체를 편집을 적용하지 않은 채로 돌려준다. 반환 객체는 그 replay 동안만 유효.</summary>
+public delegate PdfPageObject? DuplicateSource(PageId page, int originalIndex);
+
 /// <summary>replay 뒤 객체를 찾는 표. Originals[i] = 원본 i번 객체, Inserted[id] = 편집 id가 넣은 객체.</summary>
 public sealed class ReplayResult(IReadOnlyList<PdfPageObject> originals, IReadOnlyDictionary<long, PdfPageObject> inserted, int skipped)
 {
@@ -50,7 +53,7 @@ public static class ContentReplayer
     }
 
     public static ReplayResult Apply(PdfPage page, IReadOnlyList<ContentEdit> edits, ReplayMode mode = ReplayMode.Screen,
-        Annotations.AnnotationAssets? assets = null)
+        Annotations.AnnotationAssets? assets = null, DuplicateSource? sources = null)
     {
         int n = page.ObjectCount;
         var originals = new PdfPageObject[n];
@@ -76,9 +79,13 @@ public static class ContentReplayer
         foreach (var pe in edits.OfType<ReplaceParagraphEdit>()) foreach (var id in pe.AppLineIds) appText.Add(id);
         foreach (var te in edits.OfType<ReplaceTextSpanEdit>()) foreach (var id in te.AppLineIds) appText.Add(id);   // 찾아 바꾸기의 앱 글꼴 줄도 같은 방식   // 문단의 앱 글꼴 줄도 같은 방식으로 미룬다(M5)
         bool TargetsAppText(ObjectRef r) => r.IsInserted && appText.Contains(r.InsertedId);
+        // 원본 개체 복제(0.9.0): 화면에서만 만든다. 출력 모드는 저장 단계(고쳐 쓰기)가 쓰므로 복제를 가리키는 뒤 편집도 조용히 건너뛴다.
+        var dupIds = edits.OfType<DuplicateObjectEdit>().Select(d => d.Id).ToHashSet();
+        bool TargetsDup(ObjectRef r) => r.IsInserted && dupIds.Contains(r.InsertedId);
         var deferred = new List<ContentEdit>();
         foreach (var e in edits)
         {
+            if (mode != ReplayMode.Screen && dupIds.Count > 0 && (e is DuplicateObjectEdit || e is DeactivateEdit { Target: var xd } && TargetsDup(xd) || e is TransformEdit { Target: var xt } && TargetsDup(xt) || e is SetTextColorEdit { Target: var xc } && TargetsDup(xc))) continue;
             if (e is InsertAppTextEdit || e is DeactivateEdit { Target: var dt } && TargetsAppText(dt) || e is TransformEdit { Target: var tt } && TargetsAppText(tt))
             {
                 if (mode == ReplayMode.Screen) deferred.Add(e);
@@ -102,6 +109,14 @@ public static class ContentReplayer
                     page.InsertObject(nt, InsertPosAfter(orig));
                     afterCounts[orig] = afterCounts.GetValueOrDefault(orig) + 1;
                     inserted[it.Id] = nt;
+                    break;
+                case DuplicateObjectEdit du:
+                    if (sources?.Invoke(du.SourcePage, du.SourceIndex) is { } dsrc && DuplicateScreen.Create(page, dsrc.Page, dsrc, du.Then) is { } dobj)
+                    {
+                        page.InsertObject(dobj);
+                        inserted[du.Id] = dobj;
+                    }
+                    else skipped++;
                     break;
                 case InsertImageEdit im:
                     if (CreateImage(page, im, assets) is { } io) { page.InsertObject(io); inserted[im.Id] = io; }

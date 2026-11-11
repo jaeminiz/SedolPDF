@@ -24,7 +24,14 @@ public readonly record struct ReferenceObj(int Kind, double L, double B, double 
 /// 이 쪽의 객체 편집을 PDFium GenerateContent 대신 내용 스트림 직접 고쳐 쓰기로 확정한다(M4x). Edits = 그 쪽의 편집 기록 전체(적용 순서),
 /// Reference = 편집 전 원본 쪽의 PDFium 객체 목록. 해석기 객체 목록과 어긋나면 적용기는 ContentRegenerationException을 던진다.
 /// </summary>
-public sealed record PageContentRewrite(int PageIndex, ImmutableArray<Content.ContentEdit> Edits, ImmutableArray<ReferenceObj> Reference);
+public sealed record PageContentRewrite(int PageIndex, ImmutableArray<Content.ContentEdit> Edits, ImmutableArray<ReferenceObj> Reference,
+    ImmutableArray<SourcePageRef> Sources = default);
+
+/// <summary>
+/// 개체 복제(<see cref="Content.DuplicateObjectEdit"/>)가 가리키는 원천 쪽: PageId, 저장 사본에서의 쪽 번호, 편집 전 원본 쪽의 PDFium 객체 목록.
+/// 같은 쪽 안의 복제도 그 쪽을 한 번 넣는다(PageIndex가 PageContentRewrite.PageIndex와 같음).
+/// </summary>
+public sealed record SourcePageRef(PageId Page, int PageIndex, ImmutableArray<ReferenceObj> Reference);
 
 /// <summary>
 /// 저장 파일에만 적용할 변경 목록. 매번 모델에서 새로 만든다(상태 없음) — 같은 계획을 같은 SaveCopy 결과에

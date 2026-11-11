@@ -22,7 +22,10 @@ public static class TileGrid
         var pb = key.PixelBounds(info);
         double k = scale / key.Scale;
         double ox = Math.Round(pageRect.X * renderScaling) / renderScaling, oy = Math.Round(pageRect.Y * renderScaling) / renderScaling;
-        return new Rect(ox + pb.X * k, oy + pb.Y * k, pb.W * k, pb.H * k);
+        // 이웃 타일의 가장자리를 장치 픽셀에 맞춰 서로 딱 붙인다(배율 값 반올림 오차로 타일 사이에 옅은 격자선이 보이던 것: 큰 확대에서 두드러짐).
+        double l = Math.Round((ox + pb.X * k) * renderScaling) / renderScaling, t = Math.Round((oy + pb.Y * k) * renderScaling) / renderScaling;
+        double r = Math.Round((ox + (pb.X + pb.W) * k) * renderScaling) / renderScaling, b = Math.Round((oy + (pb.Y + pb.H) * k) * renderScaling) / renderScaling;
+        return new Rect(l, t, Math.Max(r - l, 1 / renderScaling), Math.Max(b - t, 1 / renderScaling));
     }
 
     /// <summary>타일을 실제로 그릴 픽셀/포인트 = 1pt당 DIP × 화면 배율(RenderScaling).</summary>

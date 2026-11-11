@@ -143,6 +143,7 @@ public sealed class PageCommandsViewModel : IDisposable
     private async Task Run(Func<Task> body)
     {
         try { await _s.AnnotationsReady; await body(); }
+        catch (PdfEditor.Pages.PageHasCopiesException) { _doc.RaiseNotice(Strings.Msg_DeletePage_HasCopies); }   // 다른 쪽에 붙인 개체의 원천 쪽(0.9.0)
         catch (Exception ex) { await _prompts.ShowErrorAsync(ErrorMessages.For(ex)); }
     }
 

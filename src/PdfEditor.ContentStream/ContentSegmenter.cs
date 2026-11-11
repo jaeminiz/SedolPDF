@@ -51,6 +51,8 @@ public sealed class PageObject
     /// <summary>글 객체의 글꼴 크기(쪽 공간 배율 적용 후, pt). 글이 아니면 0.</summary>
     public double DeviceFontSize { get; init; }
     public TextSnapshot? Text { get; init; }
+    /// <summary>그 객체를 그릴 때의 상태 연산자(선 굵기·gs·채움색·선색 …)의 번호들(Misc·Fill·Stroke 순). 글은 <see cref="TextSnapshot.ReplayOps"/>와 같은 값. 개체 복사가 상태까지 함께 복사하는 데 쓴다.</summary>
+    public int[] ReplayOps { get; init; } = [];
     /// <summary>Do 연산자가 가리킨 XObject 이름(해당 없으면 null).</summary>
     public string? XObjectName { get; init; }
 }
@@ -164,6 +166,7 @@ public static class ContentSegmenter
                             objects.Add(new PageObject
                             {
                                 Kind = ObjectKind.Path, OpIndex = i, FirstOpIndex = pathFirst, Ctm = g.Ctm, HasOwnClip = pathClip,
+                                ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke],
                                 Bounds = boxOk && haveBox ? new Box(minX, minY, maxX, maxY) : null,
                                 StrokeWidth = StrokePaint.Contains(op.Name) ? g.LineWidth * scale : 0,
                             });
@@ -214,7 +217,7 @@ public static class ContentSegmenter
                         if (inText) textInBt.Add(snap);
                         (double, double)? origin = null;
                         if (tmKnown) { var (ox, oy) = tm.Then(g.Ctm).Apply(0, g.Ts); origin = (ox, oy); }
-                        objects.Add(new PageObject { Kind = ObjectKind.Text, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, Origin = origin, Text = snap, DeviceFontSize = tmKnown ? g.FontSize * Math.Sqrt(Math.Abs(tm.Then(g.Ctm).Determinant)) : 0 });
+                        objects.Add(new PageObject { Kind = ObjectKind.Text, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, Origin = origin, Text = snap, ReplayOps = snap.ReplayOps, DeviceFontSize = tmKnown ? g.FontSize * Math.Sqrt(Math.Abs(tm.Then(g.Ctm).Determinant)) : 0 });
                     }
                     tmKnown = false;   // 글자 폭을 모르므로 보인 뒤의 Tm은 모른다(다음 Tm/Td/T*가 다시 알려 준다)
                     break;
@@ -222,10 +225,10 @@ public static class ContentSegmenter
 
                 // --- 그림·셰이딩 ---
                 case "sh":
-                    objects.Add(new PageObject { Kind = ObjectKind.Shading, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm });
+                    objects.Add(new PageObject { Kind = ObjectKind.Shading, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
                     break;
                 case "BI":
-                    objects.Add(new PageObject { Kind = ObjectKind.Image, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, Bounds = UnitBox(g.Ctm) });
+                    objects.Add(new PageObject { Kind = ObjectKind.Image, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, Bounds = UnitBox(g.Ctm), ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
                     break;
                 case "Do":
                 {
@@ -236,7 +239,7 @@ public static class ContentSegmenter
                     if (info.Kind == ObjectKind.Image) b = UnitBox(g.Ctm);
                     else if (info.BBox is { } bb) b = BoxOf(info.FormMatrix.GetValueOrDefault(Mat.Identity).Then(g.Ctm), bb.L, bb.B, bb.R, bb.T);
                     else b = null;
-                    objects.Add(new PageObject { Kind = info.Kind, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, Bounds = b, XObjectName = name });
+                    objects.Add(new PageObject { Kind = info.Kind, OpIndex = i, FirstOpIndex = i, Ctm = g.Ctm, Bounds = b, XObjectName = name, ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke] });
                     break;
                 }
             }

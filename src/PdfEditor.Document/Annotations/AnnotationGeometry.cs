@@ -84,6 +84,23 @@ public static class AnnotationGeometry
         };
     }
 
+    /// <summary>주석 전체를 행렬로 옮긴다(이동·90° 단위 회전·뒤집기). 사각형은 변환한 네 모서리의 경계로 다시 잡는다.</summary>
+    public static Annotation Transform(Annotation a, PdfMatrix m)
+    {
+        if (m.A == 1 && m.B == 0 && m.C == 0 && m.D == 1) return Translate(a, m.E, m.F);
+        PdfPointF P(PdfPointF p) => m.Apply(p);
+        PdfRectF R(PdfRectF r)
+        {
+            var c = new[] { P(new(r.Left, r.Bottom)), P(new(r.Left, r.Top)), P(new(r.Right, r.Bottom)), P(new(r.Right, r.Top)) };
+            return new PdfRectF(c.Min(p => p.X), c.Min(p => p.Y), c.Max(p => p.X), c.Max(p => p.Y));
+        }
+        var strokes = a.InkStrokes.IsDefault ? a.InkStrokes : [.. a.InkStrokes.Select(s => ImmutableArray.CreateRange(s.Select(P)))];
+        var quads = a.Quads.IsDefault ? a.Quads : [.. a.Quads.Select(q => new PdfQuadF(P(q.P1), P(q.P2), P(q.P3), P(q.P4)))];
+        var verts = a.Vertices.IsDefault ? a.Vertices : [.. a.Vertices.Select(P)];
+        var leader2 = a.Leader2.IsDefaultOrEmpty ? a.Leader2 : [.. a.Leader2.Select(P)];
+        return a with { Rect = R(a.Rect), InkStrokes = strokes, Quads = quads, Vertices = verts, Leader2 = leader2, TextBox = a.TextBox is { } tb ? R(tb) : null };
+    }
+
     public static bool CanResize(AnnotKind k)
         => k is AnnotKind.Ink or AnnotKind.Square or AnnotKind.Circle or AnnotKind.Line or AnnotKind.PolyLine
             or AnnotKind.Polygon or AnnotKind.FreeText or AnnotKind.Stamp;

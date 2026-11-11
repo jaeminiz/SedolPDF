@@ -810,6 +810,12 @@ public sealed partial class DocumentView : Control
             e.Handled = true;
             return;
         }
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed && UsesClipboardTools(_state.Tab.Tool) && !IsLineEditorOpen && !IsFreeTextEditorOpen)
+        {
+            ShowObjectMenu(e);
+            e.Handled = true;
+            return;
+        }
         if (HandleSnapshotPressed(e)) return;
         if (HandleObjectPointerPressed(e)) return;
         if (HandleAnnotPointerPressed(e)) return;
@@ -927,6 +933,7 @@ public sealed partial class DocumentView : Control
     {
         base.OnKeyDown(e);
         if (HandleEscapeKey(e)) return;
+        if (HandleClipboardKey(e)) return;
         if (HandleObjectKey(e)) return;
         if (HandleAnnotKey(e)) return;
         if (e is { Key: Key.C, KeyModifiers: KeyModifiers.Control })

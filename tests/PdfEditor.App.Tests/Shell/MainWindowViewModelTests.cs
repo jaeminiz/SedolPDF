@@ -163,12 +163,12 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
-    public void ViewModel_ZoomSlider_LogScale_10To1600()
+    public void ViewModel_ZoomSlider_LogScale_1To6400()
     {
         var vm = new MainWindowViewModel();
-        vm.ZoomSliderValue = 0; Assert.Equal(10, vm.ZoomPercent, 6);
-        vm.ZoomSliderValue = 1; Assert.Equal(1600, vm.ZoomPercent, 6);
-        vm.ZoomPercent = 100; Assert.Equal(Math.Log(10) / Math.Log(160), vm.ZoomSliderValue, 6);
+        vm.ZoomSliderValue = 0; Assert.Equal(1, vm.ZoomPercent, 6);
+        vm.ZoomSliderValue = 1; Assert.Equal(6400, vm.ZoomPercent, 6);
+        vm.ZoomPercent = 100; Assert.Equal(Math.Log(100) / Math.Log(6400), vm.ZoomSliderValue, 6);
     }
 
     [Fact]

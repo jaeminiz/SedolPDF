@@ -22,6 +22,7 @@ public sealed class DocumentRenderer : IDisposable
     private readonly Func<byte[], int, int, IImageHandle> _createImage;
     private readonly object _lock = new();
     private HashSet<PageId> _known;
+    private readonly Dictionary<PageId, (int Version, int Prev, float W, float H)> _seen = new();   // 쪽마다 지금·바로 앞 버전과 크기(앞 버전 타일을 대체 그림으로 남길지 정한다)
     private bool _disposed;
 
     public DocumentRenderer(DocumentSession s, TileCache<IImageHandle> tiles, ThumbnailCache<IImageHandle> thumbs,
@@ -108,9 +109,15 @@ public sealed class DocumentRenderer : IDisposable
                 _tiles.RemovePage(gone);
                 _thumbs.RemovePage(gone);
             }
+            foreach (var gone in _seen.Keys.Where(id => !now.Contains(id)).ToList()) _seen.Remove(gone);
             foreach (var p in pages)
             {
-                _tiles.RemoveStaleVersions(p.Id, p.Version);
+                // 내용만 바뀐 쪽(크기 그대로)은 바로 앞 버전 타일을 새 타일이 올 때까지 대체 그림으로 남긴다(개체를 옮길 때 화면이 비지 않게). 크기가 바뀌면 모두 지운다.
+                int prev = p.Version;
+                if (_seen.TryGetValue(p.Id, out var old) && old.W == p.WidthPt && old.H == p.HeightPt)
+                    prev = old.Version == p.Version ? old.Prev : old.Version;
+                _seen[p.Id] = (p.Version, prev, p.WidthPt, p.HeightPt);
+                _tiles.RemoveStaleVersions(p.Id, p.Version, prev);
                 _thumbs.RemoveStaleVersions(p.Id, p.Version);
             }
             _known = now;

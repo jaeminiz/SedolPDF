@@ -172,4 +172,92 @@ public sealed class OutputCopyTests : IDisposable
         Assert.True(copy!.ContentApplied);
         Assert.Equal(0, Inspect(P("some.pdf")).Images);
     }
+
+    /// <summary>
+    /// 쪽 내용이 여러 스트림이고 경로 하나가 스트림 경계에 걸침(첫 스트림 끝 "q 0 0 1 RG 3 w", 둘째 스트림에서 "m l S Q").
+    /// 2026-11-10 사용자 PDF(약 200KB씩 나뉜 도면): 첫 스트림의 객체만 편집하면 PDFium이 그 스트림만 다시 쓰며 걸친 q를 빠뜨려
+    /// 둘째 스트림에 짝 없는 Q가 남았다. Acrobat은 거기서 오류로 보고 쪽의 나머지를 그리지 않는다(PDFium·PDF-XChange는 넘어감).
+    /// </summary>
+    private string CreateStraddlingStreams()
+    {
+        string p = P(Guid.NewGuid().ToString("N") + ".pdf");
+        using (var doc = new PdfSharp.Pdf.PdfDocument())
+        {
+            var page = doc.AddPage();
+            page.Width = PdfSharp.Drawing.XUnit.FromPoint(595);
+            page.Height = PdfSharp.Drawing.XUnit.FromPoint(842);
+            page.Contents.Elements.Clear();
+            foreach (var s in new[]
+            {
+                "q 1 0 0 RG 2 w 50 100 m 250 100 l S Q\nq 0 0 1 RG 3 w\n",
+                "50 400 m 400 400 l S Q\nq 0 1 0 rg 300 600 80 80 re f Q\n",
+                "q 0 0 0 rg 100 700 40 40 re f Q\n",
+            })
+                page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(s));
+            doc.Save(p);
+        }
+        return p;
+    }
+
+    /// <summary>모든 내용 스트림을 이어 붙인 연산자 열에서 q/Q가 한 번도 음수로 내려가지 않고 끝에 0인가.</summary>
+    private static void AssertQBalanced(string path)
+    {
+        using var doc = PdfReader.Open(path, PdfDocumentOpenMode.Import);
+        var parts = doc.Pages[0].Contents.Elements.Cast<PdfSharp.Pdf.PdfItem>()
+            .Select(it => (it as PdfSharp.Pdf.Advanced.PdfReference)?.Value is PdfSharp.Pdf.PdfDictionary d && d.Stream is { } st ? st.UnfilteredValue : [])
+            .Select(b => System.Text.Encoding.Latin1.GetString(b));
+        var lexed = PdfEditor.ContentStream.ContentLexer.Parse(System.Text.Encoding.Latin1.GetBytes(string.Join("\n", parts)));
+        Assert.True(lexed.Ok, lexed.Failure);
+        int depth = 0;
+        foreach (var op in lexed.Ops)
+        {
+            if (op.Name == "q") depth++;
+            else if (op.Name == "Q") { depth--; Assert.True(depth >= 0, "unmatched Q (Acrobat stops drawing the page here)"); }
+        }
+        Assert.Equal(0, depth);
+    }
+
+    [Fact]
+    public async Task Save_ObjectEditOnPageWithStraddlingStreams_KeepsQBalanced_AndLook()
+    {
+        string src = CreateStraddlingStreams();
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        var cmd = await _t.InvokeAsync(() =>
+        {
+            var id = s.Pages[0].Id;
+            // 첫 스트림 안에서 끝나는 빨간 선(원본 0번)만 옮긴다
+            return new ContentEditCommand(id, [new TransformEdit(s.Content.NewId(), ObjectRef.Original(0), PdfMatrix.Translate(0, 20))]);
+        });
+        await s.Commands.ExecuteAsync(cmd);
+        await new SaveService([]).SaveAsync(s, P("straddle.pdf"));
+
+        AssertQBalanced(P("straddle.pdf"));
+        // 걸친 파란 선(3pt)도 그대로 그려진다: (225, 400) 근처가 파랗다(PDFium 렌더, 0.5배 → 픽셀 (112, 221))
+        var px = await _t.InvokeAsync(() =>
+        {
+            using var doc = PdfDocument.Open(_t, P("straddle.pdf"), null);
+            using var page = doc.LoadPage(0);
+            return page.RenderTile(0.5, 0, 0, 298, 421, false);
+        });
+        int i = (221 * 298 + 112) * 4;
+        Assert.True(px[i] > 150 && px[i + 2] < 100, $"straddling blue line missing: BGR {px[i]},{px[i + 1]},{px[i + 2]}");
+    }
+
+    [Fact]
+    public async Task Save_FileWithUnmatchedRestore_FromEarlierVersion_IsRepaired()
+    {
+        // 0.8.0까지의 저장이 만든 모양: 앞 스트림이 걸친 q를 잃어 뒤 스트림에 짝 없는 Q
+        string src = P(Guid.NewGuid().ToString("N") + ".pdf");
+        using (var doc = new PdfSharp.Pdf.PdfDocument())
+        {
+            var page = doc.AddPage();
+            page.Contents.Elements.Clear();
+            foreach (var c in new[] { "q 1 0 0 RG 2 w 50 100 m 250 100 l S Q\n", "0 0 1 RG 3 w 50 400 m 400 400 l S Q\nq 0 1 0 rg 300 600 80 80 re f Q\n" })
+                page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(c));
+            doc.Save(src);
+        }
+        await using var s = await DocumentSession.OpenAsync(_t, src, null);
+        await new SaveService([], new PdfEditor.Appearance.PdfAppearanceSource(), new PdfEditor.Appearance.Patching.PdfSharpAnnotationPatcher(() => [])).SaveAsync(s, P("repaired.pdf"));
+        AssertQBalanced(P("repaired.pdf"));
+    }
 }

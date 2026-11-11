@@ -520,6 +520,15 @@
   <data name="Ctx_FindSelected" xml:space="preserve"><value>선택한 글 찾기</value></data>
   <data name="Ctx_HandTool" xml:space="preserve"><value>손 도구로 바꾸기</value></data>
   <data name="Ctx_TextSelectTool" xml:space="preserve"><value>글 선택 도구로 바꾸기</value></data>
+  <data name="Msg_ObjCopy_OtherDocument" xml:space="preserve"><value>다른 문서의 개체는 아직 붙일 수 없습니다</value></data>
+  <data name="Msg_ObjCopy_NoPermission" xml:space="preserve"><value>이 문서는 권한 설정 때문에 개체를 복사할 수 없습니다</value></data>
+  <data name="Msg_ObjCopy_Partial" xml:space="preserve"><value>일부 개체는 복사하지 못했습니다</value></data>
+  <data name="Msg_DeletePage_HasCopies" xml:space="preserve"><value>이 쪽에서 복사해 붙인 개체가 다른 쪽에 있어 지울 수 없습니다. 붙인 개체를 먼저 지우세요.</value></data>
+  <data name="Menu_Cut" xml:space="preserve"><value>잘라내기</value></data>
+  <data name="Menu_Copy" xml:space="preserve"><value>복사</value></data>
+  <data name="Menu_Paste" xml:space="preserve"><value>붙여넣기</value></data>
+  <data name="Menu_Duplicate" xml:space="preserve"><value>복제</value></data>
+  <data name="Menu_Delete" xml:space="preserve"><value>삭제</value></data>
   <data name="Tip_Snapshot" xml:space="preserve"><value>끌어서 고른 영역을, 그냥 클릭하면 그 쪽 전체를 그림으로 클립보드에 복사합니다</value></data>
   <data name="Msg_SnapshotCopied" xml:space="preserve"><value>고른 영역을 그림으로 클립보드에 복사했습니다.</value></data>
   <data name="Msg_SnapshotFailed" xml:space="preserve"><value>스냅숏을 클립보드에 넣지 못했습니다.</value></data>

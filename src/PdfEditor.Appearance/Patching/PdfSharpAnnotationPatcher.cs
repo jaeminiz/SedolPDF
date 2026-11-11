@@ -15,8 +15,31 @@ namespace PdfEditor.Appearance.Patching;
 /// 패치 계획을 SaveCopy로 만든 임시 파일에 적용한다(PDFsharp 6.2.x, Modify 모드).
 /// 파일만 읽고 쓰며 편집 중인 PDFium 문서는 건드리지 않는다. 계획은 상태가 없으므로 같은 입력에서 항상 같은 결과가 나온다.
 /// </summary>
-public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher, IContentRewriteProbe, IContentRewriteReport, IDisposable
+public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotationPatcher, IContentRewriteProbe, IContentRewriteReport, IContentRepairer, IDisposable
 {
+    /// <summary>
+    /// 모든 쪽을 본다. "스트림이 여러 개인 쪽만"으로 줄이려 했지만 PDFsharp가 /Contents 배열을 스트림 하나로 보여 주는 파일이 있어(2026-11-10 사용자 PDF) 놓쳤다.
+    /// 고친 쪽은 스트림 하나로 합친다. 고칠 것이 없으면 파일을 다시 쓰지 않는다.
+    /// </summary>
+    public int RepairUnmatchedRestores(string pdfPath, string? password)
+    {
+        byte[] bytes = File.ReadAllBytes(pdfPath);
+        using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
+        int removed = 0;
+        foreach (var page in doc.Pages)
+        {
+            var loaded = PageContent.Load(page);
+            if (loaded.Data is null) continue;
+            var (fixedData, n) = ContentRepair.RemoveUnmatchedRestores(loaded.Data);
+            if (fixedData is null) continue;
+            page.Contents.Elements.Clear();
+            page.Contents.AppendContent().CreateStream(fixedData);
+            removed += n;
+        }
+        if (removed > 0) doc.Save(pdfPath);
+        return removed;
+    }
+
     // 글꼴 바이트 공급자. AddApFont가 처음 나올 때 한 번 AppFont로 올려 두고 계속 쓴다(셰이핑은 AppFont 안에서 직렬화됨).
     private readonly Func<byte[]> _fontData = fontData;
     private readonly object _fontLock = new();
@@ -219,7 +242,11 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     /// </summary>
     private void ApplyContentRewrites(PdfDocument doc, IEnumerable<PageContentRewrite> rewrites, AnnotationAssets assets)
     {
-        foreach (var rw in rewrites) RewritePage(doc, rw, assets, dryRun: false);
+        // 개체 복제의 원천 쪽은 어느 쪽도 고치기 전에 해석해 둔다(원천 쪽이 자기 편집으로 먼저 바뀌어도 원본 객체 번호는 그대로여야 한다).
+        var sources = new Dictionary<int, SourceContent>();
+        var list = rewrites.ToList();
+        foreach (var rw in list) LoadSources(doc, rw, sources);
+        foreach (var rw in list) RewritePage(doc, rw, assets, dryRun: false, sources);
     }
 
     private static FontUse MergeFontUse(IEnumerable<FontUse> uses)
@@ -238,9 +265,10 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         if (pages.Count == 0) return bad;
         byte[] bytes = File.ReadAllBytes(pdfPath);
         using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
+        var sources = new Dictionary<int, SourceContent>();
         foreach (var rw in pages)
         {
-            try { RewritePage(doc, rw, assets, dryRun: true); }
+            try { RewritePage(doc, rw, assets, dryRun: true, sources); }
             catch (ContentRegenerationException e) { bad[rw.PageIndex] = e.Reason ?? e.Message; }
         }
         return bad;
@@ -255,7 +283,49 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, DryRunResult> _dry = new();   // 공유 패처라 동시 저장·복구가 섞여도 안전(섞이면 맞지 않아 쓰이지 않을 뿐)
 
-    private void RewritePage(PdfDocument doc, PageContentRewrite rw, AnnotationAssets assets, bool dryRun)
+    /// <summary>복제의 원천 쪽 하나를 해석해 둔 것(내용 해석 + 분할 + PDFium 객체 번호 대응 검증).</summary>
+    private sealed record SourceContent(PdfPage Page, ParsedContent Parsed, Segmentation Seg);
+
+    private static void LoadSources(PdfDocument doc, PageContentRewrite rw, Dictionary<int, SourceContent> cache)
+    {
+        if (rw.Sources.IsDefaultOrEmpty) return;
+        int number = rw.PageIndex + 1;
+        foreach (var sr in rw.Sources)
+        {
+            if (cache.ContainsKey(sr.PageIndex)) continue;
+            if (sr.PageIndex < 0 || sr.PageIndex >= doc.Pages.Count) throw new ContentRegenerationException(number, "source page out of range");
+            var sp = doc.Pages[sr.PageIndex];
+            var loaded = PageContent.Load(sp);
+            if (loaded.Data is null) throw new ContentRegenerationException(number, "source page: " + loaded.Failure);
+            var parsed = ContentLexer.Parse(loaded.Data);
+            var seg = ContentSegmenter.Segment(parsed, PageContent.XObjectResolver(sp));
+            var map = ObjectMap.Verify(seg, sr.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
+            if (!map.Ok) throw new ContentRegenerationException(number, "source page: " + map.Reason);
+            cache[sr.PageIndex] = new SourceContent(sp, parsed, seg);
+        }
+    }
+
+    /// <summary>
+    /// 원본 개체 복제 하나를 `q … Q` 조각으로 만든다: 원천 쪽의 객체를 혼자 서는 조각으로 꺼내고(ObjectSnippet), 다른 쪽이면 쓰는 자원을 대상 쪽으로 옮긴다(ResourceCopier).
+    /// </summary>
+    private static string DuplicateBytes(PdfDocument doc, int number, PageContentRewrite rw, DuplicateSnippet dup, PdfPage target,
+        Dictionary<int, SourceContent> sources, bool dryRun)
+    {
+        var sr = rw.Sources.IsDefaultOrEmpty ? null : rw.Sources.FirstOrDefault(x => x.Page == dup.Source);
+        if (sr is null) throw new ContentRegenerationException(number, "duplicate source page is missing");
+        if (!sources.TryGetValue(sr.PageIndex, out var src)) { LoadSources(doc, rw, sources); src = sources[sr.PageIndex]; }
+        (double, double, double)? color = dup.TextColor is { } c ? (c.R / 255.0, c.G / 255.0, c.B / 255.0) : null;
+        var r = ObjectSnippet.Extract(src.Parsed, src.Seg, dup.SourceIndex, dup.M, color);
+        if (!r.Ok) throw new ContentRegenerationException(number, r.Failure);
+        string content = r.Content!;
+        if (sr.PageIndex != rw.PageIndex)
+        {
+            content = ResourceCopier.CopyInto(dryRun ? new PdfDictionary(doc) : target.Resources, ResourceCopier.FindResources(src.Page), content, r.Uses, doc, number, dryRun);
+        }
+        return content;
+    }
+
+    private void RewritePage(PdfDocument doc, PageContentRewrite rw, AnnotationAssets assets, bool dryRun, Dictionary<int, SourceContent> sources)
     {
         int number = rw.PageIndex + 1;
         if (rw.PageIndex < 0 || rw.PageIndex >= doc.Pages.Count) throw new ContentRegenerationException(number, "page out of range");
@@ -302,6 +372,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             {
                 string content = sn.Content;
                 if (sn.Para is { } ps) content += ParagraphLineBytes(number, page, parsed, seg, ps);
+                if (sn.Dup is { } dup) content = DuplicateBytes(doc, number, rw, dup, page, sources, dryRun);
                 if (sn.Font is not null) content = content.Replace("{F}", famNames?[sn.Font.Family] ?? "SedolFDry");   // 시험 적용(dryRun)은 자리표시자만 해 본다
                 if (sn.ImageAssetId is { } assetId)
                 {

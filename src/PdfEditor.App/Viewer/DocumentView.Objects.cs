@@ -99,7 +99,7 @@ public sealed partial class DocumentView
         bool toggle = (e.Mods & (KeyModifiers.Control | KeyModifiers.Shift)) != 0;
 
         // 이미 고른 객체의 손잡이·몸통이면 그대로 끌기
-        if (!cycle && !toggle && tab.Tool == ToolKind.EditObject && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip) is var hh && hh != ObjectHandle.None)
+        if (!cycle && !toggle && tab.Tool == ToolKind.EditObject && ctl.Selected is { } cur && cur.Page == info.Id && ctl.HitHandle(pt, ptPerDip, g.Rotation) is var hh && hh != ObjectHandle.None)
         {
             StartObjectDrag(e.Pointer, hh, pt, e.PageIndex, g);
             return true;
@@ -206,8 +206,11 @@ public sealed partial class DocumentView
             Key.Left => (-step, 0f), Key.Right => (step, 0f), Key.Up => (0f, step), Key.Down => (0f, -step), _ => null,
         };
         if (d is not { } v || (e.KeyModifiers & ~KeyModifiers.Shift) != 0) return false;
-        // 화면 위쪽 = PDF y 증가(회전 없는 쪽 기준). 회전된 쪽은 쪽 좌표 방향으로 움직인다(검증 필요: 회전 쪽에서의 체감).
-        _ = RunObjectEditAsync(st, sel.Page, st.Tab.Objects.All.Select(x => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), x.Ref, PdfMatrix.Translate(v.dx, v.dy))).ToArray());
+        // 방향키는 화면 기준이다: 회전된 쪽은 화면의 오른쪽·위쪽을 쪽 좌표 방향으로 바꿔서 옮긴다.
+        int rot = 0;
+        if (_layoutPages.FirstOrDefault(p => p.Id == sel.Page) is { } pi && TryGetGeom(st, pi, out var g)) rot = g.Rotation;
+        var (px, py) = ScreenDirection.ToPage(rot, v.dx, v.dy);
+        _ = RunObjectEditAsync(st, sel.Page, st.Tab.Objects.All.Select(x => (ContentEdit)new TransformEdit(st.Session.Content.NewId(), x.Ref, PdfMatrix.Translate(px, py))).ToArray());
         if (annotMode) return false;
         e.Handled = true;
         return true;
@@ -234,6 +237,53 @@ public sealed partial class DocumentView
             var v = tr.ToView(RectangleF.FromLTRB(r.Left, r.Bottom, r.Right, r.Top));
             last = new Rect(pr.X + v.X, pr.Y + v.Y, Math.Max(1, v.W), Math.Max(1, v.H));
             ctx.DrawRectangle(null, pen, last);
+        }
+        // 회전 손잡이(경계 위쪽 가운데에서 위로 뻗은 동그라미). 끄는 동안은 돌아가는 모양의 점선 상자를 보인다.
+        var gb = ctl.GroupBounds;
+        float ptPerDip = (float)(1.0 / scale);
+        Point ToV(PdfPointF q) { var v = tr.ToView(new RectangleF(q.X, q.Y, 0, 0)); return new Point(pr.X + v.X, pr.Y + v.Y); }
+        if (ctl.IsRotating)
+        {
+            // 돌리는 중: 중심 표시, 처음 방향에서 지금 방향까지의 부채꼴, 각도(소수 한 자리, Shift는 15도 단위)
+            float cxp = (gb.Left + gb.Right) / 2, cyp = (gb.Bottom + gb.Top) / 2;
+            var center = ToV(new PdfPointF(cxp, cyp));
+            var edge0 = ToV(ObjectSelectionController.RotateHandlePos(gb, g.Rotation, ptPerDip));
+            double radius = Math.Max(24, Math.Sqrt((edge0.X - center.X) * (edge0.X - center.X) + (edge0.Y - center.Y) * (edge0.Y - center.Y)));
+            float a0 = ctl.RotationStartAngle, sweep = ctl.RotationPreview;
+            Point OnArc(float ang) { var v = ToV(new PdfPointF(cxp + (float)Math.Cos(ang) * 1000f, cyp + (float)Math.Sin(ang) * 1000f)); double dxv = v.X - center.X, dyv = v.Y - center.Y, len = Math.Sqrt(dxv * dxv + dyv * dyv); return len < 1e-6 ? center : new Point(center.X + dxv / len * radius, center.Y + dyv / len * radius); }
+            if (Math.Abs(sweep) > 0.002f)
+            {
+                var fan = new StreamGeometry();
+                using (var gc = fan.Open())
+                {
+                    gc.BeginFigure(center, true);
+                    int n = Math.Max(2, (int)(Math.Abs(sweep) / (Math.PI / 36)) + 1);
+                    for (int i = 0; i <= n; i++) gc.LineTo(OnArc(a0 + sweep * i / n));
+                    gc.EndFigure(true);
+                }
+                ctx.DrawGeometry(new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0x5F, 0xB8)), pen, fan);
+            }
+            ctx.DrawEllipse(Brushes.White, new Pen(SelAccent, 1.5), center, 5, 5);
+            double deg = Math.Round(((sweep * 180 / Math.PI) % 360 + 360) % 360, 1) % 360;
+            var label = new FormattedText(deg.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "°", System.Globalization.CultureInfo.CurrentUICulture,
+                FlowDirection.LeftToRight, Typeface.Default, 12, Brushes.Black);
+            var lp = OnArc(a0 + sweep);
+            var lbox = new Rect(lp.X + 8, lp.Y - label.Height / 2 - 3, label.Width + 10, label.Height + 6);
+            ctx.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xFF, 0xF8, 0xC8)), new Pen(SelAccent, 1), lbox, 3, 3);
+            ctx.DrawText(label, new Point(lbox.X + 5, lbox.Y + 3));
+        }
+        if (ctl.IsDragging && ctl.RotationPreview != 0)
+        {
+            var m = ObjectSelectionController.RotateAbout(ctl.RotationPreview, (gb.Left + gb.Right) / 2, (gb.Bottom + gb.Top) / 2);
+            var cs = new[] { new PdfPointF(gb.Left, gb.Bottom), new PdfPointF(gb.Right, gb.Bottom), new PdfPointF(gb.Right, gb.Top), new PdfPointF(gb.Left, gb.Top) }.Select(q => ToV(m.Apply(q))).ToArray();
+            for (int i = 0; i < 4; i++) ctx.DrawLine(pen, cs[i], cs[(i + 1) % 4]);
+        }
+        else if (!ctl.IsDragging)
+        {
+            var hp = ToV(ObjectSelectionController.RotateHandlePos(gb, g.Rotation, ptPerDip));
+            var edge = ToV(ObjectSelectionController.RotateHandlePos(gb, g.Rotation, 0));
+            ctx.DrawLine(new Pen(SelAccent, 1), edge, hp);
+            ctx.DrawEllipse(Brushes.White, new Pen(SelAccent, 1.5), hp, 5, 5);
         }
         if (ctl.IsDragging || ctl.All.Count != 1) return;
         const double h = ObjectSelectionController.HandleDip;

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using PdfEditor.ContentStream;
+using PdfEditor.Document;
 using PdfEditor.Document.Annotations.Patching;
 using PdfEditor.Document.Content;
 
@@ -10,7 +11,10 @@ namespace PdfEditor.Appearance.Patching;
 /// <summary>문단 편집의 원래 글꼴 줄(M5). 저장 단계가 원본 내용 스트림의 글 객체 <c>Line.OriginalFontSource</c>에서 글꼴 자원 이름·글 상태를 읽어 직접 쓴다. </summary>
 public sealed record ParagraphLineSnippet(ParagraphTextLine Line);
 
-public sealed record NewSnippet(string Content, FontUse? Font, string? ImageAssetId, ParagraphLineSnippet? Para = null);
+/// <summary>원본 개체 복제(0.9.0): 저장 단계가 원천 쪽(Source)의 원본 SourceIndex번 객체를 M(쪽 공간 변환)만큼 옮겨 `q … Q` 조각으로 복사한다. TextColor가 있으면 글자 색을 덮어쓴다.</summary>
+public sealed record DuplicateSnippet(PageId Source, int SourceIndex, Mat M, PdfEditor.Document.Annotations.PdfColor? TextColor);
+
+public sealed record NewSnippet(string Content, FontUse? Font, string? ImageAssetId, ParagraphLineSnippet? Para = null, DuplicateSnippet? Dup = null);
 
 /// <summary>한 쪽의 편집 기록을 내용 스트림 고쳐 쓰기용으로 풀어 놓은 것(M4x). <see cref="Failure"/>가 있으면 이 방식으로 저장할 수 없다.</summary>
 public sealed class ContentRewritePlan
@@ -32,11 +36,13 @@ public static class ContentRewritePlanner
     private sealed class Ins
     {
         public required int Order;
-        public required char Kind;   // S 도형, I 이미지, T 앱 글꼴 줄, P 문단의 원래 글꼴 줄
+        public required char Kind;   // S 도형, I 이미지, T 앱 글꼴 줄, P 문단의 원래 글꼴 줄, D 원본 개체 복제
         public ShapeSpec? Shape;
         public InsertImageEdit? Image;
         public InsertAppTextEdit? Text;
         public ParagraphTextLine? Para;
+        public DuplicateObjectEdit? Dup;
+        public PdfEditor.Document.Annotations.PdfColor? TextColor;
         public Mat M = Mat.Identity;
         public bool Disabled;
     }
@@ -56,6 +62,10 @@ public static class ContentRewritePlanner
                 case InsertShapeEdit sh: ins[sh.Id] = new Ins { Order = order++, Kind = 'S', Shape = sh.Shape }; break;
                 case InsertImageEdit im: ins[im.Id] = new Ins { Order = order++, Kind = 'I', Image = im }; break;
                 case InsertAppTextEdit at: ins[at.Id] = new Ins { Order = order++, Kind = 'T', Text = at }; break;
+                case DuplicateObjectEdit du: ins[du.Id] = new Ins { Order = order++, Kind = 'D', Dup = du, M = ToMat(du.Then) }; break;
+                case SetTextColorEdit tc when tc.Target.IsInserted && ins.TryGetValue(tc.Target.InsertedId, out var dc) && dc.Kind == 'D':
+                    dc.TextColor = tc.Color;
+                    break;
                 case ReplaceParagraphEdit pe:
                     // 끄기: 문단이 대체하는 원본 글 — 문자열이 파일에 남지 않게 연산자째 지운다(C12, 안전하지 않으면 숨김).
                     foreach (var rf in pe.Remove)
@@ -144,6 +154,8 @@ public static class ContentRewritePlanner
                 if (x.M != Mat.Identity) sb.Append(Ops(x.M)).Append(" cm\n");
                 Shape(sb, x.Shape!);
                 return new NewSnippet(sb.ToString(), null, null);
+            case 'D':
+                return new NewSnippet("", null, null, null, new DuplicateSnippet(x.Dup!.SourcePage, x.Dup.SourceIndex, x.M, x.TextColor));
             case 'P':
                 if (x.M != Mat.Identity) sb.Append(Ops(x.M)).Append(" cm\n");
                 return new NewSnippet(sb.ToString(), null, null, new ParagraphLineSnippet(x.Para!));

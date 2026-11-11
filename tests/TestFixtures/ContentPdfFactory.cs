@@ -41,6 +41,43 @@ public static class ContentPdfFactory
     /// A4 세로 1쪽: Arial 한 줄(TrueType 서브셋), 맑은 고딕 한글 한 줄(CID, Identity-H), 표준 Helvetica 한 줄(임베드 없음),
     /// PNG 이미지 하나, 빨간 사각형 하나, 파란 선 하나. stripToUnicode면 맑은 고딕 글꼴의 /ToUnicode를 지운다.
     /// </summary>
+    /// <summary>
+    /// A4 2쪽. 1쪽 글 "SOURCE"는 Arial, 2쪽 글 "TARGET"은 Georgia(시험 글꼴 해석기가 지원하는 명조 계열). 저장 뒤 두 쪽의 글꼴 자원 키를 모두 /F1로 바꾸고 내용 스트림의 이름도 맞춘다
+    /// (개체 복사에서 다른 쪽에 붙일 때 자원 이름이 겹치는데 서로 다른 글꼴인 경우의 시험).
+    /// </summary>
+    public static void CreateTwoPageFontClash(string path)
+    {
+        using (var doc = new PdfDocument())
+        {
+            var opt = new XPdfFontOptions(PdfFontEncoding.Unicode);
+            string[] texts = ["SOURCE", "TARGET"], fonts = ["Arial", "Georgia"];
+            for (int i = 0; i < 2; i++)
+            {
+                var page = doc.AddPage();
+                page.Width = XUnit.FromPoint(595);
+                page.Height = XUnit.FromPoint(842);
+                using var g = XGraphics.FromPdfPage(page);
+                g.DrawString(texts[i], new XFont(fonts[i], 24, XFontStyleEx.Regular, opt), XBrushes.Black, new XPoint(80, 120));
+            }
+            doc.Save(path);
+        }
+        using var d2 = PdfReader.Open(path, PdfDocumentOpenMode.Modify);
+        foreach (var page in d2.Pages)
+        {
+            var fontDict = page.Resources.Elements.GetDictionary("/Font")!;
+            string key = fontDict.Elements.Keys.First();
+            var val = fontDict.Elements[key];
+            fontDict.Elements.Remove(key);
+            fontDict.Elements["/F1"] = val;
+            var raw = page.Contents.Elements.Cast<PdfItem>()
+                .SelectMany(it => (it as PdfReference)?.Value is PdfDictionary cd && cd.Stream is { } st ? st.UnfilteredValue.Append((byte)10) : []).ToArray();
+            string s = Encoding.Latin1.GetString(raw).Replace(key + " ", "/F1 ");
+            page.Contents.Elements.Clear();
+            page.Contents.AppendContent().CreateStream(Encoding.Latin1.GetBytes(s));
+        }
+        d2.Save(path);
+    }
+
     public static void CreateDocumentLike(string path, bool stripToUnicode = false, int pages = 1)
     {
         using (var doc = new PdfDocument())

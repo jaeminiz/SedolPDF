@@ -9,12 +9,14 @@ public class ZoomMathTests
     public void Zoom_Step_UpDownAndClamp()
     {
         Assert.Equal(1.25, ZoomMath.Step(1.0, +1), 6);
-        Assert.Equal(16.0, ZoomMath.Step(16, +1), 6);
+        Assert.Equal(64.0, ZoomMath.Step(64, +1), 6);
+        Assert.Equal(24.0, ZoomMath.Step(16, +1), 6);
         Assert.Equal(0.25, ZoomMath.Step(0.3, -1), 6);
-        Assert.Equal(0.10, ZoomMath.Step(0.10, -1), 6);
+        Assert.Equal(0.01, ZoomMath.Step(0.01, -1), 6);
+        Assert.Equal(0.05, ZoomMath.Step(0.10, -1), 6);
         Assert.Equal(0.5, ZoomMath.Step(0.3, +1), 6);
-        Assert.Equal(0.10, ZoomMath.Clamp(0.01), 6);
-        Assert.Equal(16.0, ZoomMath.Clamp(50), 6);
+        Assert.Equal(0.01, ZoomMath.Clamp(0.001), 6);
+        Assert.Equal(64.0, ZoomMath.Clamp(100), 6);
     }
 
     [Fact]
@@ -57,7 +59,7 @@ public class ZoomMathTests
         Assert.Equal((1032 - 32) / (600.0 * d), ZoomMath.FitWidth(page, 1032), 6);
         Assert.Equal((500 - 32) / (800.0 * d), ZoomMath.FitPage(page, new Size(2000, 500)), 6);
         Assert.Equal((632 - 32) / (600.0 * d), ZoomMath.FitPage(page, new Size(632, 5000)), 6);
-        Assert.Equal(16.0, ZoomMath.FitWidth(new Size(1, 1), 100000), 6);
+        Assert.Equal(64.0, ZoomMath.FitWidth(new Size(1, 1), 100000), 6);
     }
 
     [Fact]

@@ -136,3 +136,12 @@ public sealed class ContentEditBatchCommand(IReadOnlyList<(PageId Page, ContentE
         foreach (var p in Pages) s.BumpVersion(p);
     }
 }
+
+
+/// <summary>
+/// 원본 개체(SourcePage 쪽의 원본 SourceIndex번)를 Then(쪽 좌표 행렬)만큼 옮긴 사본을 이 쪽 맨 위에 넣는다(0.9.0 개체 복사).
+/// 가리킬 때는 ObjectRef.Inserted(Id). 원본은 세션 동안 바뀌지 않으므로 원본 쪽이 다른 편집을 받아도 사본은 같다.
+/// 사본은 원본의 현재 상태가 아니라 원래 모양에 Then을 적용한 것이다(그 개체에 쌓인 옮기기는 클립보드가 Then에 접어 둔다).
+/// 저장은 반드시 내용 스트림 고쳐 쓰기(원본 연산자를 q…Q 조각으로 복사)로만 한다.
+/// </summary>
+public sealed record DuplicateObjectEdit(long Id, PageId SourcePage, int SourceIndex, PdfMatrix Then) : ContentEdit(Id);
