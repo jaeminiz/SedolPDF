@@ -17,7 +17,7 @@ namespace PdfEditor.App.Shell;
 /// <summary>앱 셸의 상태. 문서 관련 명령은 자리 표시용(CanExecute false)이고 Task 11~17에서 연결한다.</summary>
 public sealed partial class MainWindowViewModel : ObservableObject
 {
-    private const double MinZoomPercent = 10, MaxZoomPercent = 1600;
+    private const double MinZoomPercent = 1, MaxZoomPercent = 6400;
     private static readonly double ZoomLogSpan = Math.Log(MaxZoomPercent / MinZoomPercent);
     private readonly Dictionary<string, IReadOnlyList<RibbonGroupVm>> _groupCache = new();
     private readonly List<IRelayCommand> _docCommands = [];

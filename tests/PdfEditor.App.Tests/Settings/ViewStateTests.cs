@@ -60,8 +60,8 @@ public class ViewStateTests : PanelTestBase, IDisposable
     [InlineData(2, 1.5, "Continuous", 5, true)]
     [InlineData(5, 1.5, "Continuous", 5, false)]      // 쪽 번호가 범위 밖
     [InlineData(-1, 1.5, "Continuous", 5, false)]
-    [InlineData(2, 99.0, "Continuous", 5, false)]     // 배율이 범위 밖
-    [InlineData(2, 0.01, "Continuous", 5, false)]
+    [InlineData(2, 200.0, "Continuous", 5, false)]     // 배율이 범위 밖
+    [InlineData(2, 0.001, "Continuous", 5, false)]
     [InlineData(2, double.NaN, "Continuous", 5, false)]
     [InlineData(2, 1.5, "Bogus", 5, false)]           // 알 수 없는 보기 방식
     [InlineData(2, 1.5, "SinglePage", 3, false)]      // 저장 때와 쪽 수가 다르면 파일이 바뀐 것으로 보고 무시
