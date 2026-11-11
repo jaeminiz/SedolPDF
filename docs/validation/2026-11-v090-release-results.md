@@ -8,3 +8,15 @@
 
 ## 전체 시험 (`dotnet test PdfEditor.sln -c Release`, 1회)
 904개 중 903 통과, 1 실패: `CommentsPanelPerformanceTests`(시간 의존 시험). 단독 실행하면 통과. 나머지 프로젝트는 전부 통과(TextEdit 266, Document 342, Appearance 279, Pdf.Native 103, Exchange 73, Optimize 58 등).
+
+## 패키지 (0.9.0)
+`build/package.ps1` → `build/package-msix.ps1`(스토어 신원, 서명 없음). 해시는 `artifacts/SHA256SUMS-0.9.0.txt`.
+
+| 파일 | 크기 (바이트) | SHA-256 |
+|---|---|---|
+| `SedolPDF-0.9.0-setup-win-x64.exe` | 47394192 | `9a5c8ac2ab95b4845d37333058971564d8af075b79fa941ea367fc0b49f312e1` |
+| `SedolPDF-0.9.0-portable-win-x64.zip` | 64235094 | `644ef837b73c9ca1671abb11d7b3b0507600108a8ec7086ee07ea1fe538e3e02` |
+| `SedolPDF-0.9.0-win-x64.msix` | 64110679 | `778700d0afd1a85c48e82f2d322be1e26b196f7b8784299427e6a086dbd54164` |
+
+## 미확인
+- 설치본·MSIX를 실제로 설치해 보는 시험은 하지 않았다(손 시험은 개발 빌드로 통과).
