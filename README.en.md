@@ -4,7 +4,7 @@
 
 A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit text, images and shapes directly in one app. Free for personal and commercial use (MIT License).
 
-> **This is an early public release (v0.8.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
+> **This is an early public release (v0.9.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
 
 [![Get it from Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
 
@@ -39,6 +39,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 **Tabs**
 - Right-click a tab for Open containing folder, Copy full path and Close this tab.
 - Multiple windows: File → New Window (Ctrl+Shift+N). Drag a tab out of the window to open it in a new window, or drop it on another window's tab row to move it there (Esc cancels). Move to new window and Move to another window on the tab's right-click menu do the same. Unsaved edits and undo history move with the tab.
+- Copy, cut, paste and duplicate objects (Ctrl+C/X/V/D, right-click menu, within the same document), copy/paste annotations (including area highlight), drag-to-rotate objects (Shift = 15°, angle shown), zoom 1% to 6400%
 
 **Safety**
 - Saving writes a temporary file, verifies it, then replaces the original. Unknown annotation keys are preserved.

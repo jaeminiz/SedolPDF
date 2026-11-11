@@ -31,6 +31,7 @@
 • 탭 오른쪽 클릭 메뉴(폴더 열기, 경로 복사, 닫기), 마우스 휠 버튼으로 화면 이동
 • 여러 창: 파일 → 새 창(Ctrl+Shift+N), 탭을 창 밖으로 끌면 새 창, 다른 창 탭 줄에 놓으면 그 창으로 이동(Esc로 취소), 탭 오른쪽 클릭 메뉴로도 이동
 • 용량 줄여 저장: 목표 용량(MB)을 정하면 이미지를 다시 압축해 새 파일로 저장(메일 첨부용), 못 맞추면 변환 방식을 골라 예상 용량 확인
+• 개체 복사·잘라내기·붙여넣기·복제(Ctrl+C/X/V/D, 오른쪽 클릭 메뉴), 주석 복사·붙여넣기, 개체를 끌어 회전(Shift=15°, 각도 표시), 확대·축소 1%~6400%
 • 주석 요약 PDF 만들기, 주석 가져오기/내보내기(XFDF)
 • 인쇄, 자동 복구
 • Windows 11 디자인(Fluent), 한국어·영어 화면
@@ -38,6 +39,7 @@
 제작: Park Jaemin, Park Sehyeon. MIT 라이선스 오픈소스 — https://github.com/jaeminiz/SedolPDF
 
 **이 버전의 새 기능 (릴리스 노트):**
+0.9.0: 개체 복사·잘라내기·붙여넣기·복제(Ctrl+C/X/V/D와 오른쪽 클릭 메뉴, 같은 문서 안), 주석(영역 강조 포함) 복사·붙여넣기, 개체를 끌어 회전(Shift=15° 단위, 각도 표시), 회전한 쪽에서도 방향키 이동·붙여넣기가 올바르게 동작, 확대·축소 1%~6400%. 고친 문제: 개체를 옮길 때 화면이 잠깐 비던 문제, 크게 확대할 때 보이던 격자선, 영역 강조 아이콘 색.
 0.8.0: 여러 창(파일 → 새 창, Ctrl+Shift+N). 탭을 창 밖으로 끌어 놓으면 새 창이 되고, 다른 창의 탭 줄에 놓으면 그 창으로 옮겨집니다(Esc로 취소). 탭 오른쪽 클릭의 "새 창으로 이동"·"다른 창으로 이동"도 같습니다. 옮겨도 저장 안 한 편집과 실행 취소 기록은 그대로이고, 새 창은 화면 안으로 자리가 보정됩니다.
 0.7.0: 용량 줄여 저장(파일 → 다른 형식으로 저장 → 용량 줄여 저장: 목표 용량을 정하면 이미지를 다시 압축, 흑백 스캔은 JBIG2, 못 맞추면 컬러 이미지·도면용 변환 중에서 예상 용량을 보고 선택, 원본은 바뀌지 않음), 다른 PDF 프로그램이 만든 사각형·타원(/RD 여백)과 타자기 글자 주석도 선택·편집.
 0.6.0: 텍스트 편집 개선(겹쳐 찍은 굵은 글에서 글이 사라지던 문제 해결, 편집 가능한 글 조각 미리 표시, 반투명 제자리 편집 칸, 편집한 글의 굵기·색·크기를 원본에 맞춤), 탭 오른쪽 클릭 메뉴(포함하는 폴더 열기·전체 경로 복사·이 탭 닫기), 속성 패널의 글자 형식(글꼴·크기·색·굵게·기울임·명조) 보기와 바꾸기, 마우스 휠 버튼으로 화면 이동.
@@ -61,13 +63,14 @@ Features
 • Tab right-click menu (open folder, copy path, close); pan with the mouse wheel button
 • Multiple windows: File → New Window (Ctrl+Shift+N); drag a tab out to open a new window, drop it on another window's tab row to move it (Esc cancels); also on the tab right-click menu
 • Save with reduced size: set a target (MB) and images are recompressed into a new file (for email); if it can't be met, pick a conversion with its expected size shown
+• Copy, cut, paste and duplicate objects (Ctrl+C/X/V/D, right-click menu), copy/paste annotations, drag-to-rotate objects (Shift = 15°, angle shown), zoom 1% to 6400%
 • Annotation summary PDF, annotation import/export (XFDF)
 • Printing and auto-recovery
 • Windows 11 Fluent design, Korean and English interface
 
 By Park Jaemin and Park Sehyeon. MIT-licensed open source — https://github.com/jaeminiz/SedolPDF
 
-**Release notes:** 0.8.0 — multiple windows (File → New Window, Ctrl+Shift+N). Drag a tab out of the window to open it in a new window, or drop it on another window's tab row to move it there (Esc cancels); "Move to new window" and "Move to another window" on the tab right-click menu do the same. Unsaved edits and undo history move with the tab, and new windows are repositioned to stay on screen. 0.7.0 — save with reduced size (File → Save in another format → Save with reduced size: set a target size and images are recompressed, black-and-white scans use JBIG2; if the target can't be met, choose between color-image and drawing-mode conversion with expected sizes shown; the original is never changed), and rectangles/ellipses with /RD margins and typewriter text annotations made by other PDF tools can now be selected and edited. 0.6.0 — better text editing (fixes text vanishing from overprinted bold text, editable text pieces previewed, translucent in-place editor, edited text keeps the original weight/color/size), tab right-click menu (open containing folder, copy full path, close tab), text format (font, size, color, bold, italic, serif) in the properties panel, and panning with the mouse wheel button. Core features are usable but still being polished; keep a backup of important files.
+**Release notes:** 0.9.0 — copy, cut, paste and duplicate objects (Ctrl+C/X/V/D and the right-click menu, within the same document), copy/paste annotations (including area highlight), drag objects to rotate them (Shift snaps to 15°, angle shown), correct arrow-key moves and pasting on rotated pages, zoom 1% to 6400%. Fixed: the view briefly going blank while moving an object, faint grid lines at high zoom, and the area-highlight icon color. 0.8.0 — multiple windows (File → New Window, Ctrl+Shift+N). Drag a tab out of the window to open it in a new window, or drop it on another window's tab row to move it there (Esc cancels); "Move to new window" and "Move to another window" on the tab right-click menu do the same. Unsaved edits and undo history move with the tab, and new windows are repositioned to stay on screen. 0.7.0 — save with reduced size (File → Save in another format → Save with reduced size: set a target size and images are recompressed, black-and-white scans use JBIG2; if the target can't be met, choose between color-image and drawing-mode conversion with expected sizes shown; the original is never changed), and rectangles/ellipses with /RD margins and typewriter text annotations made by other PDF tools can now be selected and edited. 0.6.0 — better text editing (fixes text vanishing from overprinted bold text, editable text pieces previewed, translucent in-place editor, edited text keeps the original weight/color/size), tab right-click menu (open containing folder, copy full path, close tab), text format (font, size, color, bold, italic, serif) in the properties panel, and panning with the mouse wheel button. Core features are usable but still being polished; keep a backup of important files.
 
 **Keywords:** PDF, PDF editor, PDF viewer, annotate, highlight, free PDF, open source
 
