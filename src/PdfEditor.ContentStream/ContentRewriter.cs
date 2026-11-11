@@ -107,6 +107,8 @@ public static class ContentRewriter
                     var inv = c.Invert();
                     if (inv is null) return Fail($"object {edit.ObjectIndex}: singular CTM");
                     if (!t.Then.IsFinite) return Fail("non-finite transform");
+                    if (obj.InheritsClip && !ClipIsHarmless(obj, ops, main, t.Then))
+                        return Fail($"object {edit.ObjectIndex}: inherits a clip; cannot transform in place");
                     var x = c.Then(t.Then).Then(inv.Value);
                     if (!x.IsFinite) return Fail("non-finite matrix");
                     string open = $"q {x.ToOperands()} cm ";
@@ -243,6 +245,42 @@ public static class ContentRewriter
             return $"{Latin1S(data, show.Operands[0].Start, show.Operands[0].End)} Tw {Latin1S(data, show.Operands[1].Start, show.Operands[1].End)} Tc T*";
         return " ";
     }
+
+    /// <summary>
+    /// 상속한 잘림이 축에 맞는 사각형이고 객체의 옛 자리와 새 자리가 모두 그 안이면 잘림은 아무 일도 하지 않는다(Quartz가 쪽 전체에 거는 `re W n`이 이 경우).
+    /// 글은 너비를 모르므로 글자 하나를 1em으로 잡은 넉넉한 상자로 본다. 확실하지 않으면 false → 호출한 쪽이 PDFium 경로로 내려간다.
+    /// </summary>
+    private static bool ClipIsHarmless(PageObject obj, List<ContentOp> ops, ContentOp main, Mat then)
+    {
+        if (obj.ClipBox is not { } clip) return false;
+        var corners = new List<(double X, double Y)>();
+        if (obj.Kind == ObjectKind.Text)
+        {
+            if (obj.Text is not { } s || s.FontOp < 0) return false;
+            double fs = ops[s.FontOp].Operands.LastOrDefault(o => o.Kind == OperandKind.Number)?.Number ?? 0;
+            if (fs <= 0) return false;
+            int glyphs = 0;
+            static int Count(Operand o) => o.Kind == OperandKind.String ? o.Bytes.Length : o.Kind == OperandKind.Array ? o.Items.Sum(Count) : 0;
+            foreach (var o in main.Operands) glyphs += Count(o);
+            double w = fs * Math.Max(1, glyphs), bot = -0.3 * fs, top = fs;
+            var m = s.Tm.Then(obj.Ctm);
+            foreach (var (x, y) in new[] { (0.0, bot), (w, bot), (0.0, top), (w, top) }) corners.Add(m.Apply(x, y));
+        }
+        else
+        {
+            if (obj.Bounds is not { } b) return false;
+            corners.Add((b.L, b.B)); corners.Add((b.R, b.B)); corners.Add((b.L, b.T)); corners.Add((b.R, b.T));
+        }
+        foreach (var (x, y) in corners)
+        {
+            var (nx, ny) = then.Apply(x, y);
+            if (!Inside(clip, x, y) || !Inside(clip, nx, ny)) return false;
+        }
+        return true;
+    }
+
+    private static bool Inside(Box c, double x, double y) => x >= c.L && x <= c.R && y >= c.B && y <= c.T;
+
 
     private static void HideText(PageObject obj, ContentOp show, Action<int, string, int> insert)
     {

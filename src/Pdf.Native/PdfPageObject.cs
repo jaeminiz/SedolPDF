@@ -136,7 +136,12 @@ public sealed unsafe class PdfPageObject
     }
 
     /// <summary>쪽 좌표에서 tr을 객체 뒤에 곱한다(옮기기·크기 바꾸기). 객체의 새 행렬 = 원래 × tr.</summary>
-    public void TransformBy(PdfMatrix tr) => Matrix = Matrix.Then(tr);
+    public void TransformBy(PdfMatrix tr)
+    {
+        Matrix = Matrix.Then(tr);
+        // 잘림 경로(re W n)도 같이 옮긴다. 안 옮기면 옮기거나 돌린 글이 제자리 상자에 잘려 일부만 보인다(0.9.0 버그).
+        NativeMethods.FPDFPageObj_TransformClipPath(Handle, tr.A, tr.B, tr.C, tr.D, tr.E, tr.F);
+    }
 
     public PdfRgba? FillColor
     {

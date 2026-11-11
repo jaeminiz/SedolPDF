@@ -243,6 +243,33 @@ public class RewriterTests
             Assert.True(r.Ok, r.Failure);
         }
     }
+
+    [Fact]
+    public void Rewriter_RejectsTransformOfClippedText()
+    {
+        var (pc, seg) = Load("q 100 100 200 20 re W n BT /F1 14 Tf 102 104 Td (Hi) Tj ET Q");   // 옮긴 자리가 잘림 상자 밖
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(500, 0))]);
+        Assert.False(r.Ok);
+        Assert.Contains("inherits a clip", r.Failure);
+    }
+
+    [Fact]
+    public void Rewriter_AllowsTransformInsideWholePageClip()
+    {
+        // Quartz식 쪽 전체 `re W n` 안에서 옮기기 — 잘림이 아무 영향이 없으므로 그대로 고쳐 쓴다
+        var (pc, seg) = Load("q 0 0 400 400 re W n BT /F1 14 Tf 102 104 Td (Hi) Tj ET 20 100 50 50 re f Q");
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(10, 0)), new TransformObject(1, Mat.Translate(10, 0))]);
+        Assert.True(r.Ok, r.Failure);
+    }
+
+    [Fact]
+    public void Rewriter_RejectsTransformThatLeavesTheClipBox()
+    {
+        var (pc, seg) = Load("q 0 0 400 400 re W n 20 100 50 50 re f Q");
+        Assert.False(ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(500, 0))]).Ok);
+        var (pc2, seg2) = Load("q 0 0 400 400 re W n 20 100 m 70 100 l 70 150 l W n 20 100 50 50 re f Q");   // 사각형이 아닌 잘림 = 모름
+        Assert.False(ContentRewriter.Rewrite(pc2, seg2, [new TransformObject(0, Mat.Translate(1, 0))]).Ok);
+    }
 }
 
 public class RewriterPerformanceTests
