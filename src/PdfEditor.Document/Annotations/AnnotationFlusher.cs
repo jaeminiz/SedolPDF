@@ -144,7 +144,8 @@ internal static class AnnotationFlusher
         }
         if (m.Name is not null) SetIfChanged(a, "NM", m.Name);
         else if (!a.HasKey("NM")) a.SetString("NM", Guid.NewGuid().ToString("D"));
-        if (contentsChanged && a.HasKey("RC")) a.SetString("RC", MinimalXhtml(m.Contents!));
+        if (contentsChanged && a.HasKey("RC"))
+            a.SetString("RC", m.Kind == AnnotKind.FreeText ? FreeTextRichText.Rc(m, FreeTextRichText.AppVersion) : MinimalXhtml(m.Contents!));
 
         a.SetAppearance(appearance.BuildContent(m, rotation));
     }
