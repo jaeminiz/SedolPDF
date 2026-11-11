@@ -114,6 +114,31 @@ public class FreeTextTests : IDisposable
         Assert.Single(FontsOfAp(dict).Elements);
     }
 
+    /// <summary>0.10.0: /DA·/DS·/RC를 Acrobat 관례로 쓰고 다시 읽어도 색·글꼴·크기·서식이 같다.</summary>
+    [Fact]
+    public async Task Sedol0100_RoundTrip_KeepsBorderTextColorFamilySizeBold()
+    {
+        await using var s = await OpenBlankAsync();
+        var a = Box(s, new PdfRectF(20, 100, 120, 180), "round trip", x => x with { TextFamily = TextFontFamily.Serif, FontSizePt = 14f, Bold = true });
+        await s.Commands.ExecuteAsync(ChangeAnnotationsCommand.Add(s.Pages[0].Id, a));
+        string target = Path.Combine(_dir, "rt.pdf");
+        await Svc().SaveAsync(s, target);
+
+        using (var doc = PdfReader.Open(target, PdfDocumentOpenMode.Import))
+        {
+            var d = AnnotDict(doc, 0);
+            Assert.Equal("0.898 0.216 0.176 rg 0.898 0.216 0.176 RG /Helv 14 Tf", d.Elements.GetString("/DA"));
+            Assert.Contains("color:#1E5ADC", d.Elements.GetString("/DS"));
+            Assert.Contains("font-weight:bold", d.Elements.GetString("/RC"));
+        }
+        var r = Assert.Single(ReadBack(target)).Data!;
+        Assert.Equal(Red, r.Color);
+        Assert.Equal(Blue, r.TextColor);
+        Assert.Equal(TextFontFamily.Serif, r.TextFamily);
+        Assert.Equal(14f, r.FontSizePt);
+        Assert.True(r.Bold);
+    }
+
     [Fact]
     public async Task Typewriter_RectFitsText()
     {
