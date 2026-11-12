@@ -608,4 +608,72 @@ public class AnnotationReaderTests : IDisposable
         Assert.Equal(ReadOnlyReason.None, r[7].Reason);
         Assert.Equal(ReadOnlyReason.UnsupportedLineFeatures, r[8].Reason);
     }
+
+    // ---- 0.10.0 Task 5: Acrobat식 FreeText(/DS 관례) ----
+
+    private Annotation AcrobatFt(int i)
+    {
+        var p = P("acrobat-ft.pdf");
+        if (!File.Exists(p)) AnnotatedPdfFactory.CreateAcrobatFreeTexts(p);
+        var a = AnnotationReader.Read(File.ReadAllBytes(p), null, [0])[0][i];
+        Assert.NotNull(a.Data);
+        return a.Data!;
+    }
+
+    [Fact]
+    public void TankTableShape()
+    {
+        var a = AcrobatFt(0);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);
+        Assert.Equal(new PdfColor(255, 255, 255), a.FillColor);
+        Assert.Equal(new PdfColor(255, 0, 0), a.TextColor);
+        Assert.Equal(TextFontFamily.Serif, a.TextFamily);
+        Assert.Equal(12f, a.FontSizePt);
+    }
+
+    [Fact]
+    public void H3368Shape()
+    {
+        var a = AcrobatFt(1);
+        Assert.Equal(new PdfColor(255, 255, 255), a.Color);
+        Assert.Equal(new PdfColor(255, 0, 0), a.TextColor);
+        Assert.Equal(TextFontFamily.Sans, a.TextFamily);
+    }
+
+    [Fact]
+    public void J001Shape()
+    {
+        var a = AcrobatFt(2);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);
+        Assert.Equal(new PdfColor(0, 0, 0), a.TextColor);
+    }
+
+    [Fact]
+    public void AcrobatUtf16Ds()
+    {
+        var a = AcrobatFt(3);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);
+        Assert.Equal(new PdfColor(0, 0, 0), a.TextColor);
+        Assert.Equal(20f, a.FontSizePt);
+        Assert.Equal(TextFontFamily.Sans, a.TextFamily);
+    }
+
+    [Fact]
+    public void AcrobatResaved_RcWinsOverDs()
+    {
+        var a = AcrobatFt(5);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);       // 테두리 = /DA RG
+        Assert.Equal(new PdfColor(0, 0, 0), a.TextColor);     // 글자 = /RC body (DS 빨강이 아님)
+        Assert.Equal(20f, a.FontSizePt);
+        Assert.Equal(TextFontFamily.Sans, a.TextFamily);
+    }
+
+    [Fact]
+    public void Sedol090Shape_Unchanged()
+    {
+        var a = AcrobatFt(4);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);
+        Assert.Equal(new PdfColor(0, 0, 0), a.TextColor);
+        Assert.Equal(20f, a.FontSizePt);
+    }
 }

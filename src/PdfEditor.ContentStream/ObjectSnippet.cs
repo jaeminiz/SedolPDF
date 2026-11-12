@@ -19,7 +19,8 @@ public static class ObjectSnippet
 {
     private static readonly HashSet<string> StandardColorSpaces = ["DeviceGray", "DeviceRGB", "DeviceCMYK", "Pattern", "G", "RGB", "CMYK", "I", "Indexed"];
 
-    public static SnippetResult Extract(ParsedContent pc, Segmentation seg, int objectIndex, Mat then, (double R, double G, double B)? textColor = null)
+    /// <param name="withClip">참이면 객체가 상속한 잘림 경로도 같은 then으로 옮겨 함께 건다(0.10.0: 잘린 객체를 제자리에서 돌릴 때). 거짓이면 잘림 없이 꺼낸다(개체 복사).</param>
+    public static SnippetResult Extract(ParsedContent pc, Segmentation seg, int objectIndex, Mat then, (double R, double G, double B)? textColor = null, bool withClip = false)
     {
         if (!pc.Ok) return Fail("content not parsed: " + pc.Failure);
         if (!seg.Ok) return Fail("segmentation failed: " + seg.Failure);
@@ -30,7 +31,13 @@ public static class ObjectSnippet
         var data = pc.Data; var ops = pc.Ops;
         var main = ops[obj.OpIndex];
         var uses = new List<ResourceUse>();
-        string open = $"q {then.ToOperands()} cm {obj.Ctm.ToOperands()} cm ";
+        string clip = "";
+        if (withClip && obj.InheritsClip)
+        {
+            if (obj.ClipSource is not { } cs) return Fail($"object {objectIndex}: clip cannot be rewritten");
+            clip = string.Join(' ', cs.Paths) + " ";
+        }
+        string open = $"q {then.ToOperands()} cm {clip}{obj.Ctm.ToOperands()} cm ";
 
         string content;
         switch (obj.Kind)

@@ -625,6 +625,8 @@ Esc: cancel the current action · Delete: delete the selected object or annotati
   <data name="Prop_Para_Title" xml:space="preserve"><value>Paragraph box</value></data>
   <data name="Prop_Para_Width" xml:space="preserve"><value>Box width (mm)</value></data>
   <data name="Msg_ParagraphHiddenText" xml:space="preserve"><value>Part of the old paragraph text could not be removed from the file completely and was left as invisible text. Searching or copying may still find the old text.</value></data>
+  <data name="Msg_PagesRepaired" xml:space="preserve"><value>Fixed the drawing order on page(s) {0} (damage left by saves from older versions). Reopen the file to see the fixed pages.</value></data>
+  <data name="Btn_Reopen" xml:space="preserve"><value>Reopen</value></data>
   <data name="Msg_ParagraphCommitFailed" xml:space="preserve"><value>The paragraph could not be changed. The document was not modified.</value></data>
   <data name="Panel_Replace" xml:space="preserve"><value>Find and Replace</value></data>
   <data name="Panel_Close" xml:space="preserve"><value>Close panel</value></data>

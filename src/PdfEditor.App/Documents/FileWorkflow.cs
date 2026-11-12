@@ -45,6 +45,8 @@ public interface IUserPrompts
     Task<MoveTarget?> AskMoveTargetAsync(int pageCount, int movingCount);
     /// <summary>병합 대화상자(순서 바꾸기·빼기). 취소하면 null, 확인하면 병합할 순서의 경로 목록.</summary>
     Task<IReadOnlyList<string>?> AskMergeFilesAsync(IReadOnlyList<string> paths);
+    /// <summary>저장하면서 망가진 쪽을 고쳤음을 알린다(pageList: "4, 7"). 다시 열기를 고르면 true, 닫으면 false (0.10.0).</summary>
+    Task<bool> AskReopenAfterRepairAsync(string pageList);
 }
 
 /// <summary>열기·저장·닫기 흐름. UI 스레드에서 부르고, 사용자에게 묻는 일은 IUserPrompts로 한다.</summary>
@@ -63,6 +65,11 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
     public event Action<DocumentSession>? Saved;
     /// <summary>탭을 정상적으로 닫아 세션이 목록에서 빠질 때.</summary>
     public event Action<DocumentSession>? Released;
+    /// <summary>저장하면서 고친 쪽이 있어 사용자가 "다시 열기"를 골랐을 때. 창이 같은 파일을 같은 탭에서 다시 연다(0.10.0).</summary>
+    public event Action<DocumentSession>? ReopenRequested;
+
+    /// <summary>0부터 센 쪽 번호 목록 → "4, 7"(1부터, 작은 것부터).</summary>
+    public static string FormatPageList(IReadOnlyList<int> zeroBased) => string.Join(", ", zeroBased.Distinct().OrderBy(i => i).Select(i => i + 1));
 
     /// <summary>열린 세션의 복사본. UI 스레드에서 부른다.</summary>
     public IReadOnlyList<DocumentSession> OpenSessions => _open.ToList();
@@ -205,6 +212,13 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         if (save.LastHiddenTextCount > 0)
         {
             try { await prompts.ShowInfoAsync(Strings.Msg_ParagraphHiddenText).ConfigureAwait(true); } catch (Exception) { }
+        }
+        // 이전 버전 저장으로 망가진 쪽을 고쳤으면 알린다(0.10.0). 화면의 문서는 그대로라 다시 열어야 고친 모양이 보인다.
+        if (save.LastRepairedPages.Count > 0)
+        {
+            bool reopen = false;
+            try { reopen = await prompts.AskReopenAfterRepairAsync(FormatPageList(save.LastRepairedPages)).ConfigureAwait(true); } catch (Exception) { }
+            if (reopen) ReopenRequested?.Invoke(s);
         }
         return true;
     }

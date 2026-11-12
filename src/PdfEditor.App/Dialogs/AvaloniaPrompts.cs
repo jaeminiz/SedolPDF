@@ -136,6 +136,13 @@ public sealed class AvaloniaPrompts(Func<Window> owner) : IUserPrompts
         await new MessageDialog(Strings.Dlg_XfdfDetailsTitle, text, [Strings.Dlg_Ok]).ShowDialog(owner());
     }
 
+    public async Task<bool> AskReopenAfterRepairAsync(string pageList)
+    {
+        var dlg = new MessageDialog(Strings.Dlg_InfoTitle, string.Format(Strings.Msg_PagesRepaired, pageList), [Strings.Btn_Reopen, Strings.Dlg_Ok]);
+        await dlg.ShowDialog(owner());
+        return dlg.Result == 0;
+    }
+
     public Task ShowErrorAsync(string message)
         => new MessageDialog(Strings.Dlg_ErrorTitle, message, [Strings.Dlg_Ok]).ShowDialog(owner());
 

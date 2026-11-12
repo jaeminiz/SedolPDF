@@ -133,7 +133,7 @@ public sealed partial class DocumentView
         if (tool == ToolKind.AnnotSelect)
         {
             var annots = st.Session.Annotations.Get(info.Id);
-            var h = tab.Editing.HitTest(annots, tab.Selection, pt, ptPerDip);
+            var h = tab.Editing.HitTest(annots, tab.Selection, pt, ptPerDip, g.Rotation);
             if (h is null)
             {
                 // 이미 고른 객체(편집 탭으로 넣은 도형·이미지·텍스트)의 몸통·손잡이를 누르면 그대로 끈다
@@ -168,7 +168,7 @@ public sealed partial class DocumentView
                 return true;
             }
             // 고른 주석을 끌면 함께 고른 객체도 같은 양만큼 옮긴다. 고르지 않은 주석을 누르면 객체 선택은 푼다.
-            bool withObjects = tab.CanEditContent && tab.Objects.Selected is { } so && so.Page == info.Id && tab.Selection.Ids.Contains(h.Id);
+            bool withObjects = h.Handle != HandleKind.Rotate && tab.CanEditContent && tab.Objects.Selected is { } so && so.Page == info.Id && tab.Selection.Ids.Contains(h.Id);
             if (!withObjects) tab.Objects.Clear();
             tab.Editing.Begin(annots, tab.Selection, h, pt, PdfRectF.FromLtrbRectangle(g.Bounds), ptPerDip);
             StartGesture(e.Pointer, Gesture.Select, hit.Page, info.Id, g);
@@ -241,7 +241,7 @@ public sealed partial class DocumentView
         if (_gesture == Gesture.None || _state is not { } st) return;
         if (GesturePoint(e) is not { } pt) { CancelGesture(); return; }
         if (_gesture == Gesture.Marquee) { _mqEnd = pt; InvalidateVisual(); return; }
-        if (_gesture == Gesture.Select) st.Tab.Editing.Move(pt); else st.Tab.Tools.Move(pt, shift);
+        if (_gesture == Gesture.Select) st.Tab.Editing.Move(pt, shift); else st.Tab.Tools.Move(pt, shift);
         PushPreview();
     }
 
@@ -366,7 +366,7 @@ public sealed partial class DocumentView
         var tab = st.Tab;
         if (kind == Gesture.Marquee) { FinishMarquee(st, _gPageId); return true; }
         bool shift = (e.KeyModifiers & KeyModifiers.Shift) != 0;
-        var cmd = kind == Gesture.Select ? tab.Editing.End(p) : tab.Tools.End(p, shift);
+        var cmd = kind == Gesture.Select ? tab.Editing.End(p, shift) : tab.Tools.End(p, shift);
         if (cmd is null)
         {
             if (_polyActive && tab.Tools.IsCollectingPoints) PushPreview();   // 점을 계속 모은다
@@ -484,7 +484,7 @@ public sealed partial class DocumentView
             || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
         var action = st.Tab.EscapePressed(viewDrawing, editorFocused);
         if (action == EscapeAction.None) return false;
-        if (action == EscapeAction.CancelDrawing) { CancelGesture(); st.Tab.Objects.CancelDrag(); }
+        if (action == EscapeAction.CancelDrawing) { CancelGesture(); st.Tab.Objects.CancelDrag(); DropDragImage(); }
         InvalidateVisual();
         e.Handled = true;
         return true;
@@ -546,6 +546,48 @@ public sealed partial class DocumentView
                 ctx.DrawRectangle(Brushes.White, new Pen(SelAccent, 1),
                     new Rect(pr.X + c.X - h / 2, pr.Y + c.Y - h / 2, h, h));
             }
+        }
+        DrawAnnotationRotation(ctx, st, sel, annots, tr, g, pr, scale, pen);
+    }
+
+    /// <summary>
+    /// 주석 회전 손잡이(0.10.0): 돌릴 수 있는 주석만 고른 선택의 경계 위쪽에 객체 회전과 같은 손잡이를 그린다.
+    /// 끄는 동안은 부채꼴·각도 라벨을 보이고, 90° 단위로만 도는 주석은 몸이 기울 수 없으므로 돌아가는 모양의 점선 상자로 보여 준다.
+    /// </summary>
+    private void DrawAnnotationRotation(DrawingContext ctx, ViewState st, AnnotationSelection sel, PageAnnotations annots, PageTransform tr, PageGeom g, Rect pr, double scale, Pen pen)
+    {
+        if (SelectionController.RotatableBounds(annots, sel) is not { } gb) return;
+        var ed = st.Tab.Editing;
+        float ptPerDip = (float)(1.0 / scale);
+        Point ToV(float x, float y) { var v = tr.ToView(x, y); return new Point(pr.X + v.X, pr.Y + v.Y); }
+        if (ed.IsRotating)
+        {
+            var c = ed.RotationCenter;
+            var center = ToV(c.X, c.Y);
+            var edge0 = PdfEditor.App.Viewer.Objects.ObjectSelectionController.RotateHandlePos(gb, g.Rotation, ptPerDip);
+            var e0 = ToV(edge0.X, edge0.Y);
+            double radius = Math.Max(24, Math.Sqrt((e0.X - center.X) * (e0.X - center.X) + (e0.Y - center.Y) * (e0.Y - center.Y)));
+            float a0 = ed.RotationStartAngle, sweep = ed.RotationPreview;
+            if (ed.RotationHasQuarterKinds)
+            {
+                var m = PdfEditor.App.Viewer.Objects.ObjectSelectionController.RotateAbout(sweep, c.X, c.Y);
+                foreach (var id in sel.Ids)
+                {
+                    if (annots.Items.FirstOrDefault(v => v.Data.Id == id)?.Data is not { } a || !AnnotationRotate.SnapsToQuarter(a)) continue;
+                    var r = AnnotationGeometry.ComputeRect(a);
+                    var cs = new[] { new PdfPointF(r.Left, r.Bottom), new PdfPointF(r.Right, r.Bottom), new PdfPointF(r.Right, r.Top), new PdfPointF(r.Left, r.Top) }
+                        .Select(q => { var t = m.Apply(q); return ToV(t.X, t.Y); }).ToArray();
+                    for (int i = 0; i < 4; i++) ctx.DrawLine(pen, cs[i], cs[(i + 1) % 4]);
+                }
+            }
+            RotationGizmo.DrawSweep(ctx, center, radius, RotationGizmo.ArcPoint(ToV, c.X, c.Y, center, radius), a0, sweep,
+                SelectionController.RotationLabel(sweep, ed.RotationHasQuarterKinds));
+        }
+        else if (_gesture == Gesture.None)
+        {
+            var hp = PdfEditor.App.Viewer.Objects.ObjectSelectionController.RotateHandlePos(gb, g.Rotation, ptPerDip);
+            var ep = PdfEditor.App.Viewer.Objects.ObjectSelectionController.RotateHandlePos(gb, g.Rotation, 0);
+            RotationGizmo.DrawHandle(ctx, ToV(ep.X, ep.Y), ToV(hp.X, hp.Y));
         }
     }
 

@@ -348,4 +348,37 @@ public static class AnnotatedPdfFactory
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         doc.Save(path);
     }
+
+    /// <summary>
+    /// 0.10.0 Task 5: Acrobat·PDF-XChange가 쓴 FreeText 모양(/DS 관례)과 0.9.0 모양. /Annots 순서:
+    /// [0] TANK TABLE (23) 모양, [1] TANK TABLE_H3368 모양, [2] J001B005_ODME_POS 모양, [3] Acrobat XI가 한글 /DS·/RC를 UTF-16으로 쓴 모양, [4] 0.9.0 모양(/DS 없음).
+    /// </summary>
+    public static void CreateAcrobatFreeTexts(string path)
+    {
+        using var doc = NewDoc(out var page);
+        PdfDictionary Ft(double top, string da, string? ds, string? rc = null)
+        {
+            var a = Annot(doc, "FreeText", 100, top - 40, 300, top, "0 g 100 100 10 10 re S");
+            a.Elements["/Contents"] = new PdfString("text", PdfStringEncoding.Unicode);
+            a.Elements["/DA"] = new PdfString(da);
+            if (ds is not null) a.Elements["/DS"] = new PdfString(ds, PdfStringEncoding.Unicode);
+            if (rc is not null) a.Elements["/RC"] = new PdfString(rc, PdfStringEncoding.Unicode);
+            return a;
+        }
+        var tank = Ft(800, "1 0 0 rg /AdobeMyungjoStd-Medium 12 Tf", "font: 500 'Adobe Myungjo Std',serif 12.0pt; text-align:left; color:#FF0000 ");
+        tank.Elements["/C"] = Nums(doc, 1, 1, 1);
+        var h3368 = Ft(700, " 1 1 1 rg /Malgun 12 Tf", "font: 500 'Malgun',sans-serif 12.0pt; text-align:left; color:#FF0000 ");
+        h3368.Elements["/BS"] = Dict(doc, ("/W", new PdfInteger(1)), ("/S", new PdfName("/S")));
+        var j001 = Ft(600, "1 0 0 rg /F1 12 Tf", "font: 'Arial',sans-serif 12.0pt; text-align:left; color:#000000 ");
+        var utf16 = Ft(500, "1 0 0 RG 1 0 0 rg 0 Tc 0 Tw 100 Tz 0 TL 0 Ts 0 Tr /MalgunGothic 20 Tf",
+            "font: '맑은 고딕',sans-serif 20.0pt; text-align:left; color:#000000 ",
+            "<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\" style=\"font-size:20.0pt;text-align:left;color:#000000;font-weight:400;font-style:normal\"><p dir=\"ltr\"><span style=\"font-size:20.0pt\">한글</span></p></body>");
+        var old = Ft(400, "0 0 0 rg 1 0 0 RG /Helv 20 Tf", null);
+        // [5] Acrobat XI 11.0.23이 사용자가 바꾼 뒤 다시 저장한 실제 값: /DS는 처음 값(빨강), /RC가 지금 값(검정), 글꼴은 span에.
+        var resaved = Ft(300, "1 0 0 RG 1 0 0 rg 0 Tc 0 Tw 100 Tz 0 TL 0 Ts 0 Tr /MalgunGothic 20 Tf",
+            "font: '맑은 고딕',sans-serif 20.0pt; text-align:left; color:#FF0000 ",
+            "<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\" style=\"font-size:20.0pt;text-align:left;color:#000000;font-weight:400;font-style:normal\"><p dir=\"ltr\"><span style=\"font-family:'맑은 고딕'\">한글</span></p></body>");
+        SetAnnots(doc, page, [tank, h3368, j001, utf16, old, resaved]);
+        Save(doc, path);
+    }
 }

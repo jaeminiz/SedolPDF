@@ -35,6 +35,31 @@ public static class PageContent
         catch (Exception e) { return new Loaded(null, "contents:" + e.GetType().Name); }
     }
 
+    public sealed record LoadedStreams(IReadOnlyList<byte[]>? Streams, string? Failure);
+
+    /// <summary><see cref="Load"/>와 같지만 스트림을 잇지 않고 따로 돌려준다(스트림별 고치기, ContentRepair.RepairStreams).</summary>
+    public static LoadedStreams LoadStreams(PdfPage page)
+    {
+        try
+        {
+            var item = Resolve(page.Elements["/Contents"]);
+            if (item is null) return new LoadedStreams([], null);
+            var list = new List<byte[]>();
+            if (item is PdfArray arr)
+            {
+                foreach (var e in arr.Elements)
+                {
+                    if (Resolve(e) is not PdfDictionary d || d.Stream is null) return new LoadedStreams(null, "contents element is not a stream");
+                    list.Add(d.Stream.UnfilteredValue);
+                }
+            }
+            else if (item is PdfDictionary single && single.Stream is not null) list.Add(single.Stream.UnfilteredValue);
+            else return new LoadedStreams(null, "contents is not a stream");
+            return new LoadedStreams(list, null);
+        }
+        catch (Exception e) { return new LoadedStreams(null, "contents:" + e.GetType().Name); }
+    }
+
     /// <summary>Do 연산자의 XObject 이름 → 종류(이미지/폼) 해석기. 쪽 /Resources /XObject에서 찾는다.</summary>
     public static Func<string, XObjectInfo?> XObjectResolver(PdfPage page)
     {

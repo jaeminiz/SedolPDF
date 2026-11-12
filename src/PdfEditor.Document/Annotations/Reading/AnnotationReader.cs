@@ -267,7 +267,7 @@ public static class AnnotationReader
             {
                 // FreeText의 /C는 배경, 테두리 색은 /DA의 RG(다른 편집기 관례). /IC가 있으면 이전 SedolPDF가 쓴 파일(/C = 테두리, /IC = 배경)이다.
                 fill = color;
-                color = ft.Stroke ?? (ReadBorderWidth(e, bs) > 0 ? PdfColor.FromHex("#000000") : null);
+                color = ReadBorderWidth(e, bs) > 0 ? ft.Stroke ?? PdfColor.FromHex("#000000") : ft.HasDs ? null : ft.Stroke;
             }
 
             var shape = kind is AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon ? ReadShape(e, kind.Value) : null;
@@ -400,6 +400,7 @@ public static class AnnotationReader
     private sealed record FreeTextData(
         ReadOnlyReason Failure, PdfRectF Rect, FreeTextIntent Intent, PdfRectF? TextBox, ImmutableArray<PdfPointF> Vertices,
         LineEnding EndEnding, float FontSizePt, PdfColor? TextColor, TextAlign Align, PdfColor? Stroke = null, int Rotation = 0,
+        bool HasDs = false,
         ImmutableArray<PdfPointF> Leader2 = default, TextFontFamily Family = TextFontFamily.Sans, int Fmt = 0);
 
     /// <summary>FreeText 전용 값: /IT, /DA, /Q, /CL, /RD, /LE. 지원하지 않는 /IT·/LE는 UnsupportedType, 모양이 망가진 /CL은 Malformed.</summary>
@@ -415,9 +416,25 @@ public static class AnnotationReader
         else if (it == "/FreeTextCallout") intent = FreeTextIntent.Callout;
         else return Bad(ReadOnlyReason.UnsupportedType);
 
-        var (size, color, stroke) = DefaultAppearance.Parse(Str(e, "/DA"));
+        var (size, color, stroke, daFont) = DefaultAppearance.Parse(Str(e, "/DA"));
+        // /DS가 있으면 Acrobat·PDF-XChange 관례(0.10.0): /DA의 RG(없으면 rg)가 테두리 색, 글자 색은 /DS의 color(없으면 /RC body, /DA rg).
+        string? ds = Str(e, "/DS");
+        bool hasDs = !string.IsNullOrWhiteSpace(ds);
+        float? dsSize = null; string? dsFamily = null, rcFamily = null;
+        if (hasDs)
+        {
+            var (dsz, dsColor, dsFam) = DefaultStyle.Parse(ds);
+            string? rc = Str(e, "/RC");
+            var (_, bodyColor, bodyFam) = DefaultStyle.Parse(RcStyle(rc, "body"));
+            var (_, spanColor, spanFam) = DefaultStyle.Parse(RcStyle(rc, "span"));
+            dsSize = dsz;
+            // Acrobat은 사용자가 바꾼 글자 색·글꼴을 /RC에 쓰고 /DS는 처음 값으로 남긴다(실측: /DS 빨강, /RC 검정) → /RC가 먼저.
+            dsFamily = bodyFam ?? spanFam ?? dsFam; rcFamily = null;
+            stroke ??= color;
+            color = bodyColor ?? spanColor ?? dsColor ?? color;
+        }
         int rotation = AnnotationRotation.Quarter(Int(e, "/Rotate") ?? 0) * 90;
-        float fontSize = size is > 0f ? size.Value : 12f;   // 0 = 자동 크기: 12로 둔다
+        float fontSize = size is > 0f ? size.Value : dsSize is > 0f ? dsSize.Value : 12f;   // 0 = 자동 크기: /DS의 크기, 그것도 없으면 12
         int q = Int(e, "/Q") ?? 0;
         var align = q == 1 ? TextAlign.Center : q == 2 ? TextAlign.Right : TextAlign.Left;
 
@@ -465,14 +482,23 @@ public static class AnnotationReader
         }
 
         // 글자 서식(0.5.0, 비표준 키): 모르는 값은 기본으로 본다.
-        var family = TextFormat.FamilyFromName(e.GetName("/SedolFont"));
+        var family = e.GetName("/SedolFont") is { Length: > 0 } sf ? TextFormat.FamilyFromName(sf)
+            : hasDs ? DefaultStyle.FamilyOf(dsFamily, rcFamily, daFont) : TextFormat.FamilyFromName(null);
         int fmt = TextFormat.Sanitize(Int(e, "/SedolFmt") ?? 0);
 
 
         // 설명선은 Rect 전체(지시선 포함)와 글 상자를 따로 갖는다. 나머지는 안쪽 상자가 곧 Rect다.
         return intent == FreeTextIntent.Callout
-            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, leader2, Family: family, Fmt: fmt)
-            : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation, Family: family, Fmt: fmt);
+            ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, hasDs, leader2, Family: family, Fmt: fmt)
+            : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation, hasDs, Family: family, Fmt: fmt);
+    }
+
+    /// <summary>/RC(서식 있는 글)에서 처음 나오는 `&lt;body|span style="…"&gt;`의 style 값. 없거나 해석할 수 없으면 null.</summary>
+    private static string? RcStyle(string? rc, string tag)
+    {
+        if (string.IsNullOrEmpty(rc)) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(rc, @"<" + tag + @"\b[^>]*?\bstyle\s*=\s*(?:""([^""]*)""|'([^']*)')", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? System.Net.WebUtility.HtmlDecode(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value) : null;
     }
 
     private static PdfItem? Resolve(PdfItem? item)

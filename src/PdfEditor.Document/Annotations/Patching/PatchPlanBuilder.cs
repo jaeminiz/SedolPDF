@@ -424,11 +424,11 @@ public static class PatchPlanBuilder
 
         string contents = m.Contents ?? "";
         ops.Add(new SetString("/Contents", contents));
-        var tc = m.TextColor ?? new PdfColor(0, 0, 0);
-        // 테두리 색은 /DA의 RG로 쓴다. FreeText의 /C는 다른 편집기(Acrobat·PDF-XChange 등)가 배경색으로 읽는다(2026-10-20 버그:
-        // 다른 편집기에서 고치면 배경이 테두리 색으로 채워짐). 관례 출처: pypdf FreeText(/DA = 테두리 RG, /C = 배경).
-        string borderDa = m.Color is { } bc ? $" {N(bc.R / 255f)} {N(bc.G / 255f)} {N(bc.B / 255f)} RG" : "";
-        ops.Add(new SetString("/DA", $"{N(tc.R / 255f)} {N(tc.G / 255f)} {N(tc.B / 255f)} rg{borderDa} /Helv {N(m.FontSizePt)} Tf"));
+        // Acrobat·PDF-XChange 관례(0.10.0, Acrobat XI 11.0.23에서 확인): /DS가 있으면 /DA의 rg가 테두리 색이다.
+        // 글자 색·크기·글꼴은 /DS와 서식 있는 /RC가 정한다. 옛 방식(rg=글자색)은 Acrobat이 테두리를 검게 하고 크기를 12pt로 되돌렸다.
+        // FreeText의 /C는 다른 편집기가 배경색으로 읽는다(2026-10-20 버그: 테두리 색으로 채워짐) — 테두리는 /DA에 둔다.
+        ops.Add(new SetString("/DA", FreeTextRichText.Da(m)));
+        ops.Add(new SetString("/DS", FreeTextRichText.Ds(m)));
         ops.Add(new SetInteger("/Q", (int)m.Align));
         // 글자 서식(0.5.0): 비표준 키. 기본 서식이면 키를 지운다(이전 파일과 같은 출력).
         ops.Add(m.TextFamily != TextFontFamily.Sans ? new SetName("/SedolFont", "/" + TextFormat.FamilyName(m.TextFamily)) : new RemoveKeys(["/SedolFont"]));
@@ -468,7 +468,7 @@ public static class PatchPlanBuilder
         ops.Add(new RemoveKeys(["/IC"]));
         AddRotate(ops, m);
 
-        ops.Add(new SetString("/RC", AnnotationFlusher.MinimalXhtml(contents)));
+        ops.Add(new SetString("/RC", FreeTextRichText.Rc(m, FreeTextRichText.AppVersion)));
         if (m.Author is not null) ops.Add(new SetString("/T", m.Author));
         if (m.Subject is not null) ops.Add(new SetString("/Subj", m.Subject));
         if (m.ModifiedAt is { } mod) ops.Add(new SetString("/M", PdfDate.Format(mod)));

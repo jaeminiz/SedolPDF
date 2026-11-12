@@ -110,4 +110,21 @@ public class SegmenterTests
         var s = Seg("Q Q 0 0 5 5 re f q q 0 0 1 1 re f");
         Assert.Equal("PP", Kinds(s));
     }
+
+    [Fact]
+    public void Segmenter_MarksInheritedClip()
+    {
+        var s = Seg("q 100 100 200 20 re W n BT /F1 14 Tf 102 104 Td (Hi) Tj ET Q " +
+                    "q BT /F1 14 Tf 102 400 Td (Hi) Tj ET Q " +
+                    "q 0 0 50 50 re W 0 0 m 10 10 l S Q " +                          // 자기 클립만
+                    "q 0 0 50 50 re W n 0 0 m 10 10 l S Q");                         // 바깥 클립 + 선
+        Assert.Equal("TTPP", Kinds(s));
+        Assert.True(s.Objects[0].InheritsClip);
+        Assert.False(s.Objects[1].InheritsClip);
+        Assert.True(s.Objects[2].HasOwnClip);
+        Assert.False(s.Objects[2].InheritsClip);
+        Assert.True(s.Objects[3].InheritsClip);
+        Assert.Equal(new Box(0, 0, 50, 50), s.Objects[3].ClipBox);
+        Assert.Equal(new Box(100, 100, 300, 120), s.Objects[0].ClipBox);
+    }
 }

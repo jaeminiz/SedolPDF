@@ -107,6 +107,14 @@ public static class ContentRewriter
                     var inv = c.Invert();
                     if (inv is null) return Fail($"object {edit.ObjectIndex}: singular CTM");
                     if (!t.Then.IsFinite) return Fail("non-finite transform");
+                    if (obj.InheritsClip && !ClipIsHarmless(obj, ops, main, t.Then))
+                    {
+                        // 잘림이 따라 움직여야 하므로 바깥 q에서 빼낸다: 원본은 제자리에서 숨기고, 옮긴 잘림 + 옮긴 객체를 잘림이 풀리는 곳(그 q의 Q 바로 뒤)에 다시 그린다.
+                        string? why = RedrawOutsideClip(pc, seg, edit.ObjectIndex, t.Then, Insert, Replace, out bool isText);
+                        if (why is not null) return Fail(why);
+                        if (isText) textCopies++;
+                        break;
+                    }
                     var x = c.Then(t.Then).Then(inv.Value);
                     if (!x.IsFinite) return Fail("non-finite matrix");
                     string open = $"q {x.ToOperands()} cm ";
@@ -242,6 +250,139 @@ public static class ContentRewriter
         if (show.Name == "\"" && show.Operands.Count >= 3)
             return $"{Latin1S(data, show.Operands[0].Start, show.Operands[0].End)} Tw {Latin1S(data, show.Operands[1].Start, show.Operands[1].End)} Tc T*";
         return " ";
+    }
+
+    /// <summary>
+    /// 상속한 잘림이 축에 맞는 사각형이고 객체의 옛 자리와 새 자리가 모두 그 안이면 잘림은 아무 일도 하지 않는다(Quartz가 쪽 전체에 거는 `re W n`이 이 경우).
+    /// 글은 너비를 모르므로 글자 하나를 1em으로 잡은 넉넉한 상자로 본다. 확실하지 않으면 false → 호출한 쪽이 PDFium 경로로 내려간다.
+    /// </summary>
+    private static bool ClipIsHarmless(PageObject obj, List<ContentOp> ops, ContentOp main, Mat then)
+    {
+        if (obj.ClipBox is not { } clip) return false;
+        var corners = new List<(double X, double Y)>();
+        if (obj.Kind == ObjectKind.Text)
+        {
+            if (obj.Text is not { } s || s.FontOp < 0) return false;
+            double fs = ops[s.FontOp].Operands.LastOrDefault(o => o.Kind == OperandKind.Number)?.Number ?? 0;
+            if (fs <= 0) return false;
+            int glyphs = 0;
+            static int Count(Operand o) => o.Kind == OperandKind.String ? o.Bytes.Length : o.Kind == OperandKind.Array ? o.Items.Sum(Count) : 0;
+            foreach (var o in main.Operands) glyphs += Count(o);
+            double w = fs * Math.Max(1, glyphs), bot = -0.3 * fs, top = fs;
+            var m = s.Tm.Then(obj.Ctm);
+            foreach (var (x, y) in new[] { (0.0, bot), (w, bot), (0.0, top), (w, top) }) corners.Add(m.Apply(x, y));
+        }
+        else
+        {
+            if (obj.Bounds is not { } b) return false;
+            corners.Add((b.L, b.B)); corners.Add((b.R, b.B)); corners.Add((b.L, b.T)); corners.Add((b.R, b.T));
+        }
+        foreach (var (x, y) in corners)
+        {
+            var (nx, ny) = then.Apply(x, y);
+            if (!Inside(clip, x, y) || !Inside(clip, nx, ny)) return false;
+        }
+        return true;
+    }
+
+    private static bool Inside(Box c, double x, double y) => x >= c.L && x <= c.R && y >= c.B && y <= c.T;
+
+
+    /// <summary>
+    /// 상속한 잘림이 있는 객체를 옮길 때: 원본을 제자리에서 지우고(경로 `n`, 글 보이지 않게, 그 밖에는 빈칸 — 객체 수는 그대로 한 개 빠지고 한 개 느는 셈),
+    /// 잘림 경로와 객체를 같은 변환으로 옮겨 잘림이 풀리는 곳에 다시 그린다. 그려지는 차례는 같은 잘림 묶음의 뒤쪽 객체들보다 뒤로 밀릴 뿐이다.
+    /// 실패하면 이유를, 성공하면 null. isText는 글 사본이 하나 늘었는지(객체 수 점검용).
+    /// </summary>
+    private static string? RedrawOutsideClip(ParsedContent pc, Segmentation seg, int index, Mat then, Action<int, string, int> insert, Action<int, int, string> replace, out bool isText)
+    {
+        isText = false;
+        var obj = seg.Objects[index];
+        var ops = pc.Ops;
+        var main = ops[obj.OpIndex];
+        if (obj.ClipSource is not { } cs) return $"object {index}: inherits a clip; cannot transform in place";
+        var snip = ObjectSnippet.Extract(pc, seg, index, then, withClip: true);
+        if (!snip.Ok) return snip.Failure;
+
+        // 그리는 차례를 지키는 길(글 제외): 객체 자리에서 q를 잘림이 걸린 곳 바깥까지 닫고, 옮긴 객체를 그린 뒤, 그 q들을 상태 연산자만 다시 보내 열어 둔다.
+        // 뒤따르는 원본 연산자는 같은 그림 상태를 그대로 이어받는다. 앞 연산자가 너무 많으면(제곱 비용) 아래 "잘림 묶음 뒤" 길로 간다.
+        if (obj.Kind != ObjectKind.Text && cs.ClipDepth > 0)
+        {
+            int qIdx = -1, cur = cs.ObjectDepth;
+            for (int j = obj.FirstOpIndex - 1; j >= 0 && obj.FirstOpIndex - j <= MaxReplayOps; j--)
+            {
+                if (ops[j].Name == "Q") cur++;
+                else if (ops[j].Name == "q" && --cur == cs.ClipDepth - 1) { qIdx = j; break; }
+            }
+            var inv0 = cs.OuterCtm.Invert();
+            if (qIdx >= 0 && inv0 is not null)
+            {
+                var sbo = new StringBuilder("\n");
+                for (int k = cs.ObjectDepth; k >= cs.ClipDepth; k--) sbo.Append("Q ");
+                bool shifted = !cs.OuterCtm.Equals(Mat.Identity);
+                sbo.Append(shifted ? $"q {inv0.Value.ToOperands()} cm " : "").Append(snip.Content).Append(shifted ? " Q" : "").Append('\n');
+                sbo.Append(StateReplay(pc.Data, ops, qIdx, obj.FirstOpIndex)).Append('\n');
+                if (obj.Kind == ObjectKind.Path) replace(main.OpStart, main.End, "n"); else replace(main.Start, main.End, " ");
+                insert(main.End, sbo.ToString(), OrderOpen);
+                return null;
+            }
+        }
+
+        // 잘림이 풀리는 곳: 객체를 그린 깊이에서 시작해 잘림이 처음 걸린 q가 닫히는 Q.
+        int pos = pc.Data.Length;
+        var outer = Mat.Identity;
+        if (cs.ClipDepth > 0)
+        {
+            int d = cs.ObjectDepth;
+            for (int j = obj.OpIndex + 1; j < ops.Count; j++)
+            {
+                if (ops[j].Name == "q") d++;
+                else if (ops[j].Name == "Q" && --d == cs.ClipDepth - 1) { pos = ops[j].End; outer = cs.OuterCtm; break; }
+            }
+        }
+        var inv = outer.Invert();
+        if (inv is null) return $"object {index}: singular CTM outside the clip";
+
+        switch (obj.Kind)
+        {
+            case ObjectKind.Path:
+                replace(main.OpStart, main.End, "n");
+                break;
+            case ObjectKind.Text:
+                if (obj.Text!.Tr != 3) HideText(obj, main, insert);
+                isText = true;
+                break;
+            default:
+                replace(main.Start, main.End, " ");
+                break;
+        }
+        string prefix = outer.Equals(Mat.Identity) ? "" : $"q {inv.Value.ToOperands()} cm ";
+        string suffix = prefix.Length > 0 ? " Q" : "";
+        insert(pos, "\n" + prefix + snip.Content + suffix + "\n", OrderOpen);
+        return null;
+    }
+
+    private const int MaxReplayOps = 4000;
+
+    /// <summary>[from, to) 구간에서 그림 상태(q/Q·cm·선·색·gs·글 상태·잘림)만 남기고 다시 보낼 글을 만든다. 칠하기는 `n`으로 바꿔 경로만 비우고, 글·그림·셰이딩은 뺀다.</summary>
+    private static string StateReplay(byte[] data, List<ContentOp> ops, int from, int to)
+    {
+        var sb = new StringBuilder();
+        for (int j = from; j < to; j++)
+        {
+            switch (ops[j].Name)
+            {
+                case "q": case "Q": case "cm": case "w": case "J": case "j": case "M": case "d": case "ri": case "i": case "gs":
+                case "g": case "rg": case "k": case "cs": case "sc": case "scn": case "G": case "RG": case "K": case "CS": case "SC": case "SCN":
+                case "W": case "W*": case "n": case "m": case "l": case "c": case "v": case "y": case "re": case "h":
+                case "Tc": case "Tw": case "Tz": case "TL": case "Ts": case "Tr": case "Tf":
+                    sb.Append(Slice(data, ops[j])).Append(' ');
+                    break;
+                case "S": case "s": case "f": case "F": case "f*": case "B": case "B*": case "b": case "b*":
+                    sb.Append("n ");
+                    break;
+            }
+        }
+        return sb.ToString();
     }
 
     private static void HideText(PageObject obj, ContentOp show, Action<int, string, int> insert)

@@ -6,9 +6,9 @@ namespace PdfEditor.App.Viewer.Annotations;
 
 /// <summary>
 /// Body: 몸통(이동). N~NW: 상자 손잡이 8개. Vertex: 선·폴리라인·다각형의 꼭짓점(HitResult.Index번).
-/// LeaderTip: 설명선 지시선 끝점(Vertices[0]).
+/// LeaderTip: 설명선 지시선 끝점(Vertices[0]). Rotate: 선택 경계 위의 초록 회전 손잡이(0.10.0).
 /// </summary>
-public enum HandleKind { None, Body, N, NE, E, SE, S, SW, W, NW, Vertex, LeaderTip }
+public enum HandleKind { None, Body, N, NE, E, SE, S, SW, W, NW, Vertex, LeaderTip, Rotate }
 
 public sealed record HitResult(AnnotId Id, HandleKind Handle, int Index = 0);
 
@@ -68,8 +68,62 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     /// <summary>글 상자: TextBox가 있으면 그것, 없으면 Rect.</summary>
     private static PdfRectF BoxOf(Annotation a) => a.TextBox ?? a.Rect;
 
-    public HitResult? HitTest(PageAnnotations page, AnnotationSelection sel, PdfPointF p, float ptPerDip)
+    /// <summary>
+    /// 회전 손잡이를 낼 수 있는 선택의 경계(쪽 좌표). 고른 주석이 없거나 하나라도 돌릴 수 없는 종류(형광펜·메모 …)면 null.
+    /// 묶음(텍스트 바꾸기)은 돌릴 수 없는 종류라 항상 null이다.
+    /// </summary>
+    public static PdfRectF? RotatableBounds(PageAnnotations page, AnnotationSelection sel)
     {
+        if (sel.Page != page.Page || sel.Ids.Count == 0) return null;
+        PdfRectF? union = null;
+        foreach (var id in sel.Ids)
+        {
+            var a = page.Items.Select(v => v.Data).FirstOrDefault(x => x.Id == id);
+            if (a is null || !AnnotationRotate.CanRotate(a)) return null;
+            var r = AnnotationGeometry.ComputeRect(a);
+            union = union is { } u ? u.Union(r) : r;
+        }
+        return union;
+    }
+
+    /// <summary>회전 중인가(RotationPreview는 끄는 각).</summary>
+    public bool IsRotating => _active && _handle == HandleKind.Rotate;
+
+    /// <summary>끄는 중인 회전 각(라디안, 쪽 좌표 기준 반시계가 +). Shift면 15° 단위. 회전 중이 아니면 0.</summary>
+    public float RotationPreview { get; private set; }
+
+    /// <summary>회전을 시작한 방향(쪽 좌표, 라디안): 중심에서 처음 누른 곳을 본 각. 부채꼴 그리기에 쓴다.</summary>
+    public float RotationStartAngle => _angle0;
+
+    /// <summary>회전 중심(쪽 좌표) — 고른 주석 경계의 가운데.</summary>
+    public PdfPointF RotationCenter => _rotCenter;
+
+    /// <summary>회전하는 선택에 90° 단위로만 돌 수 있는 주석(사각형·원·텍스트 상자·스탬프)이 섞여 있는가 — 라벨에 놓았을 때의 각도를 함께 보인다.</summary>
+    public bool RotationHasQuarterKinds => _targets.Any(AnnotationRotate.SnapsToQuarter);
+
+    /// <summary>회전 각도 라벨: "37.4°". 90° 단위 주석이 섞여 있으면 놓았을 때 적용될 각도를 덧붙인다: "37.4° → 0°".</summary>
+    public static string RotationLabel(float sweepRad, bool hasQuarterKinds)
+    {
+        double deg = Math.Round(((sweepRad * 180 / Math.PI) % 360 + 360) % 360, 1) % 360;
+        string s = deg.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "°";
+        if (!hasQuarterKinds) return s;
+        int quarter = (((int)Math.Round(deg / 90.0) % 4) + 4) % 4 * 90;
+        return $"{s} → {quarter}°";
+    }
+
+    private float _angle0;
+    private PdfPointF _rotCenter;
+
+    private float AngleAround(PdfPointF p) => (float)Math.Atan2(p.Y - _rotCenter.Y, p.X - _rotCenter.X);
+
+    public HitResult? HitTest(PageAnnotations page, AnnotationSelection sel, PdfPointF p, float ptPerDip, int pageRotation = 0)
+    {
+        if (RotatableBounds(page, sel) is { } rb)
+        {
+            var rp = PdfEditor.App.Viewer.Objects.ObjectSelectionController.RotateHandlePos(rb, pageRotation, ptPerDip);
+            float rh = HandleDip / 2f * ptPerDip * 1.3f;
+            if (Math.Abs(p.X - rp.X) <= rh && Math.Abs(p.Y - rp.Y) <= rh) return new HitResult(sel.Ids[0], HandleKind.Rotate);
+        }
         if (sel.Page == page.Page && sel.Ids.Count == 1)
         {
             var a = page.Items.Select(v => v.Data).FirstOrDefault(x => x.Id == sel.Ids[0]);
@@ -131,11 +185,23 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
             if (!(sel.Page == page.Page && sel.Ids.SequenceEqual(expanded))) sel.Set(page.Page, expanded);
         }
 
-        IReadOnlyList<AnnotId> ids = hit.Handle == HandleKind.Body ? sel.Ids : [hit.Id];
+        IReadOnlyList<AnnotId> ids = hit.Handle is HandleKind.Body or HandleKind.Rotate ? sel.Ids : [hit.Id];
         // 스냅숏의 현재 인스턴스만 쓴다 (낡은 before는 Apply가 거부한다)
         foreach (var v in page.Items)
             if (ids.Contains(v.Data.Id)) _targets.Add(v.Data);
         if (_targets.Count == 0 || hit.Handle == HandleKind.None) { _targets.Clear(); return; }
+        if (_handle == HandleKind.Rotate)
+        {
+            // 회전: 고른 주석 전부를 선택 경계 가운데 둘레로 돌린다. 하나라도 돌릴 수 없으면 시작하지 않는다.
+            if (!_targets.All(AnnotationRotate.CanRotate)) { _targets.Clear(); return; }
+            var rb = AnnotationGeometry.ComputeRect(_targets[0]);
+            for (int i = 1; i < _targets.Count; i++) rb = rb.Union(AnnotationGeometry.ComputeRect(_targets[i]));
+            _rotCenter = new PdfPointF((rb.Left + rb.Right) / 2, (rb.Bottom + rb.Top) / 2);
+            _angle0 = AngleAround(p);
+            RotationPreview = 0;
+            _active = true;
+            return;
+        }
         if (_handle != HandleKind.Body && (_targets.Count != 1 || !HasHandle(_targets[0], _handle, _vertex)))
         {
             _targets.Clear();
@@ -175,10 +241,24 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         return false;
     }
 
-    public void Move(PdfPointF p)
+    public void Move(PdfPointF p) => Move(p, false);
+
+    /// <summary>shift는 회전에서만 쓴다(15° 단위로 맞춤).</summary>
+    public void Move(PdfPointF p, bool shift)
     {
         if (!_active) return;
         var map = new Dictionary<AnnotId, Annotation?>();
+        if (_handle == HandleKind.Rotate)
+        {
+            float sweep = AngleAround(p) - _angle0;
+            if (shift) sweep = (float)(Math.Round(sweep / (Math.PI / 12)) * (Math.PI / 12));
+            RotationPreview = sweep;
+            // 끄는 동안 자유 각도 종류는 끈 각도 그대로 돌려 보인다. 90° 단위 종류는 몸이 기울 수 없으므로 그대로 두고, 화면이 점선 상자로 보여 준다.
+            foreach (var t in _targets)
+                map[t.Id] = AnnotationRotate.SnapsToQuarter(t) ? t : AnnotationRotate.Apply(t, sweep, _rotCenter);
+            Previews = map;
+            return;
+        }
         if (_handle == HandleKind.Body)
         {
             ComputeDelta(p);
@@ -226,11 +306,25 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
         return b with { Rect = AnnotationGeometry.ComputeRect(b) };
     }
 
-    public ChangeAnnotationsCommand? End(PdfPointF p)
+    public ChangeAnnotationsCommand? End(PdfPointF p, bool shift = false)
     {
         if (!_active) return null;
-        Move(p);
+        Move(p, shift);
         var now = clock();
+        if (_handle == HandleKind.Rotate)
+        {
+            // 놓을 때 각 주석에 맞는 각도로 확정한다: 90° 단위 종류는 가장 가까운 90° 배수로, 0°로 맞춰지면 바뀌는 것이 없다.
+            var turned = new List<(Annotation Before, Annotation After)>();
+            if (Math.Abs(RotationPreview) >= 0.002f)
+                foreach (var t in _targets)
+                {
+                    if (AnnotationRotate.EffectiveAngle(t, RotationPreview) == 0f) continue;
+                    if (AnnotationRotate.Apply(t, RotationPreview, _rotCenter) is { } after) turned.Add((t, after with { ModifiedAt = now }));
+                }
+            var rpage = _page;
+            Cancel();
+            return turned.Count == 0 ? null : ChangeAnnotationsCommand.Replace(rpage, turned);
+        }
         float minPt = MinMoveDip * _ptPerDip;
         bool moved = _handle is HandleKind.Body or HandleKind.Vertex or HandleKind.LeaderTip
             ? Math.Abs(_dx) >= minPt || Math.Abs(_dy) >= minPt
@@ -252,6 +346,7 @@ public sealed class SelectionController(Func<DateTimeOffset> clock)
     {
         _active = false;
         Previews = null;
+        RotationPreview = 0;
         _targets.Clear();
         _dx = _dy = 0;
     }

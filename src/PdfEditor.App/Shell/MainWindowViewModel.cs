@@ -358,6 +358,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _workflow = workflow;
         _prompts = prompts;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
+        // 저장하면서 고친 쪽이 있을 때 "다시 열기"를 고르면 그 세션의 탭이 있는 창이 다시 연다(0.10.0).
+        if (workflow is not null) workflow.ReopenRequested += s => { if (Documents.Any(d => ReferenceEquals(d.Session, s))) _ = ReopenAsync(s); };
         NotifyFileCommands();
     }
 
@@ -401,6 +403,30 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (Documents.FirstOrDefault(d => ReferenceEquals(d.Session, session)) is not { } tab) return false;
         ActiveDocument = tab;
         return true;
+    }
+
+    /// <summary>
+    /// 저장하면서 망가진 쪽을 고친 뒤 "다시 열기"(0.10.0): 같은 탭 자리에서 파일을 닫았다 다시 연다. 방금 저장했으므로 묻지 않는다.
+    /// 보던 쪽·배율은 닫을 때 파일별로 기억되었다가 새 탭을 만들 때 되살아난다. 실행 취소 기록은 비워진다.
+    /// </summary>
+    public async Task ReopenAsync(PdfEditor.Document.DocumentSession session)
+    {
+        if (_workflow is null || session.FilePath is not { Length: > 0 } path) return;
+        if (Documents.FirstOrDefault(d => ReferenceEquals(d.Session, session)) is not { } tab) return;
+        int slot = Documents.IndexOf(tab);
+        bool wasClosingAll = _closingAll;
+        _closingAll = true;   // 탭이 하나뿐이어도 창이 닫히지 않게
+        try { if (!await CloseDocumentAsync(tab)) return; }
+        finally { _closingAll = wasClosingAll; }
+        var reopened = await _workflow.OpenAsync(path);
+        if (reopened is null) return;
+        Activate(reopened);
+        if (Documents.FirstOrDefault(d => ReferenceEquals(d.Session, reopened)) is { } nt)
+        {
+            int at = Documents.IndexOf(nt);
+            int to = Math.Clamp(slot, 0, Documents.Count - 1);
+            if (at != to) Documents.Move(at, to);
+        }
     }
 
     /// <summary>다른 곳에서 열린 세션(복구 등)을 탭으로 보여 준다.</summary>

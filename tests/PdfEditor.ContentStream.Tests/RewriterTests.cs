@@ -243,6 +243,63 @@ public class RewriterTests
             Assert.True(r.Ok, r.Failure);
         }
     }
+
+    [Fact]
+    public void Rewriter_RedrawsClippedText_WithMovedClip_AfterTheClipGroup()
+    {
+        var (pc, seg) = Load("q 100 100 200 20 re W n BT /F1 14 Tf 102 104 Td (Hi) Tj ET Q 5 5 5 5 re f");   // 옮긴 자리가 잘림 상자 밖
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(500, 0))]);
+        Assert.True(r.Ok, r.Failure);
+        string s = System.Text.Encoding.Latin1.GetString(r.Data!);
+        int orig = s.IndexOf("(Hi) Tj", StringComparison.Ordinal), q = s.IndexOf(" Q", orig, StringComparison.Ordinal);
+        int moved = s.IndexOf("q 1 0 0 1 500 0 cm 100 100 m 300 100 l 300 120 l 100 120 l h W n", StringComparison.Ordinal);
+        Assert.True(moved > q, s);                                  // 잘림이 풀린 뒤에 다시 그린다
+        Assert.True(moved < s.IndexOf("5 5 5 5 re f", StringComparison.Ordinal), s);   // 그리는 차례: 뒤 객체보다 앞
+        Assert.Contains("3 Tr", s);                                 // 원본은 제자리에서 보이지 않게
+    }
+
+    [Fact]
+    public void Rewriter_AllowsTransformInsideWholePageClip()
+    {
+        // Quartz식 쪽 전체 `re W n` 안에서 옮기기 — 잘림이 아무 영향이 없으므로 그대로 고쳐 쓴다
+        var (pc, seg) = Load("q 0 0 400 400 re W n BT /F1 14 Tf 102 104 Td (Hi) Tj ET 20 100 50 50 re f Q");
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(10, 0)), new TransformObject(1, Mat.Translate(10, 0))]);
+        Assert.True(r.Ok, r.Failure);
+    }
+
+    [Fact]
+    public void Rewriter_RedrawsPathThatLeavesTheClipBox_AndNonRectClips()
+    {
+        var (pc, seg) = Load("q 0 0 400 400 re W n 20 100 50 50 re f Q");
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(500, 0))]);
+        Assert.True(r.Ok, r.Failure);
+        var (pc2, seg2) = Load("q 0 0 400 400 re W n 20 100 m 70 100 l 70 150 l W n 20 100 50 50 re f Q");   // 사각형이 아닌 잘림도 절대 좌표로 옮겨 쓴다
+        var r2 = ContentRewriter.Rewrite(pc2, seg2, [new TransformObject(0, Mat.Translate(500, 0))]);
+        Assert.True(r2.Ok, r2.Failure);
+        string s = System.Text.Encoding.Latin1.GetString(r2.Data!);
+        Assert.Equal(6, System.Text.RegularExpressions.Regex.Matches(s, " W n").Count);   // 원본 2 + 옮긴 2 + 상태 다시 보내기 2
+    }
+
+    [Fact]
+    public void Rewriter_RedrawnObjectInsideRotatedGroup_UsesOuterCtmInverse()
+    {
+        // 바깥 q가 cm으로 이동된 채 잘림이 걸린 경우: 잘림이 풀린 곳의 CTM은 그 cm이 열리기 전이다
+        var (pc, seg) = Load("q 1 0 0 1 50 0 cm q 0 0 100 100 re W n 10 10 20 20 re f Q Q 1 1 1 1 re f");
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(200, 0))]);
+        Assert.True(r.Ok, r.Failure);
+    }
+
+    [Fact]
+    public void Rewriter_RedrawnObject_KeepsPaintOrderWithinTheClipGroup()
+    {
+        var (pc, seg) = Load("q 0 0 100 100 re W n 1 0 0 rg 10 10 20 20 re f 0 0 1 rg 30 30 5 5 re f Q");
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(200, 0))]);
+        Assert.True(r.Ok, r.Failure);
+        string s = System.Text.Encoding.Latin1.GetString(r.Data!);
+        int moved = s.IndexOf("q 1 0 0 1 200 0 cm", StringComparison.Ordinal), after = s.IndexOf("30 30 5 5 re f", StringComparison.Ordinal);
+        Assert.True(moved >= 0 && moved < after, s);                 // 뒤 객체보다 먼저 그린다
+        Assert.Contains("0 0 100 100 re W n", s[(moved + 20)..]);    // 잘림 묶음이 다시 열려 뒤 객체가 같은 잘림 안에서 그려진다
+    }
 }
 
 public class RewriterPerformanceTests

@@ -19,6 +19,8 @@ internal static unsafe partial class NativeMethods
     [LibraryImport(Lib)] public static partial int FPDFPageObj_GetRotatedBounds(IntPtr obj, float* quad8);
     [LibraryImport(Lib)] public static partial int FPDFPageObj_GetMatrix(IntPtr obj, FsMatrix* matrix);
     [LibraryImport(Lib)] public static partial int FPDFPageObj_SetMatrix(IntPtr obj, FsMatrix* matrix);
+    /// <summary>객체가 들고 있는 잘림 경로를 같은 행렬로 바꾼다(없으면 아무 일도 없다). 행렬만 바꾸면 잘림이 제자리에 남는다.</summary>
+    [LibraryImport(Lib)] public static partial void FPDFPageObj_TransformClipPath(IntPtr obj, double a, double b, double c, double d, double e, double f);
     [LibraryImport(Lib)] public static partial int FPDFPageObj_SetIsActive(IntPtr obj, int active);
     [LibraryImport(Lib)] public static partial int FPDFPageObj_GetIsActive(IntPtr obj, int* active);
     [LibraryImport(Lib)] public static partial int FPDFPageObj_GetFillColor(IntPtr obj, uint* r, uint* g, uint* b, uint* a);

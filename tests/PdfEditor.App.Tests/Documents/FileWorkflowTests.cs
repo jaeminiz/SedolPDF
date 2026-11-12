@@ -64,6 +64,9 @@ public sealed class FakePrompts : IUserPrompts
     public Task ShowXfdfImportResultAsync(string message, IReadOnlyList<string> details) { XfdfResults.Add((message, details)); return Task.CompletedTask; }
     public Task ShowErrorAsync(string message) { Errors.Add(message); return Task.CompletedTask; }
     public Task ShowInfoAsync(string message) { Infos.Add(message); return Task.CompletedTask; }
+    public List<string> RepairNotices { get; } = [];
+    public bool ReopenAnswer { get; set; }
+    public Task<bool> AskReopenAfterRepairAsync(string pageList) { RepairNotices.Add(pageList); return Task.FromResult(ReopenAnswer); }
 }
 
 public class FileWorkflowTests : IAsyncLifetime

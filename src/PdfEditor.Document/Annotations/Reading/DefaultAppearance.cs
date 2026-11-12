@@ -3,18 +3,20 @@ using PdfEditor.Document.Annotations;
 
 namespace PdfEditor.Document.Annotations.Reading;
 
-/// <summary>FreeText의 /DA 문자열("0 0 1 rg 1 0 0 RG /Helv 14 Tf")에서 글자 크기·글자 색(rg·g·k)·테두리 색(RG·G·K)을 뽑는다. 알 수 없는 연산자는 건너뛴다.</summary>
+/// <summary>FreeText의 /DA 문자열("0 0 1 rg 1 0 0 RG /Helv 14 Tf")에서 글자 크기·글자 색(rg·g·k)·테두리 색(RG·G·K)·글꼴 이름을 뽑는다. 알 수 없는 연산자는 건너뛴다.</summary>
 internal static class DefaultAppearance
 {
-    public static (float? Size, PdfColor? Color, PdfColor? Stroke) Parse(string? da)
+    public static (float? Size, PdfColor? Color, PdfColor? Stroke, string? Font) Parse(string? da)
     {
-        if (string.IsNullOrWhiteSpace(da)) return (null, null, null);
+        if (string.IsNullOrWhiteSpace(da)) return (null, null, null, null);
         float? size = null;
         PdfColor? color = null, stroke = null;
+        string? font = null;
         var stack = new List<double>();
         foreach (var tok in da.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
         {
             if (double.TryParse(tok, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)) { stack.Add(v); continue; }
+            if (tok.Length > 1 && tok[0] == '/') font = tok[1..];   // /Helv 14 Tf — 글꼴 이름(명조 판별에 씀)
             switch (tok)
             {
                 case "Tf":
@@ -41,7 +43,7 @@ internal static class DefaultAppearance
             }
             stack.Clear();
         }
-        return (size, color, stroke);
+        return (size, color, stroke, font);
     }
 
     private static PdfColor Cmyk(List<double> s)
