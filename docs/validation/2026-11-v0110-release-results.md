@@ -15,4 +15,4 @@
 ## 배포
 - main 푸시(1231a9a)와 태그 v0.11.0 푸시 완료.
 - GitHub: https://github.com/jaeminiz/SedolPDF/releases/tag/v0.11.0 (설치 exe, 휴대용 zip, SHA256SUMS-0.11.0.txt).
-- 스토어: Partner Center 로그인 필요로 미제출(사용자 로그인 후 진행).
+- 스토어: 2026-11-13 제출 완료, 상태 "인증 중"(보통 몇 시간~최대 영업일 3일). 패키지 SedolPDF-0.11.0-win-x64.msix(Validated), 한국어·영어 목록 문구 갱신, 0.10.0 패키지는 저장 때 자동 제거됨. MSIX는 로컬 서버로 페이지에 올림.
