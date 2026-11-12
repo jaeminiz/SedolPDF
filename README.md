@@ -12,8 +12,6 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 
 [![Microsoft Store에서 받기](https://get.microsoft.com/images/ko%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
 
-[설치 파일·포터블 ZIP](https://github.com/jaeminiz/SedolPDF/releases/latest) · [이슈](https://github.com/jaeminiz/SedolPDF/issues)
-
 </p>
 
 ![주석 탭](docs/screenshots/03-annotate.png)

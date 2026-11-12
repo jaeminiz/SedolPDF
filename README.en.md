@@ -12,8 +12,6 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 
 [![Get it from Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
 
-[Installer & portable ZIP](https://github.com/jaeminiz/SedolPDF/releases/latest) · [Issues](https://github.com/jaeminiz/SedolPDF/issues)
-
 </p>
 
 ![Comment tab](docs/screenshots/en/03-annotate.png)
