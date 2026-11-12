@@ -147,7 +147,7 @@ public sealed partial class ThumbnailsPanel : UserControl
     private ThumbnailGridLayout.DropSlot? SlotAt(Point listPoint)
     {
         if (GridPanel is not { } panel || _vm is null || List.TranslatePoint(listPoint, panel) is not { } p) return null;
-        return ThumbnailGridLayout.DropSlotAt(p, _vm.Items.Count, panel.Columns, panel.ContentWidth, panel.CellWidth, panel.CellHeight);
+        return ThumbnailGridLayout.DropSlotAt(p, _vm.Items.Count, panel.Columns, panel.ContentWidth, panel.CellWidth, panel.RowTops);
     }
 
     private void UpdateDropLine(Point pos)

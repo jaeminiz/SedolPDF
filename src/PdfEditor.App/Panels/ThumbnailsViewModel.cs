@@ -67,6 +67,13 @@ public sealed class ThumbnailsViewModel : ObservableObject, IDisposable
     }
 
     public double CellWidth => _size + CellPadding;
+
+    /// <summary>줄 높이에 더하는 값(썸네일 둘레 여백 + 쪽 번호 줄). 줄 높이는 줄의 가장 큰 썸네일 높이 + 이 값.</summary>
+    public double RowPadding => CellPadding + CellLabelHeight;
+
+    private int _layoutVersion;
+    /// <summary>칸 높이가 바뀔 수 있는 갱신(Rebuild)마다 올라간다. 패널이 이 값이 바뀌면 다시 배치한다.</summary>
+    public int LayoutVersion { get => _layoutVersion; private set => SetProperty(ref _layoutVersion, value); }
     public double CellHeight => _size + CellPadding + CellLabelHeight;
 
     /// <summary>그려 두는 이미지의 긴 변(px).</summary>
@@ -197,6 +204,7 @@ public sealed class ThumbnailsViewModel : ObservableObject, IDisposable
         }
 
         UpdateCurrent();
+        LayoutVersion++;
         UpdateWanted();
     }
 

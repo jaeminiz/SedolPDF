@@ -15,20 +15,30 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
     public static readonly StyledProperty<double> CellWidthProperty = AvaloniaProperty.Register<ThumbnailGridPanel, double>(nameof(CellWidth), 180);
     public static readonly StyledProperty<double> CellHeightProperty = AvaloniaProperty.Register<ThumbnailGridPanel, double>(nameof(CellHeight), 200);
 
-    static ThumbnailGridPanel() => AffectsMeasure<ThumbnailGridPanel>(CellWidthProperty, CellHeightProperty);
+    /// <summary>줄 높이 = 그 줄에서 가장 큰 썸네일 높이(ThumbnailItem.DisplayHeight) + RowPadding. ThumbnailItem이 아닌 칸은 CellHeight를 쓴다.</summary>
+    public static readonly StyledProperty<double> RowPaddingProperty = AvaloniaProperty.Register<ThumbnailGridPanel, double>(nameof(RowPadding), 0);
+    /// <summary>칸 크기가 바뀌어도 숫자가 같을 수 있는 경우(쪽 회전 등)에 모델이 올려 주면 다시 배치한다.</summary>
+    public static readonly StyledProperty<int> LayoutVersionProperty = AvaloniaProperty.Register<ThumbnailGridPanel, int>(nameof(LayoutVersion));
+
+    static ThumbnailGridPanel() => AffectsMeasure<ThumbnailGridPanel>(CellWidthProperty, CellHeightProperty, RowPaddingProperty, LayoutVersionProperty);
 
     public double CellWidth { get => GetValue(CellWidthProperty); set => SetValue(CellWidthProperty, value); }
     public double CellHeight { get => GetValue(CellHeightProperty); set => SetValue(CellHeightProperty, value); }
+    public double RowPadding { get => GetValue(RowPaddingProperty); set => SetValue(RowPaddingProperty, value); }
+    public int LayoutVersion { get => GetValue(LayoutVersionProperty); set => SetValue(LayoutVersionProperty, value); }
 
     private readonly Dictionary<int, Control> _realized = [];
     private Rect _viewport;
     private double _width = 1;
     private int _columns = 1;
+    private double[] _rowTops = [0];
 
     public ThumbnailGridPanel() => EffectiveViewportChanged += OnEffectiveViewportChanged;
 
     /// <summary>지금 열 수(마지막으로 잰 폭 기준).</summary>
     public int Columns => _columns;
+    /// <summary>줄 위쪽 y 목록(길이 = 줄 수 + 1). 마지막으로 잰 기준.</summary>
+    public double[] RowTops => _rowTops;
     /// <summary>마지막으로 잰 폭.</summary>
     public double ContentWidth => _width;
 
@@ -36,7 +46,7 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
     {
         double top = viewport.Top, bottom = viewport.Bottom;
         if (viewport.Height <= 0) { top = 0; bottom = 600; }   // 첫 측정: 보이는 영역을 아직 모를 때 한 화면쯤
-        return ThumbnailGridLayout.VisibleRange(top, bottom, CellHeight, columns, count);
+        return ThumbnailGridLayout.VisibleRange(top, bottom, _rowTops, columns, count);
     }
 
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
@@ -53,23 +63,35 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
         double width = double.IsFinite(availableSize.Width) ? availableSize.Width : CellWidth;
         _width = width;
         _columns = ThumbnailGridLayout.Columns(width, CellWidth);
+        _rowTops = BuildRowTops(count, _columns);
         var (first, last) = Range(_viewport, _columns, count);
 
         foreach (int i in _realized.Keys.Where(i => i < first || i > last).ToList()) Release(i);
         for (int i = first; i <= last; i++)
             if (!_realized.ContainsKey(i)) Realize(i);
-        var cell = new Size(CellWidth, CellHeight);
-        foreach (var c in _realized.Values) c.Measure(cell);
+        foreach (var (i, c) in _realized) c.Measure(new Size(CellWidth, RowHeight(i / _columns)));
 
-        return new Size(width, ThumbnailGridLayout.Rows(count, _columns) * CellHeight);
+        return new Size(width, _rowTops[^1]);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
         _width = finalSize.Width;
         foreach (var (i, c) in _realized)
-            c.Arrange(ThumbnailGridLayout.CellRect(i, _columns, finalSize.Width, CellWidth, CellHeight));
+            c.Arrange(ThumbnailGridLayout.CellRect(i, _columns, finalSize.Width, CellWidth, _rowTops));
         return finalSize;
+    }
+
+    private double ItemHeight(object? item) => item is ThumbnailItem t ? t.DisplayHeight + RowPadding : CellHeight;
+
+    private double RowHeight(int row) => _rowTops[row + 1] - _rowTops[row];
+
+    private double[] BuildRowTops(int count, int columns)
+    {
+        var heights = new double[ThumbnailGridLayout.Rows(count, columns)];
+        var items = Items;
+        for (int i = 0; i < count; i++) heights[i / columns] = Math.Max(heights[i / columns], ItemHeight(items[i]));
+        return ThumbnailGridLayout.RowTops(heights);
     }
 
     private Control Realize(int index)
@@ -118,8 +140,8 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
     {
         if (index < 0 || index >= Items.Count) return null;
         var c = _realized.GetValueOrDefault(index) ?? Realize(index);
-        var rect = ThumbnailGridLayout.CellRect(index, _columns, _width, CellWidth, CellHeight);
-        if (!c.IsMeasureValid) c.Measure(new Size(CellWidth, CellHeight));
+        var rect = ThumbnailGridLayout.CellRect(index, _columns, _width, CellWidth, _rowTops);
+        if (!c.IsMeasureValid) c.Measure(rect.Size);
         c.Arrange(rect);
         c.BringIntoView();
         return c;
@@ -130,7 +152,8 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
         int count = Items.Count;
         if (count == 0) return null;
         int cur = from is Control fc ? IndexFromContainer(fc) : -1;
-        int pageRows = Math.Max(1, (int)(Math.Max(_viewport.Height, CellHeight) / CellHeight) - 1);
+        double avgRow = Math.Max(1, _rowTops[^1] / Math.Max(1, _rowTops.Length - 1));
+        int pageRows = Math.Max(1, (int)(Math.Max(_viewport.Height, avgRow) / avgRow) - 1);
         int target = direction switch
         {
             NavigationDirection.First => 0,
