@@ -114,4 +114,14 @@ public class AnnotationLoadingTests : IDisposable
         await s.Thread.InvokeAsync(() => { s.AttachOriginalsVerified(s.Pages[0].Id, list); s.Annotations.Publish(); });
         Assert.Equal(8, s.Annotations.Get(s.Pages[0].Id).Items.Length);   // 10 - 2 (클라우드 Square도 편집 가능)
     }
+
+    [Fact]
+    public async Task Open_FreeTextWithRd_PassesRectVerification_AndStaysEditable()
+    {
+        // /RD가 있는 Acrobat 텍스트 상자는 글 상자(안쪽) Rect로 읽는다. PDFium의 /Rect와 맞춰 볼 때 파일의 /Rect를 써야 읽기 전용으로 떨어지지 않는다.
+        AnnotatedPdfFactory.CreateAcrobatApBorders(P("rd.pdf"));
+        await using var s = await DocumentSession.OpenAsync(_t, P("rd.pdf"), null);
+        await s.AnnotationsReady;
+        Assert.Equal(5, s.Annotations.Get(s.Pages[0].Id).Items.Length);
+    }
 }

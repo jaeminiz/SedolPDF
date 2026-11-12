@@ -294,8 +294,8 @@ public class FreeTextTests : IDisposable
         Assert.Equal(new PdfColor(128, 128, 128), r2.TextColor);
         Assert.Equal(12f, r2.FontSizePt);
 
-        // /IT 가 세 가지 밖이면 읽기 전용
-        var o3 = Assert.Single(ReadBack(MakeOtherAppFreeText("0 g /Helv 12 Tf", q: 0, extra: d => d.Elements["/IT"] = new PdfName("/FreeText"))));
+        // /IT 가 모르는 값이면 읽기 전용(/FreeText는 Acrobat이 일반 상자에 쓰는 값이라 편집 가능: 0.10.1)
+        var o3 = Assert.Single(ReadBack(MakeOtherAppFreeText("0 g /Helv 12 Tf", q: 0, extra: d => d.Elements["/IT"] = new PdfName("/FreeTextUnknownKind"))));
         Assert.Equal(ReadOnlyReason.UnsupportedType, o3.Reason);
         // 설명선인데 /CL 이 없으면 망가진 것
         var o4 = Assert.Single(ReadBack(MakeOtherAppFreeText("0 g /Helv 12 Tf", q: 0, extra: d => d.Elements["/IT"] = new PdfName("/FreeTextCallout"))));
