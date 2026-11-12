@@ -14,4 +14,5 @@
 
 ## 배포
 - main 푸시(1231a9a)와 태그 v0.11.0 푸시 완료.
-- GitHub 릴리스·스토어 제출: 이 문서 작성 시점에 미완(아래 보고 참조).
+- GitHub: https://github.com/jaeminiz/SedolPDF/releases/tag/v0.11.0 (설치 exe, 휴대용 zip, SHA256SUMS-0.11.0.txt).
+- 스토어: Partner Center 로그인 필요로 미제출(사용자 로그인 후 진행).
