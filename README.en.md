@@ -8,9 +8,11 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 
 <p align="center">
 
-[![release](https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release)](https://github.com/jaeminiz/SedolPDF/releases/latest) ![Windows](https://img.shields.io/badge/Windows-x64-0078D4) ![license](https://img.shields.io/badge/license-MIT-green) [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-get%20it-00A4EF)](https://apps.microsoft.com/detail/9NV1D7TDKVJK) ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
+[![release](https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release)](https://github.com/jaeminiz/SedolPDF/releases/latest) ![Windows](https://img.shields.io/badge/Windows-x64-0078D4) ![license](https://img.shields.io/badge/license-MIT-green) ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
-[Microsoft Store](https://apps.microsoft.com/detail/9NV1D7TDKVJK) · [Installer & portable ZIP](https://github.com/jaeminiz/SedolPDF/releases/latest) · [Issues](https://github.com/jaeminiz/SedolPDF/issues)
+[![Get it from Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
+
+[Installer & portable ZIP](https://github.com/jaeminiz/SedolPDF/releases/latest) · [Issues](https://github.com/jaeminiz/SedolPDF/issues)
 
 </p>
 
