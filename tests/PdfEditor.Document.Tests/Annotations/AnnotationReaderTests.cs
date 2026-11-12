@@ -676,4 +676,46 @@ public class AnnotationReaderTests : IDisposable
         Assert.Equal(new PdfColor(0, 0, 0), a.TextColor);
         Assert.Equal(20f, a.FontSizePt);
     }
+
+    // ---- 0.10.1: /IT /FreeText 읽기와 AP 테두리 색 ----
+
+    private Annotation AcrobatAp(int i)
+    {
+        var p = P("acrobat-ap.pdf");
+        if (!File.Exists(p)) AnnotatedPdfFactory.CreateAcrobatApBorders(p);
+        var a = AnnotationReader.Read(File.ReadAllBytes(p), null, [0])[0][i];
+        Assert.Equal(ReadOnlyReason.None, a.Reason);
+        Assert.NotNull(a.Data);
+        return a.Data!;
+    }
+
+    [Fact]
+    public void ItFreeText_IsEditableTextBox_BorderFromAp()
+    {
+        var a = AcrobatAp(0);
+        Assert.Equal(FreeTextIntent.TextBox, a.Intent);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);       // 파란 글자와 달리 테두리는 AP의 빨강
+        Assert.Equal(new PdfColor(0, 0, 255), a.TextColor);
+    }
+
+    [Fact]
+    public void Callout_DefaultBlackG_DoesNotOverrideApBorder()
+    {
+        var a = AcrobatAp(1);
+        Assert.Equal(FreeTextIntent.Callout, a.Intent);
+        Assert.Equal(new PdfColor(255, 0, 0), a.Color);
+    }
+
+    [Fact]
+    public void DaRg_WinsOverAp()
+    {
+        Assert.Equal(new PdfColor(0, 0, 255), AcrobatAp(2).Color);
+    }
+
+    [Fact]
+    public void ItFreeText_WithoutAp_StillEditable()
+    {
+        var a = AcrobatAp(3);
+        Assert.Equal(FreeTextIntent.TextBox, a.Intent);
+    }
 }

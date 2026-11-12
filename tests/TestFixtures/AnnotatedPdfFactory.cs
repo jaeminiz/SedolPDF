@@ -381,4 +381,30 @@ public static class AnnotatedPdfFactory
         SetAnnots(doc, page, [tank, h3368, j001, utf16, old, resaved]);
         Save(doc, path);
     }
+
+    /// <summary>
+    /// 0.10.1: Acrobat이 만든 모양 중 테두리가 AP에만 있는 것. /Annots 순서:
+    /// [0] /IT /FreeText 텍스트 상자(파란 글자, /DA에 RG 없음, AP 테두리 빨강), [1] 설명선(/DA `0 G 1 0 0 rg`, AP 선 빨강),
+    /// [2] /DA에 RG가 있는 상자(AP는 초록이어도 /DA가 이긴다), [3] AP가 없는 /IT /FreeText 상자.
+    /// </summary>
+    public static void CreateAcrobatApBorders(string path)
+    {
+        using var doc = NewDoc(out var page);
+        PdfDictionary Ft(double top, string da, string? ap, string? it)
+        {
+            var a = Annot(doc, "FreeText", 100, top - 40, 300, top, ap);
+            a.Elements["/Contents"] = new PdfString("text");
+            a.Elements["/DA"] = new PdfString(da);
+            a.Elements["/DS"] = new PdfString("font: 'Arial',sans-serif 12.0pt; text-align:left; color:#0000FF ");
+            if (it is not null) a.Elements["/IT"] = new PdfName(it);
+            return a;
+        }
+        var box = Ft(800, "0 0 1 rg /F1 12 Tf", "1 g\n1 0 0 RG\n100 760 200 40 re\nB\nBT 0 g 0 G /F1 12 Tf ET", "/FreeText");
+        var callout = Ft(700, "0 G 1 0 0 rg /Arial 6 Tf", "1 0 0 RG 1 w\n110 660 m 130 680 l S\n1 1 1 rg 130 660 170 40 re B", "/FreeTextCallout");
+        callout.Elements["/CL"] = Nums(doc, 110, 660, 130, 680);
+        var da = Ft(600, "0 0 1 rg 0 0 1 RG /F1 12 Tf", "1 g\n0 1 0 RG\n100 560 200 40 re\nB", "/FreeText");
+        var noAp = Ft(500, "0 0 1 rg /F1 12 Tf", null, "/FreeText");
+        SetAnnots(doc, page, [box, callout, da, noAp]);
+        Save(doc, path);
+    }
 }

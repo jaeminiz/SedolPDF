@@ -411,12 +411,15 @@ public static class AnnotationReader
         // 타자기 철자: 규격은 FreeTextTypeWriter, Acrobat·PDF-XChange는 FreeTextTypewriter로 쓴다 → 대소문자를 가리지 않는다.
         FreeTextIntent intent;
         string? it = e.GetName("/IT");
-        if (string.IsNullOrEmpty(it)) intent = FreeTextIntent.TextBox;
+        // Acrobat은 일반 텍스트 상자에도 /IT /FreeText를 쓴다(규격에는 없는 값이지만 흔하다) → 이름 없는 상자와 같다.
+        if (string.IsNullOrEmpty(it) || it == "/FreeText") intent = FreeTextIntent.TextBox;
         else if (string.Equals(it, "/FreeTextTypeWriter", StringComparison.OrdinalIgnoreCase)) intent = FreeTextIntent.Typewriter;
         else if (it == "/FreeTextCallout") intent = FreeTextIntent.Callout;
         else return Bad(ReadOnlyReason.UnsupportedType);
 
         var (size, color, stroke, daFont) = DefaultAppearance.Parse(Str(e, "/DA"));
+        // /DA에 테두리 색(RG·K)이 없으면 Acrobat·PDF-XChange는 테두리를 AP에만 그린다(설명선의 "0 G"는 기본값일 뿐) → AP의 선 색이 테두리 색.
+        if (!DaHasStrokeOperator(Str(e, "/DA")) && ApStrokeColor(e) is { } apStroke) stroke = apStroke;
         // /DS가 있으면 Acrobat·PDF-XChange 관례(0.10.0): /DA의 RG(없으면 rg)가 테두리 색, 글자 색은 /DS의 color(없으면 /RC body, /DA rg).
         string? ds = Str(e, "/DS");
         bool hasDs = !string.IsNullOrWhiteSpace(ds);
@@ -491,6 +494,50 @@ public static class AnnotationReader
         return intent == FreeTextIntent.Callout
             ? new FreeTextData(ReadOnlyReason.None, rect, intent, inner, verts, ending, fontSize, color, align, stroke, rotation, hasDs, leader2, Family: family, Fmt: fmt)
             : new FreeTextData(ReadOnlyReason.None, inner, intent, null, verts, ending, fontSize, color, align, stroke, rotation, hasDs, Family: family, Fmt: fmt);
+    }
+
+    /// <summary>/DA에 `RG`(또는 `K`) 연산자가 있는가. `G`는 기본 검정으로 자주 들어 있어 테두리 지정으로 보지 않는다.</summary>
+    private static bool DaHasStrokeOperator(string? da)
+        => !string.IsNullOrEmpty(da) && System.Text.RegularExpressions.Regex.IsMatch(da, @"(^|\s)(RG|K)(\s|$)");
+
+    /// <summary>
+    /// 원본 AP(/N)에서 첫 칠하기(B·S·b·s) 직전의 선 색(RG·G·K). 읽을 수 없거나 없으면 null.
+    /// 글자 부분의 `0 G`처럼 뒤에 나오는 값은 보지 않는다.
+    /// </summary>
+    private static PdfColor? ApStrokeColor(PdfDictionary.DictionaryElements e)
+    {
+        try
+        {
+            if (Resolve(e["/AP"]) is not PdfDictionary ap || Resolve(ap.Elements["/N"]) is not PdfDictionary n || n.Stream is not { } stream) return null;
+            if (ReadBounded(n, stream) is not { Length: > 0 } bytes) return null;
+            string text = System.Text.Encoding.Latin1.GetString(bytes, 0, Math.Min(bytes.Length, 4096));
+            var nums = new List<double>();
+            PdfColor? stroke = null;
+            foreach (var tok in text.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (double.TryParse(tok, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v)) { nums.Add(v); continue; }
+                switch (tok)
+                {
+                    case "G" when nums.Count >= 1: stroke = Gray(nums[^1]); break;
+                    case "RG" when nums.Count >= 3: stroke = Rgb255(nums[^3], nums[^2], nums[^1]); break;
+                    case "K" when nums.Count >= 4:
+                        {
+                            double k = 1 - Math.Clamp(nums[^1], 0, 1);
+                            stroke = Rgb255((1 - Math.Clamp(nums[^4], 0, 1)) * k, (1 - Math.Clamp(nums[^3], 0, 1)) * k, (1 - Math.Clamp(nums[^2], 0, 1)) * k);
+                            break;
+                        }
+                    case "B" or "S" or "b" or "s" or "B*" or "b*" or "BT":
+                        return stroke;
+                }
+                nums.Clear();
+            }
+            return stroke;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return null; }
+
+        static PdfColor Gray(double g) => Rgb255(g, g, g);
+        static PdfColor Rgb255(double r, double g, double b)
+            => new((byte)Math.Round(Math.Clamp(r, 0, 1) * 255), (byte)Math.Round(Math.Clamp(g, 0, 1) * 255), (byte)Math.Round(Math.Clamp(b, 0, 1) * 255));
     }
 
     /// <summary>/RC(서식 있는 글)에서 처음 나오는 `&lt;body|span style="…"&gt;`의 style 값. 없거나 해석할 수 없으면 null.</summary>

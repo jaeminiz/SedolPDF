@@ -456,9 +456,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         int i = Documents.IndexOf(tab);
         if (i < 0) return null;
         var view = tab.CaptureViewState(requirePath: false);
+        bool wasActive = ActiveDocument == tab;
         Documents.RemoveAt(i);
-        if (ActiveDocument == tab)
-            ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
+        if (wasActive || ActiveDocument is null)
+            ActiveDocument =Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
         tab.Detach();
         return new(session, view);
     }
@@ -611,9 +612,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (session is not null && _workflow is not null && !await _workflow.ConfirmCloseAsync(session)) return false;
         int i = Documents.IndexOf(d);
         if (i < 0) return true;
+        // 탭 목록(ListBox)은 선택 항목이 빠지는 순간 ActiveDocument를 null로 되돌린다 → 활성이었는지는 지우기 전에 기억해 둔다.
+        bool wasActive = ActiveDocument == d;
         Documents.RemoveAt(i);
-        if (ActiveDocument == d)
-            ActiveDocument = Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
+        if (wasActive || ActiveDocument is null)
+            ActiveDocument =Documents.Count == 0 ? null : Documents[Math.Min(i, Documents.Count - 1)];
         SaveViewState(d);
         d.Detach();
         if (session is not null)
