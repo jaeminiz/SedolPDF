@@ -10,6 +10,8 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 
 [![release](https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release)](https://github.com/jaeminiz/SedolPDF/releases/latest) ![Windows](https://img.shields.io/badge/Windows-x64-0078D4) ![license](https://img.shields.io/badge/license-MIT-green) ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
+[![후원하기](https://img.shields.io/badge/%E2%99%A5%20%ED%9B%84%EC%9B%90%ED%95%98%EA%B8%B0-GITHUB%20SPONSORS-3DD68C?style=for-the-badge&labelColor=black)](https://github.com/sponsors/jaeminiz)
+
 [![Microsoft Store에서 받기](https://get.microsoft.com/images/ko%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
 
 </p>
