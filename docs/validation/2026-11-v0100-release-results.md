@@ -18,3 +18,7 @@
 
 ## 미확인
 - 설치본·MSIX를 실제로 설치해 보는 시험은 하지 않았다(손 시험은 개발 빌드로 통과).
+
+## 배포 결과
+- GitHub: https://github.com/jaeminiz/SedolPDF/releases/tag/v0.10.0 (설치 exe, 휴대용 zip, SHA256SUMS-0.10.0.txt), 태그 v0.10.0.
+- 스토어: Submission 8 제출(2026-11-12), 상태 "인증 중". 패키지 SedolPDF-0.10.0-win-x64.msix(Validated), 한국어·영어 목록 문구 갱신. 이전 0.9.0 패키지는 저장 때 자동 제거됨. MSIX 업로드는 파일 선택창 대신 로컬 서버로 페이지에 올렸다.
