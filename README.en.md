@@ -4,7 +4,7 @@
 
 A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit text, images and shapes directly in one app. Free for personal and commercial use (MIT License).
 
-> **This is an early public release (v0.10.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
+> **This is an early public release (v0.11.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
 
 <p align="center">
   <a href="https://github.com/jaeminiz/SedolPDF/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release"></a>
@@ -28,7 +28,7 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 **Viewing**
 - Tile-based rendering so large CAD-style drawings open quickly (goal: first screen of an A1 drawing within 0.5 s; a 300-page document under 400 MB of memory).
 - Continuous and single-page view, zoom, actual size (100% = 96 dpi), fit width/page, hold Space or press the mouse wheel button and drag to pan (hand tool).
-- Text selection and copy, search, thumbnail / bookmark / attachment / layer panels, snapshot (copy a region or a whole page as an image).
+- Text selection and copy, search, thumbnail (multiple columns like Acrobat, size slider 64–1000 px) / bookmark / attachment / layer panels, snapshot (copy a region or a whole page as an image).
 
 **Annotations**
 - Sticky note, highlight / underline / strikeout, text box, typewriter, callout, line, arrow, polyline, polygon, cloud, rectangle, ellipse, pencil, eraser, stamps (built-in and image), file attachment, text insert / replace.
