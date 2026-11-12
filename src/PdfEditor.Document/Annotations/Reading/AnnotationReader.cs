@@ -307,7 +307,8 @@ public static class AnnotationReader
                 Rotation = ft?.Rotation ?? 0,
                 State = reviewState,
             };
-            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent, replyParent, SourceRect: sourceRect);
+            // FreeText도 글 상자(/RD만큼 안쪽)로 읽으므로 PDFium의 /Rect와 맞춰 볼 파일의 /Rect를 함께 둔다.
+            return new OriginalAnnotation(index, subtype, data, ReadOnlyReason.None, groupParent, replyParent, SourceRect: sourceRect ?? (ft is not null ? rect : null));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {

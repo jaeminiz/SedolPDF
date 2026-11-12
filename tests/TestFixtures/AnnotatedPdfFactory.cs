@@ -404,7 +404,11 @@ public static class AnnotatedPdfFactory
         callout.Elements["/CL"] = Nums(doc, 110, 660, 130, 680);
         var da = Ft(600, "0 0 1 rg 0 0 1 RG /F1 12 Tf", "1 g\n0 1 0 RG\n100 560 200 40 re\nB", "/FreeText");
         var noAp = Ft(500, "0 0 1 rg /F1 12 Tf", null, "/FreeText");
-        SetAnnots(doc, page, [box, callout, da, noAp]);
+        // [4] 실제 파일 모양: /RD로 안쪽 여백이 있고 /Rotate 270 (이 때문에 글 상자 Rect와 PDFium의 /Rect가 달라 읽기 전용이 되던 것)
+        var rd = Ft(400, "1 0 0 rg /F1 4 Tf", "1 1 1 rg 1 0 0 RG 1 w 100.5 360.5 199 39 re B", "/FreeText");
+        rd.Elements["/RD"] = Nums(doc, 1, 1, 1, 1);
+        rd.Elements["/Rotate"] = new PdfInteger(270);
+        SetAnnots(doc, page, [box, callout, da, noAp, rd]);
         Save(doc, path);
     }
 }
