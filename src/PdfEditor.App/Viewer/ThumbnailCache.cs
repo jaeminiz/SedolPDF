@@ -10,6 +10,8 @@ public sealed class ThumbnailCache<TImage> where TImage : class
     public const int LargeLongSidePx = 256;
     /// <summary>256px보다 크게 보여 줄 때 그리는 크기.</summary>
     public const int HugeLongSidePx = 400;
+    /// <summary>400px보다 크게 보여 줄 때 그리는 크기(640 이하 / 그 위는 1000).</summary>
+    public const int ExtraLongSidePx = 640, MaxLongSidePx = 1000;
     public const long DefaultBudgetBytes = 32L * 1024 * 1024;
 
     private readonly TileCache<TImage> _cache;

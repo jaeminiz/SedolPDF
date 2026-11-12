@@ -39,14 +39,14 @@ public sealed partial class ThumbnailItem(PageId id) : ObservableObject
 public sealed class ThumbnailsViewModel : ObservableObject, IDisposable
 {
     /// <summary>썸네일 크기(긴 변, 화면 px) 범위와 기본값. 슬라이더가 이 범위를 쓴다.</summary>
-    public const double MinSize = 64, MaxSize = 400, DefaultSize = 160;
+    public const double MinSize = 64, MaxSize = 1000, DefaultSize = 160;
 
     /// <summary>칸 하나의 크기: 썸네일 둘레 여백과 쪽 번호 줄을 더한 값. 여러 열 배치(ThumbnailGridPanel)가 쓴다.</summary>
     public const double CellPadding = 14, CellLabelHeight = 22;
 
     private double _size = DefaultSize;
 
-    /// <summary>썸네일 긴 변의 화면 크기. 범위 밖 값은 맞추고 정수로 반올림한다. 160 이하는 160px로, 256 이하는 256px, 그보다 크면 400px로 그려 늘여 쓴다.</summary>
+    /// <summary>썸네일 긴 변의 화면 크기. 범위 밖 값은 맞추고 정수로 반올림한다. 160 이하는 160px로, 단계별(160·256·400·640·1000px)로 그려 늘여 쓴다.</summary>
     public double Size
     {
         get => _size;
@@ -58,6 +58,7 @@ public sealed class ThumbnailsViewModel : ObservableObject, IDisposable
             int oldTier = RenderLongSide;
             _size = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SizeSliderValue));
             OnPropertyChanged(nameof(CellWidth));
             OnPropertyChanged(nameof(CellHeight));
             if (_disposed) return;
@@ -77,7 +78,21 @@ public sealed class ThumbnailsViewModel : ObservableObject, IDisposable
     public double CellHeight => _size + CellPadding + CellLabelHeight;
 
     /// <summary>그려 두는 이미지의 긴 변(px).</summary>
-    public int RenderLongSide => _size <= ThumbnailCache<IImageHandle>.LongSidePx ? ThumbnailCache<IImageHandle>.LongSidePx : _size <= ThumbnailCache<IImageHandle>.LargeLongSidePx ? ThumbnailCache<IImageHandle>.LargeLongSidePx : ThumbnailCache<IImageHandle>.HugeLongSidePx;
+    public int RenderLongSide => _size switch
+    {
+        <= ThumbnailCache<IImageHandle>.LongSidePx => ThumbnailCache<IImageHandle>.LongSidePx,
+        <= ThumbnailCache<IImageHandle>.LargeLongSidePx => ThumbnailCache<IImageHandle>.LargeLongSidePx,
+        <= ThumbnailCache<IImageHandle>.HugeLongSidePx => ThumbnailCache<IImageHandle>.HugeLongSidePx,
+        <= ThumbnailCache<IImageHandle>.ExtraLongSidePx => ThumbnailCache<IImageHandle>.ExtraLongSidePx,
+        _ => ThumbnailCache<IImageHandle>.MaxLongSidePx,
+    };
+
+    /// <summary>슬라이더 위치(0~1). 작은 크기를 세밀하게 고르도록 로그 눈금이다: 위치 0 = 최소, 1 = 최대.</summary>
+    public double SizeSliderValue
+    {
+        get => Math.Log(_size / MinSize) / Math.Log(MaxSize / MinSize);
+        set { if (double.IsFinite(value)) Size = MinSize * Math.Pow(MaxSize / MinSize, Math.Clamp(value, 0, 1)); }
+    }
 
     /// <summary>그리는 크기 단계가 바뀌면 이전 크기의 이미지를 모두 버리고 새로 그린다.</summary>
     private void DropRenderedImages()

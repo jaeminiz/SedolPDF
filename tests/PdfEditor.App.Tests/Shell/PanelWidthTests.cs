@@ -96,7 +96,7 @@ public class ThumbnailSizeSettingTests
             Assert.Equal(220, vm.ThumbnailSize);
 
             vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = 99999 });
-            Assert.Equal(400, vm.ThumbnailSize);
+            Assert.Equal(1000, vm.ThumbnailSize);
             vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = -3 });
             Assert.Equal(64, vm.ThumbnailSize);
             vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = double.NaN });

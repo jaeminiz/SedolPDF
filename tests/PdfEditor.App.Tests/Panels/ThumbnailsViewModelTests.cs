@@ -90,6 +90,21 @@ public class ThumbnailsViewModelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Thumbnails_SliderIsLogarithmic_AndLargestSizeRendersAt1000()
+    {
+        var (_, _, vm, _) = await SetUp(2);
+        vm.SizeSliderValue = 0; Assert.Equal(ThumbnailsViewModel.MinSize, vm.Size);
+        vm.SizeSliderValue = 1; Assert.Equal(ThumbnailsViewModel.MaxSize, vm.Size);
+        Assert.Equal(1000, vm.RenderLongSide);
+        vm.Size = 160;
+        Assert.InRange(vm.SizeSliderValue, 0.3, 0.37);   // 기본 크기는 슬라이더 왼쪽 3분의 1쯤
+        vm.SizeSliderValue = vm.SizeSliderValue; Assert.Equal(160, vm.Size);
+        foreach (var i in vm.Items) vm.MarkVisible(i.Id);
+        vm.Size = 1000;
+        await WaitFor(() => vm.Items.All(i => i.Image is { } img && Math.Max(img.Width, img.Height) == 1000));
+    }
+
+    [Fact]
     public async Task Thumbnails_SmallSizes_ReuseTheSameRenderedImages()
     {
         var (_, _, vm, _) = await SetUp(2);
