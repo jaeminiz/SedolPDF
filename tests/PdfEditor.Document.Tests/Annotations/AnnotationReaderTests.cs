@@ -713,6 +713,16 @@ public class AnnotationReaderTests : IDisposable
     }
 
     [Fact]
+    public void RdTextBox_ModelRectIsStrokeOuterEdge_HalfBorderInsideFileRect()
+    {
+        // /RD 1 + 선 1pt: Acrobat은 선을 /Rect보다 1 안쪽 상자의 가운데에 긋는다 → 선 바깥은 0.5 안쪽. 옮겨 다시 그려도 테두리·글자가 제자리여야 한다.
+        var plain = AcrobatAp(0).Rect;
+        var rd = AcrobatAp(4).Rect;
+        Assert.Equal(plain.Width - 1f, rd.Width, 0.01f);
+        Assert.Equal(plain.Height - 1f, rd.Height, 0.01f);
+    }
+
+    [Fact]
     public void ItFreeText_WithoutAp_StillEditable()
     {
         var a = AcrobatAp(3);

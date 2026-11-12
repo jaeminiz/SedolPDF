@@ -273,10 +273,24 @@ public static class AnnotationReader
             var shape = kind is AnnotKind.Line or AnnotKind.PolyLine or AnnotKind.Polygon ? ReadShape(e, kind.Value) : null;
             if (shape is { Failure: not ReadOnlyReason.None }) return Fail(shape.Failure);
 
+            // Acrobat은 선 굵기의 절반만큼 /RD를 두고 선을 그 상자의 가운데에 긋는다(1pt 선이면 /RD 1 → 선 바깥은 /Rect보다 0.5 안쪽).
+            // 모델은 선을 상자 안쪽에 그리므로, 옮겨 다시 그려도 테두리·글자 위치가 안 변하게 선 바깥 가장자리까지 상자를 넓혀 읽는다.
+            var modelRect = ft?.Rect ?? rect.Value;
+            if (ft is { Intent: FreeTextIntent.TextBox } && color is not null && ReadBorderWidth(e, bs) > 0)
+            {
+                float h = ReadBorderWidth(e, bs) / 2f;
+                var src = rect.Value;
+                modelRect = new PdfRectF(
+                    modelRect.Left - Math.Min(h, Math.Max(modelRect.Left - src.Left, 0f)),
+                    modelRect.Bottom - Math.Min(h, Math.Max(modelRect.Bottom - src.Bottom, 0f)),
+                    modelRect.Right + Math.Min(h, Math.Max(src.Right - modelRect.Right, 0f)),
+                    modelRect.Top + Math.Min(h, Math.Max(src.Top - modelRect.Top, 0f)));
+            }
+
             var data = new Annotation
             {
                 Kind = kind.Value,
-                Rect = ft?.Rect ?? rect.Value,
+                Rect = modelRect,
                 CloudIntensity = cloud,
                 StartEnding = shape?.Start ?? LineEnding.None,
                 Color = color,
