@@ -6,7 +6,13 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 
 > **현재 공개 버전(v0.10.0)입니다.** 기본 기능은 쓸 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요. 문제나 제안은 [Issues](https://github.com/jaeminiz/SedolPDF/issues)에 남겨 주세요.
 
-[![Microsoft Store에서 받기](https://get.microsoft.com/images/ko%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
+<p align="center">
+
+[![release](https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release)](https://github.com/jaeminiz/SedolPDF/releases/latest) ![Windows](https://img.shields.io/badge/Windows-x64-0078D4) ![license](https://img.shields.io/badge/license-MIT-green) [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-%EB%B0%9B%EA%B8%B0-00A4EF)](https://apps.microsoft.com/detail/9NV1D7TDKVJK) ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
+
+[Microsoft Store](https://apps.microsoft.com/detail/9NV1D7TDKVJK) · [설치 파일·포터블 ZIP](https://github.com/jaeminiz/SedolPDF/releases/latest) · [이슈](https://github.com/jaeminiz/SedolPDF/issues)
+
+</p>
 
 ![주석 탭](docs/screenshots/03-annotate.png)
 
