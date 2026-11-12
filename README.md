@@ -7,13 +7,18 @@ Windows용 무료 오픈소스 PDF 편집기입니다. 보기, 주석, 쪽 편�
 > **현재 공개 버전(v0.10.0)입니다.** 기본 기능은 쓸 수 있지만 아직 다듬는 중입니다. 중요한 파일은 원본을 따로 보관하고 쓰세요. 문제나 제안은 [Issues](https://github.com/jaeminiz/SedolPDF/issues)에 남겨 주세요.
 
 <p align="center">
+  <a href="https://github.com/jaeminiz/SedolPDF/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release"></a>
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-x64-0078D4">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
+  <img alt="PRs" src="https://img.shields.io/badge/PRs-welcome-brightgreen">
+</p>
 
-[![release](https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release)](https://github.com/jaeminiz/SedolPDF/releases/latest) ![Windows](https://img.shields.io/badge/Windows-x64-0078D4) ![license](https://img.shields.io/badge/license-MIT-green) ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
+<p align="center">
+  <a href="https://github.com/sponsors/jaeminiz"><img alt="Sponsor" src="https://img.shields.io/badge/%E2%99%A5%20SUPPORT%20SEDOLPDF-GITHUB%20SPONSORS-3DD68C?style=for-the-badge&labelColor=black"></a>
+</p>
 
-[![Sponsor](https://img.shields.io/badge/%E2%99%A5%20SUPPORT%20SEDOLPDF-GITHUB%20SPONSORS-3DD68C?style=for-the-badge&labelColor=black)](https://github.com/sponsors/jaeminiz)
-
-[![Microsoft Store에서 받기](https://get.microsoft.com/images/ko%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
-
+<p align="center">
+  <a href="https://apps.microsoft.com/detail/9NV1D7TDKVJK"><img alt="Microsoft Store에서 받기" src="https://get.microsoft.com/images/ko%20dark.svg"></a>
 </p>
 
 ![주석 탭](docs/screenshots/03-annotate.png)

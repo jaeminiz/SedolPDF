@@ -7,13 +7,18 @@ A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit
 > **This is an early public release (v0.10.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
 
 <p align="center">
+  <a href="https://github.com/jaeminiz/SedolPDF/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release"></a>
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-x64-0078D4">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
+  <img alt="PRs" src="https://img.shields.io/badge/PRs-welcome-brightgreen">
+</p>
 
-[![release](https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release)](https://github.com/jaeminiz/SedolPDF/releases/latest) ![Windows](https://img.shields.io/badge/Windows-x64-0078D4) ![license](https://img.shields.io/badge/license-MIT-green) ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
+<p align="center">
+  <a href="https://github.com/sponsors/jaeminiz"><img alt="Sponsor" src="https://img.shields.io/badge/%E2%99%A5%20SUPPORT%20SEDOLPDF-GITHUB%20SPONSORS-3DD68C?style=for-the-badge&labelColor=black"></a>
+</p>
 
-[![Sponsor](https://img.shields.io/badge/%E2%99%A5%20SUPPORT%20SEDOLPDF-GITHUB%20SPONSORS-3DD68C?style=for-the-badge&labelColor=black)](https://github.com/sponsors/jaeminiz)
-
-[![Get it from Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NV1D7TDKVJK)
-
+<p align="center">
+  <a href="https://apps.microsoft.com/detail/9NV1D7TDKVJK"><img alt="Get it from Microsoft Store" src="https://get.microsoft.com/images/en-us%20dark.svg"></a>
 </p>
 
 ![Comment tab](docs/screenshots/en/03-annotate.png)
