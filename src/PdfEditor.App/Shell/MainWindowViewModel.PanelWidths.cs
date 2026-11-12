@@ -6,7 +6,10 @@ namespace PdfEditor.App.Shell;
 /// <summary>왼쪽 패널·속성 패널의 폭 (0.5.0): 끌어서 바꾸고, 더블클릭하면 기본 폭으로 돌아가며, 종류별로 설정에 기억한다.</summary>
 public sealed partial class MainWindowViewModel
 {
-    public const double LeftPanelMinWidth = 160, LeftPanelMaxWidth = 560;
+    public const double LeftPanelMinWidth = 160, LeftPanelMaxWidth = 560, ThumbnailsPanelMaxWidth = 1200;
+
+    /// <summary>패널 종류별 최대 폭: 썸네일은 여러 열을 위해 훨씬 넓게(Acrobat처럼).</summary>
+    public static double MaxLeftPanelWidth(PanelKind kind) => kind is PanelKind.Thumbnails ? ThumbnailsPanelMaxWidth : LeftPanelMaxWidth;
     public const double PropertiesPanelMinWidth = 180, PropertiesPanelMaxWidth = 480, PropertiesPanelDefaultWidth = 220;
 
     private readonly Dictionary<PanelKind, double> _leftWidths = [];
@@ -30,7 +33,7 @@ public sealed partial class MainWindowViewModel
     public void SetLeftPanelWidth(double width)
     {
         if (double.IsNaN(width) || double.IsInfinity(width)) return;
-        width = Math.Round(Math.Clamp(width, LeftPanelMinWidth, LeftPanelMaxWidth));
+        width = Math.Round(Math.Clamp(width, LeftPanelMinWidth, MaxLeftPanelWidth(ActiveLeftPanel)));
         if (width == DefaultLeftPanelWidth(ActiveLeftPanel)) _leftWidths.Remove(ActiveLeftPanel);
         else _leftWidths[ActiveLeftPanel] = width;
         OnPropertyChanged(nameof(LeftPanelWidth));
@@ -95,7 +98,7 @@ public sealed partial class MainWindowViewModel
         if (s.LeftPanelWidths is { } d)
             foreach (var (k, v) in d)
                 if (Enum.TryParse<PanelKind>(k, out var kind) && Enum.IsDefined(kind) && double.IsFinite(v))
-                    _leftWidths[kind] = Math.Clamp(v, LeftPanelMinWidth, LeftPanelMaxWidth);
+                    _leftWidths[kind] = Math.Clamp(v, LeftPanelMinWidth, MaxLeftPanelWidth(kind));
         _propertiesWidth = s.PropertiesPanelWidth is { } p && double.IsFinite(p) ? Math.Clamp(p, PropertiesPanelMinWidth, PropertiesPanelMaxWidth) : null;
         OnPropertyChanged(nameof(LeftPanelWidth));
         OnPropertyChanged(nameof(PropertiesPanelWidth));

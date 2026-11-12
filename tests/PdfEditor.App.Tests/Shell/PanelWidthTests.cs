@@ -21,7 +21,7 @@ public class PanelWidthTests
     {
         var vm = new MainWindowViewModel { ActiveLeftPanel = PanelKind.Thumbnails };
         vm.SetLeftPanelWidth(10); Assert.Equal(MainWindowViewModel.LeftPanelMinWidth, vm.LeftPanelWidth);
-        vm.SetLeftPanelWidth(5000); Assert.Equal(MainWindowViewModel.LeftPanelMaxWidth, vm.LeftPanelWidth);
+        vm.SetLeftPanelWidth(5000); Assert.Equal(MainWindowViewModel.ThumbnailsPanelMaxWidth, vm.LeftPanelWidth);
         vm.SetLeftPanelWidth(260);
         vm.ActiveLeftPanel = PanelKind.Comments; Assert.Equal(320, vm.LeftPanelWidth);   // 다른 패널은 영향 없음
         vm.ActiveLeftPanel = PanelKind.Thumbnails; Assert.Equal(260, vm.LeftPanelWidth);
@@ -96,7 +96,7 @@ public class ThumbnailSizeSettingTests
             Assert.Equal(220, vm.ThumbnailSize);
 
             vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = 99999 });
-            Assert.Equal(256, vm.ThumbnailSize);
+            Assert.Equal(400, vm.ThumbnailSize);
             vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = -3 });
             Assert.Equal(64, vm.ThumbnailSize);
             vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = double.NaN });

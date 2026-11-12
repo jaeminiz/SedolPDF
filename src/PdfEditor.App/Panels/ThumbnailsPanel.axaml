@@ -24,7 +24,7 @@
   <!-- 썸네일 크기: 작은 산 – 슬라이더 – 큰 산 (Acrobat "페이지 축소판"처럼) -->
   <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="10,2,10,4" ToolTip.Tip="{x:Static res:Strings.Tip_ThumbnailSize}">
     <Path Grid.Column="0" Data="M1,12 L5,6 L8,10 L11,5 L15,12 Z" Fill="#5C5C5C" Width="16" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
-    <Slider Grid.Column="1" x:Name="SizeSlider" Classes="zoom" MinHeight="0" Height="20" Minimum="64" Maximum="256" Value="{Binding Size, Mode=TwoWay}" Margin="6,0"
+    <Slider Grid.Column="1" x:Name="SizeSlider" Classes="zoom" MinHeight="0" Height="20" Minimum="64" Maximum="400" Value="{Binding Size, Mode=TwoWay}" Margin="6,0"
             VerticalAlignment="Center" AutomationProperties.Name="{x:Static res:Strings.Tip_ThumbnailSize}" />
     <Path Grid.Column="2" Data="M1,12 L5,6 L8,10 L11,5 L15,12 Z" Fill="#5C5C5C" Width="22" Height="19" Stretch="Uniform" VerticalAlignment="Center" />
   </Grid>

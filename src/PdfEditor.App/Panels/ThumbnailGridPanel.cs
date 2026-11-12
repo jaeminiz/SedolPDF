@@ -32,6 +32,7 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
     private double _width = 1;
     private int _columns = 1;
     private double[] _rowTops = [0];
+    private int _pinned = -1;   // 키로 옮겨 가는 중인 칸: 스크롤이 끝나 보이는 범위에 들어올 때까지 거두지 않는다
 
     public ThumbnailGridPanel() => EffectiveViewportChanged += OnEffectiveViewportChanged;
 
@@ -66,7 +67,10 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
         _rowTops = BuildRowTops(count, _columns);
         var (first, last) = Range(_viewport, _columns, count);
 
-        foreach (int i in _realized.Keys.Where(i => i < first || i > last).ToList()) Release(i);
+        // 포커스가 있는 칸과 키로 옮겨 가는 중인 칸은 범위 밖이어도 거두지 않는다(거두면 포커스를 잃어 PageUp/PageDown이 한 번만 먹는다).
+        if (_pinned >= first && _pinned <= last) _pinned = -1;
+        foreach (var (i, c) in _realized.ToList())
+            if ((i < first || i > last) && i != _pinned && !c.IsKeyboardFocusWithin) Release(i);
         for (int i = first; i <= last; i++)
             if (!_realized.ContainsKey(i)) Realize(i);
         foreach (var (i, c) in _realized) c.Measure(new Size(CellWidth, RowHeight(i / _columns)));
@@ -140,6 +144,7 @@ public sealed class ThumbnailGridPanel : VirtualizingPanel
     {
         if (index < 0 || index >= Items.Count) return null;
         var c = _realized.GetValueOrDefault(index) ?? Realize(index);
+        _pinned = index;
         var rect = ThumbnailGridLayout.CellRect(index, _columns, _width, CellWidth, _rowTops);
         if (!c.IsMeasureValid) c.Measure(rect.Size);
         c.Arrange(rect);

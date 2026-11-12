@@ -106,6 +106,36 @@ public class ThumbnailGridPanelTests
     }
 
     [Fact]
+    public void PageDownThenPageUp_KeepWorkingRepeatedly()
+    {
+        HeadlessUi.Run(() =>
+        {
+            var h = Show(400, 330);
+            h.List.SelectedIndex = 0;
+            Pump(h.Window);
+            h.List.ContainerFromIndex(0)!.Focus();
+            var sv = h.List.FindDescendantOfType<ScrollViewer>()!;
+            double prev = sv.Offset.Y;
+            for (int k = 0; k < 3; k++)
+            {
+                h.Window.KeyPressQwerty(PhysicalKey.PageDown, RawInputModifiers.None);
+                Pump(h.Window);
+                Assert.True(sv.Offset.Y > prev, $"PageDown #{k}: {prev} -> {sv.Offset.Y}");
+                prev = sv.Offset.Y;
+            }
+            for (int k = 0; k < 3; k++)
+            {
+                h.Window.KeyPressQwerty(PhysicalKey.PageUp, RawInputModifiers.None);
+                Pump(h.Window);
+                Assert.True(sv.Offset.Y < prev, $"PageUp #{k}: {prev} -> {sv.Offset.Y}");
+                prev = sv.Offset.Y;
+            }
+            h.Window.Close();
+            return 0;
+        });
+    }
+
+    [Fact]
     public void ItemsChange_KeepsLayoutAndSelectionConsistent()
     {
         HeadlessUi.Run(() =>
