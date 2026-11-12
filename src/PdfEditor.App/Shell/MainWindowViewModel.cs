@@ -501,7 +501,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var cmds = new PageCommandsViewModel(tab, _workflow!, _prompts!, _post);
         cmds.SessionCreated += s => Activate(s);
         cmds.StateChanged += () => { if (ReferenceEquals(ActiveDocument, tab)) NotifyDocCommands(); };
-        var thumbs = new ThumbnailsViewModel(tab, (data, w, h) => new BitmapHandle(data, w, h), _post);
+        var thumbs = new ThumbnailsViewModel(tab, (data, w, h) => new BitmapHandle(data, w, h), _post) { Size = _thumbnailSize };
+        thumbs.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ThumbnailsViewModel.Size)) OnThumbnailSizeChanged(thumbs); };
         tab.PageCommands = cmds;
         tab.Thumbnails = thumbs;
         tab.Bookmarks = new BookmarksViewModel(tab);

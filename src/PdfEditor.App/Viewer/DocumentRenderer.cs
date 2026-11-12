@@ -42,9 +42,9 @@ public sealed class DocumentRenderer : IDisposable
     public static TileRequest TileRequestFor(PageInfo page, TileKey key) =>
         new(TileKind.Tile, key, key.Scale, key.PixelBounds(page));
 
-    public static TileRequest ThumbnailRequestFor(PageInfo page)
+    public static TileRequest ThumbnailRequestFor(PageInfo page, int longSidePx = ThumbnailCache<IImageHandle>.LongSidePx)
     {
-        var (w, h) = ThumbnailCache<IImageHandle>.SizeFor(page);
+        var (w, h) = ThumbnailCache<IImageHandle>.SizeFor(page, longSidePx);
         var key = new TileKey(page.Id, page.Version, page.AnnotRevision, 0, 0, 0);
         return new TileRequest(TileKind.Thumbnail, key, w / (double)page.WidthPt, new PixelRect(0, 0, w, h));
     }

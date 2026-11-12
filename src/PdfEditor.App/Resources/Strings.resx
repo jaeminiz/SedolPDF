@@ -631,6 +631,7 @@ Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value
   <data name="Panel_Replace" xml:space="preserve"><value>찾아 바꾸기</value></data>
   <data name="Panel_Close" xml:space="preserve"><value>패널 닫기</value></data>
   <data name="Tip_ResizePanel" xml:space="preserve"><value>끌어서 폭 조절 · 더블클릭하면 기본 폭</value></data>
+  <data name="Tip_ThumbnailSize" xml:space="preserve"><value>썸네일 크기 (끌어서 작게·크게)</value></data>
   <data name="Cmd_FindReplace" xml:space="preserve"><value>찾아 바꾸기</value></data>
   <data name="Tip_FindReplace" xml:space="preserve"><value>글을 찾아 다른 글로 바꿉니다. 도면 번호처럼 여러 곳에 있는 글을 한꺼번에 바꿀 때 씁니다. (Ctrl+H)</value></data>
   <data name="Replace_FindLabel" xml:space="preserve"><value>찾을 글</value></data>

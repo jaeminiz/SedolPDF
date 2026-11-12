@@ -6,6 +6,8 @@ namespace PdfEditor.App.Viewer;
 public sealed class ThumbnailCache<TImage> where TImage : class
 {
     public const int LongSidePx = 160;
+    /// <summary>썸네일을 160px보다 크게 보여 줄 때(0.11.0 확대 슬라이더) 그리는 크기.</summary>
+    public const int LargeLongSidePx = 256;
     public const long DefaultBudgetBytes = 32L * 1024 * 1024;
 
     private readonly TileCache<TImage> _cache;
@@ -24,10 +26,10 @@ public sealed class ThumbnailCache<TImage> where TImage : class
     public void RemoveStaleVersions(PageId page, int currentVersion) => _cache.RemoveStaleVersions(page, currentVersion);
     public long UsedBytes => _cache.UsedBytes;
 
-    /// <summary>긴 변이 LongSidePx가 되는 썸네일 픽셀 크기.</summary>
-    public static (int W, int H) SizeFor(PageInfo page)
+    /// <summary>긴 변이 longSidePx(기본 LongSidePx)가 되는 썸네일 픽셀 크기.</summary>
+    public static (int W, int H) SizeFor(PageInfo page, int longSidePx = LongSidePx)
     {
-        double k = LongSidePx / Math.Max(page.WidthPt, page.HeightPt);
+        double k = longSidePx / Math.Max(page.WidthPt, page.HeightPt);
         return (Math.Max(1, (int)Math.Round(page.WidthPt * k)), Math.Max(1, (int)Math.Round(page.HeightPt * k)));
     }
 }

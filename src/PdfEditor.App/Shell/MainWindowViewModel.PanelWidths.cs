@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PdfEditor.App.Panels;
 
 namespace PdfEditor.App.Shell;
 
@@ -47,6 +48,33 @@ public sealed partial class MainWindowViewModel
         PanelWidthsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    // ---- 썸네일 크기 (0.11.0): 슬라이더로 바꾸면 모든 탭의 썸네일에 같이 적용하고 설정에 기억한다 ----
+
+    private double _thumbnailSize = ThumbnailsViewModel.DefaultSize;
+
+    public double ThumbnailSize => _thumbnailSize;
+
+    /// <summary>썸네일 크기가 바뀌었을 때(슬라이더) 설정에 저장하라고 알린다.</summary>
+    public event EventHandler? ThumbnailSizeChanged;
+
+    private void OnThumbnailSizeChanged(ThumbnailsViewModel source)
+    {
+        if (source.Size == _thumbnailSize) return;
+        _thumbnailSize = source.Size;
+        foreach (var d in Documents)
+            if (d.Thumbnails is { } t && !ReferenceEquals(t, source)) t.Size = _thumbnailSize;
+        ThumbnailSizeChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>저장된 썸네일 크기를 되살린다(범위 밖·알 수 없는 값은 맞추거나 무시).</summary>
+    public void ApplyThumbnailSize(PdfEditor.App.Settings.AppSettings s)
+    {
+        if (s.ThumbnailSize is not { } v || !double.IsFinite(v)) return;
+        _thumbnailSize = Math.Round(Math.Clamp(v, ThumbnailsViewModel.MinSize, ThumbnailsViewModel.MaxSize));
+        foreach (var d in Documents)
+            if (d.Thumbnails is { } t) t.Size = _thumbnailSize;
+    }
+
     public void ResetPropertiesPanelWidth() => SetPropertiesPanelWidth(PropertiesPanelDefaultWidth);
 
     /// <summary>다른 창의 패널 폭을 그대로 가져온다(새 창).</summary>
@@ -55,6 +83,7 @@ public sealed partial class MainWindowViewModel
         _leftWidths.Clear();
         foreach (var (k, v) in other._leftWidths) _leftWidths[k] = v;
         _propertiesWidth = other._propertiesWidth;
+        _thumbnailSize = other._thumbnailSize;
         OnPropertyChanged(nameof(LeftPanelWidth));
         OnPropertyChanged(nameof(PropertiesPanelWidth));
     }

@@ -79,3 +79,31 @@ public class PanelWidthTests
         Assert.Equal(MainWindowViewModel.PropertiesPanelMinWidth, vm.PropertiesPanelWidth);
     }
 }
+
+public class ThumbnailSizeSettingTests
+{
+    [Fact]
+    public void Size_round_trips_through_settings_and_is_clamped()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "thsize-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            var store = new SettingsStore(path);
+            store.Update(s => s with { ThumbnailSize = 220 });
+            var vm = new MainWindowViewModel();
+            Assert.Equal(160, vm.ThumbnailSize);   // 기본
+            vm.ApplyThumbnailSize(new SettingsStore(path).Load());
+            Assert.Equal(220, vm.ThumbnailSize);
+
+            vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = 99999 });
+            Assert.Equal(256, vm.ThumbnailSize);
+            vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = -3 });
+            Assert.Equal(64, vm.ThumbnailSize);
+            vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = double.NaN });
+            Assert.Equal(64, vm.ThumbnailSize);   // 깨진 값은 무시
+            vm.ApplyThumbnailSize(AppSettings.Default);
+            Assert.Equal(64, vm.ThumbnailSize);   // 설정에 없으면 건드리지 않는다
+        }
+        finally { File.Delete(path); }
+    }
+}
