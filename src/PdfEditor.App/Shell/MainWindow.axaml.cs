@@ -94,7 +94,12 @@ public sealed partial class MainWindow : Window, IHostWindow
         var appearance = services.Appearance;
         var patcher = services.Patcher;
         var settings = _host.Settings;
-        try { var saved = settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
+        try { var saved = settings.Load(); _vm.ApplyPanelState(saved); _vm.ApplyPanelWidths(saved); _vm.ApplyThumbnailSize(saved); } catch (Exception) { /* 읽지 못하면 기본 배치 */ }
+        _vm.ThumbnailSizeChanged += (_, _) =>
+        {
+            try { settings.Update(s => s with { ThumbnailSize = _vm.ThumbnailSize == PdfEditor.App.Panels.ThumbnailsViewModel.DefaultSize ? null : _vm.ThumbnailSize }); }
+            catch (Exception) { /* 저장 실패가 화면 조작을 막지 않는다 */ }
+        };
         _vm.PanelWidthsChanged += (_, _) =>
         {
             try { settings.Update(s => s with { LeftPanelWidths = _vm.LeftPanelWidths.ToDictionary(k => k.Key.ToString(), k => k.Value), PropertiesPanelWidth = _vm.SavedPropertiesPanelWidth }); }

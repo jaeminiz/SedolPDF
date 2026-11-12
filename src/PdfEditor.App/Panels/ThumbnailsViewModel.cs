@@ -36,8 +36,71 @@ public sealed partial class ThumbnailItem(PageId id) : ObservableObject
 /// 화면에 보이는(실체화된) 칸만 렌더를 요청한다. 선택은 탭의 SelectedPages로, 클릭은 현재 쪽으로 이어진다.
 /// 모든 공개 메서드는 UI 스레드에서 부른다.
 /// </summary>
-public sealed class ThumbnailsViewModel : IDisposable
+public sealed class ThumbnailsViewModel : ObservableObject, IDisposable
 {
+    /// <summary>썸네일 크기(긴 변, 화면 px) 범위와 기본값. 슬라이더가 이 범위를 쓴다.</summary>
+    public const double MinSize = 64, MaxSize = 1000, DefaultSize = 160;
+
+    /// <summary>칸 하나의 크기: 썸네일 둘레 여백과 쪽 번호 줄을 더한 값. 여러 열 배치(ThumbnailGridPanel)가 쓴다.</summary>
+    public const double CellPadding = 14, CellLabelHeight = 22;
+
+    private double _size = DefaultSize;
+
+    /// <summary>썸네일 긴 변의 화면 크기. 범위 밖 값은 맞추고 정수로 반올림한다. 160 이하는 160px로, 단계별(160·256·400·640·1000px)로 그려 늘여 쓴다.</summary>
+    public double Size
+    {
+        get => _size;
+        set
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return;
+            value = Math.Round(Math.Clamp(value, MinSize, MaxSize));
+            if (value == _size) return;
+            int oldTier = RenderLongSide;
+            _size = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SizeSliderValue));
+            OnPropertyChanged(nameof(CellWidth));
+            OnPropertyChanged(nameof(CellHeight));
+            if (_disposed) return;
+            if (RenderLongSide != oldTier) DropRenderedImages();
+            Rebuild();
+        }
+    }
+
+    public double CellWidth => _size + CellPadding;
+
+    /// <summary>줄 높이에 더하는 값(썸네일 둘레 여백 + 쪽 번호 줄). 줄 높이는 줄의 가장 큰 썸네일 높이 + 이 값.</summary>
+    public double RowPadding => CellPadding + CellLabelHeight;
+
+    private int _layoutVersion;
+    /// <summary>칸 높이가 바뀔 수 있는 갱신(Rebuild)마다 올라간다. 패널이 이 값이 바뀌면 다시 배치한다.</summary>
+    public int LayoutVersion { get => _layoutVersion; private set => SetProperty(ref _layoutVersion, value); }
+    public double CellHeight => _size + CellPadding + CellLabelHeight;
+
+    /// <summary>그려 두는 이미지의 긴 변(px).</summary>
+    public int RenderLongSide => _size switch
+    {
+        <= ThumbnailCache<IImageHandle>.LongSidePx => ThumbnailCache<IImageHandle>.LongSidePx,
+        <= ThumbnailCache<IImageHandle>.LargeLongSidePx => ThumbnailCache<IImageHandle>.LargeLongSidePx,
+        <= ThumbnailCache<IImageHandle>.HugeLongSidePx => ThumbnailCache<IImageHandle>.HugeLongSidePx,
+        <= ThumbnailCache<IImageHandle>.ExtraLongSidePx => ThumbnailCache<IImageHandle>.ExtraLongSidePx,
+        _ => ThumbnailCache<IImageHandle>.MaxLongSidePx,
+    };
+
+    /// <summary>슬라이더 위치(0~1). 작은 크기를 세밀하게 고르도록 로그 눈금이다: 위치 0 = 최소, 1 = 최대.</summary>
+    public double SizeSliderValue
+    {
+        get => Math.Log(_size / MinSize) / Math.Log(MaxSize / MinSize);
+        set { if (double.IsFinite(value)) Size = MinSize * Math.Pow(MaxSize / MinSize, Math.Clamp(value, 0, 1)); }
+    }
+
+    /// <summary>그리는 크기 단계가 바뀌면 이전 크기의 이미지를 모두 버리고 새로 그린다.</summary>
+    private void DropRenderedImages()
+    {
+        foreach (var p in _s.Pages) _thumbs.RemovePage(p.Id);
+        foreach (var it in Items) { it.Image = null; it.Version = -1; }
+    }
+
     private readonly DocumentTabViewModel _tab;
     private readonly DocumentSession _s;
     private readonly Action<Action> _post;
@@ -130,7 +193,7 @@ public sealed class ThumbnailsViewModel : IDisposable
             if (!existing.TryGetValue(p.Id, out var item)) item = new ThumbnailItem(p.Id);
             item.Session = _s;
             item.PageNumber = i + 1;
-            var (w, h) = ThumbnailCache<IImageHandle>.SizeFor(p);
+            var (w, h) = ThumbnailCache<IImageHandle>.SizeFor(p, (int)_size);
             item.DisplayWidth = w;
             item.DisplayHeight = h;
             if (item.Version != p.Version || item.AnnotRevision != p.AnnotRevision)
@@ -156,6 +219,7 @@ public sealed class ThumbnailsViewModel : IDisposable
         }
 
         UpdateCurrent();
+        LayoutVersion++;
         UpdateWanted();
     }
 
@@ -170,7 +234,7 @@ public sealed class ThumbnailsViewModel : IDisposable
             bool vis; lock (_visible) vis = _visible.Contains(it.Id);
             if (!vis || !byId.TryGetValue(it.Id, out var p)) continue;
             if (_thumbs.TryGet(p.Id, p.Version, p.AnnotRevision, out _)) continue;
-            reqs.Add(DocumentRenderer.ThumbnailRequestFor(p));
+            reqs.Add(DocumentRenderer.ThumbnailRequestFor(p, RenderLongSide));
         }
         _scheduler.SetWanted(reqs);
     }
@@ -178,6 +242,9 @@ public sealed class ThumbnailsViewModel : IDisposable
     private void OnReady(TileRequest r, byte[] data)
     {
         if (_disposed) return;
+        // 크기 단계가 바뀌기 전에 요청한 결과는 버린다(캐시 키에 크기가 없어 섞이면 흐리거나 작게 보인다).
+        var info = _s.Pages.FirstOrDefault(p => p.Id == r.Key.Page);
+        if (info is null || ThumbnailCache<IImageHandle>.SizeFor(info, RenderLongSide) != (r.Rect.W, r.Rect.H)) { UpdateWanted(); return; }
         if (!_renderer.Accept(r, data)) return;   // 그 사이 쪽이 바뀌었으면 버린다
         foreach (var it in Items)
             if (it.Id == r.Key.Page && it.Version == r.Key.Version && it.AnnotRevision == r.Key.AnnotRevision && _thumbs.TryGet(r.Key.Page, r.Key.Version, r.Key.AnnotRevision, out var img))

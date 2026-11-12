@@ -1,11 +1,15 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PdfEditor.App.Panels;
 
 namespace PdfEditor.App.Shell;
 
 /// <summary>왼쪽 패널·속성 패널의 폭 (0.5.0): 끌어서 바꾸고, 더블클릭하면 기본 폭으로 돌아가며, 종류별로 설정에 기억한다.</summary>
 public sealed partial class MainWindowViewModel
 {
-    public const double LeftPanelMinWidth = 160, LeftPanelMaxWidth = 560;
+    public const double LeftPanelMinWidth = 160, LeftPanelMaxWidth = 560, ThumbnailsPanelMaxWidth = 1200;
+
+    /// <summary>패널 종류별 최대 폭: 썸네일은 여러 열을 위해 훨씬 넓게(Acrobat처럼).</summary>
+    public static double MaxLeftPanelWidth(PanelKind kind) => kind is PanelKind.Thumbnails ? ThumbnailsPanelMaxWidth : LeftPanelMaxWidth;
     public const double PropertiesPanelMinWidth = 180, PropertiesPanelMaxWidth = 480, PropertiesPanelDefaultWidth = 220;
 
     private readonly Dictionary<PanelKind, double> _leftWidths = [];
@@ -29,7 +33,7 @@ public sealed partial class MainWindowViewModel
     public void SetLeftPanelWidth(double width)
     {
         if (double.IsNaN(width) || double.IsInfinity(width)) return;
-        width = Math.Round(Math.Clamp(width, LeftPanelMinWidth, LeftPanelMaxWidth));
+        width = Math.Round(Math.Clamp(width, LeftPanelMinWidth, MaxLeftPanelWidth(ActiveLeftPanel)));
         if (width == DefaultLeftPanelWidth(ActiveLeftPanel)) _leftWidths.Remove(ActiveLeftPanel);
         else _leftWidths[ActiveLeftPanel] = width;
         OnPropertyChanged(nameof(LeftPanelWidth));
@@ -47,6 +51,33 @@ public sealed partial class MainWindowViewModel
         PanelWidthsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    // ---- 썸네일 크기 (0.11.0): 슬라이더로 바꾸면 모든 탭의 썸네일에 같이 적용하고 설정에 기억한다 ----
+
+    private double _thumbnailSize = ThumbnailsViewModel.DefaultSize;
+
+    public double ThumbnailSize => _thumbnailSize;
+
+    /// <summary>썸네일 크기가 바뀌었을 때(슬라이더) 설정에 저장하라고 알린다.</summary>
+    public event EventHandler? ThumbnailSizeChanged;
+
+    private void OnThumbnailSizeChanged(ThumbnailsViewModel source)
+    {
+        if (source.Size == _thumbnailSize) return;
+        _thumbnailSize = source.Size;
+        foreach (var d in Documents)
+            if (d.Thumbnails is { } t && !ReferenceEquals(t, source)) t.Size = _thumbnailSize;
+        ThumbnailSizeChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>저장된 썸네일 크기를 되살린다(범위 밖·알 수 없는 값은 맞추거나 무시).</summary>
+    public void ApplyThumbnailSize(PdfEditor.App.Settings.AppSettings s)
+    {
+        if (s.ThumbnailSize is not { } v || !double.IsFinite(v)) return;
+        _thumbnailSize = Math.Round(Math.Clamp(v, ThumbnailsViewModel.MinSize, ThumbnailsViewModel.MaxSize));
+        foreach (var d in Documents)
+            if (d.Thumbnails is { } t) t.Size = _thumbnailSize;
+    }
+
     public void ResetPropertiesPanelWidth() => SetPropertiesPanelWidth(PropertiesPanelDefaultWidth);
 
     /// <summary>다른 창의 패널 폭을 그대로 가져온다(새 창).</summary>
@@ -55,6 +86,7 @@ public sealed partial class MainWindowViewModel
         _leftWidths.Clear();
         foreach (var (k, v) in other._leftWidths) _leftWidths[k] = v;
         _propertiesWidth = other._propertiesWidth;
+        _thumbnailSize = other._thumbnailSize;
         OnPropertyChanged(nameof(LeftPanelWidth));
         OnPropertyChanged(nameof(PropertiesPanelWidth));
     }
@@ -66,7 +98,7 @@ public sealed partial class MainWindowViewModel
         if (s.LeftPanelWidths is { } d)
             foreach (var (k, v) in d)
                 if (Enum.TryParse<PanelKind>(k, out var kind) && Enum.IsDefined(kind) && double.IsFinite(v))
-                    _leftWidths[kind] = Math.Clamp(v, LeftPanelMinWidth, LeftPanelMaxWidth);
+                    _leftWidths[kind] = Math.Clamp(v, LeftPanelMinWidth, MaxLeftPanelWidth(kind));
         _propertiesWidth = s.PropertiesPanelWidth is { } p && double.IsFinite(p) ? Math.Clamp(p, PropertiesPanelMinWidth, PropertiesPanelMaxWidth) : null;
         OnPropertyChanged(nameof(LeftPanelWidth));
         OnPropertyChanged(nameof(PropertiesPanelWidth));

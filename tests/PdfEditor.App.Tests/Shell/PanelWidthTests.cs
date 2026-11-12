@@ -21,7 +21,7 @@ public class PanelWidthTests
     {
         var vm = new MainWindowViewModel { ActiveLeftPanel = PanelKind.Thumbnails };
         vm.SetLeftPanelWidth(10); Assert.Equal(MainWindowViewModel.LeftPanelMinWidth, vm.LeftPanelWidth);
-        vm.SetLeftPanelWidth(5000); Assert.Equal(MainWindowViewModel.LeftPanelMaxWidth, vm.LeftPanelWidth);
+        vm.SetLeftPanelWidth(5000); Assert.Equal(MainWindowViewModel.ThumbnailsPanelMaxWidth, vm.LeftPanelWidth);
         vm.SetLeftPanelWidth(260);
         vm.ActiveLeftPanel = PanelKind.Comments; Assert.Equal(320, vm.LeftPanelWidth);   // 다른 패널은 영향 없음
         vm.ActiveLeftPanel = PanelKind.Thumbnails; Assert.Equal(260, vm.LeftPanelWidth);
@@ -77,5 +77,33 @@ public class PanelWidthTests
         vm.ActiveLeftPanel = PanelKind.Comments; Assert.Equal(MainWindowViewModel.LeftPanelMaxWidth, vm.LeftPanelWidth);
         vm.ActiveLeftPanel = PanelKind.Layers; Assert.Equal(200, vm.LeftPanelWidth);
         Assert.Equal(MainWindowViewModel.PropertiesPanelMinWidth, vm.PropertiesPanelWidth);
+    }
+}
+
+public class ThumbnailSizeSettingTests
+{
+    [Fact]
+    public void Size_round_trips_through_settings_and_is_clamped()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "thsize-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            var store = new SettingsStore(path);
+            store.Update(s => s with { ThumbnailSize = 220 });
+            var vm = new MainWindowViewModel();
+            Assert.Equal(160, vm.ThumbnailSize);   // 기본
+            vm.ApplyThumbnailSize(new SettingsStore(path).Load());
+            Assert.Equal(220, vm.ThumbnailSize);
+
+            vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = 99999 });
+            Assert.Equal(1000, vm.ThumbnailSize);
+            vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = -3 });
+            Assert.Equal(64, vm.ThumbnailSize);
+            vm.ApplyThumbnailSize(AppSettings.Default with { ThumbnailSize = double.NaN });
+            Assert.Equal(64, vm.ThumbnailSize);   // 깨진 값은 무시
+            vm.ApplyThumbnailSize(AppSettings.Default);
+            Assert.Equal(64, vm.ThumbnailSize);   // 설정에 없으면 건드리지 않는다
+        }
+        finally { File.Delete(path); }
     }
 }

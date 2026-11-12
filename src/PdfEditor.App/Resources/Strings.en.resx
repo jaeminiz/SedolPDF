@@ -631,6 +631,7 @@ Esc: cancel the current action · Delete: delete the selected object or annotati
   <data name="Panel_Replace" xml:space="preserve"><value>Find and Replace</value></data>
   <data name="Panel_Close" xml:space="preserve"><value>Close panel</value></data>
   <data name="Tip_ResizePanel" xml:space="preserve"><value>Drag to resize · double-click for default width</value></data>
+  <data name="Tip_ThumbnailSize" xml:space="preserve"><value>Thumbnail size (drag to make smaller or larger)</value></data>
   <data name="Cmd_FindReplace" xml:space="preserve"><value>Find and Replace</value></data>
   <data name="Tip_FindReplace" xml:space="preserve"><value>Finds text and replaces it with other text. Use it to change text that appears in many places at once, such as a drawing number. (Ctrl+H)</value></data>
   <data name="Replace_FindLabel" xml:space="preserve"><value>Find</value></data>

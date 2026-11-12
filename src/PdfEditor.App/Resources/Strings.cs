@@ -630,6 +630,7 @@ public static class Strings
     public static string Panel_Replace => Get(nameof(Panel_Replace));
     public static string Panel_Close => Get(nameof(Panel_Close));
     public static string Tip_ResizePanel => Get(nameof(Tip_ResizePanel));
+    public static string Tip_ThumbnailSize => Get(nameof(Tip_ThumbnailSize));
     public static string Cmd_FindReplace => Get(nameof(Cmd_FindReplace));
     public static string Tip_FindReplace => Get(nameof(Tip_FindReplace));
     public static string Replace_FindLabel => Get(nameof(Replace_FindLabel));

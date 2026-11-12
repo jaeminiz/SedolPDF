@@ -140,25 +140,24 @@ public sealed partial class ThumbnailsPanel : UserControl
         else if (y > List.Bounds.Height - edge) sv.Offset = sv.Offset.WithY(Math.Min(sv.Extent.Height - sv.Viewport.Height, sv.Offset.Y + step));
     }
 
+    /// <summary>칸을 배치하는 패널(여러 열 배치).</summary>
+    private ThumbnailGridPanel? GridPanel => List.ItemsPanelRoot as ThumbnailGridPanel;
+
+    /// <summary>목록 좌표의 점을 패널 좌표(스크롤된 전체 내용 기준)로 바꿔 끌어 놓을 자리를 구한다.</summary>
+    private ThumbnailGridLayout.DropSlot? SlotAt(Point listPoint)
+    {
+        if (GridPanel is not { } panel || _vm is null || List.TranslatePoint(listPoint, panel) is not { } p) return null;
+        return ThumbnailGridLayout.DropSlotAt(p, _vm.Items.Count, panel.Columns, panel.ContentWidth, panel.CellWidth, panel.RowTops);
+    }
+
     private void UpdateDropLine(Point pos)
     {
-        int count = _vm?.Items.Count ?? 0;
-        var hit = List.InputHitTest(pos) as Avalonia.Visual;
-        var item = hit?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
-        double y;
-        if (item?.DataContext is ThumbnailItem it)
-        {
-            bool lower = item.TranslatePoint(new Point(0, 0), List) is { } top && pos.Y - top.Y > item.Bounds.Height / 2;
-            _dropIndex = ThumbnailsViewModel.DropIndex(it.PageNumber - 1, lower, count);
-            y = (item.TranslatePoint(new Point(0, lower ? item.Bounds.Height : 0), List) ?? pos).Y;
-        }
-        else
-        {
-            // 칸 밖: 맨 위보다 위면 맨 앞, 그 밖에는 맨 끝.
-            _dropIndex = pos.Y < 0 ? 0 : count;
-            y = _dropIndex == 0 ? 0 : List.Bounds.Height - 3;
-        }
-        DropLine.Margin = new Thickness(8, Math.Max(0, y - 1.5), 8, 0);
+        if (SlotAt(pos) is not { } slot || GridPanel is not { } panel) return;
+        _dropIndex = slot.Index;
+        var topLeft = panel.TranslatePoint(slot.Caret.TopLeft, DropHost) ?? default;
+        DropLine.Width = slot.Caret.Width;
+        DropLine.Height = slot.Caret.Height;
+        DropLine.Margin = new Thickness(Math.Max(0, topLeft.X), Math.Max(0, topLeft.Y), 0, 0);
         DropLine.IsVisible = true;
     }
 
@@ -169,11 +168,7 @@ public sealed partial class ThumbnailsPanel : UserControl
     /// <summary>놓은 자리: 썸네일 칸의 위쪽 절반이면 그 쪽 앞, 아래쪽 절반이면 그 쪽 뒤. 칸 밖이면 맨 끝.</summary>
     private int DropIndex(DragEventArgs e)
     {
-        int count = _vm?.Items.Count ?? 0;
-        var item = (e.Source as Avalonia.Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
-        if (item?.DataContext is not ThumbnailItem it) return count;
-        bool lower = e.GetPosition(item).Y > item.Bounds.Height / 2;
-        return ThumbnailsViewModel.DropIndex(it.PageNumber - 1, lower, count);
+        return SlotAt(e.GetPosition(List))?.Index ?? _vm?.Items.Count ?? 0;
     }
     protected override void OnDataContextChanged(EventArgs e)
     {

@@ -69,6 +69,71 @@ public class ThumbnailsViewModelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Thumbnails_Size_IsClamped_AndChangesCellAndDisplaySize()
+    {
+        var (_, _, vm, _) = await SetUp(3);
+        Assert.Equal(160, vm.Size);
+        Assert.Equal(160 + ThumbnailsViewModel.CellPadding, vm.CellWidth);
+        vm.Size = 5;   Assert.Equal(ThumbnailsViewModel.MinSize, vm.Size);
+        vm.Size = 9999; Assert.Equal(ThumbnailsViewModel.MaxSize, vm.Size);
+        vm.Size = double.NaN; Assert.Equal(ThumbnailsViewModel.MaxSize, vm.Size);
+        vm.Size = 100.4;
+        Assert.Equal(100, vm.Size);
+        Assert.Equal(100 + ThumbnailsViewModel.CellPadding + ThumbnailsViewModel.CellLabelHeight, vm.CellHeight);
+        // 쪽 크기 (100+10i)×200 → 긴 변이 Size
+        Assert.All(vm.Items, i => Assert.Equal(100, Math.Max(i.DisplayWidth, i.DisplayHeight)));
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        vm.Size = 120;
+        Assert.Contains(nameof(ThumbnailsViewModel.CellWidth), changed);
+        Assert.Contains(nameof(ThumbnailsViewModel.CellHeight), changed);
+    }
+
+    [Fact]
+    public async Task Thumbnails_SliderIsLogarithmic_AndLargestSizeRendersAt1000()
+    {
+        var (_, _, vm, _) = await SetUp(2);
+        vm.SizeSliderValue = 0; Assert.Equal(ThumbnailsViewModel.MinSize, vm.Size);
+        vm.SizeSliderValue = 1; Assert.Equal(ThumbnailsViewModel.MaxSize, vm.Size);
+        Assert.Equal(1000, vm.RenderLongSide);
+        vm.Size = 160;
+        Assert.InRange(vm.SizeSliderValue, 0.3, 0.37);   // 기본 크기는 슬라이더 왼쪽 3분의 1쯤
+        vm.SizeSliderValue = vm.SizeSliderValue; Assert.Equal(160, vm.Size);
+        foreach (var i in vm.Items) vm.MarkVisible(i.Id);
+        vm.Size = 1000;
+        await WaitFor(() => vm.Items.All(i => i.Image is { } img && Math.Max(img.Width, img.Height) == 1000));
+    }
+
+    [Fact]
+    public async Task Thumbnails_SmallSizes_ReuseTheSameRenderedImages()
+    {
+        var (_, _, vm, _) = await SetUp(2);
+        foreach (var i in vm.Items) vm.MarkVisible(i.Id);
+        await WaitFor(() => vm.Items.All(i => i.Image is not null));
+        var before = vm.Items.Select(i => i.Image).ToList();
+        vm.Size = 90;   // 160 이하는 같은 160px 이미지를 줄여 쓴다
+        Assert.Equal(160, vm.RenderLongSide);
+        Assert.Equal(before, vm.Items.Select(i => i.Image).ToList());
+    }
+
+    [Fact]
+    public async Task Thumbnails_LargeSizes_RerenderAt256_AndBackTo160()
+    {
+        var (_, _, vm, _) = await SetUp(3);
+        foreach (var i in vm.Items) vm.MarkVisible(i.Id);
+        await WaitFor(() => vm.Items.All(i => i.Image is not null));
+        var small = vm.Items.Select(i => i.Image!).ToList();
+
+        vm.Size = 220;
+        Assert.Equal(256, vm.RenderLongSide);
+        await WaitFor(() => vm.Items.All(i => i.Image is { } img && Math.Max(img.Width, img.Height) == 256));
+        await WaitFor(() => small.All(i => ((FakeImage)i).Disposed));   // 옛 크기 이미지는 해제된다
+
+        vm.Size = 150;
+        await WaitFor(() => vm.Items.All(i => i.Image is { } img && Math.Max(img.Width, img.Height) == 160));
+    }
+
+    [Fact]
     public async Task Thumbnails_AfterDelete_ListMatchesPages_KeepsImagesForSameIds()
     {
         var (s, tab, vm, cmds) = await SetUp(4);
