@@ -34,10 +34,34 @@
     <Style Selector="Button#PART_FullScreenButton">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <!-- 전체 화면 버튼을 숨기면 창 장식 상자의 폭(4칸)은 그대로라 나머지 세 단추가 한 칸(47px) 왼쪽에 남는다(2026-10-20 사용자 보고, 실제 창 캡처로 확인).
-         같은 만큼 오른쪽으로 옮겨 오른쪽 끝에 붙인다. -->
+    <!-- 세 단추를 오른쪽 끝에 붙이는 일은 고정 값(47px)이 아니라 MainWindow.AlignCaptionButtons가 실제 위치를 재서 한다.
+         고정 값으로 밀면 환경에 따라 닫기 단추가 화면 밖으로 나갔다(0.11.0 사용자 보고). -->
+    <!-- Windows 11 모양: 제목 줄 높이를 꽉 채우는 46px 단추, 가리키면 옅은 회색, 닫기는 빨강(#C42B1C)에 흰 글자. -->
     <Style Selector="Button#PART_MinimizeButton, Button#PART_MaximizeButton, Button#PART_CloseButton">
-      <Setter Property="RenderTransform" Value="translate(47px, 0px)" />
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="MinWidth" Value="46" />
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="Button#PART_MinimizeButton:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button#PART_MaximizeButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#0D000000" />
+    </Style>
+    <Style Selector="Button#PART_MinimizeButton:pressed /template/ ContentPresenter#PART_ContentPresenter, Button#PART_MaximizeButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#08000000" />
+    </Style>
+    <Style Selector="Button#PART_CloseButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#C42B1C" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button#PART_CloseButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#B3C42B1C" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <!-- 글자 모양은 단추 안의 도형이라 도형 색도 바꿔야 흰 X가 된다. -->
+    <Style Selector="Button#PART_CloseButton:pointerover Path, Button#PART_CloseButton:pressed Path">
+      <Setter Property="Fill" Value="White" />
     </Style>
   </Application.Styles>
 </Application>

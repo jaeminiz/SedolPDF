@@ -156,6 +156,38 @@ public sealed partial class MainWindow : Window, IHostWindow
         };
     }
 
+    // 창 장식의 최소화·최대화·닫기 단추를 오른쪽 끝에 딱 붙인다. 전체 화면 버튼을 숨기면 단추 위치가 환경마다 달라서
+    // 고정 값으로 밀지 않고, 닫기 단추의 실제 오른쪽 끝을 재서 창 폭과의 차이만큼 옮긴다. 이미 붙어 있으면 옮기지 않는다.
+    private static readonly string[] CaptionButtonNames = ["PART_MinimizeButton", "PART_MaximizeButton", "PART_CloseButton"];
+
+    /// <returns>단추를 찾아 확인했으면 true(옮길 필요가 없었어도). 아직 안 만들어졌으면 false.</returns>
+    private bool AlignCaptionButtons()
+    {
+        // 그려지는 창 장식은 창의 자식이 아니라 창을 담는 호스트의 덮개 층에 있으므로 맨 위 부모부터 찾는다.
+        Visual top = this;
+        while (top.GetVisualParent() is { } up) top = up;
+        var buttons = top.GetSelfAndVisualDescendants().OfType<Button>().Where(b => b.Name is not null && CaptionButtonNames.Contains(b.Name)).ToList();
+        var close = buttons.FirstOrDefault(b => b.Name == "PART_CloseButton");
+        if (close is null || close.Bounds.Width <= 0) return false;
+        foreach (var b in buttons) b.RenderTransform = null;   // 옮기지 않은 원래 위치를 잰다
+        var right = close.TranslatePoint(new Point(close.Bounds.Width, 0), top)?.X;
+        if (right is not { } r) return false;
+        var dx = top.Bounds.Width - r;
+        if (Math.Abs(dx) >= 0.5) foreach (var b in buttons) b.RenderTransform = new TranslateTransform(dx, 0);
+        return true;
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        // 창 장식은 창이 열린 뒤 조금 있다가 만들어지므로, 나타날 때까지 짧게 다시 시도한다.
+        var tries = 0;
+        var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        timer.Tick += (_, _) => { if (AlignCaptionButtons() || ++tries >= 25) timer.Stop(); };
+        timer.Start();
+        SizeChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => AlignCaptionButtons(), Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+
     // Mica가 실제로 적용되면 배경을 투명하게 해서 보이게 하고, 아니면 단색 #F3F3F3을 유지한다. (검증 필요: Windows 11 실제 화면)
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
