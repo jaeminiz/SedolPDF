@@ -92,6 +92,10 @@ public sealed partial class DocumentView : Control
         ClipToBounds = true;
         RenderOptions.SetBitmapInterpolationMode(this, BitmapInterpolationMode.MediumQuality);
         LostFocus += (_, _) => RestoreSpaceTool();
+        // 열린 직후의 가운데 맞춤은 사용자가 직접 만지기 전까지만 창 크기 변화를 따라간다.
+        AddHandler(PointerPressedEvent, (_, _) => _centerXPending = false, handledEventsToo: true);
+        AddHandler(PointerWheelChangedEvent, (_, _) => _centerXPending = false, handledEventsToo: true);
+        AddHandler(KeyDownEvent, (_, _) => _centerXPending = false, handledEventsToo: true);
     }
 
     public DocumentTabViewModel? Tab { get => GetValue(TabProperty); set => SetValue(TabProperty, value); }
@@ -180,7 +184,7 @@ public sealed partial class DocumentView : Control
                 _sv.UpdateLayout();
                 _sv.Offset = st.Offset;
                 // 새로 연 문서가 보던 쪽(0.4.0 보기 상태 복원)에서 시작하면 스크롤 위치(0)가 쪽 번호를 0으로 덮어쓰지 않도록 먼저 그 쪽으로 간다.
-                if (isNew && tab.CurrentPageIndex > 0) GoToPage(tab.CurrentPageIndex);
+                if (isNew) { GoToPage(tab.CurrentPageIndex); _centerXPending = true; }   // 0쪽이어도 가로 가운데 맞춤을 위해 부른다
             }
         }
         InvalidateMeasure();
@@ -323,6 +327,13 @@ public sealed partial class DocumentView : Control
             RebuildLayout();
             InvalidateMeasure();
         }
+        // 문서를 막 열었을 때는 화면 크기가 아직 정해지지 않았거나 창 크기가 바뀌므로, 사용자가 만지기 전까지는 크기가 바뀔 때마다 맞춘다.
+        if (_centerXPending && _sv.Viewport.Width > 0 && _layout is { Mode: ViewMode.Continuous } cl && _sv.Extent.Width >= cl.Extent.Width - 0.5)
+        {
+            var idx = Math.Clamp(_state.Tab.CurrentPageIndex, 0, Math.Max(0, _state.Session.Pages.Length - 1));
+            // 스크롤 알림 처리 중에 바로 옮기면 무시될 수 있어 레이아웃이 끝난 뒤에 옮긴다.
+            Dispatcher.UIThread.Post(() => { if (_centerXPending) CenterOnPageX(idx); }, DispatcherPriority.Loaded);
+        }
         // 이어서 보기: 스크롤 위치로 현재 페이지를 따라간다. 방금 쪽 이동한 직후의 위치는 건너뛴다.
         if (_layout is { Mode: ViewMode.Continuous } lay && !(Math.Abs(_sv.Offset.Y - _navY) < 1))
         {
@@ -359,7 +370,29 @@ public sealed partial class DocumentView : Control
         var r = _layout.GetPageRect(index);
         double y = Math.Max(0, r.Y - PageLayout.MarginPx);
         _navY = Math.Min(y, Math.Max(0, _layout.Extent.Height - _sv.Viewport.Height));
-        _sv.Offset = new Vector(_sv.Offset.X, y);
+        _sv.Offset = new Vector(CenteredX(r), y);
+    }
+
+    private bool _centerXPending;
+
+    /// <summary>문서에 아주 넓은 쪽이 있으면 다른 쪽은 그 폭의 가운데에 놓여 가로로 치우쳐 보인다. 화면에 다 들어오는 쪽은 화면 가운데로 맞춘다.
+    /// 화면보다 넓은 쪽(확대 중)이나 화면 크기를 아직 모르면 보던 가로 위치를 그대로 둔다.</summary>
+    private double CenteredX(Rect pageRect)
+    {
+        double vw = _sv!.Viewport.Width;
+        if (vw <= 0 || pageRect.Width > vw) return _sv.Offset.X;
+        return Math.Clamp(pageRect.Center.X - vw / 2, 0, Math.Max(0, _layout!.Extent.Width - vw));
+    }
+
+    /// <summary>열린 직후용: 화면에 들어오면 가운데, 화면보다 넓으면 쪽의 왼쪽 가장자리가 보이게 한다.</summary>
+    private void CenterOnPageX(int index)
+    {
+        if (_sv is null || _layout is null) return;
+        var r = _layout.GetPageRect(index);
+        double vw = _sv.Viewport.Width;
+        double x = r.Width <= vw ? r.Center.X - vw / 2 : r.X - PageLayout.MarginPx;
+        double target = Math.Clamp(x, 0, Math.Max(0, _layout.Extent.Width - vw));
+        if (Math.Abs(target - _sv.Offset.X) > 0.5) _sv.Offset = new Vector(target, _sv.Offset.Y);
     }
 
     // ---- 그리기 ----
