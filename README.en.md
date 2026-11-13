@@ -4,7 +4,7 @@
 
 A free, open-source PDF editor for Windows. View, annotate, edit pages, and edit text, images and shapes directly in one app. Free for personal and commercial use (MIT License).
 
-> **This is an early public release (v0.11.0).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
+> **This is an early public release (v0.11.1).** The core features work, but it is still being polished. Keep a backup of important files. Please report problems and ideas in [Issues](https://github.com/jaeminiz/SedolPDF/issues). **The interface is available in Korean and English.**
 
 <p align="center">
   <a href="https://github.com/jaeminiz/SedolPDF/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/jaeminiz/SedolPDF?label=release"></a>
