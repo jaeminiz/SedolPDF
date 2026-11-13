@@ -11,6 +11,8 @@ namespace PdfEditor.Document.Annotations;
 internal sealed class AnnotEntry
 {
     public Annotation Current = null!;
+    /// <summary>원본 주석을 읽은 그대로의 모델(새 주석은 null). 저장 때 "평행 이동만 했는가"·"글 서식이 그대로인가"를 가린다(0.12.0).</summary>
+    public Annotation? Original;
     public int? PdfIndex;
     public bool IsOriginal;
     public bool Owned;
@@ -108,9 +110,11 @@ public sealed class AnnotationStore
                 if (!idByPdfIndex.TryGetValue(ri, out var parentId)) { Skip(); continue; }
                 data = data with { InReplyTo = parentId, ReplyKind = ReplyType.Reply };
             }
+            var attached = data with { Id = idByPdfIndex.TryGetValue(o.Index, out var preset) ? preset : NewId() };
             st.Entries.Add(new AnnotEntry
             {
-                Current = data with { Id = idByPdfIndex.TryGetValue(o.Index, out var preset) ? preset : NewId() },
+                Current = attached,
+                Original = attached,
                 PdfIndex = o.Index,
                 IsOriginal = true,
             });

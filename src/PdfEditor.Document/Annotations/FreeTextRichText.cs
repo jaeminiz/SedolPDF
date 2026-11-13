@@ -15,7 +15,7 @@ public static class FreeTextRichText
     private const string SansFamily = "'Malgun Gothic',sans-serif";
     private const string SerifFamily = "'Adobe Myungjo Std','Batang',serif";
 
-    /// <summary>/DA: 테두리가 있으면 `{테두리} rg {테두리} RG /Helv {크기} Tf`, 없으면 `{글자} rg /Helv {크기} Tf`.</summary>
+    /// <summary>/DA: 테두리가 있으면 `{테두리} rg {테두리} RG /Helv {크기} Tf`, 없으면 `{글자} rg /Helv {크기} Tf`. 글꼴 자원 이름은 원본에서 읽은 것이 있으면 그것(0.12.0).</summary>
     public static string Da(Annotation a)
     {
         var tc = a.TextColor ?? new PdfColor(0, 0, 0);
@@ -23,9 +23,9 @@ public static class FreeTextRichText
         if (a.Color is { } bc && a.BorderWidth > 0)
         {
             string c = $"{N(bc.R / 255f)} {N(bc.G / 255f)} {N(bc.B / 255f)}";
-            return $"{c} rg {c} RG /Helv {size} Tf";
+            return $"{c} rg {c} RG /{DaFontName(a)} {size} Tf";
         }
-        return $"{N(tc.R / 255f)} {N(tc.G / 255f)} {N(tc.B / 255f)} rg /Helv {size} Tf";
+        return $"{N(tc.R / 255f)} {N(tc.G / 255f)} {N(tc.B / 255f)} rg /{DaFontName(a)} {size} Tf";
     }
 
     /// <summary>/DS: CSS 선언. 서식(굵게·기울임·밑줄·취소선)은 있을 때만 붙인다.</summary>
@@ -33,7 +33,7 @@ public static class FreeTextRichText
     {
         var tc = a.TextColor ?? new PdfColor(0, 0, 0);
         var sb = new StringBuilder("font-family:");
-        sb.Append(a.TextFamily == TextFontFamily.Serif ? SerifFamily : SansFamily);
+        sb.Append(FamilyList(a));
         sb.Append(";font-size:").Append(a.FontSizePt.ToString("0.#", CultureInfo.InvariantCulture)).Append("pt");
         sb.Append(";color:").Append(Hex(tc));
         sb.Append(";text-align:").Append(a.Align switch { TextAlign.Center => "center", TextAlign.Right => "right", _ => "left" });
@@ -57,6 +57,21 @@ public static class FreeTextRichText
             sb.Append("</p>");
         }
         return sb.Append("</body>").ToString();
+    }
+
+    private static string DaFontName(Annotation a) => a.DaFont is { Length: > 0 } f ? f : "Helv";
+
+    /// <summary>
+    /// CSS 글꼴 목록. 원래 글꼴 이름(예: 맑은 고딕)이 있고 사용자가 고딕/명조를 바꾸지 않았으면(이름의 계열이 지금 계열과 같으면) 그 이름을 앞에 둔다(0.12.0).
+    /// 이름은 읽을 때 안전한 글자만 남겼지만 모델을 코드로 만든 경우를 위해 여기서도 한 번 더 거른다.
+    /// </summary>
+    private static string FamilyList(Annotation a)
+    {
+        string generic = a.TextFamily == TextFontFamily.Serif ? SerifFamily : SansFamily;
+        if (a.FontName is { Length: > 0 } n && n.Length <= 64 && n.IndexOfAny(['\'', '"', ';', '<', '>', '&', '\\']) < 0
+            && Reading.DefaultStyle.FamilyOf(n) == a.TextFamily)
+            return $"'{n}'," + (a.TextFamily == TextFontFamily.Serif ? "serif" : "sans-serif");
+        return generic;
     }
 
     /// <summary>/RC에 쓰는 우리 버전(어셈블리 정보 버전에서 `+해시`를 뗀 것).</summary>

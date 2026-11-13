@@ -67,4 +67,10 @@ public sealed record Annotation
     public bool Italic { get; init; }
     public bool Underline { get; init; }
     public bool StrikeThrough { get; init; }
+
+    // --- 0.12.0 서식 보존 (FreeText 전용) ---
+    /// <summary>/DS·/RC에서 읽은 원래 첫 글꼴 이름(예: 맑은 고딕). 화면은 내장 글꼴로 그려도 /DS·/RC를 다시 쓸 때 이 이름을 돌려 쓴다. 없으면 null.</summary>
+    public string? FontName { get; init; }
+    /// <summary>/DA의 글꼴 자원 이름(/Helv 등, 슬래시 없이). 없으면 null → 쓸 때 Helv.</summary>
+    public string? DaFont { get; init; }
 }

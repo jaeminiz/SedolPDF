@@ -32,6 +32,11 @@ public sealed record EnsurePopup(PdfRectF Rect, bool Open) : PatchOp;
 /// <summary>/IRT를 /NM이 ParentNm인 같은 쪽 주석으로 건다(+ /RT).</summary>
 public sealed record SetInReplyTo(string ParentNm, string? ReplyType) : PatchOp;
 
+/// <summary>
+/// 주석을 (Dx, Dy)만큼 평행 이동한다: /Rect, 있으면 /CL·/SedolCL2. /AP·/DA·/DS·/RC 등 나머지는 손대지 않는다(0.12.0, 원본 모양 보존).
+/// </summary>
+public sealed record MoveAnnotation(float Dx, float Dy) : PatchOp;
+
 /// <summary>/AP /N을 새 폼으로 교체한다(기존 /Resources는 합친다).</summary>
 public sealed record SetAppearanceStream(string Content, PdfRectF BBox) : PatchOp;
 

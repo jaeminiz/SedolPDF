@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\src\Pdf.Native\Pdf.Native.csproj" />
     <ProjectReference Include="..\..\src\PdfEditor.Pages\PdfEditor.Pages.csproj" />
     <ProjectReference Include="..\TestFixtures\TestFixtures.csproj" />
+    <None Include="..\fixtures\*.pdf" Link="fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

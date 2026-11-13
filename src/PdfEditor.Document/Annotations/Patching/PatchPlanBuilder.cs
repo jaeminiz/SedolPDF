@@ -101,12 +101,19 @@ public static class PatchPlanBuilder
                     // 손댄 원본 답글·상태: 내용·작성자·상태 값만 고친다. /IRT·/F·/AP와 모르는 키는 그대로 둔다.
                     ops.AddRange(ThreadOps(e.Current, e.Current.Rect, isNew: false, null));
                 }
+                else if (e.IsOriginal && e.Owned && e.Current.Kind == AnnotKind.FreeText && e.Original is { } orig
+                    && TranslationOf(orig, e.Current) is var (dx, dy))
+                {
+                    // 평행 이동만 했다(0.12.0): 모양(/AP)·/DA·/DS·/RC는 원본 그대로 두고 위치만 옮긴다.
+                    ops.Add(new MoveAnnotation(dx, dy));
+                    if (e.Current.ModifiedAt is { } mod) ops.Add(new SetString("/M", PdfDate.Format(mod)));
+                }
                 else if (e.IsOriginal && e.Owned && e.Current.Kind.IsPatchKind())
                 {
                     // ④ 손댄 원본(패치 길): 같은 Ops를 그 자리에서 적용한다(A13). 모르는 키는 그대로 남는다.
                     var ap = (appearance ?? throw new InvalidOperationException($"{e.Current.Kind} needs an IAppearanceSource to build its appearance."))
                         .BuildPatchAppearance(e.Current, rotation);
-                    ops.AddRange(PatchKindOps(e.Current, ap, isNew: false));
+                    ops.AddRange(PatchKindOps(e.Current, ap, isNew: false, preserveRichText: e.Original is { } o2 && RichTextUnchanged(o2, e.Current)));
                 }
                 else if (e.Current.Kind == AnnotKind.Highlight && (!e.IsOriginal || e.Owned))
                 {
@@ -225,10 +232,10 @@ public static class PatchPlanBuilder
         return ops.ToImmutable();
     }
 
-    internal static ImmutableArray<PatchOp> PatchKindOps(Annotation m, PatchAppearance ap, bool isNew, string? replyParentNm = null)
+    internal static ImmutableArray<PatchOp> PatchKindOps(Annotation m, PatchAppearance ap, bool isNew, string? replyParentNm = null, bool preserveRichText = false)
         => m.Kind switch
         {
-            AnnotKind.FreeText => FreeTextOps(m, ap, isNew),
+            AnnotKind.FreeText => FreeTextOps(m, ap, isNew, preserveRichText),
             AnnotKind.Stamp => StampOps(m, ap, isNew),
             AnnotKind.FileAttachment => AttachmentOps(m, ap, isNew),
             _ => ShapeOps(m, ap, isNew, replyParentNm),
@@ -416,7 +423,7 @@ public static class PatchPlanBuilder
     /// FreeText(텍스트 상자·타자기·설명선)의 키 목록. 새 주석과 손댄 원본이 같은 목록을 쓴다(원본은 Rect·CreationDate 차이만).
     /// /LE는 ISO 32000의 FreeText 정의대로 이름 하나(지시선 시작점 = 화살표 끝)로 쓴다. 읽을 때는 이름·배열 둘 다 받는다.
     /// </summary>
-    internal static ImmutableArray<PatchOp> FreeTextOps(Annotation m, PatchAppearance ap, bool isNew)
+    internal static ImmutableArray<PatchOp> FreeTextOps(Annotation m, PatchAppearance ap, bool isNew, bool preserveRichText = false)
     {
         var ops = ImmutableArray.CreateBuilder<PatchOp>();
         ops.Add(new SetAppearanceStream(ap.Content, ap.BBox));
@@ -468,7 +475,8 @@ public static class PatchPlanBuilder
         ops.Add(new RemoveKeys(["/IC"]));
         AddRotate(ops, m);
 
-        ops.Add(new SetString("/RC", FreeTextRichText.Rc(m, FreeTextRichText.AppVersion)));
+        // 내용·글 서식이 원본과 같으면 원본 /RC를 그대로 둔다: 한 주석 안의 span별 서식(글자마다 색·굵기가 다른 것)이 남는다(0.12.0).
+        if (!preserveRichText) ops.Add(new SetString("/RC", FreeTextRichText.Rc(m, FreeTextRichText.AppVersion)));
         if (m.Author is not null) ops.Add(new SetString("/T", m.Author));
         if (m.Subject is not null) ops.Add(new SetString("/Subj", m.Subject));
         if (m.ModifiedAt is { } mod) ops.Add(new SetString("/M", PdfDate.Format(mod)));
@@ -477,6 +485,26 @@ public static class PatchPlanBuilder
         if (!ap.Font.Glyphs.IsDefaultOrEmpty) ops.Add(new AddApFont("F1", ap.Font));
         return ops.ToImmutable();
     }
+
+    /// <summary>
+    /// 원본에서 (dx, dy)만큼 옮기기만 했으면 그 (dx, dy), 아니면 null. 옮긴 원본과 지금 모델이 상자·지시선 위치까지 포함해 같을 때만 "이동만"이다
+    /// (크기 조절·내용·서식·테두리 변경은 모두 다시 그린다 — docs/design/0.12.0-format-preservation.md).
+    /// </summary>
+    internal static (float Dx, float Dy)? TranslationOf(Annotation orig, Annotation cur)
+    {
+        float dx = cur.Rect.Left - orig.Rect.Left, dy = cur.Rect.Bottom - orig.Rect.Bottom;
+        if (dx == 0 && dy == 0) return null;   // 안 옮겼으면 이 길로 올 일이 없다(다시 그림이 안전한 기본)
+        PdfRectF Sh(PdfRectF r) => new(r.Left + dx, r.Bottom + dy, r.Right + dx, r.Top + dy);
+        ImmutableArray<PdfPointF> ShP(ImmutableArray<PdfPointF> p) => p.IsDefault ? p : [.. p.Select(v => new PdfPointF(v.X + dx, v.Y + dy))];
+        var moved = orig with { Rect = Sh(orig.Rect), TextBox = orig.TextBox is { } tb ? Sh(tb) : null, Vertices = ShP(orig.Vertices), Leader2 = ShP(orig.Leader2) };
+        return AnnotationComparer.Equivalent(moved, cur with { ModifiedAt = moved.ModifiedAt }, 0.01f) ? (dx, dy) : null;
+    }
+
+    /// <summary>/RC를 새로 쓸 이유가 없는가: 글 내용과 글자 서식(크기·색·글꼴 계열·굵게 등·정렬)이 원본과 같다.</summary>
+    internal static bool RichTextUnchanged(Annotation orig, Annotation cur)
+        => orig.Contents == cur.Contents && orig.TextColor == cur.TextColor && Math.Abs(orig.FontSizePt - cur.FontSizePt) < 0.01f
+           && orig.TextFamily == cur.TextFamily && TextFormat.ToBits(orig) == TextFormat.ToBits(cur) && orig.Align == cur.Align
+           && orig.FontName == cur.FontName;
 
     private static string N(float v)
     {

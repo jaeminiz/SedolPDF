@@ -515,10 +515,26 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
                 case EmbedFile o:
                     EmbedFileAttachment(doc, annot, o, assets);
                     break;
+                case MoveAnnotation o:
+                    foreach (var key in new[] { "/Rect", "/CL", "/SedolCL2" })
+                    {
+                        var item = annot.Elements[key];
+                        var arr = (item as PdfReference)?.Value as PdfArray ?? item as PdfArray;
+                        if (arr is not null) annot.Elements[key] = ShiftedNumbers(doc, arr, o.Dx, o.Dy);
+                    }
+                    break;
                 default:
                     throw new NotSupportedException($"Unknown patch op {op.GetType().Name}.");
             }
         }
+    }
+
+    /// <summary>x·y가 번갈아 나오는 숫자 배열을 (dx, dy)만큼 옮긴 새 배열(/Rect·/CL·/SedolCL2 모두 x y 쌍).</summary>
+    private static PdfArray ShiftedNumbers(PdfDocument doc, PdfArray src, float dx, float dy)
+    {
+        var values = src.Elements.Select(i => ((i as PdfReference)?.Value ?? i) switch { PdfInteger n => (double)n.Value, PdfReal r => r.Value, _ => throw new InvalidOperationException("Non-numeric coordinate array.") }).ToArray();
+        for (int i = 0; i < values.Length; i++) values[i] += (i % 2 == 0) ? dx : dy;
+        return Numbers(doc, values);
     }
 
     private static void SetAppearance(PdfDocument doc, PdfDictionary annot, SetAppearanceStream op)

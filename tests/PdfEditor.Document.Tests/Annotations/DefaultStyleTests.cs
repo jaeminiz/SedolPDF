@@ -23,6 +23,31 @@ public class DefaultStyleTests
         Assert.Equal("맑은 고딕", family);
     }
 
+    [Theory]
+    [InlineData("font-weight:700", true)]
+    [InlineData("font-weight:bold", true)]
+    [InlineData("font-weight:600", true)]
+    [InlineData("font-weight:500", false)]
+    [InlineData("font-weight:normal", false)]
+    [InlineData("font: 500 'Adobe Myungjo Std',serif 12.0pt", false)]
+    [InlineData("font: bold 12pt Arial", true)]
+    public void ParseCss_Bold(string css, bool expected) => Assert.Equal(expected, DefaultStyle.ParseCss(css).Bold);
+
+    [Theory]
+    [InlineData("font-style:italic", true)]
+    [InlineData("font-style:normal", false)]
+    [InlineData("font: italic bold 12pt Arial", true)]
+    public void ParseCss_Italic(string css, bool expected) => Assert.Equal(expected, DefaultStyle.ParseCss(css).Italic);
+
+    [Theory]
+    [InlineData("맑은 고딕", "맑은 고딕")]
+    [InlineData("'Malgun Gothic',sans-serif", "Malgun Gothic")]
+    [InlineData("sans-serif", null)]
+    [InlineData("500 'Adobe Myungjo Std',serif 12.0pt", "Adobe Myungjo Std")]
+    [InlineData("bold italic 12pt Arial", "Arial")]
+    [InlineData("A<b>", null)]
+    public void FirstFontName(string css, string? expected) => Assert.Equal(expected, DefaultStyle.FirstFontName(css));
+
     [Fact]
     public void Parse_Garbage_ReturnsNulls()
     {
