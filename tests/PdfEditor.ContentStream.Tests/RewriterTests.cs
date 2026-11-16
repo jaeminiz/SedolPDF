@@ -156,9 +156,9 @@ public class RewriterTests
         (pc, seg) = Load("0 0 10 10 re W f");
         Assert.False(ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(1, 1))]).Ok);
 
-        // 경로 중간의 상태 연산자
+        // 경로 중간의 상태 연산자(선 굵기 등)는 이제 허용한다(PathWithStateOpTests). 옮긴 뒤에도 뒤 객체의 상태가 유지된다.
         (pc, seg) = Load("0 0 m 1 w 5 5 l S");
-        Assert.False(ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(1, 1))]).Ok);
+        Assert.True(ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(1, 1))]).Ok);
 
         // 글 뒤에 위치를 모르는 글 / BT 안 cm
         (pc, seg) = Load("BT /F1 9 Tf (a) Tj (b) Tj ET");
@@ -324,5 +324,35 @@ public class RewriterPerformanceTests
         Assert.Equal(200_000, seg.Objects.Count);
         System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "m4x-perf.txt"), $"{data.Length} bytes, 200000 objects: {sw.ElapsedMilliseconds} ms (parse {tParse}, +segment {tSeg - tParse}, +rewrite {sw.ElapsedMilliseconds - tSeg})");
         Assert.True(sw.ElapsedMilliseconds < 10000, $"{sw.ElapsedMilliseconds} ms");
+    }
+}
+
+public class PathWithStateOpTests
+{
+    // 경로 짓는 도중에 색(RG)이 낀 PDF(이 앱이 전에 저장한 파일에도 있다): 옮기기·복사가 "operator RG inside path"로 거절되던 문제(2026-11-17).
+    private const string Page = "0 0 m 10 0 l 1 0 0 RG 10 10 l S 5 5 20 20 re S";
+
+    [Fact]
+    public void Move_PathWithColorInside_Works_AndKeepsInheritedStateForLaterObjects()
+    {
+        var pc = ContentLexer.Parse(Encoding.Latin1.GetBytes(Page));
+        var seg = ContentSegmenter.Segment(pc);
+        Assert.True(seg.Ok, seg.Failure);
+        var r = ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(30, 40))]);
+        Assert.True(r.Ok, r.Failure);
+        string s = Encoding.Latin1.GetString(r.Data!);
+        // 색은 q…Q 안에서 한 번, Q 뒤에서 다시 한 번(뒤 객체가 물려받던 상태를 잃지 않게)
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(s, @"1 0 0 RG").Count);
+        Assert.True(s.IndexOf("Q 1 0 0 RG", StringComparison.Ordinal) > 0, s);
+    }
+
+    [Fact]
+    public void Copy_PathWithColorInside_Works()
+    {
+        var pc = ContentLexer.Parse(Encoding.Latin1.GetBytes(Page));
+        var seg = ContentSegmenter.Segment(pc);
+        var r = ObjectSnippet.Extract(pc, seg, 0, Mat.Translate(30, 40));
+        Assert.True(r.Ok, r.Failure);
+        Assert.Contains("1 0 0 RG", r.Content);
     }
 }

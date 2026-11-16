@@ -627,6 +627,11 @@ public static class Strings
     public static string Msg_ParagraphHiddenText => Get(nameof(Msg_ParagraphHiddenText));
     public static string Msg_PagesRepaired => Get(nameof(Msg_PagesRepaired));
     public static string Btn_Reopen => Get(nameof(Btn_Reopen));
+    public static string Msg_SavedWithLookWarning => Get(nameof(Msg_SavedWithLookWarning));
+    public static string Btn_DontSave => Get(nameof(Btn_DontSave));
+    public static string Btn_SaveAnyway => Get(nameof(Btn_SaveAnyway));
+    public static string Msg_SaveLookChangeBackup => Get(nameof(Msg_SaveLookChangeBackup));
+    public static string Msg_SaveLookChangeAsk => Get(nameof(Msg_SaveLookChangeAsk));
     public static string Msg_ParagraphCommitFailed => Get(nameof(Msg_ParagraphCommitFailed));
     public static string Panel_Replace => Get(nameof(Panel_Replace));
     public static string Panel_Close => Get(nameof(Panel_Close));

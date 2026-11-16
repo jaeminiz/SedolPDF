@@ -67,6 +67,9 @@ public sealed class FakePrompts : IUserPrompts
     public List<string> RepairNotices { get; } = [];
     public bool ReopenAnswer { get; set; }
     public Task<bool> AskReopenAfterRepairAsync(string pageList) { RepairNotices.Add(pageList); return Task.FromResult(ReopenAnswer); }
+    public List<string> LookAsks { get; } = [];
+    public bool LookAnswer { get; set; }
+    public Task<bool> AskSaveDespiteLookChangeAsync(string pageList, string? backupFile) { LookAsks.Add(pageList); return Task.FromResult(LookAnswer); }
 }
 
 public class FileWorkflowTests : IAsyncLifetime
@@ -101,6 +104,32 @@ public class FileWorkflowTests : IAsyncLifetime
         return s;
     }
 
+
+    [Fact]
+    public async Task Save_LookCheckFails_AsksUser_NoSavesNothing_YesSavesWithBackup()
+    {
+        string path = P("g.pdf");
+        PdfEditor.TestFixtures.ContentPdfFactory.CreateDrawingLike(path, gradient: true);
+        var wf = Wf();
+        var s = (await Open(wf, path))!;
+        var id = s.Pages[0].Id;
+        var refs = await _t.InvokeAsync(() => s.GetObjectIndex(id).Entries.Select(e => e.Ref).ToList());
+        await s.Commands.ExecuteAsync(new PdfEditor.Document.Content.ContentEditCommand(id, [.. refs.Select(r => (PdfEditor.Document.Content.ContentEdit)new PdfEditor.Document.Content.TransformEdit(s.Content.NewId(), r, Pdf.Native.PdfMatrix.Translate(3, -3)))]));
+        byte[] before = File.ReadAllBytes(path);
+
+        _p.LookAnswer = false;
+        Assert.False(await wf.SaveAsync(s));
+        Assert.Single(_p.LookAsks);
+        Assert.Empty(_p.Errors);
+        Assert.Equal(before, File.ReadAllBytes(path));   // 거절하면 원본 그대로
+
+        _p.LookAnswer = true;
+        Assert.True(await wf.SaveAsync(s));
+        Assert.Equal(2, _p.LookAsks.Count);
+        Assert.NotEqual(before, File.ReadAllBytes(path));
+        Assert.Equal(before, File.ReadAllBytes(P("g.bak.pdf")));   // 덮어쓰기 전 파일을 한 단계 남긴다
+        Assert.Contains(_p.Infos, m => m.Contains('1'));
+    }
     [Fact]
     public async Task IsBusy_TrueDuringSave_FalseAfter()
     {

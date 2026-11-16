@@ -143,6 +143,14 @@ public sealed class AvaloniaPrompts(Func<Window> owner) : IUserPrompts
         return dlg.Result == 0;
     }
 
+    public async Task<bool> AskSaveDespiteLookChangeAsync(string pageList, string? backupFile)
+    {
+        string note = backupFile is null ? "" : string.Format(Strings.Msg_SaveLookChangeBackup, backupFile);
+        var dlg = new MessageDialog(Strings.Dlg_InfoTitle, string.Format(Strings.Msg_SaveLookChangeAsk, pageList, note), [Strings.Btn_SaveAnyway, Strings.Btn_DontSave]);
+        await dlg.ShowDialog(owner());
+        return dlg.Result == 0;
+    }
+
     public Task ShowErrorAsync(string message)
         => new MessageDialog(Strings.Dlg_ErrorTitle, message, [Strings.Dlg_Ok]).ShowDialog(owner());
 
