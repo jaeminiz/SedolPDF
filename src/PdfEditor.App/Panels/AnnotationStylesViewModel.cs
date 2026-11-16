@@ -137,7 +137,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
     // ---- 적용 ----
 
     private sealed record Resolved(AnnotKind? AppliesTo, PdfColor Color, PdfColor? Fill, float Opacity, float Width,
-        float? FontSize, LineEnding? Start, LineEnding? End, float? Cloud, LineStyle? Style = null, TextFontFamily? Family = null, int? Fmt = null);
+        float? FontSize, LineEnding? Start, LineEnding? End, float? Cloud, LineStyle? Style = null, TextFontFamily? Family = null, int? Fmt = null, string? FontName = null);
 
     private static bool TryResolve(AnnotationStyle s, out Resolved r)
     {
@@ -158,8 +158,9 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 Ending(s.StartEnding), Ending(s.EndEnding),
                 s.CloudIntensity is { } c ? (c <= 0f ? 0f : Math.Clamp(c, AnnotationPropertiesViewModel.MinCloud, AnnotationPropertiesViewModel.MaxCloud)) : null,
                 s.LineStyle is { } lsn ? (Enum.TryParse<LineStyle>(lsn, out var lst) ? lst : throw new FormatException(lsn)) : null,
-                s.TextFont is { } tf ? TextFormat.FamilyFromName(tf) : null,
-                s.TextFormat is { } tfm ? PdfEditor.Document.Annotations.TextFormat.Sanitize(tfm) : null);
+                s.TextFont is { } tf ? TextFormat.FamilyFromName(TextFormat.SplitFontSetting(tf).Family) : null,
+                s.TextFormat is { } tfm ? PdfEditor.Document.Annotations.TextFormat.Sanitize(tfm) : null,
+                s.TextFont is { } tfn ? TextFormat.SplitFontSetting(tfn).FontName : null);
             return true;
         }
         catch (Exception) { return false; }
@@ -213,7 +214,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
         if (AnnotationPropertiesViewModel.HasWidth(a)) b = b with { BorderWidth = r.Width };
         if (a.Kind == AnnotKind.FreeText && (r.FontSize is not null || r.Family is not null || r.Fmt is not null))
         {
-            if (r.Family is { } fam) b = b with { TextFamily = fam };
+            if (r.Family is { } fam) b = b with { TextFamily = fam, FontName = r.FontName };
             if (r.Fmt is { } fm) b = PdfEditor.Document.Annotations.TextFormat.WithBits(b, fm);
             b = _tab.Tools.FitForCommit(r.FontSize is { } fs ? b with { FontSizePt = fs } : b);
         }
@@ -276,7 +277,7 @@ public sealed partial class AnnotationStylesViewModel : ObservableObject
                 a.Kind is AnnotKind.Line or AnnotKind.PolyLine ? a.EndEnding.ToString() : null,
                 a.Kind is AnnotKind.Square or AnnotKind.Polygon ? a.CloudIntensity : null,
                 a.Kind.Applies() ? a.LineStyle.ToString() : null,
-                a.Kind == AnnotKind.FreeText ? PdfEditor.Document.Annotations.TextFormat.FamilyName(a.TextFamily) : null,
+                a.Kind == AnnotKind.FreeText ? PdfEditor.Document.Annotations.TextFormat.FontSetting(a) : null,
                 a.Kind == AnnotKind.FreeText ? PdfEditor.Document.Annotations.TextFormat.ToBits(a) : null);
         }
         if (AnnotationPropertiesViewModel.IsCreateTool(_tab.Tool))

@@ -14,6 +14,10 @@ public static unsafe partial class FontSubsetter
     [LibraryImport(Lib)] private static partial IntPtr hb_subset_input_create_or_fail();
     [LibraryImport(Lib)] private static partial IntPtr hb_subset_input_unicode_set(IntPtr input);
     [LibraryImport(Lib)] private static partial void hb_subset_input_destroy(IntPtr input);
+    [LibraryImport(Lib)] private static partial void hb_subset_input_set_flags(IntPtr input, uint flags);
+
+    /// <summary>hb_subset_flags_t: 글리프 번호를 그대로 둔다(빈 글리프로 자리를 채움).</summary>
+    private const uint RetainGids = 1u << 1;
     [LibraryImport(Lib)] private static partial void hb_set_add(IntPtr set, uint codepoint);
     [LibraryImport(Lib)] private static partial IntPtr hb_subset_or_fail(IntPtr source, IntPtr input);
     [LibraryImport(Lib)] private static partial IntPtr hb_face_reference_blob(IntPtr face);
@@ -33,17 +37,21 @@ public static unsafe partial class FontSubsetter
         return new Blob(mem, data.Length, MemoryMode.ReadOnly, () => Marshal.FreeHGlobal(mem));
     }
 
-    /// <summary>요청한 코드포인트의 글리프만 남긴 폰트(OpenType) 바이트를 돌려준다.</summary>
-    public static byte[] Subset(byte[] fontData, IReadOnlyCollection<int> codepoints)
+    /// <summary>
+    /// 요청한 코드포인트의 글리프만 남긴 폰트(OpenType) 바이트를 돌려준다. faceIndex: 글꼴 모음(.ttc) 안의 얼굴.
+    /// retainGids: 글리프 번호를 전체 글꼴과 같게 둔다(0.12.0 TrueType 시스템 글꼴은 글자 코드 = 글리프 번호로 넣으므로 필요).
+    /// </summary>
+    public static byte[] Subset(byte[] fontData, IReadOnlyCollection<int> codepoints, int faceIndex = 0, bool retainGids = false)
     {
         using var blob = CreateBlob(fontData);
-        using var face = new Face(blob, 0);
+        using var face = new Face(blob, (uint)faceIndex);
 
         IntPtr input = hb_subset_input_create_or_fail();
         if (input == IntPtr.Zero) throw new InvalidOperationException("hb_subset_input_create_or_fail failed");
         IntPtr resultFace = IntPtr.Zero, resultBlob = IntPtr.Zero;
         try
         {
+            if (retainGids) hb_subset_input_set_flags(input, RetainGids);
             var set = hb_subset_input_unicode_set(input);
             foreach (var cp in codepoints) hb_set_add(set, (uint)cp);
 

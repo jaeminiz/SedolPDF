@@ -23,7 +23,8 @@ public static class AnnotationComparer
         for (int i = 0; i < va.Length; i++)
             if (!Near(va[i], vb[i], tol)) return false;
         if (a.LineStyle != b.LineStyle) return false;
-        if (a.TextFamily != b.TextFamily || TextFormat.ToBits(a) != TextFormat.ToBits(b)) return false;
+        // 글꼴 이름(0.12.0): 고딕 계열 글꼴끼리 바꿔도(맑은 고딕 → 굴림) 바뀐 것으로 본다.
+        if (a.TextFamily != b.TextFamily || a.FontName != b.FontName || TextFormat.ToBits(a) != TextFormat.ToBits(b)) return false;
         var la = a.Leader2.IsDefault ? [] : a.Leader2;
         var lb = b.Leader2.IsDefault ? [] : b.Leader2;
         if (la.Length != lb.Length) return false;

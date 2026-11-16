@@ -478,6 +478,7 @@ public static class Strings
     public static string Prop_Annot_Font => Get(nameof(Prop_Annot_Font));
     public static string Font_Sans => Get(nameof(Font_Sans));
     public static string Font_Serif => Get(nameof(Font_Serif));
+    public static string Font_Missing => Get(nameof(Font_Missing));
     public static string Format_Bold => Get(nameof(Format_Bold));
     public static string Format_Italic => Get(nameof(Format_Italic));
     public static string Format_Underline => Get(nameof(Format_Underline));

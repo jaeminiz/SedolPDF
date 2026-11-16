@@ -743,7 +743,7 @@ public sealed partial class DocumentView
         var align = a.Align switch { TextAlign.Center => TextAlignment.Center, TextAlign.Right => TextAlignment.Right, _ => TextAlignment.Left };
         _ftEditor!.Load(a.Contents ?? "", a.FontSizePt * lay.Scale, v.W, v.H, Color.FromRgb(c.R, c.G, c.B),
             wrap: a.Intent != FreeTextIntent.Typewriter, align);
-        _ftEditor.ApplyFormat(a.Bold, a.Italic, a.Underline, a.StrikeThrough, a.TextFamily == TextFontFamily.Serif);
+        _ftEditor.ApplyFormat(a.Bold, a.Italic, a.Underline, a.StrikeThrough, a.TextFamily == TextFontFamily.Serif, a.FontName);
         if (!isNew) SetAnnotationPreview(page, new Dictionary<AnnotId, Annotation?> { [a.Id] = null });
         _ftPopup.IsOpen = true;
         Dispatcher.UIThread.Post(() => _ftEditor.FocusBox(), DispatcherPriority.Input);
@@ -783,7 +783,7 @@ public sealed partial class DocumentView
                     cmd = ChangeAnnotationsCommand.Replace(_ftPage, [(cur, tools.FitForCommit(cur with { Contents = text, ModifiedAt = now }))]);
             }
             if (cmd is null) { ClearEditPreview(); return; }
-            WarnMissingGlyphs(st, text, orig.FontSizePt);
+            WarnMissingGlyphs(st, text, orig);
             _ = RunAnnotationCommandAsync(st, cmd, _ftPage, null);
         }
         catch (Exception)
@@ -794,13 +794,13 @@ public sealed partial class DocumentView
         }
     }
 
-    // 글꼴에 없는 글자가 있으면 한 번 알린다 (.notdef를 그리지 않고 건너뛴다).
-    private static void WarnMissingGlyphs(ViewState st, string text, float sizePt)
+    // 글꼴에 없는 글자가 있으면 한 번 알린다 (.notdef를 그리지 않고 건너뛴다). 시스템 글꼴을 고른 상자는 그 글꼴로 본다(0.12.0, 예: 영문 글꼴에 한글).
+    private static void WarnMissingGlyphs(ViewState st, string text, Annotation a)
     {
         try
         {
-            if (DocumentTabViewModel.Appearance?.Font is not { } font) return;
-            var laid = TextLayout.Layout(font, text, sizePt, float.PositiveInfinity, TextAlign.Left, new PdfPointF(0, 0));
+            if (DocumentTabViewModel.Appearance?.Appearance.Context.Resolve(a)?.Font is not { } font) return;
+            var laid = TextLayout.Layout(font, text, a.FontSizePt, float.PositiveInfinity, TextAlign.Left, new PdfPointF(0, 0));
             if (laid.MissingCodepoints.IsDefaultOrEmpty) return;
             st.Tab.RaiseNotice(string.Format(Strings.Msg_GlyphMissing, string.Join(" ", laid.MissingCodepoints.Select(char.ConvertFromUtf32))));
         }

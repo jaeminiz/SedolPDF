@@ -24,16 +24,27 @@ public sealed class AppFont : IDisposable
     internal ConcurrentDictionary<int, ImmutableArray<PathSeg>> OutlineCache { get; } = new();
 
     public byte[] Data { get; }
+    /// <summary>글꼴 모음(.ttc) 안의 얼굴 번호(0.12.0). 단일 글꼴은 0.</summary>
+    public int FaceIndex { get; }
+    /// <summary>윤곽선 종류: TrueType이면 PDF에 /CIDFontType2로, CFF면 /CIDFontType0C로 넣는다(0.12.0).</summary>
+    public FontOutline Outline { get; }
+    /// <summary>PostScript 이름(name ID 6). 없으면 null.</summary>
+    public string? PostScriptName { get; }
     public int UnitsPerEm { get; }
     public float Ascender1000 { get; }
     public float Descender1000 { get; }
 
-    private AppFont(byte[] data)
+    private AppFont(byte[] data, int faceIndex)
     {
         Data = data;
-        _cidByGid = CffCharset.GetCidByGid(data);
+        FaceIndex = faceIndex;
+        var info = OpenTypeInfo.ReadFace(data, faceIndex);
+        Outline = info?.Outline ?? FontOutline.CffCid;
+        PostScriptName = info?.PostScriptName;
+        // 글꼴 모음은 파일 맨 앞이 표 머리가 아니다(OpenTypeInfo가 모음 안 CFF는 쓰지 않는 종류로 본다).
+        _cidByGid = faceIndex == 0 && Outline != FontOutline.TrueType ? CffCharset.GetCidByGid(data) : null;
         _blob = FontSubsetter.CreateBlob(data);
-        _face = new Face(_blob, 0);
+        _face = new Face(_blob, (uint)faceIndex);
         _font = new HarfBuzzSharp.Font(_face);
         UnitsPerEm = _face.UnitsPerEm;
         _font.SetScale(UnitsPerEm, UnitsPerEm);
@@ -44,10 +55,10 @@ public sealed class AppFont : IDisposable
 
     public static AppFont Load(string path) => FromBytes(File.ReadAllBytes(path));
 
-    public static AppFont FromBytes(byte[] data)
+    public static AppFont FromBytes(byte[] data, int faceIndex = 0)
     {
         if (data is null || data.Length == 0) throw new InvalidOperationException("Font data is empty.");
-        return new AppFont(data);
+        return new AppFont(data, faceIndex);
     }
 
     /// <summary>글꼴에 있는 글자의 글리프 번호. 없으면(.notdef) null.</summary>

@@ -34,6 +34,9 @@ public sealed class AppearanceServices
     private AppFontCatalog? _catalog;
 
     /// <summary>대체 글꼴 카탈로그(고딕+명조, M5 C11). 처음 쓸 때 만들고 명조 파일은 그보다 더 늦게(명조가 필요할 때) 읽는다. 고딕이 없으면 null.</summary>
+    /// <summary>설치된 글꼴(0.12.0). 글꼴 폴더는 처음 필요할 때(글꼴 목록을 열거나 글꼴 이름이 있는 글 상자를 그릴 때) 한 번 훑는다.</summary>
+    public SystemFontLibrary SystemFonts { get; } = SystemFontLibrary.ForWindows();
+
     public AppFontCatalog? Catalog => Font is { } f ? (_catalog ??= AppFontCatalog.ForBaseDirectory(f, _baseDirectory)) : null;
 
     private AppearanceServices(Lazy<AppFont?> font, AnnotationAssets assets, string baseDirectory)
@@ -41,8 +44,8 @@ public sealed class AppearanceServices
         _font = font;
         _baseDirectory = baseDirectory;
         Assets = assets;
-        Appearance = PdfAppearanceSource.WithFontProvider(() => font.Value, assets, () => Catalog?.Serif);
-        Patcher = PdfSharpAnnotationPatcher.Shared(() => font.Value, () => Catalog?.Serif);
+        Appearance = PdfAppearanceSource.WithFontProvider(() => font.Value, assets, () => Catalog?.Serif, SystemFonts);
+        Patcher = PdfSharpAnnotationPatcher.Shared(() => font.Value, () => Catalog?.Serif, SystemFonts);
     }
 
     /// <summary>baseDirectory/assets/fonts/NotoSansKR-Regular.otf를 (처음 필요할 때) 읽도록 준비하고 AppearanceGeometry의 정적 설정을 채운다.</summary>
@@ -66,6 +69,13 @@ public sealed class AppearanceServices
         AppearanceGeometry.ImageResolver = new ImageCache(assets).Resolve;
         var services = new AppearanceServices(font, assets, baseDirectory);
         AppearanceGeometry.SetSerifFontProvider(() => services.Catalog?.Serif);
+        AppearanceGeometry.SystemFonts = services.SystemFonts;
+        // 글꼴 폴더 훑기(표 머리만, 수백 개 파일)를 시작 직후가 아니라 잠시 뒤 백그라운드에서 해 둔다: 글꼴 목록·글꼴 이름이 있는 글 상자가 UI 스레드에서 기다리지 않게.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            try { _ = services.SystemFonts.Families; } catch (Exception) { /* 목록을 못 읽으면 Noto만 쓴다 */ }
+        });
         return services;
     }
 

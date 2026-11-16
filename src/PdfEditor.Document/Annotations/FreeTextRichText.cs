@@ -62,14 +62,14 @@ public static class FreeTextRichText
     private static string DaFontName(Annotation a) => a.DaFont is { Length: > 0 } f ? f : "Helv";
 
     /// <summary>
-    /// CSS 글꼴 목록. 원래 글꼴 이름(예: 맑은 고딕)이 있고 사용자가 고딕/명조를 바꾸지 않았으면(이름의 계열이 지금 계열과 같으면) 그 이름을 앞에 둔다(0.12.0).
+    /// CSS 글꼴 목록. 글꼴 이름(원래 이름 또는 사용자가 고른 시스템 글꼴, 예: 맑은 고딕)이 있으면 그 이름을 앞에, 뒤에 고딕/명조 일반 이름을 둔다(0.12.0).
+    /// 고딕(기본)/명조(기본)을 고르면 UI가 이름을 지우므로 이름과 계열이 어긋나지 않는다. 일반 이름(serif)은 다시 읽을 때 대체 계열이 된다.
     /// 이름은 읽을 때 안전한 글자만 남겼지만 모델을 코드로 만든 경우를 위해 여기서도 한 번 더 거른다.
     /// </summary>
     private static string FamilyList(Annotation a)
     {
         string generic = a.TextFamily == TextFontFamily.Serif ? SerifFamily : SansFamily;
-        if (a.FontName is { Length: > 0 } n && n.Length <= 64 && n.IndexOfAny(['\'', '"', ';', '<', '>', '&', '\\']) < 0
-            && Reading.DefaultStyle.FamilyOf(n) == a.TextFamily)
+        if (a.FontName is { Length: > 0 } n && n.Length <= 64 && n.IndexOfAny(['\'', '"', ';', '<', '>', '&', '\\']) < 0)
             return $"'{n}'," + (a.TextFamily == TextFontFamily.Serif ? "serif" : "sans-serif");
         return generic;
     }

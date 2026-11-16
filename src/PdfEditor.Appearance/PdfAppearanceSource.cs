@@ -17,8 +17,11 @@ public sealed class PdfAppearanceSource : IAppearanceSource
     private PdfAppearanceSource(PaintContext ctx) => _ctx = ctx;
 
     /// <summary>글꼴을 글자가 있는 주석을 처음 만들 때 읽는다(앱 시작을 늦추지 않기 위해).</summary>
-    public static PdfAppearanceSource WithFontProvider(Func<AppFont?> fontProvider, AnnotationAssets? assets = null, Func<AppFont?>? serifProvider = null)
-        => new(PaintContext.WithFontProvider(fontProvider, assets ?? AnnotationAssets.Empty, serifProvider));
+    public static PdfAppearanceSource WithFontProvider(Func<AppFont?> fontProvider, AnnotationAssets? assets = null, Func<AppFont?>? serifProvider = null, SystemFontLibrary? systemFonts = null)
+        => new(PaintContext.WithFontProvider(fontProvider, assets ?? AnnotationAssets.Empty, serifProvider, systemFonts));
+
+    /// <summary>이 원천의 그리기 컨텍스트(타자기 맞추기처럼 같은 글꼴 규칙이 필요한 곳에서 쓴다).</summary>
+    public PaintContext Context => _ctx;
 
     public string BuildContent(Annotation a, int pageRotation)
         => PdfContentWriter.Write(AnnotationPainter.Paint(a, pageRotation, _ctx));

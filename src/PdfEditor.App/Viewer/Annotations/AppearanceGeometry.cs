@@ -94,6 +94,9 @@ public static class AppearanceGeometry
     private static AppFont? _serifFont;
     private static Func<AppFont?>? _serifFontProvider;
 
+    /// <summary>설치된 글꼴(0.12.0). 글꼴 키가 "sys:…"인 글자를 그릴 때 쓴다. null이면 그 글자는 고딕으로 그린다.</summary>
+    public static SystemFontLibrary? SystemFonts { get; set; }
+
     public static void SetSerifFontProvider(Func<AppFont?> provider) { _serifFont = null; _serifFontProvider = provider; }
 
     /// <summary>글꼴을 글자가 있는 주석을 처음 그릴 때 공급자에게서 받는다(시작 때 읽지 않는다). TextFont를 직접 정하면 이 공급자는 지워진다.</summary>
@@ -114,7 +117,7 @@ public static class AppearanceGeometry
         lock (perRot)
         {
             if (perRot.TryGetValue(rot, out var c)) return c;
-            c = FromDrawing(AnnotationPainter.Paint(a, rot, PaintContext.WithFontProvider(() => TextFont, Assets, () => SerifFont)));
+            c = FromDrawing(AnnotationPainter.Paint(a, rot, PaintContext.WithFontProvider(() => TextFont, Assets, () => SerifFont, SystemFonts)));
             if (c.Complete) perRot[rot] = c;   // 그림이 아직 없으면 캐시하지 않아 다음에 다시 만든다
             return c;
         }
@@ -167,7 +170,7 @@ public static class AppearanceGeometry
         foreach (var run in d.Texts)
         {
             if (run.Glyphs.IsEmpty) continue;
-            var font = (run.Family == PdfEditor.Document.Annotations.Patching.FontUse.SerifFamily ? SerifFont : TextFont) ?? TextFont ?? throw new InvalidOperationException(
+            var font = PaintContext.FontForKey(run.Family, () => TextFont, () => SerifFont, SystemFonts) ?? TextFont ?? throw new InvalidOperationException(
                 "AppearanceGeometry.TextFont is not set; text runs cannot be drawn.");
             var path = ImmutableArray.CreateBuilder<PathSeg>();
             float skew = run.Italic ? AppFontCatalog.SyntheticItalicSkew : 0f;   // 합성 기울임: AP의 Tm과 같은 전단

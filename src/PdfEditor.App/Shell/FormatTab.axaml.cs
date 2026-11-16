@@ -40,12 +40,8 @@ public sealed partial class FormatTab : UserControl
         EndEndBox.SelectionChanged += (_, _) => OnEndingPicked(EndEndBox, start: false);
         WidthBox.ValueChanged += (_, e) => { if (!_syncing && _props is not null && e.NewValue is { } v) _props.Width = (float)v; };
         FontBox.ValueChanged += (_, e) => { if (!_syncing && _props is not null && e.NewValue is { } v) _ = Run(() => _props.SetFontSizeAsync((float)v)); };
-        FontFamilyBox.Items.Add(new ComboBoxItem { Content = PdfEditor.App.Resources.Strings.Font_Sans, Tag = PdfEditor.Document.Annotations.TextFontFamily.Sans });
-        FontFamilyBox.Items.Add(new ComboBoxItem { Content = PdfEditor.App.Resources.Strings.Font_Serif, Tag = PdfEditor.Document.Annotations.TextFontFamily.Serif });
-        FontFamilyBox.SelectionChanged += (_, _) =>
-        {
-            if (!_syncing && _props is not null && FontFamilyBox.SelectedItem is ComboBoxItem { Tag: PdfEditor.Document.Annotations.TextFontFamily f }) _ = Run(() => _props.SetFontFamilyAsync(f));
-        };
+        PdfEditor.App.Panels.FontPicker.Init(FontFamilyBox, () => _syncing || _props is null,
+            f => Run(() => _props!.SetFontFamilyAsync(f)), s => Run(() => _props!.SetSystemFontAsync(s.DisplayName, s.Serif)));
         void Wire(Avalonia.Controls.Primitives.ToggleButton b, int bit) =>
             b.IsCheckedChanged += (_, _) => { if (!_syncing && _props is not null) _ = Run(() => _props.SetTextStyleAsync(bit, b.IsChecked == true)); };
         Wire(BoldBtn, PdfEditor.Document.Annotations.TextFormat.BoldBit);
@@ -119,7 +115,7 @@ public sealed partial class FormatTab : UserControl
             {
                 FontLabel.Text = p.FontSizeLabel;
                 FontBox.Value = (decimal)p.FontSizePt;
-                FontFamilyBox.SelectedIndex = (int)p.TextFamily;
+                PdfEditor.App.Panels.FontPicker.Select(FontFamilyBox, p.TextFamily, p.FontName);
                 BoldBtn.IsChecked = p.Bold; ItalicBtn.IsChecked = p.Italic; UnderlineBtn.IsChecked = p.Underline; StrikeBtn.IsChecked = p.Strike;
                 Rebuild(TextColorSwatches, p.TextColor, c => _ = Run(() => p.SetTextColorAsync(c!.Value)));
             }

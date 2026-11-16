@@ -441,6 +441,7 @@
   <data name="Prop_Annot_Font" xml:space="preserve"><value>글꼴</value></data>
   <data name="Font_Sans" xml:space="preserve"><value>고딕</value></data>
   <data name="Font_Serif" xml:space="preserve"><value>명조</value></data>
+  <data name="Font_Missing" xml:space="preserve"><value>{0} (이 PC에 없어 기본 글꼴로 표시)</value></data>
   <data name="Format_Bold" xml:space="preserve"><value>굵게</value></data>
   <data name="Format_Italic" xml:space="preserve"><value>기울임</value></data>
   <data name="Format_Underline" xml:space="preserve"><value>밑줄</value></data>

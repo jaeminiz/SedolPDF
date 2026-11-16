@@ -58,6 +58,8 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     [ObservableProperty] private PdfColor? _textColor;
     [ObservableProperty] private TextAlign _align;
     [ObservableProperty] private TextFontFamily _textFamily;
+    /// <summary>시스템 글꼴 이름(0.12.0). null이면 고딕/명조 기본.</summary>
+    [ObservableProperty] private string? _fontName;
     [ObservableProperty] private bool _bold;
     [ObservableProperty] private bool _italic;
     [ObservableProperty] private bool _underline;
@@ -225,7 +227,7 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
             FontSizePt = Math.Clamp(sel[0].FontSizePt, MinFontSize, MaxFontSize);
             TextColor = sel[0].TextColor ?? sel[0].Color;
             Align = sel[0].Align;
-            TextFamily = sel[0].TextFamily; Bold = sel[0].Bold; Italic = sel[0].Italic; Underline = sel[0].Underline; Strike = sel[0].StrikeThrough;
+            TextFamily = sel[0].TextFamily; FontName = sel[0].FontName; Bold = sel[0].Bold; Italic = sel[0].Italic; Underline = sel[0].Underline; Strike = sel[0].StrikeThrough;
         }
         ShowStamp = sel.Count == 1 && sel[0].Kind == AnnotKind.Stamp;
         CurrentStampName = ShowStamp ? StampNameOf(sel[0].Stamp) : null;
@@ -409,9 +411,20 @@ public sealed partial class AnnotationPropertiesViewModel : ObservableObject
     public Task SetTextColorAsync(PdfColor c) =>
         EditAsync(a => a.Kind != AnnotKind.FreeText ? a : a with { TextColor = c, ModifiedAt = _clock() }, null);
 
-    /// <summary>글꼴(고딕/명조, 0.5.0). 타자기는 글 폭이 달라지므로 상자를 다시 맞춘다.</summary>
+    /// <summary>글꼴(고딕/명조 기본, 0.5.0). 시스템 글꼴 이름은 지운다(0.12.0). 타자기는 글 폭이 달라지므로 상자를 다시 맞춘다.</summary>
     public Task SetFontFamilyAsync(TextFontFamily f) =>
-        EditAsync(a => a.Kind != AnnotKind.FreeText || a.TextFamily == f ? a : _tab.Tools.FitForCommit(a with { TextFamily = f, ModifiedAt = _clock() }), null);
+        EditAsync(a => a.Kind != AnnotKind.FreeText || a.TextFamily == f && a.FontName is null ? a
+            : _tab.Tools.FitForCommit(a with { TextFamily = f, FontName = null, ModifiedAt = _clock() }), null);
+
+    /// <summary>
+    /// 설치된 글꼴(0.12.0). 이름은 화면에 보이는 이름(한글 이름이 있으면 한글)으로 /DS·/RC에 쓰고, 고딕/명조 계열은 이 PC에 글꼴이 없을 때의 대체용으로 함께 둔다.
+    /// </summary>
+    public Task SetSystemFontAsync(string name, bool serif)
+    {
+        var fam = serif ? TextFontFamily.Serif : TextFontFamily.Sans;
+        return EditAsync(a => a.Kind != AnnotKind.FreeText || a.FontName == name && a.TextFamily == fam ? a
+            : _tab.Tools.FitForCommit(a with { FontName = name, TextFamily = fam, ModifiedAt = _clock() }), null);
+    }
 
     /// <summary>굵게·기울임·밑줄·취소선 중 하나를 켜고 끈다(상자 전체, 0.5.0). bit는 <see cref="TextFormat"/>의 *Bit.</summary>
     public Task SetTextStyleAsync(int bit, bool on) =>

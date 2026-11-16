@@ -441,6 +441,7 @@
   <data name="Prop_Annot_Font" xml:space="preserve"><value>Font</value></data>
   <data name="Font_Sans" xml:space="preserve"><value>Gothic (sans)</value></data>
   <data name="Font_Serif" xml:space="preserve"><value>Myeongjo (serif)</value></data>
+  <data name="Font_Missing" xml:space="preserve"><value>{0} (not on this PC, shown with the default font)</value></data>
   <data name="Format_Bold" xml:space="preserve"><value>Bold</value></data>
   <data name="Format_Italic" xml:space="preserve"><value>Italic</value></data>
   <data name="Format_Underline" xml:space="preserve"><value>Underline</value></data>

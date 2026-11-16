@@ -107,7 +107,12 @@ public sealed class AppFontCatalog
     public static bool FsTypeAllowsEmbedding(byte[] fontFile)
     {
         int? fs = ReadFsType(fontFile);
-        if (fs is not int v) return false;
+        return fs is int v && FsTypeAllows(v);
+    }
+
+    /// <summary>fsType 값 하나에 대한 <see cref="FsTypeAllowsEmbedding"/> 규칙(0.12.0 시스템 글꼴 목록도 쓴다).</summary>
+    public static bool FsTypeAllows(int v)
+    {
         if ((v & 0x0100) != 0 || (v & 0x0200) != 0) return false;
         int usage = v & 0x000E;
         return usage == 0 || (usage & 0x0008) != 0 && (usage & 0x0002) == 0;

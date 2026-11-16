@@ -34,6 +34,18 @@ public static class TextFormat
         return string.Equals(n, "Serif", StringComparison.OrdinalIgnoreCase) ? TextFontFamily.Serif : TextFontFamily.Sans;
     }
 
+    /// <summary>
+    /// 스타일 설정의 글꼴 값(0.12.0): "Sans"/"Serif", 시스템 글꼴을 골랐으면 "Sans:맑은 고딕"처럼 대체 계열 뒤에 이름. 옛 값("Sans"/"Serif")은 그대로 읽힌다.
+    /// </summary>
+    public static string FontSetting(Annotation a) => a.FontName is { Length: > 0 } n ? $"{FamilyName(a.TextFamily)}:{n}" : FamilyName(a.TextFamily);
+
+    /// <summary><see cref="FontSetting"/>을 계열 이름과 글꼴 이름(없으면 null)으로 나눈다.</summary>
+    public static (string Family, string? FontName) SplitFontSetting(string value)
+    {
+        int colon = value.IndexOf(':');
+        return colon < 0 ? (value, null) : (value[..colon], value[(colon + 1)..] is { Length: > 0 } n ? n : null);
+    }
+
     /// <summary>비표준 키를 쓸 필요가 있는가(기본 서식이면 키를 만들지 않아 이전 파일과 같은 출력).</summary>
     public static bool NeedsKeys(Annotation a) => a.TextFamily != TextFontFamily.Sans || ToBits(a) != 0;
 }
