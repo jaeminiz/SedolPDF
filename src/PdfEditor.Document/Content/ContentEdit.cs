@@ -40,7 +40,11 @@ public readonly record struct OutlineSeg(char Op, PdfPointF A, PdfPointF B = def
 public sealed record AppTextSpec(string Text, float SizePt, PdfEditor.Document.Annotations.PdfColor Color, PdfMatrix Placement, PdfRectF Bounds,
     System.Collections.Immutable.ImmutableArray<OutlineSeg> Outline, string Content,
     PdfEditor.Document.Annotations.Patching.FontUse Font, float BoldStrokePt = 0f, bool SyntheticItalic = false, bool Serif = false,
-    string? FontName = null, bool RealBold = false, bool RealItalic = false);
+    string? FontName = null, bool RealBold = false, bool RealItalic = false)
+{
+    /// <summary>글자별 글꼴 대체(0.13.0): 고른 설치 글꼴에 없는 글자를 맡은 Noto의 글자 모음. Content의 "{F2}"가 이 글꼴이다. 대체가 없으면 null.</summary>
+    public PdfEditor.Document.Annotations.Patching.FontUse? FallbackFont { get; init; }
+}
 // 0.12.0: FontName은 설치된 글꼴로 쓴 줄의 글꼴 이름(보이는 이름, null이면 앱 글꼴 Noto). RealBold·RealItalic은 그 글꼴의 진짜 굵은·기울인 얼굴을 썼다는 뜻(가짜 굵게 선이 없어도 굵게).
 
 /// <summary>앱 글꼴 줄을 쪽 맨 위에 넣는다(C7: 화면 replay도 다른 편집을 모두 적용한 뒤 맨 마지막에). 가리킬 때는 ObjectRef.Inserted(Id).</summary>

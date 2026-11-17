@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
@@ -10,7 +11,11 @@ namespace PdfEditor.Appearance.Fonts;
 /// <see cref="Advance"/>는 글꼴이 정한 글리프 폭(pt, 커닝 제외)이라 PDF /W에 그대로 쓴다.
 /// <see cref="Text"/>는 이 글리프가 처음 나타내는 원문(합자의 둘째 글리프 등은 빈 문자열).
 /// </summary>
-public sealed record PositionedGlyph(int Gid, int Cid, PdfPointF Origin, float Advance, string Text);
+public sealed record PositionedGlyph(int Gid, int Cid, PdfPointF Origin, float Advance, string Text)
+{
+    /// <summary>글자별 글꼴 대체(0.13.0): 이 글리프가 속한 글꼴이 TextLayout.Layout에 준 목록의 몇 번째인가. 글꼴이 하나면 항상 0.</summary>
+    public int FontIndex { get; init; }
+}
 
 public sealed record LaidOutText(
     ImmutableArray<ImmutableArray<PositionedGlyph>> Lines, PdfRectF Bounds, ImmutableArray<int> MissingCodepoints);
@@ -28,13 +33,24 @@ public static class TextLayout
         public bool IsCjk => IsCjkCodepoint(Cp);
     }
 
-    private readonly record struct Glyph(int Gid, float Advance, float Nominal);
+    private readonly record struct Glyph(int Gid, float Advance, float Nominal, int Font = 0);
 
     private sealed record ShapedRun(Glyph[] Glyphs, Unit[] Units);
 
     public static LaidOutText Layout(AppFont font, string text, float fontSizePt, float boxWidthPt, TextAlign align,
         PdfPointF topLeft, float lineHeightFactor = 1.2f)
+        => Layout([font], text, fontSizePt, boxWidthPt, align, topLeft, lineHeightFactor);
+
+    /// <summary>
+    /// 글자별 글꼴 대체(0.13.0). fonts[0]이 고른 글꼴, 뒤는 대체 글꼴이다. 각 글자는 그것을 가진 첫 글꼴로 그린다.
+    /// 공백·문장부호는 앞 글자의 글꼴을 따라 구간이 잘게 쪼개지지 않는다(문단 맨 앞이면 뒤 글자를 따른다).
+    /// 줄 높이·첫 기준선은 fonts[0] 기준. 어느 글꼴에도 없는 글자만 MissingCodepoints에 모은다.
+    /// 폭 재기·줄바꿈·그리기·저장이 모두 이 한 배치를 쓴다.
+    /// </summary>
+    public static LaidOutText Layout(IReadOnlyList<AppFont> fonts, string text, float fontSizePt, float boxWidthPt, TextAlign align,
+        PdfPointF topLeft, float lineHeightFactor = 1.2f)
     {
+        var font = fonts[0];
         float lineHeight = fontSizePt * lineHeightFactor;
         bool finite = float.IsFinite(boxWidthPt);
         float contentH = (font.Ascender1000 - font.Descender1000) * fontSizePt / 1000f;
@@ -44,7 +60,7 @@ public static class TextLayout
         var spans = new List<(ShapedRun Run, int From, int To)>();
         foreach (var para in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
         {
-            var run = Shape(font, para, fontSizePt, missing);
+            var run = Shape(fonts, para, fontSizePt, missing);
             if (run.Units.Length == 0) { spans.Add((run, 0, 0)); continue; }
             foreach (var (from, to) in Break(run.Units, finite ? boxWidthPt : float.PositiveInfinity))
                 spans.Add((run, from, to));
@@ -85,8 +101,8 @@ public static class TextLayout
                 for (int g = 0; g < un.Count; g++)
                 {
                     var sg = run.Glyphs[un.First + g];
-                    gl.Add(new PositionedGlyph(sg.Gid, font.GetCid(sg.Gid), new PdfPointF(x, y), sg.Nominal,
-                        g == 0 ? un.Text : ""));
+                    gl.Add(new PositionedGlyph(sg.Gid, fonts[sg.Font].GetCid(sg.Gid), new PdfPointF(x, y), sg.Nominal,
+                        g == 0 ? un.Text : "") { FontIndex = sg.Font });
                     x += sg.Advance;
                 }
             }
@@ -102,43 +118,99 @@ public static class TextLayout
         return new LaidOutText(lines.ToImmutable(), bounds, [.. missing]);
     }
 
-    /// <summary>문단을 셰이핑해 클러스터 단위로 묶는다. 글꼴에 없는 글자는 빼고 missing에 기록.</summary>
-    private static ShapedRun Shape(AppFont font, string para, float size, SortedSet<int> missing)
+    /// <summary>
+    /// 한 줄 글이 글꼴 목록 가운데 어느 글꼴로 나뉘는지(글자 순서대로 글꼴 번호, 어느 글꼴에도 없으면 -1).
+    /// 공백·문장부호는 앞 글자를 따른다. 배치(<see cref="Layout(IReadOnlyList{AppFont}, string, float, float, TextAlign, PdfPointF, float)"/>)와 같은 규칙이다.
+    /// </summary>
+    public static int[] PickFonts(IReadOnlyList<AppFont> fonts, IReadOnlyList<int> cps)
     {
-        var sb = new StringBuilder(para.Length);
+        var pick = new int[cps.Count];
+        for (int i = 0; i < cps.Count; i++)
+            pick[i] = FirstCovering(fonts, cps[i]);
+        if (fonts.Count > 1)
+        {
+            for (int i = 0; i < cps.Count; i++)
+            {
+                if (!IsNeutral(cps[i])) continue;
+                int want = -1;
+                for (int k = i - 1; k >= 0 && want < 0; k--) if (pick[k] >= 0) want = pick[k];
+                if (want < 0) for (int k = i + 1; k < cps.Count && want < 0; k++) if (!IsNeutral(cps[k]) && pick[k] >= 0) want = pick[k];
+                if (want >= 0 && fonts[want].GetGlyph(cps[i]) is not null) pick[i] = want;
+            }
+        }
+        return pick;
+    }
+
+    /// <summary>문단을 글꼴 구간으로 나눠 구간마다 셰이핑하고 클러스터 단위로 묶는다. 어느 글꼴에도 없는 글자는 빼고 missing에 기록.</summary>
+    private static ShapedRun Shape(IReadOnlyList<AppFont> fonts, string para, float size, SortedSet<int> missing)
+    {
+        var cps = new List<int>();
         foreach (var r in para.EnumerateRunes())
         {
             int cp = r.Value;
             if (cp == '\t') cp = ' ';
             if (IsIgnorable(cp)) continue;
-            if (font.GetGlyph(cp) is null) { missing.Add(cp); continue; }
-            sb.Append(char.ConvertFromUtf32(cp));
+            cps.Add(cp);
         }
-        string clean = sb.ToString();
-        if (clean.Length == 0) return new ShapedRun([], []);
+        var pick = PickFonts(fonts, cps);
+        var glyphs = new List<Glyph>();
+        var units = new List<Unit>();
+        int from = 0, segFont = -1;
+        for (int i = 0; i < cps.Count; i++)
+        {
+            if (pick[i] < 0) { missing.Add(cps[i]); continue; }
+            if (segFont >= 0 && pick[i] != segFont)
+            {
+                AppendSegment(fonts[segFont], segFont, cps, pick, from, i, size, glyphs, units);
+                from = i;
+            }
+            segFont = pick[i];
+        }
+        if (segFont >= 0) AppendSegment(fonts[segFont], segFont, cps, pick, from, cps.Count, size, glyphs, units);
+        return new ShapedRun([.. glyphs], [.. units]);
+    }
 
+    private static int FirstCovering(IReadOnlyList<AppFont> fonts, int cp)
+    {
+        for (int f = 0; f < fonts.Count; f++) if (fonts[f].GetGlyph(cp) is not null) return f;
+        return -1;
+    }
+
+    internal static bool IsNeutral(int cp)
+    {
+        if (cp > 0xFFFF) return false;
+        var cat = char.GetUnicodeCategory((char)cp);
+        return char.IsWhiteSpace((char)cp) || cat is UnicodeCategory.ConnectorPunctuation or UnicodeCategory.DashPunctuation
+            or UnicodeCategory.OpenPunctuation or UnicodeCategory.ClosePunctuation
+            or UnicodeCategory.InitialQuotePunctuation or UnicodeCategory.FinalQuotePunctuation or UnicodeCategory.OtherPunctuation;
+    }
+
+    /// <summary>[from, to) 글자(어느 글꼴에도 없는 글자는 뺀다)를 한 글꼴로 셰이핑해 glyphs·units에 이어 붙인다.</summary>
+    private static void AppendSegment(AppFont font, int fi, List<int> cps, int[] pick, int from, int to, float size, List<Glyph> glyphs, List<Unit> units)
+    {
+        var sb = new StringBuilder();
+        for (int k = from; k < to; k++) if (pick[k] >= 0) sb.Append(char.ConvertFromUtf32(cps[k]));
+        string clean = sb.ToString();
+        if (clean.Length == 0) return;
         var shaped = font.Shape(clean);
-        var glyphs = new Glyph[shaped.Length];
+        int baseIdx = glyphs.Count;
         for (int i = 0; i < shaped.Length; i++)
-            glyphs[i] = new Glyph(shaped[i].Gid, shaped[i].Advance1000 * size / 1000f,
-                font.Advance1000(shaped[i].Gid) * size / 1000f);
+            glyphs.Add(new Glyph(shaped[i].Gid, shaped[i].Advance1000 * size / 1000f, font.Advance1000(shaped[i].Gid) * size / 1000f, fi));
 
         var clusters = shaped.Select(g => g.Cluster).Distinct().OrderBy(c => c).ToList();
         var nextCluster = new Dictionary<int, int>(clusters.Count);
         for (int k = 0; k < clusters.Count; k++) nextCluster[clusters[k]] = k + 1 < clusters.Count ? clusters[k + 1] : clean.Length;
-        var units = new List<Unit>();
         int start = 0;
         while (start < shaped.Length)
         {
             int cl = shaped[start].Cluster, end = start + 1;
-            float w = glyphs[start].Advance;
-            while (end < shaped.Length && shaped[end].Cluster == cl) w += glyphs[end++].Advance;
+            float w = glyphs[baseIdx + start].Advance;
+            while (end < shaped.Length && shaped[end].Cluster == cl) w += glyphs[baseIdx + end++].Advance;
             int next = nextCluster[cl];
             string t = clean.Substring(cl, Math.Max(0, next - cl));
-            units.Add(new Unit(start, end - start, w, char.ConvertToUtf32(clean, cl), t));
+            units.Add(new Unit(baseIdx + start, end - start, w, char.ConvertToUtf32(clean, cl), t));
             start = end;
         }
-        return new ShapedRun(glyphs, [.. units]);
     }
 
     /// <summary>단위 구간 [from, to) 목록. 끝 공백은 구간에 남아 있다(줄 폭 계산에서 제외).</summary>

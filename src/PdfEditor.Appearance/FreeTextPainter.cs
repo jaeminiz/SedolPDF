@@ -29,7 +29,7 @@ internal static class FreeTextPainter
         if (IntentOf(page) != FreeTextIntent.Typewriter) return page;
         // 회전한 타자기는 바로 선 자기 좌표에서 맞춘 뒤 되돌린다(화면에서 본 왼쪽 위가 고정된다).
         var a = AnnotationRotation.ToLocal(page, out var toPage);
-        var laid = TextLayout.Layout(ctx.Resolve(a)?.Font ?? throw new InvalidOperationException("Fitting a typewriter annotation needs the app font."), a.Contents ?? "", a.FontSizePt, float.PositiveInfinity, a.Align,
+        var laid = TextLayout.Layout(ctx.Resolve(a)?.Fonts ?? throw new InvalidOperationException("Fitting a typewriter annotation needs the app font."), a.Contents ?? "", a.FontSizePt, float.PositiveInfinity, a.Align,
             new PdfPointF(a.Rect.Left + Padding, a.Rect.Top - Padding));
         float lineH = a.FontSizePt * 1.2f;
         // 합성 기울임은 윗부분이 오른쪽으로 밀리므로 그만큼 상자를 넓힌다.
@@ -42,7 +42,6 @@ internal static class FreeTextPainter
         Annotation a, PaintContext? ctx, List<PaintOp> ops)
     {
         var resolved = ctx?.Resolve(a) ?? throw new InvalidOperationException("Painting a FreeText annotation needs a PaintContext with the app font.");
-        var font = resolved.Font;
         var intent = IntentOf(a);
         var box = BoxOf(a);
 
@@ -81,7 +80,7 @@ internal static class FreeTextPainter
         float inset = TextInset(a);
         var topLeft = new PdfPointF(box.Left + inset, box.Top - inset);
         float width = intent == FreeTextIntent.Typewriter ? float.PositiveInfinity : Math.Max(box.Width - 2 * inset, 0f);
-        var laid = TextLayout.Layout(font, a.Contents ?? "", a.FontSizePt, width, a.Align, topLeft);
+        var laid = TextLayout.Layout(resolved.Fonts, a.Contents ?? "", a.FontSizePt, width, a.Align, topLeft);
         var glyphs = laid.Lines.SelectMany(l => l).ToImmutableArray();
         if (glyphs.IsEmpty) return (ImmutableArray<TextRunOp>.Empty, null);
         var textColor = a.TextColor ?? Black;
@@ -98,7 +97,18 @@ internal static class FreeTextPainter
             }
         }
         // 진짜 굵은·기울임 얼굴(시스템 글꼴)을 찾았으면 가짜 굵게·기울임은 끈다(0.12.0).
-        return ([new TextRunOp("F1", a.FontSizePt, textColor, glyphs) { Family = resolved.Key, Bold = resolved.SyntheticBold, Italic = resolved.SyntheticItalic }], laid.Bounds);
+        // 글꼴이 바뀌는 곳마다 런을 끊는다(0.13.0 글자별 대체): 고른 글꼴은 F1, 대체 글꼴은 F2. 한 글꼴이면 런 하나(F1).
+        var chain = resolved.Chain;
+        var runs = ImmutableArray.CreateBuilder<TextRunOp>();
+        for (int i = 0; i < glyphs.Length;)
+        {
+            int fi = glyphs[i].FontIndex, j = i + 1;
+            while (j < glyphs.Length && glyphs[j].FontIndex == fi) j++;
+            var rf = chain[fi];
+            runs.Add(new TextRunOp("F" + (fi + 1), a.FontSizePt, textColor, ImmutableArray.CreateRange(glyphs.Skip(i).Take(j - i))) { Family = rf.Key, Bold = rf.SyntheticBold, Italic = rf.SyntheticItalic });
+            i = j;
+        }
+        return (runs.ToImmutable(), laid.Bounds);
     }
 
     /// <summary>밑줄 위치(기준선 아래)·취소선 위치(기준선 위)·선 굵기, 모두 글자 크기 비례.</summary>

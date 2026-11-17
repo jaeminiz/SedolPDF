@@ -15,7 +15,11 @@ public sealed record AnnotationRemoval(int PageIndex, ImmutableArray<int> AnnotI
 /// 쪽 내용 스트림 끝에 새 스트림을 붙인다(q … Q로 감쌈, M4 C6·C7). Content의 "{F}"는 쪽 /Resources /Font에 새로 넣는
 /// 글꼴(Font로 서브셋) 자원 이름으로 바뀐다(이름이 겹치지 않게 적용기가 고름). 매 출력마다 사본에만(상태 없음).
 /// </summary>
-public sealed record PageContentAppend(int PageIndex, string Content, FontUse Font);
+public sealed record PageContentAppend(int PageIndex, string Content, FontUse Font)
+{
+    /// <summary>글자별 글꼴 대체(0.13.0): Content의 "{F2}"가 가리킬 글꼴. 없으면 null.</summary>
+    public FontUse? Fallback { get; init; }
+}
 
 /// <summary>PDFium이 알려 준 원본 객체 하나(종류 = PdfPageObjectType 값, 쪽 공간 경계). 해석기 객체 목록과 대응을 검증하는 데 쓴다.</summary>
 public readonly record struct ReferenceObj(int Kind, double L, double B, double R, double T);

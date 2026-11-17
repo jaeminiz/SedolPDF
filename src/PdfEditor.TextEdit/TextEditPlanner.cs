@@ -98,15 +98,17 @@ public static class TextEditPlanner
             : format?.Serif is not null ? null
             : app is not null ? app.Line.FontName
             : origFont?.BaseName is { } bn ? StripSubsetTag(bn) : null;
+        // 일부 글자만 못 덮으면(예: Arial에 한글) 그 글자만 Noto로 쓴다(글자별 대체, 0.13.0). 하나도 못 덮으면 앱 글꼴 한 줄.
         if (wanted is not null && systemFonts?.Find(wanted, choice.SyntheticBold, choice.SyntheticItalic) is { } face && systemFonts.Load(face) is { } sf
-            && PdfEditor.Appearance.PaintContext.Covers(sf, newText))
+            && PdfEditor.Appearance.PaintContext.CoversAny(sf, newText))
         {
             bool bold = choice.SyntheticBold, italic = choice.SyntheticItalic;
             var sysChoice = new AppFontChoice(face.Info.Serif ? AppFontFamily.Serif : AppFontFamily.Sans, sf, bold && !face.Info.IsBold, italic && !face.Info.Italic);
             string name = format?.FontName is { Length: > 0 } ? wanted : app?.Line.FontName ?? face.Info.DisplayFamily;
             var pick = new SystemFontPick(face.Key, name, bold && face.Info.IsBold, italic && face.Info.Italic);
+            var fallback = PdfEditor.Appearance.PaintContext.Covers(sf, newText) ? null : ChoiceFor(catalog, appFont, face.Info.Serif, bold, italic);
             var (sysSpec, _) = AppFontLine.Build(sysChoice.Font, newText, size, placement, color, sysChoice.Family, sysChoice.SyntheticBold, sysChoice.SyntheticItalic,
-                forceBold ? OverlapBoldStrokeRatio : null, pick);
+                forceBold ? OverlapBoldStrokeRatio : null, pick, fallback);
             if (sysSpec is not null)
                 return new ReplacePlan([new InsertAppTextEdit(st.NewId(), sysSpec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);
         }

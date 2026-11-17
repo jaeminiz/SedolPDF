@@ -235,8 +235,13 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             page.Contents.PrependContent().CreateStream(System.Text.Encoding.ASCII.GetBytes("q\n"));
             var sb = new System.Text.StringBuilder("Q\n");
             // 쪽의 앱 글꼴 줄은 글꼴 가족(고딕/명조)마다 서브셋 하나를 나눠 쓴다(줄마다 글꼴 객체를 만들지 않음 — 글자 집합을 합친다).
-            var famNames = EmbedFamilies(doc, page.Resources, group.Select(a => a.Font));
-            foreach (var a in group) sb.Append("q\n").Append(a.Content.Replace("{F}", famNames[a.Font.Family])).Append("Q\n");
+            var famNames = EmbedFamilies(doc, page.Resources, group.Select(a => a.Font).Concat(group.Where(a => a.Fallback is not null).Select(a => a.Fallback!)));
+            foreach (var a in group)
+            {
+                string c = a.Content.Replace("{F}", famNames[a.Font.Family]);
+                if (a.Fallback is not null) c = c.Replace("{F2}", famNames[a.Fallback.Family]);
+                sb.Append("q\n").Append(c).Append("Q\n");
+            }
             page.Contents.AppendContent().CreateStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString()));
         }
     }
@@ -374,13 +379,14 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             // 앱 글꼴 줄은 쪽마다 서브셋 하나를 나눠 쓴다(글자 집합을 합침).
             Dictionary<string, string>? famNames = null;
             if (!dryRun && plan.Snippets.Any(x => x.Font is not null))
-                famNames = EmbedFamilies(doc, resources, plan.Snippets.Where(x => x.Font is not null).Select(x => x.Font!));
+                famNames = EmbedFamilies(doc, resources, plan.Snippets.Where(x => x.Font is not null).SelectMany(x => x.Fallback is null ? [x.Font!] : new[] { x.Font!, x.Fallback }));
             foreach (var sn in plan.Snippets)
             {
                 string content = sn.Content;
                 if (sn.Para is { } ps) content += ParagraphLineBytes(number, page, parsed, seg, ps);
                 if (sn.Dup is { } dup) content = DuplicateBytes(doc, number, rw, dup, page, sources, dryRun);
-                if (sn.Font is not null) content = content.Replace("{F}", famNames?[sn.Font.Family] ?? "SedolFDry");   // 시험 적용(dryRun)은 자리표시자만 해 본다
+                if (sn.Font is not null) content = content.Replace("{F}", famNames?[sn.Font.Family] ?? "SedolFDry");
+                if (sn.Fallback is not null) content = content.Replace("{F2}", famNames?[sn.Fallback.Family] ?? "SedolFDry2");   // 시험 적용(dryRun)은 자리표시자만 해 본다
                 if (sn.ImageAssetId is { } assetId)
                 {
                     if (!assets.HasImage(assetId)) throw new ContentRegenerationException(number, "image asset missing");
