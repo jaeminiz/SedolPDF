@@ -250,7 +250,9 @@ public sealed partial class DocumentView
         var tab = st.Tab;
         if (!tab.CanEditContent || st.Session.Content.For(info.Id).Length == 0) return false;
         if (!TryGetObjectIndex(st, info, out var idx)) return false;   // 목록이 오기 전: 이번에는 건너뛴다(요청은 이미 보냄)
-        var hit = idx.HitTest(pt, 4 * ptPerDip, x => x.Ref.IsInserted).FirstOrDefault();
+        // 고친 쪽 글(앱 글꼴 줄·원래 글꼴로 바꾼 줄)은 주석이 아니다: 주석 선택 도구로는 잡지 않는다(텍스트 편집 도구로만).
+        var appText = AppTextIds(st, info.Id);
+        var hit = idx.HitTest(pt, 4 * ptPerDip, x => x.Ref.IsInserted && x.Type != Pdf.Native.PdfPageObjectType.Text && !appText.Contains(x.Ref.InsertedId)).FirstOrDefault();
         if (hit is null) return false;
         var chosen = new PdfEditor.App.Viewer.Objects.SelectedObject(info.Id, hit.Ref, hit.Type, hit.Bounds);
         if (toggle) { tab.Objects.Toggle(chosen); InvalidateVisual(); return true; }
