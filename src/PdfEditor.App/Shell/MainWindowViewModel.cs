@@ -637,6 +637,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public async Task<bool> ConfirmExitAsync()
     {
         _closingAll = true;
+        using var batch = _workflow?.BeginCloseBatch();
         try
         {
             foreach (var d in Documents.ToList())

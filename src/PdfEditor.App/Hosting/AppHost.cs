@@ -114,6 +114,7 @@ public sealed class AppHost : IDisposable
     /// <summary>파일 > 끝내기: 창을 최근 순서로 하나씩 닫는다. 어느 창에서든 취소하면 거기서 멈추고 남은 창은 그대로.</summary>
     public async Task ExitAllAsync()
     {
+        using var batch = Workflow.BeginCloseBatch();
         foreach (var w in Registry.ByRecent.OfType<MainWindow>().ToList())
             if (!await w.TryCloseAsync()) return;
     }
