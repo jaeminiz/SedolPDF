@@ -279,15 +279,19 @@ public class DocumentViewNewToolsInputTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TextBox_Esc_CancelsWithoutCreating_AndCommitSavesAndReopensKorean()
+    public async Task TextBox_Esc_KeepsTypedText_AndCommitSavesAndReopensKorean()
     {
         var s = await OpenAsync(p => TestPdfFactory.CreateLabeled(p, [(400, 600)]));
         var h = Show(s);
         SetTool(h, ToolKind.Typewriter);
         Click(h, At(h, 100, 100));
         var box = EditorBox(h);
-        HeadlessUi.Run(() => { box.Text = "취소할 글"; h.Window.KeyPress(Avalonia.Input.Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null); return 0; });
-        HeadlessUi.Run(() => { Thread.Sleep(250); Dispatcher.UIThread.RunJobs(); return 0; });
+        // 0.12.0 사용자 요청: Esc는 편집에서 빠져나오되 입력한 글과 상자를 남긴다(지우려면 실행 취소).
+        HeadlessUi.Run(() => { box.Text = "남길 글"; h.Window.KeyPress(Avalonia.Input.Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null); return 0; });
+        WaitCount(h, 1);
+        Assert.Equal("남길 글", Items(h)[0].Contents);
+        await s.Commands.UndoAsync();
+        HeadlessUi.Run(() => { Thread.Sleep(100); Dispatcher.UIThread.RunJobs(); return 0; });
         Assert.Empty(Items(h));
 
         SetTool(h, ToolKind.Typewriter);

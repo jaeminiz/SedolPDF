@@ -171,10 +171,20 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
     }
 
     /// <summary>굵게·기울임·명조(null = 그대로). 원본 글꼴의 모양은 바꿀 수 없어서 앱 글꼴로 줄을 다시 쓰고 알린다.</summary>
-    public async Task SetTextEmphasisAsync(bool? bold = null, bool? italic = null, bool? serif = null)
+    public Task SetTextEmphasisAsync(bool? bold = null, bool? italic = null, bool? serif = null) => ApplyFormatAsync(new TextFormatOverride(bold, italic, serif));
+
+    /// <summary>
+    /// 글꼴 고르기(0.12.0). name이 있으면 설치된 글꼴, null이면 앱 글꼴 고딕/명조(serif). 원본 글꼴의 글은 그 줄을 고른 글꼴로 다시 쓴다.
+    /// </summary>
+    public Task SetTextFontAsync(string? name, bool serif)
+    {
+        if (Format is { } f && (name is null ? !f.IsOriginalFont && !f.SystemFont && f.Serif == serif : f.SystemFont && f.FontName == name)) return Task.CompletedTask;
+        return ApplyFormatAsync(new TextFormatOverride(Serif: name is null ? serif : null, FontName: name));
+    }
+
+    private async Task ApplyFormatAsync(TextFormatOverride format)
     {
         if (Format is not { } f || _tab.Objects.Selected is not { } sel || _tab.Session is not { } s || !_tab.CanEditContent) return;
-        var format = new TextFormatOverride(bold, italic, serif);
         if (format.IsEmpty) return;
         if (!f.IsOriginalFont) { await SetTextStyleAsync(null, null, format); return; }
         try
@@ -184,8 +194,11 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
             var pick = await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0 ? null : s.GetObjectIndex(sel.Page) is { } idx && idx.Entries.FirstOrDefault(e => e.Ref == sel.Ref) is { } e ? (Entry: e, Idx: idx) : ((PageObjectEntry Entry, PageObjectIndex Idx)?)null);
             if (pick is { } p) shadows = (await ObjectToolController.ResolveOverlappedAsync(_tab, sel.Page, p.Entry, p.Idx)).Shadows;
             var r = await ObjectToolController.ReplaceTextAsync(_tab, sel.Page, sel.Ref, text, shadows, format);
-            if (r.Notice is not null) _tab.RaiseNotice(r.Notice);
-            _tab.Objects.Clear();
+            if (r.Notice is not null) { _tab.RaiseNotice(r.Notice); _tab.Objects.Clear(); return; }
+            // 새로 쓴 줄이 선택을 이어받는다(글꼴을 이어서 바꿀 수 있게).
+            var line = await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0 ? null : s.Content.For(sel.Page).OfType<InsertAppTextEdit>().LastOrDefault());
+            if (line is not null) _tab.Objects.Select(new SelectedObject(sel.Page, ObjectRef.Inserted(line.Id), sel.Type, line.Line.Bounds));
+            else _tab.Objects.Clear();
         }
         catch (Exception) { _tab.RaiseNotice(Strings.Msg_ContentEditFailed); }
     }
@@ -200,7 +213,8 @@ public sealed partial class ObjectPropertiesViewModel : ObservableObject
             var font = DocumentTabViewModel.Appearance?.Font;
             var plan = await s.Thread.InvokeAsync(() => s.IndexOf(sel.Page) < 0
                 ? ReplacePlan.Refused(ReplaceRefusal.NotText)
-                : TextEditPlanner.PlanReplace(s, sel.Page, sel.Ref, text, font, Math.Clamp(size ?? TextSizePt, 4f, 200f), color ?? TextColor, catalog: DocumentTabViewModel.Appearance?.Catalog, format: format));
+                : TextEditPlanner.PlanReplace(s, sel.Page, sel.Ref, text, font, Math.Clamp(size ?? TextSizePt, 4f, 200f), color ?? TextColor, catalog: DocumentTabViewModel.Appearance?.Catalog, format: format,
+                    systemFonts: DocumentTabViewModel.Appearance?.SystemFonts));
             if (plan.Edits.Count == 0) { _tab.RaiseNotice(ObjectToolController.RefusalMessage(plan)); return; }
             await _tab.RunContentCommandAsync(new ContentEditCommand(sel.Page, plan.Edits));
             // 새 줄이 선택을 이어받는다

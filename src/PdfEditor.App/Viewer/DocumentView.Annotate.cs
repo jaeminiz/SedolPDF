@@ -711,7 +711,8 @@ public sealed partial class DocumentView
         LogicalChildren.Add(_ftPopup);
         _ftPopup.Closed += (_, _) => { if (!_ftPopup.IsOpen) FinishFreeTextEdit(); };
         _ftEditor.AcceptRequested += () => _ftPopup.IsOpen = false;
-        _ftEditor.CancelRequested += () => { _ftState = null; _ftAnnot = null; _ftPopup.IsOpen = false; ClearEditPreview(); };
+        // Esc = 편집을 끝내되 입력한 글은 남긴다(0.12.0 사용자 요청: 빈 곳을 누르지 않아도 빠져나오게). 지우려면 실행 취소.
+        _ftEditor.CancelRequested += () => _ftPopup.IsOpen = false;
     }
 
     private void ClearEditPreview()

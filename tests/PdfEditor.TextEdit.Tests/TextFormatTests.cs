@@ -128,6 +128,69 @@ public sealed class TextFormatTests : IDisposable
         Assert.True(w > 0, "합성 굵게는 화면에서도 선을 긋는다");
     }
 
+    // ---- 0.12.0 설치된 글꼴 ----
+
+    private static readonly string WinFonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+
+    private static SystemFontLibrary? Lib(params string[] prefixes)
+    {
+        if (!File.Exists(Path.Combine(WinFonts, "arial.ttf")) || !File.Exists(Path.Combine(WinFonts, "malgun.ttf"))) return null;
+        return new SystemFontLibrary(() => SystemFontLibrary.Scan([WinFonts])
+            .Where(f => prefixes.Any(p => Path.GetFileName(f.Path).StartsWith(p, StringComparison.OrdinalIgnoreCase))));
+    }
+
+    /// <summary>원본 Arial 줄을 굵게로 다시 쓰면 설치된 Arial의 진짜 굵은 얼굴을 쓴다(Noto + 가짜 굵게가 아니라).</summary>
+    [Fact]
+    public async Task PlanReplace_OriginalArial_UsesInstalledArial()
+    {
+        if (Lib("arial") is not { } lib) return;
+        var s = await OpenNew(p => ContentPdfFactory.CreateDocumentLike(p));
+        var line = await ArialLine(s);
+        var plan = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, line.Ref, ContentPdfFactory.LineArial, Font.Value,
+            format: new TextFormatOverride(Bold: true), systemFonts: lib));
+        var app = Assert.IsType<InsertAppTextEdit>(plan.Edits[0]);
+        Assert.StartsWith(SystemFontFace.KeyPrefix, app.Line.Font.Family);
+        Assert.Equal("Arial", app.Line.FontName);
+        Assert.True(app.Line.RealBold);
+        Assert.Equal(0f, app.Line.BoldStrokePt);   // 진짜 굵은 얼굴이라 가짜 굵게 선이 없다
+        await s.Commands.ExecuteAsync(new ContentEditCommand(s.Pages[0].Id, plan.Edits));
+        var f = await ReadAsync(s, ObjectRef.Inserted(app.Id));
+        Assert.True(f!.SystemFont);
+        Assert.True(f.Bold);
+        Assert.Equal("Arial", f.FontName);
+    }
+
+    /// <summary>글꼴을 고르면 그 글꼴로 다시 쓰고, 저장하면 그 글꼴의 서브셋이 들어가 같은 글이 다시 읽힌다. 고딕을 고르면 Noto로 돌아간다.</summary>
+    [Fact]
+    public async Task PlanReplace_PickedFont_SavesAndBackToNoto()
+    {
+        if (Lib("arial", "malgun") is not { } lib) return;
+        var s = await OpenNew(p => ContentPdfFactory.CreateDocumentLike(p));
+        var line = await ArialLine(s);
+        var plan = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, line.Ref, ContentPdfFactory.LineArial, Font.Value,
+            format: new TextFormatOverride(FontName: "맑은 고딕"), systemFonts: lib));
+        var app = plan.Edits.OfType<InsertAppTextEdit>().Single();
+        Assert.Equal("맑은 고딕", app.Line.FontName);
+        Assert.Contains("malgun", app.Line.Font.Family, StringComparison.OrdinalIgnoreCase);
+        await s.Commands.ExecuteAsync(new ContentEditCommand(s.Pages[0].Id, plan.Edits));
+
+        string saved = Path.Combine(_dir, "sys.pdf");
+        using (var patcher = PdfSharpAnnotationPatcher.Shared(() => Font.Value, null, lib))
+            await new SaveService([], null, patcher, s.Assets).SaveAsync(s, saved);
+        var s2 = await DocumentSession.OpenAsync(_t, saved, null);
+        _sessions.Add(s2);
+        var fonts = await _t.InvokeAsync(() => s2.GetObjectIndex(s2.Pages[0].Id).Entries
+            .Select(x => x.TextPreview + " | " + (s2.GetReplay(s2.Pages[0].Id).Resolve(x.Ref)?.Font?.BaseName ?? "")).ToList());
+        // 앱 글꼴 줄은 글자마다 Tm으로 놓으므로 PDFium은 글자 하나씩을 객체로 본다: 그 글자들이 맑은 고딕 서브셋이어야 한다.
+        Assert.True(fonts.Count(n => n.EndsWith("+MalgunGothic", StringComparison.Ordinal)) >= ContentPdfFactory.LineArial.Count(c => c != ' '), string.Join("\n", fonts));
+
+        var back = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, ObjectRef.Inserted(app.Id), ContentPdfFactory.LineArial, Font.Value,
+            format: new TextFormatOverride(Serif: false), systemFonts: lib));
+        var noto = back.Edits.OfType<InsertAppTextEdit>().Single();
+        Assert.Null(noto.Line.FontName);
+        Assert.Equal("", noto.Line.Font.Family);
+    }
+
     [Fact]
     public async Task PlanReplace_ItalicOnAppLine_KeepsExistingBold()
     {

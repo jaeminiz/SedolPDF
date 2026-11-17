@@ -39,7 +39,9 @@ public readonly record struct OutlineSeg(char Op, PdfPointF A, PdfPointF B = def
 /// </summary>
 public sealed record AppTextSpec(string Text, float SizePt, PdfEditor.Document.Annotations.PdfColor Color, PdfMatrix Placement, PdfRectF Bounds,
     System.Collections.Immutable.ImmutableArray<OutlineSeg> Outline, string Content,
-    PdfEditor.Document.Annotations.Patching.FontUse Font, float BoldStrokePt = 0f, bool SyntheticItalic = false, bool Serif = false);
+    PdfEditor.Document.Annotations.Patching.FontUse Font, float BoldStrokePt = 0f, bool SyntheticItalic = false, bool Serif = false,
+    string? FontName = null, bool RealBold = false, bool RealItalic = false);
+// 0.12.0: FontName은 설치된 글꼴로 쓴 줄의 글꼴 이름(보이는 이름, null이면 앱 글꼴 Noto). RealBold·RealItalic은 그 글꼴의 진짜 굵은·기울인 얼굴을 썼다는 뜻(가짜 굵게 선이 없어도 굵게).
 
 /// <summary>앱 글꼴 줄을 쪽 맨 위에 넣는다(C7: 화면 replay도 다른 편집을 모두 적용한 뒤 맨 마지막에). 가리킬 때는 ObjectRef.Inserted(Id).</summary>
 public sealed record InsertAppTextEdit(long Id, AppTextSpec Line) : ContentEdit(Id);

@@ -70,6 +70,15 @@ internal static class FontPicker
         });
     }
 
+    /// <summary>문서에 들어 있는 원본 글꼴 이름을 그대로 보인다(고를 수 없는 임시 항목, 0.12.0 텍스트 편집). _syncing 안에서 부른다.</summary>
+    public static void ShowName(ComboBox box, string name)
+    {
+        foreach (var stale in box.Items.OfType<ComboBoxItem>().Where(i => i.Tag is string s && s != SeparatorTag).ToList()) box.Items.Remove(stale);
+        var item = new ComboBoxItem { Content = string.IsNullOrEmpty(name) ? "?" : name, Tag = name ?? "" };
+        box.Items.Insert(2, item);
+        box.SelectedItem = item;
+    }
+
     /// <summary>모델 값에 맞는 항목을 고른다(이벤트를 막는 _syncing 안에서 부른다).</summary>
     public static void Select(ComboBox box, TextFontFamily family, string? fontName)
     {

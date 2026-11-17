@@ -13,6 +13,9 @@ namespace PdfEditor.TextEdit;
 /// 앱 글꼴(Noto Sans KR) 한 줄을 만든다(M4 C6). HarfBuzz 배치를 한 번 계산해 화면용 윤곽선(같은 글리프)과
 /// 파일용 내용(같은 CID·위치)을 함께 만든다 — 두 출력이 같은 글리프·위치를 쓴다(설계서 4.2-3).
 /// </summary>
+/// <summary>설치된 글꼴로 줄을 쓸 때(0.12.0): 글꼴 키, 보이는 이름, 진짜 굵은·기울인 얼굴인가.</summary>
+public sealed record SystemFontPick(string Key, string Name, bool RealBold, bool RealItalic);
+
 public static class AppFontLine
 {
     /// <summary>
@@ -31,7 +34,7 @@ public static class AppFontLine
     /// 화면 윤곽선은 기울임을 같은 식으로 반영하고, 굵게의 선 굵기는 <see cref="AppTextSpec.BoldStrokePt"/>로 알려 화면 그리기가 같은 굵기로 선을 긋게 한다.
     /// </summary>
     public static (AppTextSpec? Spec, ImmutableArray<int> Missing) Build(AppFont font, string text, float sizePt, PdfMatrix placement, PdfColor color,
-        AppFontFamily family, bool syntheticBold, bool syntheticItalic, float? boldStrokeRatio = null)
+        AppFontFamily family, bool syntheticBold, bool syntheticItalic, float? boldStrokeRatio = null, SystemFontPick? system = null)
     {
         string line = text.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ');
         var laid = TextLayout.Layout(font, line, sizePt, float.PositiveInfinity, TextAlign.Left, new PdfPointF(0, 0));
@@ -75,8 +78,10 @@ public static class AppFontLine
             placement.Apply(new(0, desc)), placement.Apply(new(width, desc)),
             placement.Apply(new(0, asc)), placement.Apply(new(width, asc))]);
 
-        var use = drawing.CollectFontUse() with { Family = family == AppFontFamily.Serif ? FontUse.SerifFamily : "" };
-        return (new AppTextSpec(line, sizePt, color, placement, bounds, outline.ToImmutable(), content, use, stroke, syntheticItalic, family == AppFontFamily.Serif), []);
+        // 설치된 글꼴이면 글꼴 키(sys:경로#번호)로: 저장 때 패처가 같은 파일의 서브셋을 넣는다.
+        var use = drawing.CollectFontUse() with { Family = system?.Key ?? (family == AppFontFamily.Serif ? FontUse.SerifFamily : "") };
+        return (new AppTextSpec(line, sizePt, color, placement, bounds, outline.ToImmutable(), content, use, stroke, syntheticItalic, family == AppFontFamily.Serif,
+            system?.Name, system?.RealBold ?? false, system?.RealItalic ?? false), []);
     }
 
     private static string Num(float v) => v.ToString("0.###", CultureInfo.InvariantCulture);

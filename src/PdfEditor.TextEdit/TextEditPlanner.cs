@@ -27,7 +27,8 @@ public static class TextEditPlanner
     public const float OverlapBoldStrokeRatio = 0.05f;
 
     public static ReplacePlan PlanReplace(DocumentSession s, PageId page, ObjectRef target, string newText, AppFont? appFont,
-        float? sizeOverride = null, PdfColor? colorOverride = null, AppFontCatalog? catalog = null, bool forceBold = false, TextFormatOverride? format = null)
+        float? sizeOverride = null, PdfColor? colorOverride = null, AppFontCatalog? catalog = null, bool forceBold = false, TextFormatOverride? format = null,
+        SystemFontLibrary? systemFonts = null)
     {
         s.Thread.AssertOnThread();
         int pageIndex = s.IndexOf(page);
@@ -54,7 +55,7 @@ public static class TextEditPlanner
             foreach (var t in edits.OfType<TransformEdit>().Where(t => t.Target == target)) placement = placement.Then(t.Then);
             size = sizeOverride ?? app.Line.SizePt;
             color = colorOverride ?? app.Line.Color;
-            appFormat = (app.Line.BoldStrokePt > 0, app.Line.SyntheticItalic, app.Line.Serif);
+            appFormat = (app.Line.BoldStrokePt > 0 || app.Line.RealBold, app.Line.SyntheticItalic || app.Line.RealItalic, app.Line.Serif);
         }
         else
         {
@@ -90,10 +91,32 @@ public static class TextEditPlanner
         if (format is { IsEmpty: false } fo)
             choice = ChoiceFor(catalog, appFont, fo.Serif ?? (choice.Family == AppFontFamily.Serif), fo.Bold ?? choice.SyntheticBold, fo.Italic ?? choice.SyntheticItalic);
         if (forceBold && format?.Bold != false) choice = choice with { SyntheticBold = true };
+
+        // 설치된 글꼴(0.12.0): 고른 글꼴 → 앞서 그 글꼴로 쓴 줄이면 같은 글꼴 → 원본 글이면 원래 글꼴 이름(예: ArialBoldMT → Arial 굵게).
+        // 고딕/명조를 고르면(Serif만 주고 FontName 없음) 앱 글꼴. 그 글꼴에 없는 글자가 있으면 앱 글꼴로 물러난다(글자가 빠지지 않게).
+        string? wanted = format?.FontName is { Length: > 0 } picked ? picked
+            : format?.Serif is not null ? null
+            : app is not null ? app.Line.FontName
+            : origFont?.BaseName is { } bn ? StripSubsetTag(bn) : null;
+        if (wanted is not null && systemFonts?.Find(wanted, choice.SyntheticBold, choice.SyntheticItalic) is { } face && systemFonts.Load(face) is { } sf
+            && PdfEditor.Appearance.PaintContext.Covers(sf, newText))
+        {
+            bool bold = choice.SyntheticBold, italic = choice.SyntheticItalic;
+            var sysChoice = new AppFontChoice(face.Info.Serif ? AppFontFamily.Serif : AppFontFamily.Sans, sf, bold && !face.Info.IsBold, italic && !face.Info.Italic);
+            string name = format?.FontName is { Length: > 0 } ? wanted : app?.Line.FontName ?? face.Info.DisplayFamily;
+            var pick = new SystemFontPick(face.Key, name, bold && face.Info.IsBold, italic && face.Info.Italic);
+            var (sysSpec, _) = AppFontLine.Build(sysChoice.Font, newText, size, placement, color, sysChoice.Family, sysChoice.SyntheticBold, sysChoice.SyntheticItalic,
+                forceBold ? OverlapBoldStrokeRatio : null, pick);
+            if (sysSpec is not null)
+                return new ReplacePlan([new InsertAppTextEdit(st.NewId(), sysSpec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);
+        }
+
         var (spec, missing) = AppFontLine.Build(choice, newText, size, placement, color, forceBold ? OverlapBoldStrokeRatio : null);
         if (spec is null) return ReplacePlan.Refused(ReplaceRefusal.AppFontMissingGlyphs, missing);
         return new ReplacePlan([new InsertAppTextEdit(st.NewId(), spec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);
     }
+
+    private static string StripSubsetTag(string n) => n.Length > 7 && n[6] == '+' && n.Take(6).All(char.IsAsciiLetterUpper) ? n[7..] : n;
 
     private static AppFontChoice ChoiceFor(AppFontCatalog? catalog, AppFont sans, bool serif, bool bold, bool italic)
         => serif && catalog?.Serif is { } sr ? new AppFontChoice(AppFontFamily.Serif, sr, bold, italic) : new AppFontChoice(AppFontFamily.Sans, catalog?.Sans ?? sans, bold, italic);

@@ -20,7 +20,7 @@ public sealed partial class ObjectPropertiesPanel : UserControl
     private readonly WrapPanel _stroke = new(), _fill = new(), _textColor = new();
     private readonly StackPanel _shapeSection = new(), _textSection = new(), _paraSection = new();
     private readonly NumericUpDown _paraWidth = Box(1, 100000, 1, 1);
-    private readonly TextBlock _fontName = new() { TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly ComboBox _fontName = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Avalonia.Controls.Primitives.ToggleButton _bold = Toggle("B", FontWeight.Bold), _italic = Toggle("I", FontWeight.Normal, FontStyle.Italic), _serif = Toggle(Strings.Prop_Obj_Serif);
     private readonly TextBlock _formatNote = new() { TextWrapping = TextWrapping.Wrap, FontSize = DesignTokens.FontCaption, Foreground = new SolidColorBrush(Color.Parse("#5C5C5C")), Margin = new Thickness(0, 6, 0, 0) };
 
@@ -49,6 +49,9 @@ public sealed partial class ObjectPropertiesPanel : UserControl
         Root.Children.Add(_paraSection);
 
         _textSection.Children.Add(Label(Strings.Prop_Obj_TextFont)); _textSection.Children.Add(_fontName);
+        // 글꼴 고르기(0.12.0): 주석 글 상자와 같은 목록(고딕·명조 + 설치된 글꼴).
+        FontPicker.Init(_fontName, () => _syncing || _vm is null,
+            f => _vm!.SetTextFontAsync(null, f == TextFontFamily.Serif), s => _vm!.SetTextFontAsync(s.DisplayName, s.Serif));
         _textSection.Children.Add(Row(Strings.Prop_Obj_TextSize, _textSize));
         _textSection.Children.Add(Label(Strings.Prop_Annot_Color)); _textSection.Children.Add(_textColor);
         _textSize.ValueChanged += (_, e) => { if (!_syncing && _vm is not null && e.NewValue is { } v) _ = _vm.SetTextSizeAsync((float)v); };
@@ -120,7 +123,9 @@ public sealed partial class ObjectPropertiesPanel : UserControl
             if (_vm.Format is { } tf)
             {
                 _textSize.Value = (decimal)Math.Round(tf.SizePt, 1);
-                _fontName.Text = tf.FontName;
+                // 원본 글꼴은 이름만 보인다(문서 안 글꼴로 그려지므로 "이 PC에 없어…"를 붙이지 않는다). 앱 글꼴 줄은 고딕/명조, 설치된 글꼴 줄은 그 글꼴.
+                if (tf.IsOriginalFont) FontPicker.ShowName(_fontName, tf.FontName);
+                else FontPicker.Select(_fontName, tf.Serif ? TextFontFamily.Serif : TextFontFamily.Sans, tf.SystemFont ? tf.FontName : null);
                 _bold.IsChecked = tf.Bold; _italic.IsChecked = tf.Italic; _serif.IsChecked = tf.Serif;
                 _formatNote.IsVisible = tf.IsOriginalFont;
                 Rebuild(_textColor, tf.Color, includeNone: false, c => { if (c is { } col) _ = _vm.SetTextColorAsync(col); });

@@ -78,7 +78,26 @@ public class TextFormatPropertiesTests : ObjectUiTestBase
         var (tab, s, _) = await SelectArialAsync();
         await tab.ObjectProps.SetTextEmphasisAsync(bold: true);
         var app = Assert.Single(s.Content.For(s.Pages[0].Id).OfType<InsertAppTextEdit>());
-        Assert.True(app.Line.BoldStrokePt > 0);
+        // 0.12.0: Arial이 설치된 PC면 그 진짜 굵은 얼굴(가짜 굵게 선 없음), 아니면 Noto + 가짜 굵게.
+        Assert.True(app.Line.BoldStrokePt > 0 || app.Line.RealBold);
         Assert.Equal(ContentPdfFactory.LineArial, app.Line.Text);
+        Assert.Equal(ObjectRef.Inserted(app.Id), tab.Objects.Selected?.Ref);   // 새 줄이 선택을 이어받는다
+    }
+
+    /// <summary>개체 속성의 글꼴 상자에서 설치된 글꼴을 고르면 그 글꼴로 다시 쓰고, 고딕을 고르면 Noto로 돌아간다(0.12.0).</summary>
+    [Fact]
+    public async Task SetTextFont_PicksInstalledFont_ThenBackToGothic()
+    {
+        if (!File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "malgun.ttf"))) return;
+        var (tab, s, _) = await SelectArialAsync();
+        await tab.ObjectProps.SetTextFontAsync("맑은 고딕", serif: false);
+        var app = Assert.Single(s.Content.For(s.Pages[0].Id).OfType<InsertAppTextEdit>());
+        Assert.Equal("맑은 고딕", app.Line.FontName);
+        PumpUi(() => tab.ObjectProps.Format?.SystemFont == true);
+        Assert.Equal("맑은 고딕", tab.ObjectProps.Format!.FontName);
+        await tab.ObjectProps.SetTextFontAsync(null, serif: false);
+        var last = s.Content.For(s.Pages[0].Id).OfType<InsertAppTextEdit>().Last();
+        Assert.NotEqual(app.Id, last.Id);
+        Assert.Null(last.Line.FontName);
     }
 }
