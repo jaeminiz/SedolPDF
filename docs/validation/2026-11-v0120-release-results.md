@@ -17,3 +17,10 @@
 | SedolPDF-0.12.0-win-x64.msix | 64173608 | 831ae033fc0c85fad1b21e022d8ebc6121c83ea98b508ddb29fcefc16b4f61ce |
 
 MSIX는 `-IdentityFile`로 메인 폴더 신원을 써서 만들었고 AppxManifest의 Identity Name은 `ParkJaemin.SedolPDF`, Version `0.12.0.0`.
+
+## 배포
+- 커밋 26e6165(버전) → 8a52098(결과 문서)가 main에 있고 태그 v0.12.0은 8a52098이다.
+- GitHub 릴리스: https://github.com/jaeminiz/SedolPDF/releases/tag/v0.12.0 (설치 exe, 포터블 zip, SHA256SUMS-0.12.0.txt).
+- 스토어: 제출 11(MSIX 0.12.0.0 하나만, 0.11.1 패키지는 같은 제출에서 제거)을 인증에 제출함(사전 처리 중). 한국어·영어 릴리스 노트(새로운 기능)를 0.12.0 내용으로 바꿨다. 결과는 몇 시간~영업일 3일.
+- 업로드 방법: 브라우저 도구의 파일 업로드는 10MB 한도라, 임시 로컬 서버(127.0.0.1)에서 페이지 JS로 불러와 파일 입력에 넣었다. 끝난 뒤 서버를 껐다.
+- 확인하지 못한 것: 스토어 설치본에서 글꼴 목록(설계 7절 1~2항). 인증 통과 후 스토어에서 설치해 확인 필요.
