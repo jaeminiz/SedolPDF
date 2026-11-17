@@ -129,6 +129,44 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
         Assert.All(Edits(h).Skip(before), e => Assert.IsType<PdfEditor.Document.Content.DeactivateEdit>(e));
     }
 
+    // 텍스트 편집으로 고친 쪽 글(원래 글꼴 줄·앱 글꼴 줄)은 주석이 아니다: 주석 선택 도구의 클릭·끌기로 잡히지 않는다. 도형은 그대로 잡힌다.
+    [Theory]
+    [InlineData("Arial 321 CBA", typeof(InsertTextLikeEditMarker))]
+    [InlineData("Arial 가나다 ABC", typeof(InsertAppTextEditMarker))]
+    public async Task AnnotSelect_ClickAndDrag_NeverPicksRewrittenPageText_ButStillPicksShapes(string newText, Type marker)
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateDocumentLike(p));
+        await s.AnnotationsReady;
+        var page = s.Pages[0].Id;
+        var shape = new PdfEditor.Document.Content.InsertShapeEdit(s.Content.NewId(), ObjectToolController.MakeShape(PdfEditor.Document.Content.ShapeKind.Rectangle, new PdfPointF(300, 300), new PdfPointF(400, 360))!);
+        await s.Commands.ExecuteAsync(new PdfEditor.Document.Content.ContentEditCommand(page, [shape]));
+        var h = Show(s);
+        SetTool(h, ToolKind.EditText);
+        WarmIndex(h);
+        Click(h, AtPt(h, 80, 96));   // Arial 줄
+        PumpUi(() => h.View.IsLineEditorOpen);
+        HeadlessUi.Run(() => { h.View.LineEditorForTest!.SetText(newText); return 0; });
+        HeadlessUi.Run(() => { h.Window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null); return 0; });
+        PumpUi(() => h.Session.Content.For(page).Any(e => e.GetType().Name == marker.Name.Replace("Marker", "")));
+        await Task.Delay(300); PumpUi(() => true);
+        SetTool(h, ToolKind.AnnotSelect);
+        WarmIndex(h);
+        await Task.Delay(300); PumpUi(() => true);
+        Click(h, AtPt(h, 80, 96));
+        await Task.Delay(300); PumpUi(() => true);
+        Assert.Empty(h.Tab.Objects.All);
+        Drag(h, AtPt(h, 20, 60), AtPt(h, 560, 130));   // 고친 줄을 감싸는 끌기
+        await Task.Delay(300); PumpUi(() => true);
+        Assert.Empty(h.Tab.Objects.All);
+        // 도형은 여전히 잡힌다
+        Click(h, AtPt(h, 300, 842 - 330));
+        PumpUi(() => h.Tab.Objects.Selected is not null);
+        Assert.Equal(PdfEditor.Document.Content.ObjectRef.Inserted(shape.Id), h.Tab.Objects.Selected!.Ref);
+    }
+
+    private sealed class InsertTextLikeEditMarker { }
+    private sealed class InsertAppTextEditMarker { }
+
     [Fact]
     public async Task ObjectEditMarquee_SelectsOriginalPageObjectsOnly_NeverAnnotationsOrInsertedOnes()
     {

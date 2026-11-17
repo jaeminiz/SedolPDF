@@ -296,7 +296,8 @@ public sealed partial class DocumentView
             }
             if (tab.CanEditContent && _gPage >= 0 && _gPage < _layoutPages.Length && TryGetObjectIndex(st, _layoutPages[_gPage], out var oidx))
             {
-                var found = oidx.Entries.Where(e => !e.IsFrame && e.Ref.IsInserted
+                var appText = AppTextIds(st, page);   // 고친 쪽 글은 주석이 아니다: 주석 선택 도구로는 잡지 않는다
+                var found = oidx.Entries.Where(e => !e.IsFrame && e.Ref.IsInserted && e.Type != Pdf.Native.PdfPageObjectType.Text && !appText.Contains(e.Ref.InsertedId)
                         && e.Bounds.Left <= r && e.Bounds.Right >= l && e.Bounds.Bottom <= t && e.Bounds.Top >= b)
                     .Select(e => new PdfEditor.App.Viewer.Objects.SelectedObject(page, e.Ref, e.Type, e.Bounds)).ToList();
                 if (_mqAdd) foreach (var old in tab.Objects.All) if (old.Page == page && !found.Any(x => x.Ref == old.Ref)) found.Add(old);
