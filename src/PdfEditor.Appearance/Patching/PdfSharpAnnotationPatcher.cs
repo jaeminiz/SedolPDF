@@ -441,7 +441,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         double textScale = Math.Sqrt(tm.A * tm.A + tm.B * tm.B);
         float justify = Math.Abs(line.JustifyExtra) > 1e-6f ? (float)(line.JustifyExtra / (textScale > 1e-6 ? textScale : 1)) : 0;
         var bytes = PdfEditor.ContentStream.Fonts.TextLineWriter.Write(line.TwoByte, name, new PdfEditor.ContentStream.Fonts.EncodedText(line.Text, line.Encoded, default),
-            style, placement, justify != 0 ? justify : null);
+            style, placement, justify != 0 ? justify : null, line.SpaceGap1000);
         return Encoding.Latin1.GetString(bytes);
     }
 

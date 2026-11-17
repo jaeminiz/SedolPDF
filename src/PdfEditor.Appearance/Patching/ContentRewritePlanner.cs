@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Pdf.Native;
 using PdfEditor.ContentStream;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations.Patching;
@@ -95,6 +96,15 @@ public static class ContentRewritePlanner
                             new Mat(sp.Tm.A, sp.Tm.B, sp.Tm.C, sp.Tm.D, sp.Tm.E, sp.Tm.F)));
                     for (int i = 0; i < rt.AppLines.Length; i++)
                         ins[rt.AppLineIds[i]] = new Ins { Order = order++, Kind = 'T', Text = new InsertAppTextEdit(rt.AppLineIds[i], rt.AppLines[i]) };
+                    break;
+                }
+                case InsertTextLikeEdit it when it.Encoded is not null && !it.Original.IsInserted && it.Original.OriginalIndex >= 0:
+                {
+                    // 0.13.0: 계획 때 인코딩한 글을 문단의 원래 글꼴 줄과 같은 방법으로 쓴다. 뒤따르는 DeactivateEdit가 원본을 끌 때 옛 글이 파일에서 빠지게 완전 제거 대상으로.
+                    textRemoved.Add(it.Original.OriginalIndex);
+                    var line = new ParagraphTextLine(it.Id, it.Text, new PdfMatrix(1, 0, 0, 1, it.Baseline.X, it.Baseline.Y), 0, default,
+                        it.Original, it.Tc, it.Tz, 0, 0, it.Encoded, it.TwoByte, it.SpaceGap1000);
+                    ins[it.Id] = new Ins { Order = order++, Kind = 'P', Para = line };
                     break;
                 }
                 case InsertTextLikeEdit: return Fail("inserting text in the original font needs the PDFium path (app font only here)");

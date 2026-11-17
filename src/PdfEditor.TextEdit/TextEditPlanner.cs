@@ -74,6 +74,14 @@ public static class TextEditPlanner
         if (format is not { IsEmpty: false } && sourceOriginal is int src && src >= 0 && OriginalFontReplacer.Verify(s, pageIndex, src, newText) == OriginalFontReplacer.Result.Ok)
         {
             var insert = new InsertTextLikeEdit(st.NewId(), ObjectRef.Original(src), newText);
+            // 0.13.0: 원래 글꼴 코드북으로 미리 인코딩 — 되면 PDFium 다시 쓰기가 막힌 쪽(셰이딩 등)도 내용 스트림 직접 쓰기로 저장한다.
+            if (r.Resolve(ObjectRef.Original(src)) is { Type: PdfPageObjectType.Text } so && OriginalFontEncoder.TryEncode(s, page, src, newText) is { } oe)
+                insert = insert with
+                {
+                    Encoded = oe.Bytes, TwoByte = oe.TwoByte, Tc = oe.Tc, Tz = oe.Tz,
+                    Baseline = new PdfPointF(so.Matrix.E, so.Matrix.F), SpaceGap1000 = oe.SpaceGap1000,
+                    MaskRect = MaskFor(so, oe, newText.Length),
+                };
             // 새 줄은 replay 때 원본 객체의 "그 시점" 행렬을 복사하므로 원본을 옮긴 것은 이미 들어 있다.
             // 대상이 앞서 바꿔 넣은 줄이면, 그 줄에만 한 옮기기를 새 줄에도 덧붙인다.
             var moves = target.IsInserted
@@ -114,6 +122,22 @@ public static class TextEditPlanner
         var (spec, missing) = AppFontLine.Build(choice, newText, size, placement, color, forceBold ? OverlapBoldStrokeRatio : null);
         if (spec is null) return ReplacePlan.Refused(ReplaceRefusal.AppFontMissingGlyphs, missing);
         return new ReplacePlan([new InsertAppTextEdit(st.NewId(), spec), new DeactivateEdit(st.NewId(), target)], true, ReplaceRefusal.None, []);
+    }
+
+    /// <summary>원래 글 경계와 새 글 예상 경계(기준선에서 글 방향으로 새 폭, 위아래 글자 크기)의 합집합 + 여유. 쪽 좌표.</summary>
+    private static PdfRectF MaskFor(PdfPageObject so, OriginalFontEncoding oe, int chars)
+    {
+        var b = so.Bounds;
+        var m = so.Matrix;
+        double len = Math.Sqrt(m.A * m.A + m.B * m.B);
+        double dx = len > 1e-9 ? m.A / len : 1, dy = len > 1e-9 ? m.B / len : 0;
+        double size = Math.Max(so.FontSize, 1);
+        double width = (oe.Width1000 * size / 1000.0 + oe.Tc * chars) * oe.Tz / 100.0;
+        double ex = m.E + dx * width, ey = m.F + dy * width;
+        double l = Math.Min(b.Left, Math.Min(m.E, ex)), bt = Math.Min(b.Bottom, Math.Min(m.F, ey));
+        double rr = Math.Max(b.Right, Math.Max(m.E, ex)), t = Math.Max(b.Top, Math.Max(m.F, ey));
+        double pad = size + 2;
+        return new PdfRectF((float)(l - pad), (float)(bt - pad), (float)(rr + pad), (float)(t + pad));
     }
 
     private static string StripSubsetTag(string n) => n.Length > 7 && n[6] == '+' && n.Take(6).All(char.IsAsciiLetterUpper) ? n[7..] : n;

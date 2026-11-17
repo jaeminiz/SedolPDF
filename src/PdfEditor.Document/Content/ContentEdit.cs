@@ -26,7 +26,9 @@ public sealed record TransformEdit(long Id, ObjectRef Target, PdfMatrix Then) : 
 /// 원래 글꼴로 만든 새 텍스트 객체를 원래 객체 바로 뒤에 넣는다(C4 ①). 원래 객체를 끄는 것은 따로 <see cref="DeactivateEdit"/>로 쌓는다.
 /// 넣은 객체는 <see cref="ObjectRef.Inserted"/>(이 편집의 Id)로 가리킨다.
 /// </summary>
-public sealed record InsertTextLikeEdit(long Id, ObjectRef Original, string Text) : ContentEdit(Id);
+public sealed record InsertTextLikeEdit(long Id, ObjectRef Original, string Text,
+    byte[]? Encoded = null, bool TwoByte = false, float Tc = 0, float Tz = 100, PdfRectF MaskRect = default, PdfPointF Baseline = default, float SpaceGap1000 = 0) : ContentEdit(Id);
+// 0.13.0: Encoded = 계획 때 원래 글꼴 코드북으로 인코딩한 글 코드(있으면 내용 스트림 직접 쓰기로 저장 가능). MaskRect = 충실도 비교에서 뺄 영역(쪽 좌표), Baseline = 원본 글 객체의 기준선 원점.
 
 /// <summary>앱 글꼴 줄의 윤곽선 한 토막(쪽 좌표). Op: 'M' 이동, 'L' 직선, 'C' 3차 베지어(A·B 제어점, C 끝점), 'Z' 닫기.</summary>
 public readonly record struct OutlineSeg(char Op, PdfPointF A, PdfPointF B = default, PdfPointF C = default);
@@ -76,7 +78,7 @@ public sealed record SetTextColorEdit(long Id, ObjectRef Target, PdfEditor.Docum
 /// </summary>
 public sealed record ParagraphTextLine(long LineId, string Text, PdfMatrix Placement, float SizePt, PdfEditor.Document.Annotations.PdfColor Color,
     ObjectRef OriginalFontSource, float Tc, float Tz, float JustifyExtra, int OrigRenderMode,
-    byte[]? Encoded = null, bool TwoByte = false);
+    byte[]? Encoded = null, bool TwoByte = false, float SpaceGap1000 = 0);
 // Encoded = 원래 글꼴 코드북으로 인코딩한 글 코드 바이트(계획 때 정함 — 저장은 PDFium 없이 이것을 그대로 쓴다). null이면 직접 쓰기 불가(PDFium 경로로 내려간다).
 
 /// <summary>다시 편집(원본 문단 재추정 없이)에 쓰는 문단 정보. Model은 TextEdit의 ParagraphModel(Document는 TextEdit를 모르므로 불투명 개체로 보관).</summary>

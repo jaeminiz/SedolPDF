@@ -155,6 +155,25 @@ public static class ContentPdfFactory
         doc.Save(path);
     }
 
+
+    /// <summary>표제란 날짜 한 줄(Arial 서브셋·ToUnicode, 0~9 모두 보임)과 그러데이션(셰이딩 패턴 — PDFium 다시 쓰기가 막는 쪽)이 있는 A4 1쪽.</summary>
+    public const string TitleBlockLine = "DATE 260526 REV 0123456789";
+
+    public static void CreateTitleBlockWithShading(string path)
+    {
+        using var doc = new PdfDocument();
+        var page = doc.AddPage();
+        page.Width = XUnit.FromPoint(595);
+        page.Height = XUnit.FromPoint(842);
+        var opt = new XPdfFontOptions(PdfFontEncoding.Unicode);
+        using (var g = XGraphics.FromPdfPage(page))
+        {
+            g.DrawRectangle(new XLinearGradientBrush(new XPoint(100, 300), new XPoint(400, 420), XColors.Yellow, XColors.Purple), 100, 300, 300, 120);
+            g.DrawString(TitleBlockLine, new XFont("Arial", 12, XFontStyleEx.Regular, opt), XBrushes.Black, new XPoint(60, 100));
+        }
+        doc.Save(path);
+    }
+
     /// <summary>
     /// A4 세로 1쪽, 선택 시험용(화면 위에서 아래 좌표 pt): 쪽의 약 89 %를 두른 속 빈 테두리(20,20,555,802), 안쪽 대각선 (100,100)-(300,300),
     /// 안쪽 속 빈 사각형 (350,100,150,150), 안쪽 칠한 사각형 (350,400,100,100).

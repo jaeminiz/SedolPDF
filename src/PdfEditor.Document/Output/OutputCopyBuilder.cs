@@ -355,6 +355,9 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         var list = new List<(double, double, double, double)>();
         foreach (var te in edits.OfType<ReplaceTextSpanEdit>())   // 찾아 바꾸기: 화면의 PDFium 글 객체는 글자별 간격 조정(TJ)을 그리지 못한다 → 바꾼 낱말 주변은 비교에서 뺀다
             list.Add((te.MaskRect.Left, te.MaskRect.Bottom, te.MaskRect.Right, te.MaskRect.Top));
+        foreach (var it in edits.OfType<InsertTextLikeEdit>())   // 한 줄 편집(0.13.0): 직접 인코딩해 쓴 줄은 자간·가로 비율을 PDFium 화면 글 객체가 못 그린다
+            if (it.Encoded is not null && it.MaskRect.Right > it.MaskRect.Left)
+                list.Add((it.MaskRect.Left, it.MaskRect.Bottom, it.MaskRect.Right, it.MaskRect.Top));
         foreach (var pe in edits.OfType<ReplaceParagraphEdit>())
             foreach (var ln in pe.OriginalFontLines)
             {
