@@ -218,6 +218,11 @@
   <data name="Err_ReduceVerify" xml:space="preserve"><value>The reduced file does not look like the original, so it was not saved. Try a larger target size.</value></data>
   <data name="Dlg_Save" xml:space="preserve"><value>Save</value></data>
   <data name="Dlg_Discard" xml:space="preserve"><value>Don&apos;t Save</value></data>
+  <data name="Dlg_SaveKey" xml:space="preserve"><value>Save (Y)</value></data>
+  <data name="Dlg_DiscardKey" xml:space="preserve"><value>Don&apos;t Save (N)</value></data>
+  <data name="Dlg_CancelKey" xml:space="preserve"><value>Cancel (C)</value></data>
+  <data name="Dlg_SaveAllKey" xml:space="preserve"><value>Save All (E)</value></data>
+  <data name="Dlg_DiscardAllKey" xml:space="preserve"><value>Don&apos;t Save Any (L)</value></data>
   <data name="Dlg_UnsavedTitle" xml:space="preserve"><value>Save Changes</value></data>
   <data name="Dlg_UnsavedMessage" xml:space="preserve"><value>Do you want to save the changes to {0}?</value></data>
   <data name="Dlg_ErrorTitle" xml:space="preserve"><value>Error</value></data>

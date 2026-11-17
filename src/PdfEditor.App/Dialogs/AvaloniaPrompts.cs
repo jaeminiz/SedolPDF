@@ -27,17 +27,19 @@ public sealed class AvaloniaPrompts(Func<Window> owner) : IUserPrompts
     public async Task<string?> AskPasswordAsync(string fileName, bool retry)
         => await new PasswordDialog(fileName, retry).ShowDialog<string?>(owner());
 
-    public async Task<UnsavedChoice> AskSaveChangesAsync(string displayName)
+    public async Task<UnsavedChoice> AskSaveChangesAsync(string displayName, bool offerAll = false)
     {
-        var dlg = new MessageDialog(Strings.Dlg_UnsavedTitle, string.Format(Strings.Dlg_UnsavedMessage, displayName),
-            [Strings.Dlg_Save, Strings.Dlg_Discard, Strings.Dlg_Cancel]);
+        // 저장(Y) / [모두 저장(E)] / 저장 안 함(N) / [모두 저장 안 함(L)] / 취소(C). Esc는 취소.
+        var labels = new List<string> { Strings.Dlg_SaveKey };
+        var keys = new List<Avalonia.Input.Key> { Avalonia.Input.Key.Y };
+        var choices = new List<UnsavedChoice> { UnsavedChoice.Save };
+        if (offerAll) { labels.Add(Strings.Dlg_SaveAllKey); keys.Add(Avalonia.Input.Key.E); choices.Add(UnsavedChoice.SaveAll); }
+        labels.Add(Strings.Dlg_DiscardKey); keys.Add(Avalonia.Input.Key.N); choices.Add(UnsavedChoice.Discard);
+        if (offerAll) { labels.Add(Strings.Dlg_DiscardAllKey); keys.Add(Avalonia.Input.Key.L); choices.Add(UnsavedChoice.DiscardAll); }
+        labels.Add(Strings.Dlg_CancelKey); keys.Add(Avalonia.Input.Key.C); choices.Add(UnsavedChoice.Cancel);
+        var dlg = new MessageDialog(Strings.Dlg_UnsavedTitle, string.Format(Strings.Dlg_UnsavedMessage, displayName), labels, 0, keys);
         await dlg.ShowDialog(owner());
-        return dlg.Result switch
-        {
-            0 => UnsavedChoice.Save,
-            1 => UnsavedChoice.Discard,
-            _ => UnsavedChoice.Cancel,
-        };
+        return dlg.Result >= 0 && dlg.Result < choices.Count ? choices[dlg.Result] : UnsavedChoice.Cancel;
     }
 
     public async Task<string?> PickOpenFileAsync() => (await PickOpenFilesCoreAsync(false)).FirstOrDefault();

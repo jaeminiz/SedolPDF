@@ -255,6 +255,11 @@ public static class Strings
     public static string Err_ReduceVerify => Get(nameof(Err_ReduceVerify));
     public static string Dlg_Save => Get(nameof(Dlg_Save));
     public static string Dlg_Discard => Get(nameof(Dlg_Discard));
+    public static string Dlg_SaveKey => Get(nameof(Dlg_SaveKey));
+    public static string Dlg_DiscardKey => Get(nameof(Dlg_DiscardKey));
+    public static string Dlg_CancelKey => Get(nameof(Dlg_CancelKey));
+    public static string Dlg_SaveAllKey => Get(nameof(Dlg_SaveAllKey));
+    public static string Dlg_DiscardAllKey => Get(nameof(Dlg_DiscardAllKey));
     public static string Dlg_UnsavedTitle => Get(nameof(Dlg_UnsavedTitle));
     public static string Dlg_UnsavedMessage => Get(nameof(Dlg_UnsavedMessage));
     public static string Dlg_ErrorTitle => Get(nameof(Dlg_ErrorTitle));
