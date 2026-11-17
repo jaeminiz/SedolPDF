@@ -168,17 +168,53 @@ public class MarqueeAndSpaceTests : ObjectUiTestBase
     private sealed class InsertAppTextEditMarker { }
 
     [Fact]
-    public async Task ObjectEditMarquee_SelectsOriginalPageObjectsOnly_NeverAnnotationsOrInsertedOnes()
+    public async Task ObjectEditMarquee_SelectsPageObjectsAndInsertedOnes_NeverAnnotations()
     {
         var (h, a, b) = await TwoShapesAsync(ToolKind.EditObject);
         var page = h.Session.Pages[0].Id;
         var sq = Square(h.Session, 100, 842 - 540, 160, 842 - 500);
         await h.Session.Commands.ExecuteAsync(new ChangeAnnotationsCommand(page, [new AnnotationChange(null, sq)]));
-        // 쪽 전체를 감싸는 끌기: 원래 쪽 내용(글자·이미지·도형)만 고르고, 주석과 넣은 도형은 고르지 않는다
+        // 쪽 전체를 감싸는 끌기: 원래 쪽 내용과 넣은 도형을 고르고, 주석은 고르지 않는다
         Drag(h, AtPt(h, 5, 5), AtPt(h, 590, 835));
         PumpUi(() => h.Tab.Objects.All.Count > 0);
-        Assert.All(h.Tab.Objects.All, x => Assert.False(x.Ref.IsInserted));
+        Assert.Contains(h.Tab.Objects.All, x => !x.Ref.IsInserted);
+        Assert.Contains(h.Tab.Objects.All, x => x.Ref == PdfEditor.Document.Content.ObjectRef.Inserted(a.Id));
+        Assert.Contains(h.Tab.Objects.All, x => x.Ref == PdfEditor.Document.Content.ObjectRef.Inserted(b.Id));
         Assert.Empty(h.Tab.Selection.Ids);   // 주석은 선택되지 않는다
+    }
+
+    // 개체 편집 도구의 끌기는 고친 글 줄도 고른다(한 줄은 하나로), 함께 옮기고 지울 수 있다.
+    [Theory]
+    [InlineData("Arial 321 CBA")]
+    [InlineData("Arial 가나다 ABC")]
+    public async Task ObjectEditMarquee_SelectsRewrittenTextLineOnce_MoveAndDelete(string newText)
+    {
+        var s = await OpenAsync(p => ContentPdfFactory.CreateDocumentLike(p));
+        await s.AnnotationsReady;
+        var page = s.Pages[0].Id;
+        var h = Show(s);
+        SetTool(h, ToolKind.EditText);
+        WarmIndex(h);
+        Click(h, AtPt(h, 80, 96));
+        PumpUi(() => h.View.IsLineEditorOpen);
+        HeadlessUi.Run(() => { h.View.LineEditorForTest!.SetText(newText); return 0; });
+        HeadlessUi.Run(() => { h.Window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null); return 0; });
+        PumpUi(() => Edits(h).Any(e => e is PdfEditor.Document.Content.InsertTextLikeEdit or PdfEditor.Document.Content.InsertAppTextEdit));
+        var line = Edits(h).First(e => e is PdfEditor.Document.Content.InsertTextLikeEdit or PdfEditor.Document.Content.InsertAppTextEdit);
+        long lineId = line is PdfEditor.Document.Content.InsertTextLikeEdit tl ? tl.Id : ((PdfEditor.Document.Content.InsertAppTextEdit)line).Id;
+        await Task.Delay(300); PumpUi(() => true);
+        SetTool(h, ToolKind.EditObject);
+        WarmIndex(h);
+        await Task.Delay(300); PumpUi(() => true);
+        Drag(h, AtPt(h, 5, 5), AtPt(h, 590, 835));
+        await Task.Delay(300); PumpUi(() => true);
+        var mine = h.Tab.Objects.All.Where(x => x.Ref == PdfEditor.Document.Content.ObjectRef.Inserted(lineId)).ToList();
+        Assert.Single(mine);   // 글자마다 따로가 아니라 한 줄로
+        // 지우기도 한 번에
+        int before = Edits(h).Count;
+        HeadlessUi.Run(() => { h.View.Focus(); h.Window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, null); return 0; });
+        PumpUi(() => Edits(h).Count > before);
+        Assert.Contains(Edits(h).Skip(before), e => e is PdfEditor.Document.Content.DeactivateEdit d && d.Target == PdfEditor.Document.Content.ObjectRef.Inserted(lineId));
     }
 
     [Fact]

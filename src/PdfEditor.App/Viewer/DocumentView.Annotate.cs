@@ -308,12 +308,11 @@ public sealed partial class DocumentView
         }
         if (!tab.CanEditContent || _gPage < 0 || _gPage >= _layoutPages.Length || !TryGetObjectIndex(st, _layoutPages[_gPage], out var idx)) return;
         bool objectTool = tab.Tool == ToolKind.EditObject;
-        // 개체 편집 도구의 끌기: 원래 쪽 내용 객체만(주석과 편집 탭으로 넣은 것은 주석 선택 도구의 몫 — 2026-10-20 사용자 요청, 서로 다른 종류).
-        var pasted = st.Session.Content.For(page).OfType<DuplicateObjectEdit>().Select(d => d.Id).ToHashSet();
-        pasted.UnionWith(tab.Objects.PastedIds);
-        var hits = idx.Entries.Where(e => !e.IsFrame && (!e.Ref.IsInserted || (objectTool && pasted.Contains(e.Ref.InsertedId)))
+        // 개체 편집 도구는 고친 글 줄·넣은 도형·이미지도 한 번 눌러 고르는 것과 같이 끌어서 고른다(2026-11 사용자 요청). 한 줄은 넣은 Id 하나로 하나만.
+        var hits = idx.Entries.Where(e => !e.IsFrame && (!e.Ref.IsInserted || objectTool)
             && (objectTool ? e.Bounds.Left >= l && e.Bounds.Right <= r && e.Bounds.Bottom >= b && e.Bounds.Top <= t
                            : e.Bounds.Left <= r && e.Bounds.Right >= l && e.Bounds.Bottom <= t && e.Bounds.Top >= b))
+            .GroupBy(e => e.Ref).Select(gr => gr.First())
             .Select(e => new PdfEditor.App.Viewer.Objects.SelectedObject(page, e.Ref, e.Type, e.Bounds)).ToList();
         if (hits.Count == 0) return;
         if (_mqAdd && objectTool) foreach (var old in tab.Objects.All) if (!hits.Any(x => x.Ref == old.Ref)) hits.Add(old);
