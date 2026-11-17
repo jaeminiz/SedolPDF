@@ -68,11 +68,14 @@ public sealed class SystemFontLibrary
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
         var idx = _index.Value;
-        string key = Normalize(name);
-        if (idx.ByName.TryGetValue(key, out var fam))
-            return Closest(fam.Faces, bold, italic);
-        // 전체·PostScript 이름(예: MalgunGothicBold)으로 가리키면 그 얼굴 자체.
-        return idx.ByFaceName.TryGetValue(key, out var face) ? face : null;
+        foreach (var (key, b, i) in Candidates(name, bold, italic))
+        {
+            if (idx.ByName.TryGetValue(key, out var fam))
+                return Closest(fam.Faces, b, i);
+            // 전체·PostScript 이름(예: MalgunGothicBold)으로 가리키면 그 얼굴 자체.
+            if (idx.ByFaceName.TryGetValue(key, out var face)) return face;
+        }
+        return null;
     }
 
     /// <summary>이름이 가리키는 가족(목록에서 고른 상태를 보일 때). 쓸 수 없거나 없으면 null.</summary>
@@ -80,9 +83,41 @@ public sealed class SystemFontLibrary
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
         var idx = _index.Value;
-        string key = Normalize(name);
-        if (idx.ByName.TryGetValue(key, out var fam)) return fam;
-        return idx.ByFaceName.TryGetValue(key, out var face) && idx.ByName.TryGetValue(Normalize(face.Info.Family), out var f2) ? f2 : null;
+        foreach (var (key, _, _) in Candidates(name, false, false))
+        {
+            if (idx.ByName.TryGetValue(key, out var fam)) return fam;
+            if (idx.ByFaceName.TryGetValue(key, out var face) && idx.ByName.TryGetValue(Normalize(face.Info.Family), out var f2)) return f2;
+        }
+        return null;
+    }
+
+    // PDF 기본 14 글꼴 이름(정규화한 앞부분) → Windows에 늘 있는, 글자 폭이 같은 글꼴.
+    private static readonly (string Prefix, string Family)[] Aliases =
+    [
+        ("helvetica", "Arial"), ("helv", "Arial"), ("arialmt", "Arial"),
+        ("timesnewroman", "Times New Roman"), ("timesroman", "Times New Roman"), ("times", "Times New Roman"), ("tiro", "Times New Roman"),
+        ("couriernew", "Courier New"), ("courier", "Courier New"), ("cour", "Courier New"),
+    ];
+
+    /// <summary>
+    /// 찾아볼 이름 차례(0.12.0): 이름 그대로 → 굵기 꼬리를 뗀 이름(`MalgunGothic-Bold`, `Arial,Bold` → 굵게로) → 기본 14 글꼴의 대체(`Helvetica` → Arial).
+    /// </summary>
+    private static IEnumerable<(string Key, bool Bold, bool Italic)> Candidates(string name, bool bold, bool italic)
+    {
+        string full = Normalize(name);
+        yield return (full, bold, italic);
+        int cut = name.IndexOfAny([',', '-']);
+        string tail = cut > 0 ? name[(cut + 1)..].ToLowerInvariant() : "";
+        bool b = bold || tail.Contains("bold") || tail.Contains("black") || tail.Contains("heavy");
+        bool i = italic || tail.Contains("italic") || tail.Contains("oblique");
+        string head = cut > 0 ? Normalize(name[..cut]) : full;
+        if (cut > 0 && head.Length > 0) yield return (head, b, i);
+        foreach (var (prefix, family) in Aliases)
+            if (head.StartsWith(prefix, StringComparison.Ordinal) && (head.Length == prefix.Length || prefix.Length >= 5))
+            {
+                yield return (Normalize(family), b, i);
+                yield break;
+            }
     }
 
     private static SystemFontFace Closest(ImmutableArray<SystemFontFace> faces, bool bold, bool italic)

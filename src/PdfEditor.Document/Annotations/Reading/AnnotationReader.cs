@@ -452,7 +452,8 @@ public static partial class AnnotationReader
         color = spanCss.Color ?? bodyCss.Color ?? dsCss.Color ?? color;
         bool cssBold = spanCss.Bold ?? bodyCss.Bold ?? dsCss.Bold ?? false;
         bool cssItalic = spanCss.Italic ?? bodyCss.Italic ?? dsCss.Italic ?? false;
-        string? fontName = DefaultStyle.FirstFontName(spanCss.Family) ?? DefaultStyle.FirstFontName(bodyCss.Family) ?? DefaultStyle.FirstFontName(dsCss.Family);
+        string? fontName = DefaultStyle.FirstFontName(spanCss.Family) ?? DefaultStyle.FirstFontName(bodyCss.Family) ?? DefaultStyle.FirstFontName(dsCss.Family)
+            ?? (e.ContainsKey("/SedolFont") ? null : OriginalFontName(e, daFont));
         string? daFontName = daFont is { Length: > 0 } && SafeResourceName().IsMatch(daFont) ? daFont : null;
         int rotation = AnnotationRotation.Quarter(Int(e, "/Rotate") ?? 0) * 90;
         float fontSize = cssSize is > 0f ? cssSize.Value : size is > 0f ? size.Value : 12f;   // /RC·/DS의 크기가 먼저, /DA의 크기(0 = 자동 크기), 그것도 없으면 12
@@ -557,6 +558,69 @@ public static partial class AnnotationReader
         static PdfColor Gray(double g) => Rgb255(g, g, g);
         static PdfColor Rgb255(double r, double g, double b)
             => new((byte)Math.Round(Math.Clamp(r, 0, 1) * 255), (byte)Math.Round(Math.Clamp(g, 0, 1) * 255), (byte)Math.Round(Math.Clamp(b, 0, 1) * 255));
+    }
+
+    /// <summary>
+    /// /DS·/RC에 글꼴 이름이 없을 때의 원본 글꼴 이름(0.12.0): 원본 AP(/N)의 글꼴 자원, 그다음 /DR의 글꼴 자원에서 /DA 이름과 같은 글꼴(없으면 첫 글꼴)의 /BaseFont.
+    /// 부분 집합 꼬리표(ABCDEF+)를 떼고, #xx로 적힌 한글 이름(UTF-8·CP949)을 푼다. 이 앱이 넣는 Noto KR은 "원래 글꼴"이 아니므로 null.
+    /// </summary>
+    internal static string? OriginalFontName(PdfDictionary.DictionaryElements e, string? daFont)
+    {
+        try
+        {
+            foreach (var res in FontResourceDicts(e))
+            {
+                PdfDictionary? f = daFont is { Length: > 0 } && Resolve(res.Elements["/" + daFont]) is PdfDictionary byDa ? byDa : null;
+                f ??= res.Elements.Values.Select(Resolve).OfType<PdfDictionary>().FirstOrDefault();
+                if (f is not null && CleanBaseFont(f.Elements.GetName("/BaseFont")) is { } n) return n;
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { }
+        return null;
+    }
+
+    private static IEnumerable<PdfDictionary> FontResourceDicts(PdfDictionary.DictionaryElements e)
+    {
+        if (Resolve(e["/AP"]) is PdfDictionary ap && Resolve(ap.Elements["/N"]) is PdfDictionary n
+            && Resolve(n.Elements["/Resources"]) is PdfDictionary r && Resolve(r.Elements["/Font"]) is PdfDictionary fonts)
+            yield return fonts;
+        if (Resolve(e["/DR"]) is PdfDictionary dr && Resolve(dr.Elements["/Font"]) is PdfDictionary drFonts)
+            yield return drFonts;
+    }
+
+    /// <summary>/BaseFont 값을 글꼴 이름으로. 쓸 수 없거나 앱 번들 글꼴이면 null.</summary>
+    internal static string? CleanBaseFont(string? baseFont)
+    {
+        if (string.IsNullOrEmpty(baseFont)) return null;
+        string s = baseFont.StartsWith('/') ? baseFont[1..] : baseFont;
+        if (s.Length > 7 && s[6] == '+' && s[..6].All(c => c is >= 'A' and <= 'Z')) s = s[7..];
+        s = DecodeNameBytes(s);
+        if (s.Length is 0 or > 64 || s.IndexOfAny(['\'', '"', ';', '<', '>', '&', '\\']) >= 0 || s.Any(char.IsControl)) return null;
+        if (s.StartsWith("NotoSansKR", StringComparison.OrdinalIgnoreCase) || s.StartsWith("NotoSerifKR", StringComparison.OrdinalIgnoreCase)) return null;
+        return s;
+    }
+
+    // 이름 안의 #xx와 0x80~0xFF 글자를 바이트로 보고 UTF-8, 안 되면 CP949(한글 Windows 글꼴 이름)로 푼다.
+    private static string DecodeNameBytes(string s)
+    {
+        var bytes = new List<byte>(s.Length);
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (s[i] == '#' && i + 2 < s.Length && byte.TryParse(s.AsSpan(i + 1, 2), System.Globalization.NumberStyles.HexNumber, null, out byte b)) { bytes.Add(b); i += 2; }
+            else if (s[i] <= 0xFF) bytes.Add((byte)s[i]);
+            else return s;   // 이미 유니코드로 풀린 이름
+        }
+        var arr = bytes.ToArray();
+        if (arr.All(b => b < 0x80)) return System.Text.Encoding.ASCII.GetString(arr);
+        try { return new System.Text.UTF8Encoding(false, true).GetString(arr); }
+        catch (System.Text.DecoderFallbackException) { }
+        try
+        {
+            var cp949 = System.Text.CodePagesEncodingProvider.Instance.GetEncoding(949, System.Text.EncoderFallback.ExceptionFallback, System.Text.DecoderFallback.ExceptionFallback);
+            if (cp949 is not null) return cp949.GetString(arr);
+        }
+        catch (System.Text.DecoderFallbackException) { }
+        return "";
     }
 
     /// <summary>/RC(서식 있는 글)에서 처음 나오는 `&lt;body|span style="…"&gt;`의 style 값. 없거나 해석할 수 없으면 null.</summary>

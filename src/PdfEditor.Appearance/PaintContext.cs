@@ -63,12 +63,25 @@ public sealed class PaintContext
     /// </summary>
     public ResolvedFont? Resolve(Annotation a)
     {
+        // 고른 글꼴에 없는 글자가 있으면(예: 영문 글꼴에 한글) 그 글자가 빠지지 않게 상자 전체를 Noto로 그린다. 이름은 그대로 둔다.
         if (a.FontName is { Length: > 0 } name && SystemFonts is { } lib
-            && lib.Find(name, a.Bold, a.Italic) is { } face && lib.Load(face) is { } sys)
+            && lib.Find(name, a.Bold, a.Italic) is { } face && lib.Load(face) is { } sys && Covers(sys, a.Contents))
             return new ResolvedFont(sys, face.Key, a.Bold && !face.Info.IsBold, a.Italic && !face.Info.Italic, false);
         return FontFor(a.TextFamily, out string family) is { } f
             ? new ResolvedFont(f, family, a.Bold, a.Italic, Substituted: a.FontName is { Length: > 0 } && SystemFonts is not null)
             : null;
+    }
+
+    /// <summary>글꼴에 글(공백·제어 문자 빼고)의 모든 글자가 있는가.</summary>
+    public static bool Covers(AppFont font, string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return true;
+        foreach (var r in text.EnumerateRunes())
+        {
+            if (System.Text.Rune.IsWhiteSpace(r) || System.Text.Rune.IsControl(r)) continue;
+            if (font.GetGlyph(r.Value) is not > 0) return false;
+        }
+        return true;
     }
 
     /// <summary>글꼴 키(TextRunOp.Family)의 글꼴: ""(고딕), "serif"(명조, 없으면 고딕), "sys:…"(설치된 글꼴).</summary>

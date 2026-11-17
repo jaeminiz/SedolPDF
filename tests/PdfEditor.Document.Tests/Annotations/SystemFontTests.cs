@@ -195,6 +195,110 @@ public class SystemFontTests : IDisposable
             Assert.Equal(full.GetGlyph(c), subFont.GetGlyph(c));   // 글리프 번호 유지 서브셋
     }
 
+    [Theory]
+    [InlineData("/ABCDEF+MalgunGothic", "MalgunGothic")]
+    [InlineData("/Helvetica", "Helvetica")]
+    [InlineData("/ABCDEF+NotoSansKR-Regular", null)]   // 이 앱이 넣는 글꼴은 원래 글꼴이 아니다
+    [InlineData("/NotoSerifKR-Regular", null)]
+    [InlineData(null, null)]
+    public void CleanBaseFont_StripsSubsetTag(string? baseFont, string? expected)
+        => Assert.Equal(expected, AnnotationReader.CleanBaseFont(baseFont));
+
+    [Fact]
+    public void CleanBaseFont_DecodesCp949KoreanName()
+    {
+        var cp949 = System.Text.CodePagesEncodingProvider.Instance.GetEncoding(949)!;
+        string escaped = "/" + string.Concat(cp949.GetBytes("맑은 고딕").Select(b => b < 0x80 && b != 0x20 ? ((char)b).ToString() : $"#{b:X2}"));
+        Assert.Equal("맑은 고딕", AnnotationReader.CleanBaseFont(escaped));
+    }
+
+    /// <summary>/DS·/RC 없이 /DA와 AP 글꼴만 있는 상자(다른 편집기에서 흔하다)도 원래 글꼴 이름을 읽는다.</summary>
+    [Fact]
+    public void Read_FontNameFromApResources_WhenNoDs()
+    {
+        var bytes = FreeTextWithApFont("/ABCDEF+MalgunGothic");
+        var a = AnnotationReader.Read(bytes, null, [0])[0].Single(o => o.Data is not null).Data!;
+        Assert.Equal("MalgunGothic", a.FontName);
+        if (File.Exists(Malgun)) Assert.Equal("Malgun Gothic", MalgunLibrary().Find(a.FontName, false, false)!.Info.Family);
+    }
+
+    [Theory]
+    [InlineData("Helvetica", "Arial", false)]
+    [InlineData("Helvetica-Bold", "Arial", true)]
+    [InlineData("Arial,Bold", "Arial", true)]
+    [InlineData("Times-Roman", "Times New Roman", false)]
+    [InlineData("Courier", "Courier New", false)]
+    public void Find_StandardFontAliases(string name, string family, bool bold)
+    {
+        if (!File.Exists(Path.Combine(WinFonts, "arial.ttf")) || !File.Exists(Path.Combine(WinFonts, "times.ttf")) || !File.Exists(Path.Combine(WinFonts, "cour.ttf"))) return;
+        var lib = new SystemFontLibrary(() => SystemFontLibrary.Scan([WinFonts]).Where(f => System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(f.Path), "^(arial|times|cour)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)));
+        var face = lib.Find(name, false, false);
+        Assert.NotNull(face);
+        Assert.Equal(family, face!.Info.Family);
+        Assert.Equal(bold, face.Info.IsBold);
+        Assert.Equal(family, lib.FindFamily(name)!.Name);
+    }
+
+    [Fact]
+    public void Find_PostScriptStyleName_PicksBoldFace()
+    {
+        if (!File.Exists(MalgunBold)) return;
+        var face = MalgunLibrary().Find("MalgunGothic-Bold", false, false);
+        Assert.NotNull(face);
+        Assert.True(face!.Info.IsBold);
+    }
+
+    /// <summary>고른 글꼴에 없는 글자가 있으면(영문 글꼴에 한글) 글자가 빠지지 않게 Noto로 그린다.</summary>
+    [Fact]
+    public void Resolve_FontMissingGlyphs_FallsBackToNoto()
+    {
+        string arial = Path.Combine(WinFonts, "arial.ttf");
+        if (!File.Exists(arial)) return;
+        var lib = new SystemFontLibrary(() => SystemFontLibrary.Scan([WinFonts]).Where(f => Path.GetFileName(f.Path).Equals("arial.ttf", StringComparison.OrdinalIgnoreCase)));
+        var ctx = new PaintContext(_font, AnnotationAssets.Empty) { SystemFonts = lib };
+        var latin = ctx.Resolve(new Annotation { Kind = AnnotKind.FreeText, FontName = "Arial", Contents = "Hello" })!;
+        Assert.StartsWith(SystemFontFace.KeyPrefix, latin.Key);
+        var korean = ctx.Resolve(new Annotation { Kind = AnnotKind.FreeText, FontName = "Arial", Contents = "Hello 안녕" })!;
+        Assert.Same(_font, korean.Font);
+        Assert.True(korean.Substituted);
+    }
+
+    private static byte[] FreeTextWithApFont(string baseFont)
+    {
+        using var doc = new PdfSharp.Pdf.PdfDocument();
+        var page = doc.AddPage();
+        var font = new PdfDictionary(doc);
+        font.Elements.SetName("/Type", "/Font");
+        font.Elements.SetName("/Subtype", "/TrueType");
+        font.Elements.SetName("/BaseFont", baseFont);
+        doc.Internals.AddObject(font);
+        var fonts = new PdfDictionary(doc);
+        fonts.Elements["/F1"] = font.Reference;
+        var res = new PdfDictionary(doc);
+        res.Elements["/Font"] = fonts;
+        var n = new PdfDictionary(doc);
+        n.Elements.SetName("/Type", "/XObject");
+        n.Elements.SetName("/Subtype", "/Form");
+        n.Elements["/BBox"] = new PdfArray(doc, new PdfReal(0), new PdfReal(0), new PdfReal(200), new PdfReal(40));
+        n.Elements["/Resources"] = res;
+        n.CreateStream(System.Text.Encoding.ASCII.GetBytes("BT /F1 12 Tf 2 20 Td (Hello) Tj ET"));
+        doc.Internals.AddObject(n);
+        var ap = new PdfDictionary(doc);
+        ap.Elements["/N"] = n.Reference;
+        var annot = new PdfDictionary(doc);
+        annot.Elements.SetName("/Type", "/Annot");
+        annot.Elements.SetName("/Subtype", "/FreeText");
+        annot.Elements["/Rect"] = new PdfArray(doc, new PdfReal(100), new PdfReal(600), new PdfReal(300), new PdfReal(640));
+        annot.Elements["/Contents"] = new PdfString("Hello");
+        annot.Elements["/DA"] = new PdfString("0 g /F1 12 Tf");
+        annot.Elements["/AP"] = ap;
+        doc.Internals.AddObject(annot);
+        page.Elements["/Annots"] = new PdfArray(doc, annot.Reference!);
+        using var ms = new MemoryStream();
+        doc.Save(ms);
+        return ms.ToArray();
+    }
+
     private static IEnumerable<PdfDictionary> FindFonts(PdfSharp.Pdf.PdfDocument doc)
     {
         foreach (var obj in doc.Internals.GetAllObjects())
