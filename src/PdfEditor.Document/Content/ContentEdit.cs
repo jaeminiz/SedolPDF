@@ -117,7 +117,9 @@ public sealed record ScreenTextPiece(long LineId, string Text, PdfMatrix Placeme
 /// </summary>
 public sealed record ReplaceTextSpanEdit(long Id, ObjectRef Original, int Unit, System.Collections.Immutable.ImmutableArray<TextSpanReplacement> Spans,
     System.Collections.Immutable.ImmutableArray<ScreenTextPiece> Screen, System.Collections.Immutable.ImmutableArray<AppTextSpec> AppLines,
-    System.Collections.Immutable.ImmutableArray<long> AppLineIds, PdfRectF MaskRect) : ContentEdit(Id);
+    System.Collections.Immutable.ImmutableArray<long> AppLineIds, PdfRectF MaskRect,
+    System.Collections.Immutable.ImmutableArray<CodeSwapRef> CodeSwaps = default) : ContentEdit(Id);
+// 0.13.0: CodeSwaps가 있으면 저장은 글 연산의 그 코드 바이트만 제자리에서 바꾼다(TJ 간격·자간·글 상태는 그대로 — 표제란 칸 간격 지키기). Spans는 비어 있다.
 
 /// <summary>여러 쪽의 편집을 한 번에 덧붙이는 명령("모두 바꾸기" — 실행 취소 한 번에 모두 되돌린다).</summary>
 public sealed class ContentEditBatchCommand(IReadOnlyList<(PageId Page, ContentEdit Edit)> edits) : PdfEditor.Document.Commands.IUndoableCommand
@@ -149,3 +151,6 @@ public sealed class ContentEditBatchCommand(IReadOnlyList<(PageId Page, ContentE
 /// 저장은 반드시 내용 스트림 고쳐 쓰기(원본 연산자를 q…Q 조각으로 복사)로만 한다.
 /// </summary>
 public sealed record DuplicateObjectEdit(long Id, PageId SourcePage, int SourceIndex, PdfMatrix Then) : ContentEdit(Id);
+
+/// <summary>글 연산의 Str번째 문자열 Code번째 글 코드를 NewCode로 바꾼다(코드 단위 1/2바이트는 편집이 가진다).</summary>
+public readonly record struct CodeSwapRef(int Str, int Code, int NewCode);

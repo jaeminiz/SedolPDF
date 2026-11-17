@@ -1,0 +1,116 @@
+using System.Text;
+using Pdf.Native;
+using PdfEditor.Appearance.Fonts;
+using PdfEditor.Appearance.Patching;
+using PdfEditor.Document;
+using PdfEditor.Document.Content;
+using PdfEditor.Document.Saving;
+using PdfEditor.TestFixtures;
+using PdfSharp.Pdf.IO;
+
+namespace PdfEditor.TextEdit.Tests;
+
+/// <summary>0.13.0 2차: 표제란 한 줄(TJ 칸 간격)의 날짜만 고쳐도 칸 간격이 그대로다.</summary>
+public sealed class ColumnGapTests : IDisposable
+{
+    private static readonly Lazy<AppFont> Font = new(() =>
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "assets", "fonts", "NotoSansKR-Regular.otf"))) dir = dir.Parent;
+        return AppFont.Load(Path.Combine(dir!.FullName, "assets", "fonts", "NotoSansKR-Regular.otf"));
+    });
+
+    private readonly PdfiumThread _t = new();
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "pdfeditor-colgap-" + Guid.NewGuid().ToString("N"));
+
+    public ColumnGapTests() => Directory.CreateDirectory(_dir);
+
+    public void Dispose()
+    {
+        _t.Dispose();
+        try { Directory.Delete(_dir, true); } catch { }
+    }
+
+    private string Out(string n) => Path.Combine(_dir, n);
+
+    private async Task<(DocumentSession S, ObjectRef Ref, string Src)> Open()
+    {
+        string src = Out("src-" + Guid.NewGuid().ToString("N") + ".pdf");
+        ContentPdfFactory.CreateThreeColumnTjLine(src);
+        var s = await DocumentSession.OpenAsync(_t, src, null);
+        var r = await _t.InvokeAsync(() => s.GetObjectIndex(s.Pages[0].Id).Entries.First(e => e.Type == PdfPageObjectType.Text && (e.TextPreview ?? "").StartsWith("N/S")).Ref);
+        return (s, r, src);
+    }
+
+    private async Task<string> EditAndSave(DocumentSession s, ObjectRef r, string newText, string name)
+    {
+        var plan = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, r, newText, Font.Value));
+        Assert.Equal(ReplaceRefusal.None, plan.Refusal);
+        await s.Commands.ExecuteAsync(new ContentEditCommand(s.Pages[0].Id, plan.Edits));
+        string saved = Out(name);
+        await new SaveService([], null, new PdfSharpAnnotationPatcher(Font.Value), s.Assets).SaveAsync(s, saved);
+        return saved;
+    }
+
+    private Task<(string Text, List<float> Lefts)> Read(string pdf) => _t.InvokeAsync(() =>
+    {
+        using var d = Pdf.Native.PdfDocument.Open(_t, pdf, null);
+        using var p = d.LoadPage(0);
+        using var tp = p.LoadText();
+        string all = tp.GetText(0, tp.CharCount);
+        var lefts = new List<float>();
+        for (int i = 0; i < all.Length; i++) lefts.Add(char.IsWhiteSpace(all[i]) ? float.NaN : tp.GetRects(i, 1)[0].X);
+        return (all, lefts);
+    });
+
+    private static float LeftOf(string all, List<float> lefts, string word) => lefts[all.IndexOf(word, StringComparison.Ordinal)];
+
+    private static string TjOf(string pdf)
+    {
+        using var doc = PdfReader.Open(pdf, PdfDocumentOpenMode.Import);
+        var loaded = PdfEditor.ContentStream.PageContent.Load(doc.Pages[0]);
+        return Encoding.Latin1.GetString(loaded.Data!);
+    }
+
+    [Fact]
+    public async Task DateOnlyEdit_KeepsColumnPositionsAndTjGaps()
+    {
+        var (s, r, src) = await Open();
+        var (baseText, baseLefts) = await Read(src);
+        Assert.Contains("190510", baseText);
+        string saved = await EditAndSave(s, r, "N/S 191120 E.J JUNG", "date.pdf");
+        var (text, lefts) = await Read(saved);
+
+        Assert.Contains("191120", text);
+        Assert.DoesNotContain("190510", text);
+        Assert.Equal(LeftOf(baseText, baseLefts, "N/S"), LeftOf(text, lefts, "N/S"), 0.5);
+        Assert.Equal(LeftOf(baseText, baseLefts, "190510"), LeftOf(text, lefts, "191120"), 0.5);
+        Assert.Equal(LeftOf(baseText, baseLefts, "E.J"), LeftOf(text, lefts, "E.J"), 0.5);
+        string tj = TjOf(saved);
+        Assert.Contains("-3394", tj);
+        Assert.Contains("-1924", tj);
+    }
+
+    [Fact]
+    public async Task DifferentLengthEdit_KeepsLaterColumnsInPlace()
+    {
+        var (s, r, src) = await Open();
+        var (baseText, baseLefts) = await Read(src);
+        string saved = await EditAndSave(s, r, "N/S 1905101 E.J JUNG", "len.pdf");   // 날짜 끝에 한 글자 더(같은 글자 수 아님, 칸 끝)
+        var (text, lefts) = await Read(saved);
+        Assert.Contains("19051", text);
+        Assert.DoesNotContain("190510", text);
+        Assert.Equal(LeftOf(baseText, baseLefts, "E.J"), LeftOf(text, lefts, "E.J"), 0.5);
+        Assert.Equal(LeftOf(baseText, baseLefts, "N/S"), LeftOf(text, lefts, "N/S"), 0.5);
+    }
+
+    [Fact]
+    public async Task EditAcrossColumnGap_FallsBackToWholeLine()
+    {
+        var (s, r, _) = await Open();
+        string saved = await EditAndSave(s, r, "N/S 190510 0 JUNG", "cross.pdf");   // "E.J" 칸 경계를 넘어 바뀜(가짜 공백 포함 구간)
+        var (text, _) = await Read(saved);
+        Assert.Contains("JUNG", text);
+        Assert.DoesNotContain("E.J", text);
+    }
+}

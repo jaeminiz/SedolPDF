@@ -174,6 +174,54 @@ public static class ContentPdfFactory
         doc.Save(path);
     }
 
+
+    /// <summary>
+    /// 표제란 한 줄(세 칸) 시험용 A4 1쪽: Arial 서브셋(ToUnicode)으로 쓴 "N/S" "190510" "E.J JUNG" 세 토막을 <b>한 TJ</b>(칸 사이 큰 이동값 -3394·-1924, 글자 사이 작은 자간)로 합쳐 다시 쓴다.
+    /// 0~9 숫자가 쪽의 다른 글에 모두 보이게 해 코드북에 있게 한다. 기준선 (60,100), 글자 크기 12.
+    /// </summary>
+    public const string ThreeColumnLine = "N/S 190510 E.J JUNG";
+    public const string ThreeColumnDigits = "0123456789";
+
+    public static void CreateThreeColumnTjLine(string path)
+    {
+        string tmp = path + ".tmp";
+        using (var doc = new PdfDocument())
+        {
+            var page = doc.AddPage();
+            page.Width = XUnit.FromPoint(595);
+            page.Height = XUnit.FromPoint(842);
+            var font = new XFont("Arial", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode));
+            using (var g = XGraphics.FromPdfPage(page))
+            {
+                g.DrawString("N/S", font, XBrushes.Black, new XPoint(60, 100));
+                g.DrawString("190510", font, XBrushes.Black, new XPoint(120, 100));
+                g.DrawString("E.J JUNG", font, XBrushes.Black, new XPoint(200, 100));
+                g.DrawString(ThreeColumnDigits, font, XBrushes.Black, new XPoint(60, 200));
+            }
+            doc.Save(tmp);
+        }
+        using (var doc = PdfReader.Open(tmp, PdfDocumentOpenMode.Modify))
+        {
+            var page = doc.Pages[0];
+            var content = page.Contents.CreateSingleContent();   // 원래 내용을 읽기 위해
+            string text = Encoding.Latin1.GetString(content.Stream.UnfilteredValue);
+            var hex = System.Text.RegularExpressions.Regex.Matches(text, @"<([0-9A-Fa-f]+)>\s*Tj").Select(m => m.Groups[1].Value).ToList();
+            var fontOp = System.Text.RegularExpressions.Regex.Match(text, @"/F\d+\s+[\d.]+\s+Tf").Value;
+            if (hex.Count < 4 || fontOp.Length == 0) throw new InvalidOperationException("unexpected content: " + text);
+            // 글자 사이 자간(-18, -13)을 첫 두 글자 뒤에 넣어 실제 도면처럼 만든다.
+            string Kern(string h) => h.Length >= 12 ? $"<{h[..4]}> -18 <{h[4..8]}> -13 <{h[8..]}>" : $"<{h}>";
+            string line = $"0 0 0 rg BT {fontOp} 1 0 0 1 60 100 Tm [{Kern(hex[0])} -3394 {Kern(hex[1])} -1924 {Kern(hex[2])}] TJ ET\nBT {fontOp} 1 0 0 1 60 200 Tm <{hex[3]}> Tj ET\n";
+            content.Elements.Remove("/Filter");
+            var newBytes = Encoding.Latin1.GetBytes(line);
+            content.Stream.Value = newBytes;
+            content.Elements.SetInteger("/Length", newBytes.Length);
+            if (content.Reference is null) doc.Internals.AddObject(content);
+            page.Elements.SetReference("/Contents", content);
+            doc.Save(path);
+        }
+        File.Delete(tmp);
+    }
+
     /// <summary>
     /// A4 세로 1쪽, 선택 시험용(화면 위에서 아래 좌표 pt): 쪽의 약 89 %를 두른 속 빈 테두리(20,20,555,802), 안쪽 대각선 (100,100)-(300,300),
     /// 안쪽 속 빈 사각형 (350,100,150,150), 안쪽 칠한 사각형 (350,400,100,100).

@@ -70,6 +70,10 @@ public static class TextEditPlanner
             color = fc is { } c ? new PdfColor(c.R, c.G, c.B) : new PdfColor(0, 0, 0);
         }
 
+        // ⓪ 부분 바꾸기(0.13.0 2차): TJ 칸 간격이 있는 글 객체는 바뀐 글자만 바꿔 칸 간격을 지킨다(줄 전체 다시 쓰기는 간격을 지운다).
+        if (format is not { IsEmpty: false } && !target.IsInserted && target.OriginalIndex >= 0 && PartialReplacePlanner.TryPlan(s, page, target.OriginalIndex, newText, appFont, catalog) is { Count: > 0 } partial)
+            return new ReplacePlan(partial, false, ReplaceRefusal.None, []);
+
         // ① 원래 글꼴
         if (format is not { IsEmpty: false } && sourceOriginal is int src && src >= 0 && OriginalFontReplacer.Verify(s, pageIndex, src, newText) == OriginalFontReplacer.Result.Ok)
         {
