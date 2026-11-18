@@ -633,6 +633,13 @@ Esc: cancel the current action · Delete: delete the selected object or annotati
   <data name="Msg_ParagraphHiddenText" xml:space="preserve"><value>Part of the old paragraph text could not be removed from the file completely and was left as invisible text. Searching or copying may still find the old text.</value></data>
   <data name="Msg_PagesRepaired" xml:space="preserve"><value>Fixed the drawing order on page(s) {0} (damage left by saves from older versions). Reopen the file to see the fixed pages.</value></data>
   <data name="Btn_Reopen" xml:space="preserve"><value>Reopen</value></data>
+<data name="Msg_SaveLookChangeAsk" xml:space="preserve"><value>Page {0} may look slightly different after saving its object edits (it has gradients, pattern fills, image masks or similar).{1}
+
+Save anyway?</value></data>
+  <data name="Msg_SaveLookChangeBackup" xml:space="preserve"><value> The file before overwriting is kept as "{0}".</value></data>
+  <data name="Btn_SaveAnyway" xml:space="preserve"><value>Save anyway</value></data>
+  <data name="Btn_DontSave" xml:space="preserve"><value>Don't save</value></data>
+  <data name="Msg_SavedWithLookWarning" xml:space="preserve"><value>Saved, but page(s) {0} may look different from the screen. Please open the saved file and check.</value></data>
   <data name="Msg_ParagraphCommitFailed" xml:space="preserve"><value>The paragraph could not be changed. The document was not modified.</value></data>
   <data name="Panel_Replace" xml:space="preserve"><value>Find and Replace</value></data>
   <data name="Panel_Close" xml:space="preserve"><value>Close panel</value></data>

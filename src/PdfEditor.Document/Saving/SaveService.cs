@@ -20,23 +20,30 @@ public sealed class SaveService(
     private sealed class PageSet : HashSet<int>;
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<DocumentSession, PageSet> _reported = new();
 
-    public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default)
+    /// <summary>마지막 저장에서 화면 모양과 달라질 수 있다고 경고만 하고 저장한 쪽(acceptLookChanges일 때만 채워진다).</summary>
+    public IReadOnlyList<Output.LookWarning> LastLookWarnings { get; private set; } = [];
+
+    /// <summary>acceptLookChanges: 모양 검사에 걸려도 멈추지 않고 저장한다(사용자가 확인한 뒤). 덮어쓰는 저장이면 직전 파일을 `이름.bak.pdf`로 한 단계 남긴다.</summary>
+    public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default, bool acceptLookChanges = false)
     {
         LastHiddenTextCount = 0;
+        LastLookWarnings = [];
         LastRepairedPages = [];
         string dir = Path.GetDirectoryName(Path.GetFullPath(targetPath))!;
         string tmp = Path.Combine(dir, "~" + Path.GetFileName(targetPath) + ".tmp");
         var stage = SaveStage.Write;
         IReadOnlyList<int> repaired = [];
+        IReadOnlyList<Output.LookWarning> lookWarnings = [];
         try
         {
             // ① 쓰기(주석 Flush + SaveCopy) ② 객체 편집 확정 + 패치(PDFsharp) — 모두 임시 파일에만 (OutputCopyBuilder, M4)
-            var output = new Output.OutputCopyBuilder(appearance, patcher, assets);
+            var output = new Output.OutputCopyBuilder(appearance, patcher, assets) { AcceptLookChanges = acceptLookChanges };
             // 사본을 쓴 뒤(내용 확정·패치)의 실패는 PostProcess 단계로 알린다.
             var built = await output.BuildAsync(s, tmp, ct, onCopied: () => stage = SaveStage.PostProcess).ConfigureAwait(false);
             int[] expected = built.ExpectedAnnotCounts;
             LastHiddenTextCount = built.HiddenTextCount;
             repaired = built.RepairedPages ?? [];
+            lookWarnings = built.LookWarnings ?? [];
 
             stage = SaveStage.PostProcess;
             foreach (var pp in postProcessors)
@@ -63,8 +70,9 @@ public sealed class SaveService(
             stage = SaveStage.Replace;
             // 편집이 있으면 덮어쓰기 전의 파일을 글꼴 출처로 보관한다(저장 뒤에도 같은 쪽의 문단을 원래 글꼴로 다시 고칠 수 있게).
             if (s.Content.HasEdits) await Task.Run(s.RetainFontSource, ct).ConfigureAwait(false);
-            if (File.Exists(targetPath)) File.Replace(tmp, targetPath, null);
+            if (File.Exists(targetPath)) File.Replace(tmp, targetPath, lookWarnings.Count > 0 ? Path.ChangeExtension(targetPath, ".bak.pdf") : null);   // 모양이 달라질 수 있는 저장은 직전 파일을 한 단계 남긴다
             else File.Move(tmp, targetPath);
+            LastLookWarnings = lookWarnings;
             // 교체까지 끝난 저장만 알린다. 다시 열기 전에는 메모리의 문서가 그대로라 저장할 때마다 같은 쪽을 또 고치게 되므로, 이미 알린 쪽은 다시 알리지 않는다.
             var seen = _reported.GetOrCreateValue(s);
             lock (seen) LastRepairedPages = [.. repaired.Where(seen.Add)];

@@ -49,6 +49,8 @@ public interface IUserPrompts
     Task<IReadOnlyList<string>?> AskMergeFilesAsync(IReadOnlyList<string> paths);
     /// <summary>저장하면서 망가진 쪽을 고쳤음을 알린다(pageList: "4, 7"). 다시 열기를 고르면 true, 닫으면 false (0.10.0).</summary>
     Task<bool> AskReopenAfterRepairAsync(string pageList);
+    /// <summary>화면 모양과 달라질 수 있는 쪽이 있다고 알리고 그래도 저장할지 묻는다(backupFile: 덮어쓰기 전 파일을 남길 이름, 없으면 null). 저장하겠다고 하면 true.</summary>
+    Task<bool> AskSaveDespiteLookChangeAsync(string pageList, string? backupFile);
 }
 
 /// <summary>열기·저장·닫기 흐름. UI 스레드에서 부르고, 사용자에게 묻는 일은 IUserPrompts로 한다.</summary>
@@ -230,10 +232,27 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
     {
         try
         {
-            await save.SaveAsync(s, path).ConfigureAwait(true);
+            try
+            {
+                await save.SaveAsync(s, path).ConfigureAwait(true);
+            }
+            catch (Exception ex) when ((ex as PdfEditor.Document.Output.ContentRegenerationException ?? ex.InnerException as PdfEditor.Document.Output.ContentRegenerationException) is { } look)
+            {
+                // 화면 모양≡저장 모양 검사에 걸렸다: 막지 않고 사용자에게 묻는다. 어떤 이유였는지는 error.log에 남긴다.
+                ErrorLog.Write("save-look-check", ex);
+                string? backup = File.Exists(path) ? Path.GetFileName(Path.ChangeExtension(path, ".bak.pdf")) : null;
+                if (!await prompts.AskSaveDespiteLookChangeAsync(look.PageNumber.ToString(), backup).ConfigureAwait(true)) return false;
+                await save.SaveAsync(s, path, acceptLookChanges: true).ConfigureAwait(true);
+                if (save.LastLookWarnings.Count > 0)
+                {
+                    ErrorLog.Write("save-look-accepted", string.Join("; ", save.LastLookWarnings.Select(w => $"page {w.PageNumber}: {w.Reason}")));
+                    try { await prompts.ShowInfoAsync(string.Format(Strings.Msg_SavedWithLookWarning, FormatPageList([.. save.LastLookWarnings.Select(w => w.PageNumber - 1)]))).ConfigureAwait(true); } catch (Exception) { }
+                }
+            }
         }
         catch (Exception ex)
         {
+            ErrorLog.Write("save", ex);
             await prompts.ShowErrorAsync(ErrorMessages.For(ex)).ConfigureAwait(true);
             return false;
         }

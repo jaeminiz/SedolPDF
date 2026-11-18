@@ -12,6 +12,18 @@ public static class ErrorLog
     public static string Path { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SedolPDF", "error.log");
 
+    public static void Write(string area, string message)
+    {
+        try
+        {
+            string? dir = System.IO.Path.GetDirectoryName(Path);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            if (File.Exists(Path) && new FileInfo(Path).Length > MaxBytes) File.Delete(Path);
+            File.AppendAllText(Path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {area}: {message}{Environment.NewLine}{Environment.NewLine}");
+        }
+        catch (Exception) { }
+    }
+
     public static void Write(string area, Exception ex)
     {
         try

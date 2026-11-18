@@ -126,10 +126,14 @@ public static class ContentRewriter
                         case ObjectKind.Path:
                             if (obj.HasOwnClip) return Fail($"object {edit.ObjectIndex}: path also sets a clip");
                             for (int k = obj.FirstOpIndex; k < obj.OpIndex; k++)
-                                if (ops[k].Name is not ("m" or "l" or "c" or "v" or "y" or "re" or "h"))
+                                if (ops[k].Name is not ("m" or "l" or "c" or "v" or "y" or "re" or "h") && !ObjectSnippet.IsStateOp(ops[k].Name))
                                     return Fail($"object {edit.ObjectIndex}: operator {ops[k].Name} inside path");
+                            // 경로 중간에 낀 상태 연산자(색·선 굵기)는 q…Q 안에서 끝나면 뒤 객체가 물려받던 상태를 잃는다 → Q 뒤에 그대로 다시 적는다.
+                            var carried = new StringBuilder();
+                            for (int k = obj.FirstOpIndex; k < obj.OpIndex; k++)
+                                if (ObjectSnippet.IsStateOp(ops[k].Name)) carried.Append(' ').Append(Encoding.Latin1.GetString(data, ops[k].Start, ops[k].End - ops[k].Start));
                             Insert(ops[obj.FirstOpIndex].Start, open, OrderOpen);
-                            Insert(main.End, " Q", OrderClose);
+                            Insert(main.End, " Q" + carried, OrderClose);
                             break;
                         case ObjectKind.Text:
                         {

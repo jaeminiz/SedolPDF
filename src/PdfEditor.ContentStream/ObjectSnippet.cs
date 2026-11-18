@@ -62,7 +62,7 @@ public static class ObjectSnippet
             {
                 if (obj.HasOwnClip) return Fail($"object {objectIndex}: path also sets a clip");
                 for (int k = obj.FirstOpIndex; k < obj.OpIndex; k++)
-                    if (ops[k].Name is not ("m" or "l" or "c" or "v" or "y" or "re" or "h"))
+                    if (ops[k].Name is not ("m" or "l" or "c" or "v" or "y" or "re" or "h") && !IsStateOp(ops[k].Name))
                         return Fail($"object {objectIndex}: operator {ops[k].Name} inside path");
                 var sb = new StringBuilder(open);
                 sb.Append('\n');
@@ -70,6 +70,7 @@ public static class ObjectSnippet
                 for (int k = obj.FirstOpIndex; k <= obj.OpIndex; k++) sb.Append(Slice(data, ops[k])).Append(' ');
                 sb.Append("\nQ\n");
                 CollectUses(ops, obj.ReplayOps, uses);
+                CollectUses(ops, Enumerable.Range(obj.FirstOpIndex, obj.OpIndex - obj.FirstOpIndex), uses);   // 경로 중간에 낀 색·선 상태 연산자가 쓰는 자원
                 content = sb.ToString();
                 break;
             }
@@ -89,6 +90,9 @@ public static class ObjectSnippet
         }
         return new SnippetResult(content, uses.Distinct().ToList(), null);
     }
+
+    /// <summary>경로를 짓는 도중에 끼어 있는 상태 연산자(색·선 굵기·점선 등). 규격은 허용하지 않지만 실제 PDF(이 앱이 전에 저장한 것 포함)에 있고 그리는 쪽은 그대로 따른다.</summary>
+    public static bool IsStateOp(string name) => name is "RG" or "rg" or "G" or "g" or "K" or "k" or "SC" or "SCN" or "sc" or "scn" or "CS" or "cs" or "w" or "J" or "j" or "M" or "d" or "ri" or "i" or "gs";
 
     private static void AppendOps(StringBuilder sb, byte[] data, List<ContentOp> ops, int[] indices)
     {

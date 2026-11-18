@@ -10,7 +10,10 @@ namespace PdfEditor.Document.Output;
 /// <summary>사본을 만든 결과. ExpectedAnnotCounts: 쪽별 주석 수(패치 반영), 검증에 쓴다.</summary>
 /// <param name="HiddenTextCount">지운 원본 글 중 연산자째 지우지 못하고 보이지 않는 글자(3 Tr)로 남긴 수(M5 C12) — 0보다 크면 옛 글이 검색으로 나올 수 있다고 알린다.</param>
 /// <param name="RepairedPages">저장하면서 쪽 내용을 고친 쪽의 번호(0부터, ContentRepair). 없으면 null/빈 목록 — 이전 버전 저장으로 망가진 쪽을 알리는 데 쓴다.</param>
-public sealed record OutputCopy(int[] ExpectedAnnotCounts, bool ContentApplied, bool Patched, int HiddenTextCount = 0, IReadOnlyList<int>? RepairedPages = null);
+public sealed record OutputCopy(int[] ExpectedAnnotCounts, bool ContentApplied, bool Patched, int HiddenTextCount = 0, IReadOnlyList<int>? RepairedPages = null, IReadOnlyList<LookWarning>? LookWarnings = null);
+
+/// <summary>객체 편집을 저장하면 화면과 모양이 달라질 수 있는 쪽(PageNumber는 1부터). Reason은 개발자용 영어 사유 — error.log에 남긴다.</summary>
+public sealed record LookWarning(int PageNumber, string Reason);
 
 /// <summary>
 /// 파일을 만드는 모든 경로(저장·자동 복구·인쇄·요약)가 거치는 한 곳(M4 계획 C13, 설계서 4.2-6).
@@ -22,6 +25,9 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
 {
     /// <summary>시험용: PDFium 다시 쓰기를 건너뛰고 편집한 모든 쪽을 내용 스트림 고쳐 쓰기로 확정한다(패치 가능한 문서에서만).</summary>
     public bool ForceContentRewrite { get; init; }
+
+    /// <summary>참이면 화면 모양≡저장 모양 검사에 걸려도 저장을 멈추지 않고 검사 결과를 <see cref="OutputCopy.LookWarnings"/>로 돌려준다(사용자가 "그래도 저장"을 고른 경우). 거짓이면 ContentRegenerationException.</summary>
+    public bool AcceptLookChanges { get; init; }
 
     /// <summary>언제나 path에 사본을 만든다(저장·복구). onCopied: SaveCopy가 끝난 직후(그 뒤의 실패는 "후처리" 단계).</summary>
     public async Task<OutputCopy> BuildAsync(DocumentSession s, string path, CancellationToken ct = default, Action? onCopied = null)
@@ -54,6 +60,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         if (counts is null) return null;
         onCopied?.Invoke();
 
+        var warnings = new List<LookWarning>();
         bool content = false;
         RewriteWork? rewrite = null;
         if (edited.Count > 0)
@@ -64,7 +71,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             rewrite = await s.Thread.InvokeAsync(() =>
             {
                 // 사본은 메모리로 읽어 열므로(PdfDocument.Open) 같은 경로에 다시 써도 된다.
-                return RegenerateContent(s, path, pw, edited, canRewrite, ForceContentRewrite, patcher as IContentRewriteProbe, assets ?? AnnotationAssets.Empty);
+                return RegenerateContent(s, path, pw, edited, canRewrite, ForceContentRewrite, patcher as IContentRewriteProbe, assets ?? AnnotationAssets.Empty, AcceptLookChanges);
             }, ct).ConfigureAwait(false);
             content = true;
         }
@@ -96,7 +103,11 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         {
             string? pw = s.Password;
             var changed = await s.Thread.InvokeAsync(() => FindChangedPages(s.Thread, path, pw, rewrite.Look, rewrite.Masks), ct).ConfigureAwait(false);
-            if (changed.Count > 0) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
+            if (changed.Count > 0)
+            {
+                if (!AcceptLookChanges) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
+                warnings.AddRange(changed.Select(i => new LookWarning(i + 1, "content-stream rewrite changed the look")));
+            }
         }
 
         // 0.8.0까지의 저장이 남긴 망가진 쪽 내용 고치기(짝 없는 Q → Acrobat에서 쪽 일부가 사라짐, 꼬리 조각 → 뒤집혀 그려짐). 저장·복구만 — 인쇄 사본(always 거짓)은 화면과 같은 PDFium이 그리므로 필요 없다.
@@ -107,7 +118,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             string? pw = s.Password;
             repairedPages = await Task.Run(() => repairer.RepairContent(path, pw), ct).ConfigureAwait(false);
         }
-        return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0, repairedPages);
+        warnings.AddRange(rewrite?.Warnings ?? []);
+        return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0, repairedPages, warnings);
     }
 
     /// <summary>
@@ -173,15 +185,17 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
     /// 그래도 다르면 조용히 망가진 파일을 내지 않고 실패시킨다.
     /// </summary>
     private sealed record RewriteWork(ImmutableArray<PageContentRewrite> Rewrites, Dictionary<int, (byte[] Pixels, int W, int H)> Look,
-        Dictionary<int, MaskInfo>? Masks = null);
+        Dictionary<int, MaskInfo>? Masks = null, List<LookWarning>? Warnings = null);
 
     /// <summary>비교에서 뺄 영역(쪽 공간 사각형 L,B,R,T)과 쪽 정보. 화면의 PDFium 글 객체가 자간·양쪽 맞춤 늘임을 못 그리는 문단 줄만 뺀다(M5 Task 5 한계 1).</summary>
     private sealed record MaskInfo(List<(double L, double B, double R, double T)> Rects, int Rotation, double W0, double H0, double Scale);
 
     private static RewriteWork RegenerateContent(DocumentSession s, string path, string? pw,
         IReadOnlyList<(int Index, ImmutableArray<ContentEdit> Edits)> edited, bool canRewrite, bool force,
-        IContentRewriteProbe? probe, AnnotationAssets assets)
+        IContentRewriteProbe? probe, AnnotationAssets assets, bool accept)
     {
+        var warnings = new List<LookWarning>();
+        var accepted = new HashSet<int>();   // 사용자가 모양이 달라져도 좋다고 한 쪽: 검사에서 뺀다(accept일 때만)
         var look = new Dictionary<int, (byte[] Pixels, int W, int H)>();
         var level = edited.ToDictionary(x => x.Index, _ => 0);   // 0 = 색을 건드리지 않음, 1 = 도형 색 정규화, 2 = 도형·글 색 정규화
         var rewritePages = force && canRewrite ? edited.Select(x => x.Index).ToHashSet() : new HashSet<int>();   // PDFium이 못 다시 쓰는 쪽 → 내용 스트림 고쳐 쓰기(M4x)
@@ -236,27 +250,39 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                     }
                     copy.SaveCopy(gen);
                 }
-                var failed = FindChangedPages(s.Thread, gen, pw, active.ToDictionary(x => x.Index, x => look[x.Index]));
+                var failed = FindChangedPages(s.Thread, gen, pw, active.Where(x => !accepted.Contains(x.Index)).ToDictionary(x => x.Index, x => look[x.Index]));
                 if (failed.Count == 0) { File.Move(gen, path, true); break; }
                 var retry = failed.Where(i => level[i] < 2).ToList();
                 if (retry.Count == 0)
                 {
                     // 문단 편집 쪽: 직접 쓰기도 거절됐고 PDFium 경로도 모양이 달라지면 둘 다 안 되는 것 — 이유와 함께 저장 거절.
+                    if (accept)
+                    {
+                        // 어쩔 수 없는 쪽은 경고로 남기고 PDFium이 쓴 모양 그대로 저장한다. 고쳐 쓰기를 쓸 수 있는 쪽은 그쪽으로 보낸다.
+                        foreach (var i in failed)
+                            if (!canRewrite || rejected.ContainsKey(i))
+                            {
+                                accepted.Add(i);
+                                warnings.Add(new LookWarning(i + 1, rejected.TryGetValue(i, out var rj) ? "paragraph edit: direct text writing was rejected (" + rj + ") and the PDFium path changed the look" : "PDFium content rewrite changed the look and the content-stream rewrite is not available"));
+                            }
+                            else rewritePages.Add(i);
+                        continue;
+                    }
                     var both = failed.FirstOrDefault(i => rejected.ContainsKey(i), -1);
                     if (both >= 0) throw new ContentRegenerationException(both + 1, "paragraph edit: direct text writing was rejected (" + rejected[both] + ") and the PDFium path changed the look");
-                    if (!canRewrite) throw new ContentRegenerationException(failed[0] + 1);
+                    if (!canRewrite) throw new ContentRegenerationException(failed[0] + 1, "PDFium content rewrite changed the look and the content-stream rewrite is not available");
                     foreach (var i in failed) rewritePages.Add(i);
                     continue;
                 }
                 foreach (var i in retry) level[i]++;
             }
 
-            if (rewritePages.Count == 0) return new RewriteWork([], look);
+            if (rewritePages.Count == 0) return new RewriteWork([], look, null, warnings);
 
             // 고쳐 쓸 쪽: 사본(그 쪽은 PDFium이 건드리지 않은 원본 내용)에서 PDFium 객체 목록을 읽고, 화면에 보이는 모양(앱 글꼴 줄 포함)을 기억한다.
             var screenLook = new Dictionary<int, (byte[] Pixels, int W, int H)>();
             var rewrites = ReadRewrites(s, path, pw, edited.Where(x => rewritePages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out var masks, screenLook, refCache);
-            return new RewriteWork(rewrites, screenLook, masks.Count > 0 ? masks : null);
+            return new RewriteWork(rewrites, screenLook, masks.Count > 0 ? masks : null, warnings);
         }
         finally { try { File.Delete(gen); } catch { } }
     }
