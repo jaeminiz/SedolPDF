@@ -126,6 +126,7 @@ public static class FindReplaceService
                     case ReplaceParagraphEdit pe: foreach (var r in pe.Remove) if (!r.IsInserted) dead.Add(r.OriginalIndex); break;
                     case ReplaceTextSpanEdit te when !te.Original.IsInserted:
                         foreach (var sp in te.Spans) foreach (var c in sp.Cuts) for (int k = 0; k < c.Count; k++) cut.Add((te.Original.OriginalIndex, c.Str, c.FromCode + k));
+                        if (!te.CodeSwaps.IsDefaultOrEmpty) foreach (var w in te.CodeSwaps) cut.Add((te.Original.OriginalIndex, w.Str, w.Code));
                         break;
                 }
             var src = pr.Matches[0].Source!;
@@ -148,7 +149,7 @@ public static class FindReplaceService
         return s.Thread.InvokeAsync(() => PlanOnThread(s, plans, newText, appFont, catalog), ct);
     }
 
-    private static ReplaceBatch PlanOnThread(DocumentSession s, List<WordReplacement> plans, string newText, AppFont? appFont, AppFontCatalog? catalog)
+    internal static ReplaceBatch PlanOnThread(DocumentSession s, List<WordReplacement> plans, string newText, AppFont? appFont, AppFontCatalog? catalog)
     {
         s.Thread.AssertOnThread();
         var items = new List<ReplaceItem>();

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Pdf.Native;
 using PdfEditor.ContentStream;
 using PdfEditor.Document;
 using PdfEditor.Document.Annotations.Patching;
@@ -54,6 +55,7 @@ public static class ContentRewritePlanner
         var textRemoved = new HashSet<int>();   // 문단 편집이 끄는 원본 객체: 글이면 완전 제거를 시도
         var ins = new Dictionary<long, Ins>();
         var spanEdits = new Dictionary<int, (int Unit, List<TextSpanReplace> Spans)>();   // 찾아 바꾸기: 원본 글 객체마다 낱말 바꾸기를 합친다
+        var codeSwaps = new Dictionary<int, (int Unit, List<(int Str, int Code, int NewCode)> Swaps)>();   // 0.13.0: 글 코드 제자리 바꾸기
         int order = 0;
         foreach (var e in edits)
         {
@@ -85,6 +87,14 @@ public static class ContentRewritePlanner
                     for (int i = 0; i < pe.AppLines.Length; i++)
                         ins[pe.AppLineIds[i]] = new Ins { Order = order++, Kind = 'T', Text = new InsertAppTextEdit(pe.AppLineIds[i], pe.AppLines[i]) };
                     break;
+                case ReplaceTextSpanEdit rt when !rt.CodeSwaps.IsDefaultOrEmpty:
+                {
+                    if (rt.Original.IsInserted || rt.Original.OriginalIndex < 0) return Fail("code swap of an inserted object");
+                    if (!codeSwaps.TryGetValue(rt.Original.OriginalIndex, out var cs)) codeSwaps[rt.Original.OriginalIndex] = cs = (rt.Unit, []);
+                    else if (cs.Unit != rt.Unit) return Fail("code swap with different code units on one object");
+                    foreach (var w in rt.CodeSwaps) cs.Swaps.Add((w.Str, w.Code, w.NewCode));
+                    break;
+                }
                 case ReplaceTextSpanEdit rt:
                 {
                     if (rt.Original.IsInserted || rt.Original.OriginalIndex < 0) return Fail("text span replace of an inserted object");
@@ -95,6 +105,15 @@ public static class ContentRewritePlanner
                             new Mat(sp.Tm.A, sp.Tm.B, sp.Tm.C, sp.Tm.D, sp.Tm.E, sp.Tm.F)));
                     for (int i = 0; i < rt.AppLines.Length; i++)
                         ins[rt.AppLineIds[i]] = new Ins { Order = order++, Kind = 'T', Text = new InsertAppTextEdit(rt.AppLineIds[i], rt.AppLines[i]) };
+                    break;
+                }
+                case InsertTextLikeEdit it when it.Encoded is not null && !it.Original.IsInserted && it.Original.OriginalIndex >= 0:
+                {
+                    // 0.13.0: 계획 때 인코딩한 글을 문단의 원래 글꼴 줄과 같은 방법으로 쓴다. 뒤따르는 DeactivateEdit가 원본을 끌 때 옛 글이 파일에서 빠지게 완전 제거 대상으로.
+                    textRemoved.Add(it.Original.OriginalIndex);
+                    var line = new ParagraphTextLine(it.Id, it.Text, new PdfMatrix(1, 0, 0, 1, it.Baseline.X, it.Baseline.Y), 0, default,
+                        it.Original, it.Tc, it.Tz, 0, 0, it.Encoded, it.TwoByte, it.SpaceGap1000);
+                    ins[it.Id] = new Ins { Order = order++, Kind = 'P', Para = line };
                     break;
                 }
                 case InsertTextLikeEdit: return Fail("inserting text in the original font needs the PDFium path (app font only here)");
@@ -137,6 +156,12 @@ public static class ContentRewritePlanner
         {
             if (origDisabled.Contains(idx) || origThen.ContainsKey(idx)) return Fail("a replaced text object was also deleted or moved (needs the PDFium path)");
             objEdits.Add(new ReplaceTextSpans(idx, unit, spans));
+        }
+
+        foreach (var (idx, (unit, swaps)) in codeSwaps.OrderBy(kv => kv.Key))
+        {
+            if (origDisabled.Contains(idx) || origThen.ContainsKey(idx) || spanEdits.ContainsKey(idx)) return Fail("a code-swapped text object was also deleted, moved or span-replaced (needs the PDFium path)");
+            objEdits.Add(new ReplaceCodes(idx, unit, swaps));
         }
 
         var snippets = new List<NewSnippet>();

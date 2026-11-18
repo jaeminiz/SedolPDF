@@ -16,6 +16,8 @@
     <TextBlock Text="{x:Static res:Strings.Dlg_SettingsLanguage}" Foreground="#1A1A1A" Margin="0,6,0,0" />
     <ComboBox x:Name="LanguageBox" Width="220" HorizontalAlignment="Left" />
     <TextBlock Text="{x:Static res:Strings.Dlg_SettingsLanguageHint}" TextWrapping="Wrap" Foreground="#5E5E5E" />
+    <CheckBox x:Name="RestrictionNoticeBox" Margin="0,6,0,0" Content="{x:Static res:Strings.Dlg_SettingsRestrictionNotice}" Foreground="#1A1A1A" />
+    <TextBlock Text="{x:Static res:Strings.Dlg_SettingsRestrictionNoticeHint}" TextWrapping="Wrap" Foreground="#5E5E5E" />
     <StackPanel x:Name="SponsorRow" Orientation="Horizontal" Margin="0,4,0,0" />
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{DynamicResource Space8}" Margin="0,8,0,0">
       <Button x:Name="OkButton" Classes="accent" IsDefault="True" MinWidth="{DynamicResource ButtonMinWidth}" Content="{x:Static res:Strings.Dlg_Ok}" />

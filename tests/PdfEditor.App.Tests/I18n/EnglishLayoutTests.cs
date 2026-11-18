@@ -207,7 +207,7 @@ public class EnglishLayoutTests(ITestOutputHelper output)
             Check("merge", new MergeDialog(["a.pdf", "b.pdf"]));
             Check("password", new PasswordDialog("long-drawing-file-name.pdf", false));
             Check("message", new MessageDialog(PdfEditor.App.Resources.Strings.Dlg_UnsavedTitle, string.Format(PdfEditor.App.Resources.Strings.Dlg_UnsavedMessage, "drawing.pdf"),
-                [PdfEditor.App.Resources.Strings.Dlg_Save, PdfEditor.App.Resources.Strings.Dlg_Discard, PdfEditor.App.Resources.Strings.Dlg_Cancel]));
+                [PdfEditor.App.Resources.Strings.Dlg_SaveAllKey, PdfEditor.App.Resources.Strings.Dlg_SaveKey, PdfEditor.App.Resources.Strings.Dlg_DiscardAllKey, PdfEditor.App.Resources.Strings.Dlg_DiscardKey, PdfEditor.App.Resources.Strings.Dlg_CancelKey]));
             return all;
         });
         foreach (var p in problems) output.WriteLine(p);

@@ -6,7 +6,8 @@ using PdfEditor.Document.Saving;
 
 namespace PdfEditor.App.Documents;
 
-public enum UnsavedChoice { Save, Discard, Cancel }
+/// <summary>SaveAll/DiscardAll: 여러 문서를 한꺼번에 닫는 중에만 나온다(이 문서와 남은 문서 모두에 적용).</summary>
+public enum UnsavedChoice { Save, Discard, Cancel, SaveAll, DiscardAll }
 
 public enum InsertPosition { AfterCurrent, First, Last }
 
@@ -23,7 +24,8 @@ public interface IUserPrompts
 {
     /// <summary>암호를 묻는다. 취소하면 null. retry가 true면 앞서 입력한 암호가 틀렸다는 뜻.</summary>
     Task<string?> AskPasswordAsync(string fileName, bool retry);
-    Task<UnsavedChoice> AskSaveChangesAsync(string displayName);
+    /// <summary>저장할지 묻는다. offerAll이면 "모두 저장/모두 저장 안 함"도 보여 준다(여러 문서를 닫는 중이고 변경된 문서가 둘 이상일 때).</summary>
+    Task<UnsavedChoice> AskSaveChangesAsync(string displayName, bool offerAll = false);
     Task<string?> PickOpenFileAsync();
     Task<IReadOnlyList<string>> PickOpenFilesAsync();
     Task<string?> PickSaveFileAsync(string suggestedName);
@@ -177,14 +179,43 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         }
     }
 
-    public async Task<bool> SaveAsync(DocumentSession s)
+    // 저장 중인 세션과 그 저장의 결과. 저장하는 동안 저장 단추는 눌린 채(비활성)라 사용자는 끝난 줄 알고 바로 닫을 수 있다 —
+    // 그때 닫기 확인이 아직 안 끝난 저장을 못 보고 "저장할까요?"를 다시 묻지 않도록, 닫기 확인은 진행 중인 저장을 먼저 기다린다.
+    private readonly Dictionary<DocumentSession, Task<bool>> _saving = [];
+
+    private async Task<bool> Tracked(DocumentSession s, Func<Task<bool>> run)
+    {
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _saving[s] = tcs.Task;
+        try
+        {
+            bool ok = await run().ConfigureAwait(true);
+            tcs.TrySetResult(ok);
+            return ok;
+        }
+        catch (Exception)
+        {
+            tcs.TrySetResult(false);
+            throw;
+        }
+        finally
+        {
+            if (_saving.TryGetValue(s, out var cur) && ReferenceEquals(cur, tcs.Task)) _saving.Remove(s);
+        }
+    }
+
+    public Task<bool> SaveAsync(DocumentSession s) => Tracked(s, () => SaveCoreAsync(s));
+
+    private async Task<bool> SaveCoreAsync(DocumentSession s)
     {
         using var _ = MarkBusy(s);
         if (s.FilePath is null || !CanOverwrite(s)) return await SaveAsAsync(s).ConfigureAwait(true);
         return await TrySaveAsync(s, s.FilePath).ConfigureAwait(true);
     }
 
-    public async Task<bool> SaveAsAsync(DocumentSession s)
+    public Task<bool> SaveAsAsync(DocumentSession s) => Tracked(s, () => SaveAsCoreAsync(s));
+
+    private async Task<bool> SaveAsCoreAsync(DocumentSession s)
     {
         using var _ = MarkBusy(s);
         // 암호화가 유지되지 않으면 사용자에게 먼저 알린다 (V6, 설계서 8.2).
@@ -223,13 +254,40 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         return true;
     }
 
-    /// <summary>닫아도 되면 true. 변경이 있으면 저장/저장 안 함/취소를 묻는다.</summary>
+    // 여러 문서를 한꺼번에 닫는 중(앱 끝내기·창 닫기)인지와, 거기서 "모두 저장/모두 저장 안 함"을 골랐는지.
+    private int _batchDepth;
+    private UnsavedChoice? _batchAnswer;
+
+    private sealed class Batch(FileWorkflow w) : IDisposable
+    {
+        private bool _done;
+        public void Dispose()
+        {
+            if (_done) return;
+            _done = true;
+            if (--w._batchDepth == 0) w._batchAnswer = null;
+        }
+    }
+
+    /// <summary>여러 문서를 차례로 닫기 시작한다. 이 범위 안에서는 저장 질문에 "모두"가 붙고, 고른 "모두" 답이 남은 문서에 적용된다. Dispose로 끝낸다.</summary>
+    public IDisposable BeginCloseBatch() { _batchDepth++; return new Batch(this); }
+
+    /// <summary>닫아도 되면 true. 변경이 있으면 저장/저장 안 함/취소(여러 문서를 닫는 중이면 모두 저장/모두 저장 안 함도)를 묻는다.</summary>
     public async Task<bool> ConfirmCloseAsync(DocumentSession s)
     {
+        if (_saving.TryGetValue(s, out var inFlight)) await inFlight.ConfigureAwait(true);   // 진행 중인 저장이 끝난 뒤의 상태로 판단한다
         if (!s.IsDirty) return true;
-        switch (await prompts.AskSaveChangesAsync(s.DisplayName).ConfigureAwait(true))
+        var choice = _batchAnswer
+            ?? await prompts.AskSaveChangesAsync(s.DisplayName, _batchDepth > 0 && _open.Count(o => o.IsDirty) > 1).ConfigureAwait(true);
+        switch (choice)
         {
             case UnsavedChoice.Save: return await SaveAsync(s).ConfigureAwait(true);
+            case UnsavedChoice.SaveAll:
+                _batchAnswer = UnsavedChoice.Save;
+                if (await SaveAsync(s).ConfigureAwait(true)) return true;
+                _batchAnswer = null;   // 저장이 취소·실패하면 나머지에 자동 적용하지 않는다
+                return false;
+            case UnsavedChoice.DiscardAll: _batchAnswer = UnsavedChoice.Discard; return true;
             case UnsavedChoice.Discard: return true;
             default: return false;
         }

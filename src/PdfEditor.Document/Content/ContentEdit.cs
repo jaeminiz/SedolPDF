@@ -26,7 +26,9 @@ public sealed record TransformEdit(long Id, ObjectRef Target, PdfMatrix Then) : 
 /// 원래 글꼴로 만든 새 텍스트 객체를 원래 객체 바로 뒤에 넣는다(C4 ①). 원래 객체를 끄는 것은 따로 <see cref="DeactivateEdit"/>로 쌓는다.
 /// 넣은 객체는 <see cref="ObjectRef.Inserted"/>(이 편집의 Id)로 가리킨다.
 /// </summary>
-public sealed record InsertTextLikeEdit(long Id, ObjectRef Original, string Text) : ContentEdit(Id);
+public sealed record InsertTextLikeEdit(long Id, ObjectRef Original, string Text,
+    byte[]? Encoded = null, bool TwoByte = false, float Tc = 0, float Tz = 100, PdfRectF MaskRect = default, PdfPointF Baseline = default, float SpaceGap1000 = 0) : ContentEdit(Id);
+// 0.13.0: Encoded = 계획 때 원래 글꼴 코드북으로 인코딩한 글 코드(있으면 내용 스트림 직접 쓰기로 저장 가능). MaskRect = 충실도 비교에서 뺄 영역(쪽 좌표), Baseline = 원본 글 객체의 기준선 원점.
 
 /// <summary>앱 글꼴 줄의 윤곽선 한 토막(쪽 좌표). Op: 'M' 이동, 'L' 직선, 'C' 3차 베지어(A·B 제어점, C 끝점), 'Z' 닫기.</summary>
 public readonly record struct OutlineSeg(char Op, PdfPointF A, PdfPointF B = default, PdfPointF C = default);
@@ -76,7 +78,7 @@ public sealed record SetTextColorEdit(long Id, ObjectRef Target, PdfEditor.Docum
 /// </summary>
 public sealed record ParagraphTextLine(long LineId, string Text, PdfMatrix Placement, float SizePt, PdfEditor.Document.Annotations.PdfColor Color,
     ObjectRef OriginalFontSource, float Tc, float Tz, float JustifyExtra, int OrigRenderMode,
-    byte[]? Encoded = null, bool TwoByte = false);
+    byte[]? Encoded = null, bool TwoByte = false, float SpaceGap1000 = 0);
 // Encoded = 원래 글꼴 코드북으로 인코딩한 글 코드 바이트(계획 때 정함 — 저장은 PDFium 없이 이것을 그대로 쓴다). null이면 직접 쓰기 불가(PDFium 경로로 내려간다).
 
 /// <summary>다시 편집(원본 문단 재추정 없이)에 쓰는 문단 정보. Model은 TextEdit의 ParagraphModel(Document는 TextEdit를 모르므로 불투명 개체로 보관).</summary>
@@ -115,7 +117,9 @@ public sealed record ScreenTextPiece(long LineId, string Text, PdfMatrix Placeme
 /// </summary>
 public sealed record ReplaceTextSpanEdit(long Id, ObjectRef Original, int Unit, System.Collections.Immutable.ImmutableArray<TextSpanReplacement> Spans,
     System.Collections.Immutable.ImmutableArray<ScreenTextPiece> Screen, System.Collections.Immutable.ImmutableArray<AppTextSpec> AppLines,
-    System.Collections.Immutable.ImmutableArray<long> AppLineIds, PdfRectF MaskRect) : ContentEdit(Id);
+    System.Collections.Immutable.ImmutableArray<long> AppLineIds, PdfRectF MaskRect,
+    System.Collections.Immutable.ImmutableArray<CodeSwapRef> CodeSwaps = default) : ContentEdit(Id);
+// 0.13.0: CodeSwaps가 있으면 저장은 글 연산의 그 코드 바이트만 제자리에서 바꾼다(TJ 간격·자간·글 상태는 그대로 — 표제란 칸 간격 지키기). Spans는 비어 있다.
 
 /// <summary>여러 쪽의 편집을 한 번에 덧붙이는 명령("모두 바꾸기" — 실행 취소 한 번에 모두 되돌린다).</summary>
 public sealed class ContentEditBatchCommand(IReadOnlyList<(PageId Page, ContentEdit Edit)> edits) : PdfEditor.Document.Commands.IUndoableCommand
@@ -147,3 +151,6 @@ public sealed class ContentEditBatchCommand(IReadOnlyList<(PageId Page, ContentE
 /// 저장은 반드시 내용 스트림 고쳐 쓰기(원본 연산자를 q…Q 조각으로 복사)로만 한다.
 /// </summary>
 public sealed record DuplicateObjectEdit(long Id, PageId SourcePage, int SourceIndex, PdfMatrix Then) : ContentEdit(Id);
+
+/// <summary>글 연산의 Str번째 문자열 Code번째 글 코드를 NewCode로 바꾼다(코드 단위 1/2바이트는 편집이 가진다).</summary>
+public readonly record struct CodeSwapRef(int Str, int Code, int NewCode);

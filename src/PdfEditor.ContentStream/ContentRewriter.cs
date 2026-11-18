@@ -27,6 +27,9 @@ public sealed record TextSpanReplace(IReadOnlyList<TextCut> Cuts, byte[]? NewTex
 /// </summary>
 public sealed record ReplaceTextSpans(int ObjectIndex, int Unit, IReadOnlyList<TextSpanReplace> Spans) : ObjectEdit(ObjectIndex);
 
+/// <summary>글 보이기 연산자 안의 글 코드 몇 개만 다른 코드로 바꾼다(0.13.0). TJ 간격·자간·글 상태·객체 수는 그대로다. Swaps = (문자열 번호, 문자열 안 코드 번호, 새 코드).</summary>
+public sealed record ReplaceCodes(int ObjectIndex, int Unit, IReadOnlyList<(int Str, int Code, int NewCode)> Swaps) : ObjectEdit(ObjectIndex);
+
 public sealed class RewriteResult
 {
     public bool Ok => Failure is null;
@@ -168,6 +171,16 @@ public static class ContentRewriter
                             textCopies++;
                         }
                     }
+                    break;
+                }
+                case ReplaceCodes rc:
+                {
+                    if (obj.Kind != ObjectKind.Text || obj.Text is not { } csnap) return Fail($"object {edit.ObjectIndex}: not a text object");
+                    if (main.Name is not ("Tj" or "TJ")) return Fail($"object {edit.ObjectIndex}: text operator {main.Name} is not supported for code swap");
+                    if (rc.Unit is not (1 or 2)) return Fail("bad code unit");
+                    string? swapped = SwapCodes(main, rc);
+                    if (swapped is null) return Fail($"object {edit.ObjectIndex}: code swap out of range");
+                    Replace(main.Start, main.End, swapped);
                     break;
                 }
                 default: return Fail("unknown edit");
@@ -440,6 +453,36 @@ public static class ContentRewriter
             left += AppendHex(sb, it.Bytes, pos * rs.Unit, (n - pos) * rs.Unit + (it.Bytes.Length - n * rs.Unit));
         }
         sb.Append("] TJ"); glyphsLeft = left > 0;
+        return sb.ToString();
+    }
+
+    /// <summary>글 보이기 연산자를 그대로 두고 정한 글 코드만 바꿔 `[… ] TJ`로 다시 쓴다(숫자 간격은 모두 그대로). 범위가 문자열 밖이면 null.</summary>
+    private static string? SwapCodes(ContentOp show, ReplaceCodes rc)
+    {
+        var items = new List<Operand>();
+        if (show.Name == "TJ") { foreach (var o in show.Operands) if (o.Kind == OperandKind.Array) items.AddRange(o.Items); }
+        else if (show.Operands.Count > 0) items.Add(show.Operands[^1]);
+        int stringCount = items.Count(i => i.Kind == OperandKind.String);
+        if (rc.Swaps.Any(w => w.Str < 0 || w.Str >= stringCount || w.Code < 0)) return null;
+        var sb = new StringBuilder("[");
+        int str = -1;
+        foreach (var it in items)
+        {
+            if (it.Kind == OperandKind.Number) { sb.Append(Mat.Fmt(it.Number)).Append(' '); continue; }
+            if (it.Kind != OperandKind.String) continue;
+            str++;
+            var bytes = it.Bytes.ToArray();
+            foreach (var (s, code, newCode) in rc.Swaps)
+            {
+                if (s != str) continue;
+                int at = code * rc.Unit;
+                if (at + rc.Unit > bytes.Length) return null;
+                if (rc.Unit == 2) { bytes[at] = (byte)(newCode >> 8); bytes[at + 1] = (byte)newCode; }
+                else bytes[at] = (byte)newCode;
+            }
+            if (bytes.Length > 0) sb.Append('<').Append(Convert.ToHexString(bytes)).Append("> ");
+        }
+        sb.Append("] TJ");
         return sb.ToString();
     }
 

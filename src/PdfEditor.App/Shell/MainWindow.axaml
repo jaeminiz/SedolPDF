@@ -98,6 +98,21 @@
       <Setter Property="TextElement.Foreground" Value="White" />
     </Style>
 
+    <!-- 노란 안내 띠 안의 버튼(닫기·다시 표시 안 함): 띠 색은 라이트/다크 공통이라 글자색도 고정 -->
+    <Style Selector="Button.bannerbtn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#1A1A1A" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="Button.bannerbtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1F000000" />
+      <Setter Property="TextElement.Foreground" Value="#1A1A1A" />
+    </Style>
     <!-- 패널 전환 막대 -->
     <Style Selector="Button.rail">
       <Setter Property="Width" Value="34" />
@@ -283,9 +298,10 @@
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="docs:DocumentTabViewModel">
-                  <Grid ColumnDefinitions="*,Auto" ToolTip.Tip="{Binding Title}">
-                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <Button Grid.Column="1" Margin="6,0,0,0" Classes="tabclose" ToolTip.Tip="{x:Static res:Strings.Tip_CloseTab}" Click="OnTabCloseClick">
+                  <Grid ColumnDefinitions="*,Auto,Auto" ToolTip.Tip="{Binding Title}">
+                    <TextBlock Text="{Binding TabName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Text="•" Margin="4,0,0,0" VerticalAlignment="Center" FontWeight="Bold" IsVisible="{Binding IsModified}" />
+                    <Button Grid.Column="2" Margin="6,0,0,0" Classes="tabclose" ToolTip.Tip="{x:Static res:Strings.Tip_CloseTab}" Click="OnTabCloseClick">
                       <res:IconView Key="close" Width="10" Height="10" />
                     </Button>
                   </Grid>
@@ -314,11 +330,29 @@
           </Grid>
           <Border Grid.Row="1" Background="#D4D4D9">
             <Grid RowDefinitions="Auto,Auto,*">
-              <Border Grid.Row="0" Background="#FFF4CE" Padding="12,6" IsVisible="{Binding ActiveDocument.IsEditRestricted, FallbackValue=False}">
-                <TextBlock Text="{x:Static res:Strings.Msg_EditRestricted}" Foreground="#1A1A1A" TextWrapping="Wrap" />
+              <Border Grid.Row="0" Background="#FFF4CE" Padding="12,6" IsVisible="{Binding ActiveDocument.ShowEditRestricted, FallbackValue=False}">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <TextBlock Text="{x:Static res:Strings.Msg_EditRestricted}" Foreground="#1A1A1A" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Classes="bannerbtn" Margin="8,0,0,0" Content="{x:Static res:Strings.Banner_HideForever}"
+                          Command="{Binding ActiveDocument.HideNoticesForeverCommand}" />
+                  <Button Grid.Column="2" Classes="bannerbtn" Margin="4,0,0,0" Width="24" Height="24" Padding="0"
+                          ToolTip.Tip="{x:Static res:Strings.Banner_Dismiss}" AutomationProperties.Name="{x:Static res:Strings.Banner_Dismiss}"
+                          Command="{Binding ActiveDocument.DismissNoticesCommand}">
+                    <res:IconView Key="close" Width="10" Height="10" Foreground="{Binding $parent[Button].Foreground}" />
+                  </Button>
+                </Grid>
               </Border>
-              <Border Grid.Row="1" Background="#FFF4CE" Padding="12,6" IsVisible="{Binding ActiveDocument.HasAnnotationNotice, FallbackValue=False}">
-                <TextBlock Text="{Binding ActiveDocument.AnnotationNotice}" Foreground="#1A1A1A" TextWrapping="Wrap" />
+              <Border Grid.Row="1" Background="#FFF4CE" Padding="12,6" IsVisible="{Binding ActiveDocument.ShowAnnotationNotice, FallbackValue=False}">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <TextBlock Text="{Binding ActiveDocument.AnnotationNotice}" Foreground="#1A1A1A" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Classes="bannerbtn" Margin="8,0,0,0" Content="{x:Static res:Strings.Banner_HideForever}"
+                          Command="{Binding ActiveDocument.HideNoticesForeverCommand}" />
+                  <Button Grid.Column="2" Classes="bannerbtn" Margin="4,0,0,0" Width="24" Height="24" Padding="0"
+                          ToolTip.Tip="{x:Static res:Strings.Banner_Dismiss}" AutomationProperties.Name="{x:Static res:Strings.Banner_Dismiss}"
+                          Command="{Binding ActiveDocument.DismissNoticesCommand}">
+                    <res:IconView Key="close" Width="10" Height="10" Foreground="{Binding $parent[Button].Foreground}" />
+                  </Button>
+                </Grid>
               </Border>
               <ScrollViewer Grid.Row="2" Name="DocScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                             IsVisible="{Binding !HasNoDocument}">

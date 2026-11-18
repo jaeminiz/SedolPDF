@@ -57,11 +57,12 @@ public sealed partial class MainWindow : Window, IHostWindow
     private async Task ShowPreferencesAsync()
     {
         var cur = _host.Settings.Load();
-        var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName, cur.Language).ShowDialog<SettingsResult?>(this);
+        var result = await new SettingsDialog(cur.RecoveryIntervalMinutes, cur.AuthorName, cur.Language, cur.HideRestrictionNotices != true).ShowDialog<SettingsResult?>(this);
         if (result is null) return;
-        try { _host.Settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName, Language = result.Language }); }
+        try { _host.Settings.Update(s => s with { RecoveryIntervalMinutes = result.RecoveryMinutes, AuthorName = result.AuthorName, Language = result.Language, HideRestrictionNotices = result.ShowRestrictionNotice ? null : true }); }
         catch (Exception) { return; }
         _host.Recovery.Reschedule();
+        DocumentTabViewModel.SetRestrictionNoticesEnabled(result.ShowRestrictionNotice);
         if (result.Language != cur.Language) await new MessageDialog(Strings.Dlg_InfoTitle, Strings.Msg_LanguageRestart, [Strings.Dlg_Ok]).ShowDialog(this);
     }
 

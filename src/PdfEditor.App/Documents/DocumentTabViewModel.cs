@@ -1,5 +1,6 @@
 ﻿using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using PdfEditor.App.Resources;
 using PdfEditor.App.Settings;
 using PdfEditor.App.Shell;
@@ -51,6 +52,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
         _baseTitle = title;
         _post = post ?? (a => a());
         InitAnnotations();
+        SubscribeNoticeSetting();
         if (session is not null)
         {
             ApplyPages();
@@ -177,6 +179,51 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     public bool HasAnnotationNotice => AnnotationNotice is not null;
 
+    // ---- 권한 제한 안내 띠 끄기 (0.13.0) ----
+
+    /// <summary>이 탭에서 안내 띠를 닫았는가(다시 열면 다시 뜬다).</summary>
+    [ObservableProperty] private bool _noticesDismissed;
+
+    /// <summary>앱 설정의 "권한 제한 경고 표시". 꺼도 제한 동작은 그대로이고 안내 문구만 숨긴다.</summary>
+    public static bool RestrictionNoticesEnabled => LoadSettings().HideRestrictionNotices != true;
+
+    /// <summary>설정이 바뀌었음을 모든 탭에 알린다(UI 스레드).</summary>
+    public static event Action? RestrictionNoticesChanged;
+
+    public static void SetRestrictionNoticesEnabled(bool enabled)
+    {
+        Settings?.Update(c => c with { HideRestrictionNotices = enabled ? null : true });
+        RestrictionNoticesChanged?.Invoke();
+    }
+
+    public bool NoticesVisible => !NoticesDismissed && RestrictionNoticesEnabled;
+    public bool ShowEditRestricted => IsEditRestricted && NoticesVisible;
+    public bool ShowAnnotationNotice => HasAnnotationNotice && NoticesVisible;
+
+    partial void OnNoticesDismissedChanged(bool value) => RefreshNoticeVisibility();
+
+    public void RefreshNoticeVisibility()
+    {
+        OnPropertyChanged(nameof(NoticesVisible));
+        OnPropertyChanged(nameof(ShowEditRestricted));
+        OnPropertyChanged(nameof(ShowAnnotationNotice));
+    }
+
+    /// <summary>띠의 × 버튼: 이 탭에서만 숨긴다.</summary>
+    public RelayCommand DismissNoticesCommand => _dismissNotices ??= new(() => NoticesDismissed = true);
+    private RelayCommand? _dismissNotices;
+
+    /// <summary>띠의 "다시 표시 안 함": 설정에 저장해 앞으로 띄우지 않는다.</summary>
+    public RelayCommand HideNoticesForeverCommand => _hideNoticesForever ??= new(() => SetRestrictionNoticesEnabled(false));
+    private RelayCommand? _hideNoticesForever;
+
+    private void SubscribeNoticeSetting()
+    {
+        var wr = new WeakReference<DocumentTabViewModel>(this);
+        void H() { if (wr.TryGetTarget(out var t)) t.RefreshNoticeVisibility(); else RestrictionNoticesChanged -= H; }
+        RestrictionNoticesChanged += H;
+    }
+
     private void InitAnnotations()
     {
         Tools = new AnnotationToolController(
@@ -225,7 +272,7 @@ public sealed partial class DocumentTabViewModel : ObservableObject
     private async Task RefreshAnnotationNoticeAsync()
     {
         try { await Session!.AnnotationsReady; } catch (Exception) { }
-        _post(() => { OnPropertyChanged(nameof(AnnotationNotice)); OnPropertyChanged(nameof(HasAnnotationNotice)); });
+        _post(() => { OnPropertyChanged(nameof(AnnotationNotice)); OnPropertyChanged(nameof(HasAnnotationNotice)); RefreshNoticeVisibility(); });
     }
 
     // 실행 취소 등으로 없어진 주석을 선택에서 뺀다 (전용 스레드에서 오므로 UI 스레드로 넘긴다).
@@ -444,11 +491,19 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     public string Title => Session is { IsDirty: true } ? _baseTitle + " •" : _baseTitle;
 
+    /// <summary>탭에 보이는 이름(저장 안 됨 표시 없이). 길면 탭에서 이름만 줄이고 표시는 따로 둔다(0.13.0).</summary>
+    public string TabName => _baseTitle;
+
+    /// <summary>저장 안 됨(창 제목의 ●와 같은 상태).</summary>
+    public bool IsModified => Session is { IsDirty: true };
+
     /// <summary>다른 이름으로 저장 후 등 세션의 이름·변경 여부가 바뀌었을 때 부른다.</summary>
     public void RefreshTitle()
     {
         if (Session is not null) _baseTitle = Session.DisplayName;
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(TabName));
+        OnPropertyChanged(nameof(IsModified));
     }
 
     /// <summary>이벤트 구독을 풀고, 세션 해제는 호출자가 한다.</summary>

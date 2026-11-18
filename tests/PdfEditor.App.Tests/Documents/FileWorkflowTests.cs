@@ -24,7 +24,13 @@ public sealed class FakePrompts : IUserPrompts
         PasswordRetryFlags.Add(retry);
         return Task.FromResult(Passwords.Count > 0 ? Passwords.Dequeue() : null);
     }
-    public Task<UnsavedChoice> AskSaveChangesAsync(string displayName) => Task.FromResult(SaveChoice);
+    public List<bool> OfferAllFlags { get; } = [];
+    public Queue<UnsavedChoice> SaveChoices { get; } = new();
+    public Task<UnsavedChoice> AskSaveChangesAsync(string displayName, bool offerAll = false)
+    {
+        OfferAllFlags.Add(offerAll);
+        return Task.FromResult(SaveChoices.Count > 0 ? SaveChoices.Dequeue() : SaveChoice);
+    }
     public string? PickedFile { get; set; }
     public IReadOnlyList<string> PickedFiles { get; set; } = [];
     public InsertPagesRequest? InsertRequest { get; set; }
@@ -274,6 +280,36 @@ public class FileWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ConfirmClose_WhileSaveInProgress_WaitsForSave_AndDoesNotAskAgain()
+    {
+        var wf = Wf();
+        var s = await wf.NewAsync(); _sessions.Add(s);
+        s.MarkModified();
+        _p.SavePicks.Enqueue(P("inflight.pdf"));
+        _p.SaveChoice = UnsavedChoice.Cancel;   // 물으면 취소가 돼 false가 된다
+        var saving = wf.SaveAsAsync(s);         // 저장이 아직 끝나지 않은 채로(저장 단추가 눌려 비활성인 상태)
+        Assert.True(await wf.ConfirmCloseAsync(s));
+        Assert.True(await saving);
+        Assert.Empty(_p.OfferAllFlags);         // "저장할까요?"를 묻지 않았다
+        Assert.True(File.Exists(P("inflight.pdf")));
+        Assert.False(s.IsDirty);
+    }
+
+    [Fact]
+    public async Task ConfirmClose_UnsavedEditAfterSave_StillAsks()
+    {
+        var wf = Wf();
+        var s = await wf.NewAsync(); _sessions.Add(s);
+        s.MarkModified();
+        _p.SavePicks.Enqueue(P("then.pdf"));
+        Assert.True(await wf.SaveAsAsync(s));
+        s.MarkModified();                        // 저장 뒤에 또 고침
+        _p.SaveChoice = UnsavedChoice.Cancel;
+        Assert.False(await wf.ConfirmCloseAsync(s));
+        Assert.Single(_p.OfferAllFlags);
+    }
+
+    [Fact]
     public async Task ConfirmClose_Dirty_Save_SavesThenTrue()
     {
         var wf = Wf();
@@ -288,5 +324,102 @@ public class FileWorkflowTests : IAsyncLifetime
         s2.MarkModified();
         _p.SavePicks.Enqueue(null);
         Assert.False(await wf.ConfirmCloseAsync(s2));
+    }
+
+    private async Task<List<DocumentSession>> ThreeDirty(FileWorkflow wf)
+    {
+        var l = new List<DocumentSession>();
+        for (int i = 0; i < 3; i++)
+        {
+            var s = await wf.NewAsync(); _sessions.Add(s);
+            s.MarkModified();
+            _p.SavePicks.Enqueue(P("all" + i + ".pdf"));
+            l.Add(s);
+        }
+        return l;
+    }
+
+    [Fact]
+    public async Task SingleClose_NeverOffersAll()
+    {
+        var wf = Wf();
+        var s = (await ThreeDirty(wf))[0];
+        _p.SaveChoice = UnsavedChoice.Discard;
+        Assert.True(await wf.ConfirmCloseAsync(s));
+        Assert.Equal([false], _p.OfferAllFlags);   // 닫기 묶음이 아니면 문서가 여럿이어도 "모두"를 보이지 않는다
+    }
+
+    [Fact]
+    public async Task Batch_OffersAllOnlyWhileMoreThanOneDirtyRemains()
+    {
+        var wf = Wf();
+        var docs = await ThreeDirty(wf);
+        using (wf.BeginCloseBatch())
+        {
+            foreach (var s in docs)
+            {
+                _p.SaveChoices.Enqueue(UnsavedChoice.Discard);
+                Assert.True(await wf.ConfirmCloseAsync(s));
+                wf.Release(s);
+            }
+        }
+        Assert.Equal([true, true, false], _p.OfferAllFlags);
+    }
+
+    [Fact]
+    public async Task Batch_SaveAll_SavesAllRemainingWithoutAsking()
+    {
+        var wf = Wf();
+        var docs = await ThreeDirty(wf);
+        using (wf.BeginCloseBatch())
+        {
+            _p.SaveChoices.Enqueue(UnsavedChoice.SaveAll);
+            foreach (var s in docs)
+            {
+                Assert.True(await wf.ConfirmCloseAsync(s));
+                wf.Release(s);
+            }
+        }
+        Assert.Single(_p.OfferAllFlags);   // 질문은 한 번뿐
+        for (int i = 0; i < 3; i++) Assert.True(File.Exists(P("all" + i + ".pdf")));
+    }
+
+    [Fact]
+    public async Task Batch_DiscardAll_DiscardsRemainingWithoutSaving_AndResetsAfterBatch()
+    {
+        var wf = Wf();
+        var docs = await ThreeDirty(wf);
+        using (wf.BeginCloseBatch())
+        {
+            _p.SaveChoices.Enqueue(UnsavedChoice.DiscardAll);
+            foreach (var s in docs)
+            {
+                Assert.True(await wf.ConfirmCloseAsync(s));
+                wf.Release(s);
+            }
+        }
+        Assert.Single(_p.OfferAllFlags);
+        for (int i = 0; i < 3; i++) Assert.False(File.Exists(P("all" + i + ".pdf")));
+        // 묶음이 끝나면 "모두" 답은 잊는다: 다음 닫기는 다시 묻는다.
+        var again = await wf.NewAsync(); _sessions.Add(again);
+        again.MarkModified();
+        _p.SaveChoices.Enqueue(UnsavedChoice.Cancel);
+        Assert.False(await wf.ConfirmCloseAsync(again));
+        Assert.Equal(2, _p.OfferAllFlags.Count);
+    }
+
+    [Fact]
+    public async Task Batch_Cancel_StopsAndKeepsRest()
+    {
+        var wf = Wf();
+        var docs = await ThreeDirty(wf);
+        using (wf.BeginCloseBatch())
+        {
+            _p.SaveChoices.Enqueue(UnsavedChoice.Discard);
+            Assert.True(await wf.ConfirmCloseAsync(docs[0])); wf.Release(docs[0]);
+            _p.SaveChoices.Enqueue(UnsavedChoice.Cancel);
+            Assert.False(await wf.ConfirmCloseAsync(docs[1]));
+        }
+        Assert.Equal(2, wf.OpenSessions.Count);
     }
 }

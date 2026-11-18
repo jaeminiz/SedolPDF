@@ -58,6 +58,36 @@ public sealed class TabTransferViewModelTests : PanelTestBase
     }
 
     [Fact]
+    public async Task TabModifiedMark_FollowsDirtyState_ThroughEditUndoAndSave_AndNameStaysSeparate()
+    {
+        var vm = NewVm();
+        await vm.OpenAsync(ThreePages());
+        var tab = vm.ActiveDocument!;
+        var s = tab.Session!;
+        var changed = new List<string?>();
+        tab.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        Assert.False(tab.IsModified);
+        Assert.Equal("three.pdf", tab.TabName);                 // 이름에는 표시가 섞이지 않는다(길면 이름만 줄여 표시는 따로 보인다)
+
+        await s.Commands.ExecuteAsync(new DeletePagesCommand([s.Pages[1].Id]));
+        await Task.Delay(50);
+        Assert.True(tab.IsModified);
+        Assert.EndsWith(" •", tab.Title);
+        Assert.Contains(nameof(DocumentTabViewModel.IsModified), changed);
+
+        await s.Commands.UndoAsync();
+        await Task.Delay(50);
+        Assert.False(tab.IsModified);
+        Assert.Equal(tab.TabName, tab.Title);
+
+        await s.Commands.ExecuteAsync(new DeletePagesCommand([s.Pages[1].Id]));
+        Assert.True(await Wf().SaveAsync(s));
+        tab.RefreshTitle();
+        Assert.False(tab.IsModified);
+    }
+
+    [Fact]
     public async Task Transfer_DoesNotReleaseOrDispose()
     {
         var vm1 = NewVm();
