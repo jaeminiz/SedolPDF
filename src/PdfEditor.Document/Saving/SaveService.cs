@@ -26,6 +26,7 @@ public sealed class SaveService(
     /// <summary>acceptLookChanges: 모양 검사에 걸려도 멈추지 않고 저장한다(사용자가 확인한 뒤). 덮어쓰는 저장이면 직전 파일을 `이름.bak.pdf`로 한 단계 남긴다.</summary>
     public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default, bool acceptLookChanges = false)
     {
+        using var total = SaveTrace.Step("0.TOTAL");
         LastHiddenTextCount = 0;
         LastLookWarnings = [];
         LastRepairedPages = [];
@@ -57,6 +58,7 @@ public sealed class SaveService(
             string? pw = s.Password;
             await s.Thread.InvokeAsync(() =>
             {
+                using var _ = SaveTrace.Step("8.verify-reopen+counts");
                 using var check = PdfDocument.Open(s.Thread, tmp, pw);
                 var actual = CollectAnnotCounts(check);
                 if (actual.Length != expected.Length)
@@ -69,7 +71,8 @@ public sealed class SaveService(
             // ④ 교체
             stage = SaveStage.Replace;
             // 편집이 있으면 덮어쓰기 전의 파일을 글꼴 출처로 보관한다(저장 뒤에도 같은 쪽의 문단을 원래 글꼴로 다시 고칠 수 있게).
-            if (s.Content.HasEdits) await Task.Run(s.RetainFontSource, ct).ConfigureAwait(false);
+            using (SaveTrace.Step("9.retain-font-source")) if (s.Content.HasEdits) await Task.Run(s.RetainFontSource, ct).ConfigureAwait(false);
+            using var replaceStep = SaveTrace.Step("10.replace-file");
             if (File.Exists(targetPath)) File.Replace(tmp, targetPath, lookWarnings.Count > 0 ? Path.ChangeExtension(targetPath, ".bak.pdf") : null);   // 모양이 달라질 수 있는 저장은 직전 파일을 한 단계 남긴다
             else File.Move(tmp, targetPath);
             LastLookWarnings = lookWarnings;
@@ -84,7 +87,7 @@ public sealed class SaveService(
         }
         // 저장한 파일의 해시를 새 "원본"으로 기록한다(복구 때 원본이 바뀌었는지 가리는 기준).
         byte[]? sha = null;
-        try { sha = System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(targetPath, ct).ConfigureAwait(false)); }
+        try { using var _ = SaveTrace.Step("11.sha256"); sha = System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(targetPath, ct).ConfigureAwait(false)); }
         catch (Exception) { /* 해시를 못 구해도 저장은 성공 */ }
         s.MarkSaved(targetPath, sha);
     }

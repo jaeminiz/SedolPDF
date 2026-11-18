@@ -45,7 +45,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         var (counts, plan, edited) = await s.Thread.InvokeAsync(() =>
         {
             // Flush는 트랜잭션이 아니다: 예외가 나면 SaveCopy 없이 그대로 던진다(원본·기존 사본 그대로).
-            var p = s.FlushIfNeeded(appearance);
+            PatchPlan p;
+            using (SaveTrace.Step("1.flush+plan")) p = s.FlushIfNeeded(appearance);
             var e = s.Content.EditedPages.Select(id => (Index: s.IndexOf(id), Edits: s.Content.For(id)))
                 .Where(x => x.Index >= 0 && x.Edits.Length > 0).ToList();
             bool patch = !p.IsEmpty && SavePolicy.CanPatch(s);
@@ -54,8 +55,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                     || x.Edits.OfType<ReplaceTextSpanEdit>().Any(te => !te.AppLines.IsDefaultOrEmpty)))
                 throw new InvalidOperationException("App-font text lines need the patch stage, which is not available for encrypted documents.");
             if (!always && e.Count == 0 && !patch) return ((int[]?)null, p, e);
-            s.Document.SaveCopy(path);
-            return ((int[]?)CollectAnnotCounts(s.Document), p, e);
+            using (SaveTrace.Step("2.pdfium-savecopy")) s.Document.SaveCopy(path);
+            using (SaveTrace.Step("3.annot-counts")) return ((int[]?)CollectAnnotCounts(s.Document), p, e);
         }, ct).ConfigureAwait(false);
         if (counts is null) return null;
         onCopied?.Invoke();
@@ -71,6 +72,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             rewrite = await s.Thread.InvokeAsync(() =>
             {
                 // 사본은 메모리로 읽어 열므로(PdfDocument.Open) 같은 경로에 다시 써도 된다.
+                using var _ = SaveTrace.Step("4.regenerate(total)");
                 return RegenerateContent(s, path, pw, edited, canRewrite, ForceContentRewrite, patcher as IContentRewriteProbe, assets ?? AnnotationAssets.Empty, AcceptLookChanges);
             }, ct).ConfigureAwait(false);
             content = true;
@@ -93,7 +95,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             if (patcher is null) throw new InvalidOperationException("Annotation patch plan needs an IAnnotationPatcher.");
             ct.ThrowIfCancellationRequested();
             string? pw = s.Password;
-            await Task.Run(() => patcher.Apply(path, pw, plan, assets ?? AnnotationAssets.Empty), ct).ConfigureAwait(false);
+            await Task.Run(() => { using var _ = SaveTrace.Step("5.pdfsharp-patch(total)"); patcher.Apply(path, pw, plan, assets ?? AnnotationAssets.Empty); }, ct).ConfigureAwait(false);
             for (int i = 0; i < counts.Length; i++) counts[i] += plan.CountDelta(i);
             patched = true;
         }
@@ -102,7 +104,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         if (rewrite is { Rewrites.Length: > 0 })
         {
             string? pw = s.Password;
-            var changed = await s.Thread.InvokeAsync(() => FindChangedPages(s.Thread, path, pw, rewrite.Look, rewrite.Masks), ct).ConfigureAwait(false);
+            var changed = await s.Thread.InvokeAsync(() => { using var _ = SaveTrace.Step("6.look-check-after-patch"); return FindChangedPages(s.Thread, path, pw, rewrite.Look, rewrite.Masks); }, ct).ConfigureAwait(false);
             if (changed.Count > 0)
             {
                 if (!AcceptLookChanges) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
@@ -116,7 +118,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         {
             ct.ThrowIfCancellationRequested();
             string? pw = s.Password;
-            repairedPages = await Task.Run(() => repairer.RepairContent(path, pw), ct).ConfigureAwait(false);
+            repairedPages = await Task.Run(() => { using var _ = SaveTrace.Step("7.content-repair-scan(total)"); return repairer.RepairContent(path, pw); }, ct).ConfigureAwait(false);
         }
         warnings.AddRange(rewrite?.Warnings ?? []);
         return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0, repairedPages, warnings);
@@ -226,8 +228,11 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             var paraPages = edited.Where(x => x.Edits.OfType<ReplaceParagraphEdit>().Any() || x.Edits.OfType<ReplaceTextSpanEdit>().Any()).Select(x => x.Index).Except(rewritePages).OrderBy(i => i).ToList();
             if (paraPages.Count > 0 && canRewrite)
             {
-                var candidates = ReadRewrites(s, path, pw, edited.Where(x => paraPages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out _, null, refCache);
-                var bad = probe?.CheckContentRewrites(path, pw, candidates, assets) ?? paraPages.ToDictionary(i => i, _ => "no content-rewrite probe");
+                ImmutableArray<PageContentRewrite> candidates;
+                using (SaveTrace.Step("4a.read-rewrites(probe input)")) candidates = ReadRewrites(s, path, pw, edited.Where(x => paraPages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out _, null, refCache);
+                IReadOnlyDictionary<int, string>? probed;
+                using (SaveTrace.Step("4b.rewrite-probe(pdfsharp dry run)")) probed = probe?.CheckContentRewrites(path, pw, candidates, assets);
+                var bad = probed ??paraPages.ToDictionary(i => i, _ => "no content-rewrite probe");
                 foreach (var i in paraPages)
                     if (bad.TryGetValue(i, out var why)) rejected[i] = why; else rewritePages.Add(i);
             }
@@ -237,6 +242,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             {
                 var active = edited.Where(x => !rewritePages.Contains(x.Index)).ToList();
                 if (active.Count == 0) break;
+                using (SaveTrace.Step("4c.pdfium-generate-pass"))
                 using (var copy = PdfDocument.Open(s.Thread, path, pw))
                 {
                     foreach (var (index, edits) in active)
@@ -250,7 +256,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                     }
                     copy.SaveCopy(gen);
                 }
-                var failed = FindChangedPages(s.Thread, gen, pw, active.Where(x => !accepted.Contains(x.Index)).ToDictionary(x => x.Index, x => look[x.Index]));
+                List<int> failed;
+                using (SaveTrace.Step("4d.look-check-pdfium-pass")) failed = FindChangedPages(s.Thread, gen, pw,active.Where(x => !accepted.Contains(x.Index)).ToDictionary(x => x.Index, x => look[x.Index]));
                 if (failed.Count == 0) { File.Move(gen, path, true); break; }
                 var retry = failed.Where(i => level[i] < 2).ToList();
                 if (retry.Count == 0)
@@ -281,7 +288,8 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
 
             // 고쳐 쓸 쪽: 사본(그 쪽은 PDFium이 건드리지 않은 원본 내용)에서 PDFium 객체 목록을 읽고, 화면에 보이는 모양(앱 글꼴 줄 포함)을 기억한다.
             var screenLook = new Dictionary<int, (byte[] Pixels, int W, int H)>();
-            var rewrites = ReadRewrites(s, path, pw, edited.Where(x => rewritePages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out var masks, screenLook, refCache);
+            ImmutableArray<PageContentRewrite> rewrites; Dictionary<int, MaskInfo> masks;
+            using (SaveTrace.Step("4e.read-rewrites+screen-look")) rewrites = ReadRewrites(s, path, pw, edited.Where(x => rewritePages.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out masks, screenLook, refCache);
             return new RewriteWork(rewrites, screenLook, masks.Count > 0 ? masks : null, warnings);
         }
         finally { try { File.Delete(gen); } catch { } }
