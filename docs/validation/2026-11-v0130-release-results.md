@@ -24,3 +24,10 @@
 | SedolPDF-0.13.0-win-x64.msix | 64190605 | 31e99a8655934de6193cd3a7013bd01d11d0af223d0b35fe343ff9cc09ca29d1 |
 
 MSIX는 메인 폴더에서 만들어 `store-identity.json`을 썼고, Identity Name `ParkJaemin.SedolPDF`, Version `0.13.0.0`.
+
+## 배포
+- 커밋: 26e6165 이후 병합 4건 → 4ef4b2c/0d5be8b(버전·README·스토어 문구) → e7c00c9(결과 문서). 태그 v0.13.0은 e7c00c9.
+- GitHub 릴리스: https://github.com/jaeminiz/SedolPDF/releases/tag/v0.13.0 (설치 exe, 포터블 zip, SHA256SUMS-0.13.0.txt). 릴리스 노트에 알려진 한계 3건을 적음.
+- 스토어: 제출 12(MSIX 0.13.0.0 하나만, 0.12.0 패키지는 같은 제출에서 제거)를 인증에 제출함(사전 처리 중). 한국어·영어 릴리스 노트 교체. 결과는 몇 시간~영업일 3일.
+- 업로드 방법: 0.12.0과 같음(임시 로컬 서버 → 페이지 JS로 파일 입력에 넣기). 끝난 뒤 서버를 껐다.
+- 다음 버전 후보: 큰 도면 저장 속도(33쪽 5.9MB 도면에서 오래 걸림, 사용자 확인 2026-11-18).
