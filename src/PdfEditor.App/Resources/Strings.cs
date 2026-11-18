@@ -702,4 +702,8 @@ public static class Strings
     public static string Dlg_SettingsLanguageEn => Get(nameof(Dlg_SettingsLanguageEn));
     public static string Dlg_SettingsLanguageHint => Get(nameof(Dlg_SettingsLanguageHint));
     public static string Msg_LanguageRestart => Get(nameof(Msg_LanguageRestart));
+    public static string Banner_Dismiss => Get(nameof(Banner_Dismiss));
+    public static string Banner_HideForever => Get(nameof(Banner_HideForever));
+    public static string Dlg_SettingsRestrictionNotice => Get(nameof(Dlg_SettingsRestrictionNotice));
+    public static string Dlg_SettingsRestrictionNoticeHint => Get(nameof(Dlg_SettingsRestrictionNoticeHint));
 }

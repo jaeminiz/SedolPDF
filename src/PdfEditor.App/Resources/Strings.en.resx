@@ -703,4 +703,8 @@ Esc: cancel the current action · Delete: delete the selected object or annotati
   <data name="Dlg_SettingsLanguageEn" xml:space="preserve"><value>English</value></data>
   <data name="Dlg_SettingsLanguageHint" xml:space="preserve"><value>A language change takes effect the next time you start SedolPDF.</value></data>
   <data name="Msg_LanguageRestart" xml:space="preserve"><value>The display language will change when you restart SedolPDF.</value></data>
+  <data name="Banner_Dismiss" xml:space="preserve"><value>Close</value></data>
+  <data name="Banner_HideForever" xml:space="preserve"><value>Don't show again</value></data>
+  <data name="Dlg_SettingsRestrictionNotice" xml:space="preserve"><value>Show permission-restriction warnings</value></data>
+  <data name="Dlg_SettingsRestrictionNoticeHint" xml:space="preserve"><value>Shows a yellow notice bar on documents whose editing is restricted by a password or permissions. Turning it off hides only the notice; the restrictions still apply.</value></data>
 </root>

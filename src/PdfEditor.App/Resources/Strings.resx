@@ -703,4 +703,8 @@ Esc 진행 중인 동작 취소 · Delete 선택한 개체·주석 삭제</value
   <data name="Dlg_SettingsLanguageEn" xml:space="preserve"><value>English</value></data>
   <data name="Dlg_SettingsLanguageHint" xml:space="preserve"><value>언어를 바꾸면 SedolPDF를 다시 시작한 뒤부터 적용됩니다.</value></data>
   <data name="Msg_LanguageRestart" xml:space="preserve"><value>화면 언어는 SedolPDF를 다시 시작하면 바뀝니다.</value></data>
+  <data name="Banner_Dismiss" xml:space="preserve"><value>닫기</value></data>
+  <data name="Banner_HideForever" xml:space="preserve"><value>다시 표시 안 함</value></data>
+  <data name="Dlg_SettingsRestrictionNotice" xml:space="preserve"><value>권한 제한 경고 표시</value></data>
+  <data name="Dlg_SettingsRestrictionNoticeHint" xml:space="preserve"><value>암호·권한으로 수정이 제한된 문서를 열면 위에 노란 안내 띠를 보입니다. 끄면 안내만 사라지고 제한은 그대로입니다.</value></data>
 </root>
