@@ -298,9 +298,10 @@
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="docs:DocumentTabViewModel">
-                  <Grid ColumnDefinitions="*,Auto" ToolTip.Tip="{Binding Title}">
-                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <Button Grid.Column="1" Margin="6,0,0,0" Classes="tabclose" ToolTip.Tip="{x:Static res:Strings.Tip_CloseTab}" Click="OnTabCloseClick">
+                  <Grid ColumnDefinitions="*,Auto,Auto" ToolTip.Tip="{Binding Title}">
+                    <TextBlock Text="{Binding TabName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Text="•" Margin="4,0,0,0" VerticalAlignment="Center" FontWeight="Bold" IsVisible="{Binding IsModified}" />
+                    <Button Grid.Column="2" Margin="6,0,0,0" Classes="tabclose" ToolTip.Tip="{x:Static res:Strings.Tip_CloseTab}" Click="OnTabCloseClick">
                       <res:IconView Key="close" Width="10" Height="10" />
                     </Button>
                   </Grid>

@@ -491,11 +491,19 @@ public sealed partial class DocumentTabViewModel : ObservableObject
 
     public string Title => Session is { IsDirty: true } ? _baseTitle + " •" : _baseTitle;
 
+    /// <summary>탭에 보이는 이름(저장 안 됨 표시 없이). 길면 탭에서 이름만 줄이고 표시는 따로 둔다(0.13.0).</summary>
+    public string TabName => _baseTitle;
+
+    /// <summary>저장 안 됨(창 제목의 ●와 같은 상태).</summary>
+    public bool IsModified => Session is { IsDirty: true };
+
     /// <summary>다른 이름으로 저장 후 등 세션의 이름·변경 여부가 바뀌었을 때 부른다.</summary>
     public void RefreshTitle()
     {
         if (Session is not null) _baseTitle = Session.DisplayName;
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(TabName));
+        OnPropertyChanged(nameof(IsModified));
     }
 
     /// <summary>이벤트 구독을 풀고, 세션 해제는 호출자가 한다.</summary>
