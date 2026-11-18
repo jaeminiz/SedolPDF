@@ -69,6 +69,11 @@ public static class PartialReplacePlanner
             if (gi != glyphs.Count) return null;
             if (!map.Contains(-1)) return null;   // 가짜 공백이 없는 글 객체는 기존 한 줄 편집이 맞다
 
+            // 끝 공백 무시: PDFium 글은 끝에 공백이 붙어 오고 편집 칸은 끝 공백을 잘라 주므로 둘 다 끝 공백을 뺀 채 비교한다(글자 번호 → 글자 대응은 앞쪽이라 그대로 맞다).
+            oldText = oldText.TrimEnd();
+            newText = newText.TrimEnd();
+            if (oldText.Length == 0 || oldText == newText) return null;
+
             // 바뀐 구간(공통 앞·뒷부분 제외)
             int a = 0;
             while (a < oldText.Length && a < newText.Length && oldText[a] == newText[a]) a++;

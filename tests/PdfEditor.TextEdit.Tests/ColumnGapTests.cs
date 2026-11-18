@@ -33,10 +33,10 @@ public sealed class ColumnGapTests : IDisposable
 
     private string Out(string n) => Path.Combine(_dir, n);
 
-    private async Task<(DocumentSession S, ObjectRef Ref, string Src)> Open()
+    private async Task<(DocumentSession S, ObjectRef Ref, string Src)> Open(bool trailingGap = false)
     {
         string src = Out("src-" + Guid.NewGuid().ToString("N") + ".pdf");
-        ContentPdfFactory.CreateThreeColumnTjLine(src);
+        ContentPdfFactory.CreateThreeColumnTjLine(src, trailingGap);
         var s = await DocumentSession.OpenAsync(_t, src, null);
         var r = await _t.InvokeAsync(() => s.GetObjectIndex(s.Pages[0].Id).Entries.First(e => e.Type == PdfPageObjectType.Text && (e.TextPreview ?? "").StartsWith("N/S")).Ref);
         return (s, r, src);
@@ -112,5 +112,38 @@ public sealed class ColumnGapTests : IDisposable
         var (text, _) = await Read(saved);
         Assert.Contains("JUNG", text);
         Assert.DoesNotContain("E.J", text);
+    }
+
+    /// <summary>실제 표제란: PDFium 글 끝에 공백이 붙어 오고 편집 칸은 끝 공백을 자른다 → 끝 공백이 달라도 부분 바꾸기(화면·저장 모두 칸 위치 유지).</summary>
+    [Fact]
+    public async Task TrailingGapAndTrimmedEditorText_KeepsColumnsOnScreenAndAfterSave()
+    {
+        var (s, r, src) = await Open(trailingGap: true);
+        var (baseText, baseLefts) = await Read(src);
+        string raw = await _t.InvokeAsync(() => s.GetObjectText(s.Pages[0].Id, r) ?? "");
+        Assert.True(raw.Length > raw.TrimEnd().Length, "fixture should end with a (virtual) space like the real title block");
+        string edited = raw.TrimEnd().Replace("190510", "191120");   // 편집 칸이 보여 주는 글(끝 공백 없음)
+
+        var plan = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, r, edited, Font.Value));
+        Assert.Equal(ReplaceRefusal.None, plan.Refusal);
+        Assert.Contains(plan.Edits, e => e is ReplaceTextSpanEdit);   // 줄 전체 다시 쓰기가 아니다
+        await s.Commands.ExecuteAsync(new ContentEditCommand(s.Pages[0].Id, plan.Edits));
+
+        // 화면(편집 중): 칸 위치가 원래와 같다
+        var screen = await _t.InvokeAsync(() => s.GetObjectIndex(s.Pages[0].Id).Entries.Where(e => e.Type == PdfPageObjectType.Text && e.TextPreview is { Length: > 0 }).Select(e => (T: e.TextPreview!, L: e.Bounds.Left)).ToList());
+        float Scr(string w) => screen.First(x => x.T.Contains(w, StringComparison.Ordinal)).L;
+        Assert.Equal(LeftOf(baseText, baseLefts, "N/S"), Scr("N/S"), 0.5);
+        Assert.Equal(LeftOf(baseText, baseLefts, "190510"), Scr("191120"), 0.5);
+        Assert.Equal(LeftOf(baseText, baseLefts, "E.J"), Scr("E.J"), 0.5);
+
+        // 저장 후
+        string saved = Out("trail.pdf");
+        await new SaveService([], null, new PdfSharpAnnotationPatcher(Font.Value), s.Assets).SaveAsync(s, saved);
+        var (text, lefts) = await Read(saved);
+        Assert.Contains("191120", text);
+        Assert.DoesNotContain("190510", text);
+        Assert.Equal(LeftOf(baseText, baseLefts, "190510"), LeftOf(text, lefts, "191120"), 0.5);
+        Assert.Equal(LeftOf(baseText, baseLefts, "E.J"), LeftOf(text, lefts, "E.J"), 0.5);
+        Assert.Contains("-3394", TjOf(saved));
     }
 }

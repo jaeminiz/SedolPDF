@@ -182,7 +182,7 @@ public static class ContentPdfFactory
     public const string ThreeColumnLine = "N/S 190510 E.J JUNG";
     public const string ThreeColumnDigits = "0123456789";
 
-    public static void CreateThreeColumnTjLine(string path)
+    public static void CreateThreeColumnTjLine(string path, bool trailingGap = false)
     {
         string tmp = path + ".tmp";
         using (var doc = new PdfDocument())
@@ -195,7 +195,7 @@ public static class ContentPdfFactory
             {
                 g.DrawString("N/S", font, XBrushes.Black, new XPoint(60, 100));
                 g.DrawString("190510", font, XBrushes.Black, new XPoint(120, 100));
-                g.DrawString("E.J JUNG", font, XBrushes.Black, new XPoint(200, 100));
+                g.DrawString(trailingGap ? "E.J JUNG " : "E.J JUNG", font, XBrushes.Black, new XPoint(200, 100));
                 g.DrawString(ThreeColumnDigits, font, XBrushes.Black, new XPoint(60, 200));
             }
             doc.Save(tmp);
