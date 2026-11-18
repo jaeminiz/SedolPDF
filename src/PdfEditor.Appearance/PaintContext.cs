@@ -7,7 +7,16 @@ namespace PdfEditor.Appearance;
 /// 주석 글자에 쓸 글꼴을 고른 결과(0.12.0). Key는 TextRunOp.Family·FontUse.Family에 들어가 화면·AP·저장이 같은 글꼴을 찾게 한다.
 /// SyntheticBold/Italic: 가짜 굵게·기울임을 켤지(진짜 굵은 얼굴을 찾았으면 끈다). Substituted: 원하는 시스템 글꼴 대신 Noto로 그렸는가.
 /// </summary>
-public sealed record ResolvedFont(AppFont Font, string Key, bool SyntheticBold, bool SyntheticItalic, bool Substituted);
+public sealed record ResolvedFont(AppFont Font, string Key, bool SyntheticBold, bool SyntheticItalic, bool Substituted, ResolvedFont? Fallback = null)
+{
+    /// <summary>
+    /// 글자별 대체(0.13.0): 고른 글꼴이 글을 일부만 덮으면 Fallback이 그 글꼴에 없는 글자를 맡는 Noto다(Fallback.Fallback은 null).
+    /// 배치·그리기·저장은 이 목록의 자리 번호(PositionedGlyph.FontIndex)로 글꼴을 찾는다. 글이 한 글꼴로 되면 Fallback은 null이다.
+    /// </summary>
+    public IReadOnlyList<ResolvedFont> Chain => Fallback is null ? [this] : [this, Fallback];
+
+    public IReadOnlyList<AppFont> Fonts => Fallback is null ? [Font] : [Font, Fallback.Font];
+}
 
 /// <summary>
 /// Painter가 글자 배치(앱 글꼴)와 그림(AnnotationAssets)을 쓸 때 필요한 것. 화면과 PDF가 같은 글꼴을 써야 글자 위치가 같다.
@@ -63,13 +72,34 @@ public sealed class PaintContext
     /// </summary>
     public ResolvedFont? Resolve(Annotation a)
     {
-        // 고른 글꼴에 없는 글자가 있으면(예: 영문 글꼴에 한글) 그 글자가 빠지지 않게 상자 전체를 Noto로 그린다. 이름은 그대로 둔다.
+        // 고른 글꼴이 글을 다 덮으면 그 글꼴. 일부만 덮으면(예: 영문 글꼴에 한글) 가진 글자는 그 글꼴, 없는 글자만 Noto(글자별 대체, 0.13.0).
+        // 하나도 못 덮으면(예: 한글만) 상자 전체를 Noto로 그린다. 이름은 어느 경우든 그대로 둔다.
         if (a.FontName is { Length: > 0 } name && SystemFonts is { } lib
-            && lib.Find(name, a.Bold, a.Italic) is { } face && lib.Load(face) is { } sys && Covers(sys, a.Contents))
-            return new ResolvedFont(sys, face.Key, a.Bold && !face.Info.IsBold, a.Italic && !face.Info.Italic, false);
+            && lib.Find(name, a.Bold, a.Italic) is { } face && lib.Load(face) is { } sys && CoversAny(sys, a.Contents))
+        {
+            bool all = Covers(sys, a.Contents);
+            ResolvedFont? fb = all ? null
+                : FontFor(a.TextFamily, out string fbFamily) is { } nf ? new ResolvedFont(nf, fbFamily, a.Bold, a.Italic, true) : null;
+            if (all || fb is not null)
+                return new ResolvedFont(sys, face.Key, a.Bold && !face.Info.IsBold, a.Italic && !face.Info.Italic, false, fb);
+        }
         return FontFor(a.TextFamily, out string family) is { } f
             ? new ResolvedFont(f, family, a.Bold, a.Italic, Substituted: a.FontName is { Length: > 0 } && SystemFonts is not null)
             : null;
+    }
+
+    /// <summary>글꼴이 글의 글자(공백·문장부호·제어 문자 빼고) 가운데 하나라도 덮는가. 문장부호만 덮는 글꼴은 글자별 대체를 하지 않는다. 글자가 하나도 없는 글은 참.</summary>
+    public static bool CoversAny(AppFont font, string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return true;
+        bool hasStrong = false;
+        foreach (var r in text.EnumerateRunes())
+        {
+            if (System.Text.Rune.IsControl(r) || Fonts.TextLayout.IsNeutral(r.Value)) continue;
+            hasStrong = true;
+            if (font.GetGlyph(r.Value) is > 0) return true;
+        }
+        return !hasStrong;
     }
 
     /// <summary>글꼴에 글(공백·제어 문자 빼고)의 모든 글자가 있는가.</summary>

@@ -50,18 +50,29 @@ public sealed record AppearanceDrawing(ImmutableArray<PaintOp> Ops, float Opacit
     public ImmutableArray<ImageOp> Images { get; init; } = ImmutableArray<ImageOp>.Empty;
 
     /// <summary>글자 묶음이 쓴 글자의 코드포인트·CID·폭·원문. 글꼴 서브셋을 만들 때 쓴다(PatchPlanBuilder).</summary>
-    public FontUse CollectFontUse()
+    public FontUse CollectFontUse() => CollectFontUses() is { Count: > 0 } u ? u[0].Use : new FontUse([], [], "");
+
+    /// <summary>
+    /// 글꼴 자원(F1, F2 …)마다 쓴 글자 모음(0.13.0 글자별 대체: 고른 글꼴 F1, 대체 글꼴 F2). 자원 이름 순서(F1이 먼저).
+    /// 글꼴이 하나면 요소 하나이고 예전 <see cref="CollectFontUse"/>와 같다.
+    /// </summary>
+    public IReadOnlyList<(string Resource, FontUse Use)> CollectFontUses()
     {
-        var cps = new SortedSet<int>();
-        var glyphs = new List<GlyphUse>();
-        var seen = new HashSet<(int, string)>();
-        foreach (var run in Texts)
-            foreach (var g in run.Glyphs)
-            {
-                foreach (var r in g.Text.EnumerateRunes()) cps.Add(r.Value);
-                if (!seen.Add((g.Cid, g.Text))) continue;
-                glyphs.Add(new GlyphUse(g.Cid, run.SizePt > 0 ? (int)Math.Round(g.Advance * 1000f / run.SizePt) : 0, g.Text));
-            }
-        return new FontUse([.. cps], [.. glyphs], Texts.FirstOrDefault()?.Family ?? "");
+        var result = new List<(string, FontUse)>();
+        foreach (var group in Texts.Where(t => !t.Glyphs.IsEmpty).GroupBy(t => t.FontResource).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var cps = new SortedSet<int>();
+            var glyphs = new List<GlyphUse>();
+            var seen = new HashSet<(int, string)>();
+            foreach (var run in group)
+                foreach (var g in run.Glyphs)
+                {
+                    foreach (var r in g.Text.EnumerateRunes()) cps.Add(r.Value);
+                    if (!seen.Add((g.Cid, g.Text))) continue;
+                    glyphs.Add(new GlyphUse(g.Cid, run.SizePt > 0 ? (int)Math.Round(g.Advance * 1000f / run.SizePt) : 0, g.Text));
+                }
+            result.Add((group.Key, new FontUse([.. cps], [.. glyphs], group.First().Family)));
+        }
+        return result;
     }
 }

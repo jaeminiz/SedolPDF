@@ -258,7 +258,11 @@ public class SystemFontTests : IDisposable
         var ctx = new PaintContext(_font, AnnotationAssets.Empty) { SystemFonts = lib };
         var latin = ctx.Resolve(new Annotation { Kind = AnnotKind.FreeText, FontName = "Arial", Contents = "Hello" })!;
         Assert.StartsWith(SystemFontFace.KeyPrefix, latin.Key);
-        var korean = ctx.Resolve(new Annotation { Kind = AnnotKind.FreeText, FontName = "Arial", Contents = "Hello 안녕" })!;
+        // 0.13.0: 일부만 못 덮으면 글자별 대체(영문은 Arial, 한글만 Noto). 하나도 못 덮으면 전체 Noto.
+        var mixed = ctx.Resolve(new Annotation { Kind = AnnotKind.FreeText, FontName = "Arial", Contents = "Hello 안녕" })!;
+        Assert.StartsWith(SystemFontFace.KeyPrefix, mixed.Key);
+        Assert.Same(_font, mixed.Fallback!.Font);
+        var korean = ctx.Resolve(new Annotation { Kind = AnnotKind.FreeText, FontName = "Arial", Contents = "안녕" })!;
         Assert.Same(_font, korean.Font);
         Assert.True(korean.Substituted);
     }

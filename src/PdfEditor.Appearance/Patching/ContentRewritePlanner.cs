@@ -15,7 +15,11 @@ public sealed record ParagraphLineSnippet(ParagraphTextLine Line);
 /// <summary>원본 개체 복제(0.9.0): 저장 단계가 원천 쪽(Source)의 원본 SourceIndex번 객체를 M(쪽 공간 변환)만큼 옮겨 `q … Q` 조각으로 복사한다. TextColor가 있으면 글자 색을 덮어쓴다.</summary>
 public sealed record DuplicateSnippet(PageId Source, int SourceIndex, Mat M, PdfEditor.Document.Annotations.PdfColor? TextColor);
 
-public sealed record NewSnippet(string Content, FontUse? Font, string? ImageAssetId, ParagraphLineSnippet? Para = null, DuplicateSnippet? Dup = null);
+public sealed record NewSnippet(string Content, FontUse? Font, string? ImageAssetId, ParagraphLineSnippet? Para = null, DuplicateSnippet? Dup = null)
+{
+    /// <summary>글자별 글꼴 대체(0.13.0): Content의 "{F2}"가 가리킬 글꼴. 없으면 null.</summary>
+    public FontUse? Fallback { get; init; }
+}
 
 /// <summary>한 쪽의 편집 기록을 내용 스트림 고쳐 쓰기용으로 풀어 놓은 것(M4x). <see cref="Failure"/>가 있으면 이 방식으로 저장할 수 없다.</summary>
 public sealed class ContentRewritePlan
@@ -196,7 +200,7 @@ public static class ContentRewritePlanner
                 if (x.M != Mat.Identity) sb.Append(Ops(x.M)).Append(" cm\n");
                 sb.Append(t.Line.Content);
                 if (sb[^1] != '\n') sb.Append('\n');
-                return new NewSnippet(sb.ToString(), t.Line.Font, null);
+                return new NewSnippet(sb.ToString(), t.Line.Font, null) { Fallback = t.Line.FallbackFont };
             }
         }
     }

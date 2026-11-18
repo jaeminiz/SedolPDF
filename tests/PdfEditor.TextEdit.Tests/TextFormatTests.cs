@@ -191,6 +191,59 @@ public sealed class TextFormatTests : IDisposable
         Assert.Equal("", noto.Line.Font.Family);
     }
 
+    /// <summary>0.13.0 글자별 대체: Arial에 없는 한글만 Noto로 쓴다. 저장하면 두 글꼴이 다 들어 있고 PDFium이 글자를 같게 읽는다.</summary>
+    [Fact]
+    public async Task PlanReplace_ArialWithKorean_SplitsFonts_AndSaves()
+    {
+        if (Lib("arial") is not { } lib) return;
+        const string text = "Tank 탱크 A-1";
+        var s = await OpenNew(p => ContentPdfFactory.CreateDocumentLike(p));
+        var line = await ArialLine(s);
+        var plan = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, line.Ref, text, Font.Value,
+            format: new TextFormatOverride(FontName: "Arial"), systemFonts: lib));
+        var app = plan.Edits.OfType<InsertAppTextEdit>().Single();
+        Assert.Equal("Arial", app.Line.FontName);
+        Assert.StartsWith(SystemFontFace.KeyPrefix, app.Line.Font.Family);
+        Assert.NotNull(app.Line.FallbackFont);
+        Assert.Equal("", app.Line.FallbackFont!.Family);
+        Assert.Contains("{F2}", app.Line.Content);
+        await s.Commands.ExecuteAsync(new ContentEditCommand(s.Pages[0].Id, plan.Edits));
+
+        string saved = Path.Combine(_dir, "mixed.pdf");
+        using (var patcher = PdfSharpAnnotationPatcher.Shared(() => Font.Value, null, lib))
+            await new SaveService([], null, patcher, s.Assets).SaveAsync(s, saved);
+        var s2 = await DocumentSession.OpenAsync(_t, saved, null);
+        _sessions.Add(s2);
+        var (fonts, got) = await _t.InvokeAsync(() =>
+        {
+            var entries = s2.GetObjectIndex(s2.Pages[0].Id).Entries;
+            var names = entries.Select(x => s2.GetReplay(s2.Pages[0].Id).Resolve(x.Ref)?.Font?.BaseName ?? "").ToList();
+            return (names, string.Concat(entries.Select(x => x.TextPreview)));
+        });
+        Assert.True(fonts.Any(n => n.EndsWith("+Arial", StringComparison.Ordinal) || n.EndsWith("+ArialMT", StringComparison.Ordinal)), string.Join("| ", fonts));
+        Assert.Contains(fonts, n => n.Contains("NotoSansKR", StringComparison.Ordinal));
+        foreach (char c in "Tank탱크A-1") Assert.Contains(c, got);
+    }
+
+    [Fact]
+    public async Task PlanReplace_ArialLatinOrKoreanOnly_StaysSingleFont()
+    {
+        if (Lib("arial") is not { } lib) return;
+        var s = await OpenNew(p => ContentPdfFactory.CreateDocumentLike(p));
+        var line = await ArialLine(s);
+        var latin = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, line.Ref, "Tank A-1", Font.Value,
+            format: new TextFormatOverride(FontName: "Arial"), systemFonts: lib));
+        var l = latin.Edits.OfType<InsertAppTextEdit>().Single();
+        Assert.Null(l.Line.FallbackFont);
+        Assert.StartsWith(SystemFontFace.KeyPrefix, l.Line.Font.Family);
+        Assert.DoesNotContain("{F2}", l.Line.Content);
+        var korean = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, line.Ref, "탱크 시험", Font.Value,
+            format: new TextFormatOverride(FontName: "Arial"), systemFonts: lib));
+        var k = korean.Edits.OfType<InsertAppTextEdit>().Single();
+        Assert.Null(k.Line.FallbackFont);
+        Assert.Equal("", k.Line.Font.Family);   // 지금과 같다: 전부 Noto
+    }
+
     [Fact]
     public async Task PlanReplace_ItalicOnAppLine_KeepsExistingBold()
     {

@@ -29,6 +29,7 @@ public sealed class PdfAppearanceSource : IAppearanceSource
     public PatchAppearance BuildPatchAppearance(Annotation a, int pageRotation)
     {
         var d = AnnotationPainter.Paint(a, pageRotation, _ctx);
-        return new PatchAppearance(PdfContentWriter.Write(d), a.Rect, d.CollectFontUse());
+        var uses = d.CollectFontUses();
+        return new PatchAppearance(PdfContentWriter.Write(d), a.Rect, d.CollectFontUse()) { ExtraFonts = [.. uses.Skip(1).Select(u => (u.Resource, u.Use))] };
     }
 }

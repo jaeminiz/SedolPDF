@@ -802,8 +802,8 @@ public sealed partial class DocumentView
     {
         try
         {
-            if (DocumentTabViewModel.Appearance?.Appearance.Context.Resolve(a)?.Font is not { } font) return;
-            var laid = TextLayout.Layout(font, text, a.FontSizePt, float.PositiveInfinity, TextAlign.Left, new PdfPointF(0, 0));
+            if (DocumentTabViewModel.Appearance?.Appearance.Context.Resolve(a)?.Fonts is not { } fonts) return;
+            var laid = TextLayout.Layout(fonts, text, a.FontSizePt, float.PositiveInfinity, TextAlign.Left, new PdfPointF(0, 0));
             if (laid.MissingCodepoints.IsDefaultOrEmpty) return;
             st.Tab.RaiseNotice(string.Format(Strings.Msg_GlyphMissing, string.Join(" ", laid.MissingCodepoints.Select(char.ConvertFromUtf32))));
         }

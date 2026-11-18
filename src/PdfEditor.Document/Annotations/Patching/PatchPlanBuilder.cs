@@ -184,7 +184,7 @@ public static class PatchPlanBuilder
                     ? a.Line.Content
                     : "q\n" + string.Join(' ', new[] { m.A, m.B, m.C, m.D, m.E, m.F }.Select(v => v.ToString("0.#####", CultureInfo.InvariantCulture)))
                       + " cm\n" + a.Line.Content + "Q\n";
-                list.Add(new PageContentAppend(pageIndex, content, a.Line.Font));
+                list.Add(new PageContentAppend(pageIndex, content, a.Line.Font) { Fallback = a.Line.FallbackFont });
             }
         }
         return list.ToImmutable();
@@ -483,6 +483,7 @@ public static class PatchPlanBuilder
         if (isNew) ops.Add(new SetString("/CreationDate", PdfDate.Format(m.CreatedAt ?? m.ModifiedAt ?? DateTimeOffset.Now)));
 
         if (!ap.Font.Glyphs.IsDefaultOrEmpty) ops.Add(new AddApFont("F1", ap.Font));
+        foreach (var (res, use) in ap.ExtraFonts) ops.Add(new AddApFont(res, use));
         return ops.ToImmutable();
     }
 

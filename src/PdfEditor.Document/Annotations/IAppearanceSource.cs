@@ -4,7 +4,11 @@ using PdfEditor.Document.Annotations.Patching;
 namespace PdfEditor.Document.Annotations;
 
 /// <summary>패치 길 주석의 AP: 내용 스트림, 경계(= 주석 Rect), 쓴 글자(글꼴 서브셋용).</summary>
-public sealed record PatchAppearance(string Content, PdfRectF BBox, FontUse Font);
+public sealed record PatchAppearance(string Content, PdfRectF BBox, FontUse Font)
+{
+    /// <summary>글자별 글꼴 대체(0.13.0): F1(<see cref="Font"/>) 말고 AP에 더 넣을 글꼴(자원 이름, 글자 모음). 대체가 없으면 비어 있다.</summary>
+    public IReadOnlyList<(string Resource, FontUse Font)> ExtraFonts { get; init; } = [];
+}
 
 /// <summary>주석의 AP 내용 스트림을 만드는 쪽(구현은 Appearance 모듈).</summary>
 public interface IAppearanceSource
