@@ -179,14 +179,43 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         }
     }
 
-    public async Task<bool> SaveAsync(DocumentSession s)
+    // 저장 중인 세션과 그 저장의 결과. 저장하는 동안 저장 단추는 눌린 채(비활성)라 사용자는 끝난 줄 알고 바로 닫을 수 있다 —
+    // 그때 닫기 확인이 아직 안 끝난 저장을 못 보고 "저장할까요?"를 다시 묻지 않도록, 닫기 확인은 진행 중인 저장을 먼저 기다린다.
+    private readonly Dictionary<DocumentSession, Task<bool>> _saving = [];
+
+    private async Task<bool> Tracked(DocumentSession s, Func<Task<bool>> run)
+    {
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _saving[s] = tcs.Task;
+        try
+        {
+            bool ok = await run().ConfigureAwait(true);
+            tcs.TrySetResult(ok);
+            return ok;
+        }
+        catch (Exception)
+        {
+            tcs.TrySetResult(false);
+            throw;
+        }
+        finally
+        {
+            if (_saving.TryGetValue(s, out var cur) && ReferenceEquals(cur, tcs.Task)) _saving.Remove(s);
+        }
+    }
+
+    public Task<bool> SaveAsync(DocumentSession s) => Tracked(s, () => SaveCoreAsync(s));
+
+    private async Task<bool> SaveCoreAsync(DocumentSession s)
     {
         using var _ = MarkBusy(s);
         if (s.FilePath is null || !CanOverwrite(s)) return await SaveAsAsync(s).ConfigureAwait(true);
         return await TrySaveAsync(s, s.FilePath).ConfigureAwait(true);
     }
 
-    public async Task<bool> SaveAsAsync(DocumentSession s)
+    public Task<bool> SaveAsAsync(DocumentSession s) => Tracked(s, () => SaveAsCoreAsync(s));
+
+    private async Task<bool> SaveAsCoreAsync(DocumentSession s)
     {
         using var _ = MarkBusy(s);
         // 암호화가 유지되지 않으면 사용자에게 먼저 알린다 (V6, 설계서 8.2).
@@ -246,6 +275,7 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
     /// <summary>닫아도 되면 true. 변경이 있으면 저장/저장 안 함/취소(여러 문서를 닫는 중이면 모두 저장/모두 저장 안 함도)를 묻는다.</summary>
     public async Task<bool> ConfirmCloseAsync(DocumentSession s)
     {
+        if (_saving.TryGetValue(s, out var inFlight)) await inFlight.ConfigureAwait(true);   // 진행 중인 저장이 끝난 뒤의 상태로 판단한다
         if (!s.IsDirty) return true;
         var choice = _batchAnswer
             ?? await prompts.AskSaveChangesAsync(s.DisplayName, _batchDepth > 0 && _open.Count(o => o.IsDirty) > 1).ConfigureAwait(true);

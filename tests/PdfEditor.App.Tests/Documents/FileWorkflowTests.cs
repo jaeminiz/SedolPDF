@@ -280,6 +280,36 @@ public class FileWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ConfirmClose_WhileSaveInProgress_WaitsForSave_AndDoesNotAskAgain()
+    {
+        var wf = Wf();
+        var s = await wf.NewAsync(); _sessions.Add(s);
+        s.MarkModified();
+        _p.SavePicks.Enqueue(P("inflight.pdf"));
+        _p.SaveChoice = UnsavedChoice.Cancel;   // 물으면 취소가 돼 false가 된다
+        var saving = wf.SaveAsAsync(s);         // 저장이 아직 끝나지 않은 채로(저장 단추가 눌려 비활성인 상태)
+        Assert.True(await wf.ConfirmCloseAsync(s));
+        Assert.True(await saving);
+        Assert.Empty(_p.OfferAllFlags);         // "저장할까요?"를 묻지 않았다
+        Assert.True(File.Exists(P("inflight.pdf")));
+        Assert.False(s.IsDirty);
+    }
+
+    [Fact]
+    public async Task ConfirmClose_UnsavedEditAfterSave_StillAsks()
+    {
+        var wf = Wf();
+        var s = await wf.NewAsync(); _sessions.Add(s);
+        s.MarkModified();
+        _p.SavePicks.Enqueue(P("then.pdf"));
+        Assert.True(await wf.SaveAsAsync(s));
+        s.MarkModified();                        // 저장 뒤에 또 고침
+        _p.SaveChoice = UnsavedChoice.Cancel;
+        Assert.False(await wf.ConfirmCloseAsync(s));
+        Assert.Single(_p.OfferAllFlags);
+    }
+
+    [Fact]
     public async Task ConfirmClose_Dirty_Save_SavesThenTrue()
     {
         var wf = Wf();
