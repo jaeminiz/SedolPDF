@@ -47,3 +47,31 @@ public static class ContentRepairCache
         Clean[key] = 0;
     }
 }
+
+/// <summary>0.14.0 안 A: 문서를 연 뒤 원본 바이트의 모든 쪽을 미리 검사해 깨끗한 쪽의 지문을 <see cref="ContentRepairCache"/>에 채운다.</summary>
+public static class ContentPrescan
+{
+    /// <summary>
+    /// 동기 함수(배경 스레드에서 부를 것). 취소하면 일찍 끝난다. 암호 문서·열 수 없는 파일은 아무것도 하지 않는다.
+    /// 풀기(PDFsharp)는 순서대로, 해석·판단은 쪽마다 병렬(최대 <paramref name="maxParallelism"/>)로 한다. 예외를 던지지 않는다.
+    /// </summary>
+    public static void Run(byte[] bytes, CancellationToken ct, int maxParallelism = 0)
+    {
+        try
+        {
+            if (maxParallelism <= 0) maxParallelism = Math.Max(1, Environment.ProcessorCount / 2);
+            using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(bytes), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            const int Batch = 16;
+            var opt = new ParallelOptions { MaxDegreeOfParallelism = maxParallelism, CancellationToken = ct };
+            for (int b = 0; b < doc.PageCount; b += Batch)
+            {
+                ct.ThrowIfCancellationRequested();
+                int n = Math.Min(Batch, doc.PageCount - b);
+                var streams = new IReadOnlyList<byte[]>?[n];
+                for (int j = 0; j < n; j++) streams[j] = PageContent.LoadStreams(doc.Pages[b + j]).Streams;
+                Parallel.For(0, n, opt, j => { if (streams[j] is { } s) ContentRepair.RepairStreamsCached(s); });
+            }
+        }
+        catch (Exception) { /* 취소·암호·깨진 파일: 미리 검사는 덤이다. 저장은 그냥 검사한다. */ }
+    }
+}

@@ -220,6 +220,29 @@ public sealed class DocumentSession : IAsyncDisposable
         var ids = _order.ToArray();
         if (defer) _originalsGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         AnnotationsReady = LoadOriginalsAsync(ids, bytes, password);
+        StartPrescan(bytes, password);
+    }
+
+    // 0.14.0: 저장 때 "쪽 내용 고치기 검사"를 건너뛰도록, 연 뒤 배경에서 모든 쪽을 미리 검사해 지문 캐시를 채운다(ContentRepairCache).
+    // 암호 문서는 저장도 이 검사를 안 하므로 건너뛴다. 닫으면 취소. 저장과 겹쳐도 저장은 기다리지 않고 그냥 검사한다.
+    private readonly CancellationTokenSource _prescanCts = new();
+
+    private void StartPrescan(byte[] bytes, string? password)
+    {
+        if (IsEncrypted || password is not null) return;
+        var gate = _originalsGate;
+        var ct = _prescanCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // 첫 화면 타일을 먼저 그리게 한다(원본 주석 불러오기와 같은 문). 문이 없으면 짧게 기다렸다 시작.
+                await Task.WhenAny(gate?.Task ?? Task.Delay(300, ct), Task.Delay(OriginalsGateTimeoutMs, ct)).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+                PdfEditor.ContentStream.ContentPrescan.Run(bytes, ct);
+            }
+            catch (Exception) { /* 취소 등: 덤이다 */ }
+        }, ct);
     }
 
     // 화면이 문서를 열 때만 쓴다: 첫 화면 타일이 PDFium 스레드를 먼저 쓰도록 주석 개수 세기를 미룬다.
@@ -588,6 +611,7 @@ public sealed class DocumentSession : IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        try { _prescanCts.Cancel(); } catch (ObjectDisposedException) { }
         try
         {
             await Thread.InvokeAsync(() =>

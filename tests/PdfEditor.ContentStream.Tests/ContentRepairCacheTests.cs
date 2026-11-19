@@ -3,6 +3,7 @@ using System.Text;
 namespace PdfEditor.ContentStream.Tests;
 
 /// <summary>0.14.0 안 A: 내용 지문 캐시. 전역 캐시를 쓰므로 다른 시험과 겹치지 않게 시험마다 고유한 내용을 쓴다.</summary>
+[Collection("RepairCache")]
 public class ContentRepairCacheTests
 {
     private static List<byte[]> S(params string[] s) => s.Select(x => Encoding.Latin1.GetBytes(x)).ToList();
