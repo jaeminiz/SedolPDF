@@ -1,4 +1,4 @@
-using Pdf.Native;
+﻿using Pdf.Native;
 using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Annotations.Patching;
 
@@ -26,6 +26,7 @@ public sealed class SaveService(
     /// <summary>acceptLookChanges: 모양 검사에 걸려도 멈추지 않고 저장한다(사용자가 확인한 뒤). 덮어쓰는 저장이면 직전 파일을 `이름.bak.pdf`로 한 단계 남긴다.</summary>
     public async Task SaveAsync(DocumentSession s, string targetPath, CancellationToken ct = default, bool acceptLookChanges = false)
     {
+        using var total = SaveTrace.Step("0.TOTAL");
         LastHiddenTextCount = 0;
         LastLookWarnings = [];
         LastRepairedPages = [];
@@ -41,6 +42,7 @@ public sealed class SaveService(
             // 사본을 쓴 뒤(내용 확정·패치)의 실패는 PostProcess 단계로 알린다.
             var built = await output.BuildAsync(s, tmp, ct, onCopied: () => stage = SaveStage.PostProcess).ConfigureAwait(false);
             int[] expected = built.ExpectedAnnotCounts;
+            int[]? rawBaseline = built.RawAnnotBaseline;
             LastHiddenTextCount = built.HiddenTextCount;
             repaired = built.RepairedPages ?? [];
             lookWarnings = built.LookWarnings ?? [];
@@ -57,19 +59,35 @@ public sealed class SaveService(
             string? pw = s.Password;
             await s.Thread.InvokeAsync(() =>
             {
+                using var _ = SaveTrace.Step("8.verify-reopen+counts");
                 using var check = PdfDocument.Open(s.Thread, tmp, pw);
-                var actual = CollectAnnotCounts(check);
-                if (actual.Length != expected.Length)
-                    throw new InvalidDataException($"쪽 수 불일치: 기대 {expected.Length}, 실제 {actual.Length}");
-                for (int i = 0; i < actual.Length; i++)
-                    if (actual[i] != expected[i])
-                        throw new InvalidDataException($"{i + 1}쪽 주석 수 불일치: 기대 {expected[i]}, 실제 {actual[i]}");
+                if (check.PageCount != expected.Length)
+                    throw new InvalidDataException($"쪽 수 불일치: 기대 {expected.Length}, 실제 {check.PageCount}");
+                // 0.14.0: 주석을 건드리지 않은 쪽(rawBaseline[i] >= 0)은 PDFium으로 쪽을 불러 세지 않고, 사본 때의 /Annots 원시 길이와 최종 파일의 것을 비교한다(+ 가벼운 쪽 크기 확인).
+                // 나머지 쪽(바뀐 쪽·암호 문서·원시 길이를 못 읽은 경우)은 예전처럼 PDFium으로 센다.
+                int[]? rawFinal = rawBaseline is null ? null : RawAnnotCounts.TryRead(tmp, pw);
+                if (rawFinal is not null && rawFinal.Length != expected.Length) rawFinal = null;
+                for (int i = 0; i < expected.Length; i++)
+                {
+                    if (rawFinal is not null && rawBaseline![i] >= 0)
+                    {
+                        check.GetPageSizePt(i);
+                        if (rawFinal[i] != rawBaseline[i])
+                            throw new InvalidDataException($"{i + 1}쪽 주석 수 불일치: 기대 {rawBaseline[i]}, 실제 {rawFinal[i]}");
+                        continue;
+                    }
+                    using var page = check.LoadPage(i);
+                    int actual = page.AnnotationCount;
+                    if (actual != expected[i])
+                        throw new InvalidDataException($"{i + 1}쪽 주석 수 불일치: 기대 {expected[i]}, 실제 {actual}");
+                }
             }, ct).ConfigureAwait(false);
 
             // ④ 교체
             stage = SaveStage.Replace;
             // 편집이 있으면 덮어쓰기 전의 파일을 글꼴 출처로 보관한다(저장 뒤에도 같은 쪽의 문단을 원래 글꼴로 다시 고칠 수 있게).
-            if (s.Content.HasEdits) await Task.Run(s.RetainFontSource, ct).ConfigureAwait(false);
+            using (SaveTrace.Step("9.retain-font-source")) if (s.Content.HasEdits) await Task.Run(s.RetainFontSource, ct).ConfigureAwait(false);
+            using var replaceStep = SaveTrace.Step("10.replace-file");
             if (File.Exists(targetPath)) File.Replace(tmp, targetPath, lookWarnings.Count > 0 ? Path.ChangeExtension(targetPath, ".bak.pdf") : null);   // 모양이 달라질 수 있는 저장은 직전 파일을 한 단계 남긴다
             else File.Move(tmp, targetPath);
             LastLookWarnings = lookWarnings;
@@ -84,20 +102,9 @@ public sealed class SaveService(
         }
         // 저장한 파일의 해시를 새 "원본"으로 기록한다(복구 때 원본이 바뀌었는지 가리는 기준).
         byte[]? sha = null;
-        try { sha = System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(targetPath, ct).ConfigureAwait(false)); }
+        try { using var _ = SaveTrace.Step("11.sha256"); sha = System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(targetPath, ct).ConfigureAwait(false)); }
         catch (Exception) { /* 해시를 못 구해도 저장은 성공 */ }
         s.MarkSaved(targetPath, sha);
     }
 
-    private static int[] CollectAnnotCounts(PdfDocument doc)
-    {
-        int n = doc.PageCount;
-        var counts = new int[n];
-        for (int i = 0; i < n; i++)
-        {
-            using var page = doc.LoadPage(i);
-            counts[i] = page.AnnotationCount;
-        }
-        return counts;
-    }
 }

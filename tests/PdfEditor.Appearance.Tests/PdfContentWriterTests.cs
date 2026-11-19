@@ -64,8 +64,31 @@ public class PdfContentWriterTests
             ],
         };
         Assert.Equal(
-            "q\nBT\n/F1 12 Tf\n1 0 0 rg\n1 0 0 1 10 20.5 Tm\n<1234> Tj\n1 0 0 1 16.25 20.5 Tm\n<00AB> Tj\nET\nQ\n",
+            "q\nBT\n/F1 12 Tf\n1 0 0 rg\n1 0 0 1 10 20.5 Tm\n[<1234>-20.83<00AB>] TJ\nET\nQ\n",
             PdfContentWriter.Write(d));
+    }
+
+    // 회귀(0.14.0 손 시험): 같은 기준선의 글자는 한 TJ로 써야 다시 열 때 한 덩어리로 잡힌다. 기준선이 바뀌면 새 Tm.
+    [Fact]
+    public void Writer_TextRun_SameBaselineIsOneTj_NewBaselineStartsNewTm()
+    {
+        var d = Empty() with
+        {
+            Texts =
+            [
+                new TextRunOp("F1", 10f, PdfColor.FromHex("#000000"),
+                [
+                    new PositionedGlyph(1, 1, new PdfPointF(0f, 5f), 5f, "1"),
+                    new PositionedGlyph(2, 2, new PdfPointF(5f, 5f), 5f, "2"),
+                    new PositionedGlyph(3, 3, new PdfPointF(10f, 5f), 5f, "3"),
+                    new PositionedGlyph(4, 4, new PdfPointF(0f, 20f), 5f, "4"),
+                ]),
+            ],
+        };
+        string s = PdfContentWriter.Write(d);
+        Assert.Contains("1 0 0 1 0 5 Tm\n[<0001><0002><0003>] TJ\n", s);   // 간격이 폭과 같으면 조정값 없음
+        Assert.Contains("1 0 0 1 0 20 Tm\n<0004> Tj\n", s);
+        Assert.Equal(2, s.Split(" Tm\n").Length - 1);
     }
 
     [Fact]

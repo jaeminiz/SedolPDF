@@ -61,8 +61,31 @@ public static class PdfContentWriter
             if (t.Bold)
                 sb.Append(Color(t.Color)).Append(" RG\n").Append(Num(t.SizePt * AppFontCatalog.SyntheticBoldStrokeRatio)).Append(" w\n1 j\n2 Tr\n");
             string skew = t.Italic ? Num(AppFontCatalog.SyntheticItalicSkew) : "0";   // 합성 기울임: 글자 원점 기준 전단
-            foreach (var g in t.Glyphs)
-                sb.Append("1 0 ").Append(skew).Append(" 1 ").Append(Pt(g.Origin)).Append(" Tm\n<").Append(g.Cid.ToString("X4")).Append("> Tj\n");
+            // 같은 기준선의 글자는 Tm 한 번 + TJ 하나로 쓴다(자리는 TJ 조정값으로 맞춤). 글자마다 Tm을 쓰면 PDF를 다시 열 때
+            // 글자 하나하나가 따로 잡히고 글자 추출도 쪼개진다(0.14.0 손 시험: 고친 날짜가 숫자 낱개로 잡힘).
+            var gl = t.Glyphs;
+            for (int i = 0; i < gl.Length;)
+            {
+                int j = i + 1;
+                if (t.SizePt > 0)
+                    while (j < gl.Length && Math.Abs(gl[j].Origin.Y - gl[i].Origin.Y) < 0.001f && gl[j].Origin.X >= gl[j - 1].Origin.X) j++;
+                sb.Append("1 0 ").Append(skew).Append(" 1 ").Append(Pt(gl[i].Origin)).Append(" Tm\n");
+                if (j - i == 1) { sb.Append('<').Append(gl[i].Cid.ToString("X4")).Append("> Tj\n"); i = j; continue; }
+                sb.Append('[');
+                for (int k = i; k < j; k++)
+                {
+                    sb.Append('<').Append(gl[k].Cid.ToString("X4")).Append('>');
+                    if (k + 1 < j)
+                    {
+                        // /W에 쓰인 폭(AppearanceDrawing: 폭×1000/크기 반올림)과 실제 다음 글자까지 거리의 차이만큼 TJ로 보정
+                        double natural = Math.Round(gl[k].Advance * 1000f / t.SizePt);
+                        double adj = natural - (gl[k + 1].Origin.X - gl[k].Origin.X) * 1000.0 / t.SizePt;
+                        if (Math.Abs(adj) >= 0.005) sb.Append(adj.ToString("0.##", CultureInfo.InvariantCulture));
+                    }
+                }
+                sb.Append("] TJ\n");
+                i = j;
+            }
             if (t.Bold) sb.Append("0 Tr\n");
             sb.Append("ET\n");
         }

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 
 namespace PdfEditor.ContentStream;
 
@@ -51,6 +51,22 @@ public static class ContentLexer
     private const int MaxDepth = 32;
     private const int MaxTopOperands = 20000;
     private const long MaxOps = 100_000_000;
+
+    // 연산자 이름은 거의 전부 1~3글자라 같은 문자열을 수백만 번 새로 만들지 않도록 공유한다(0.14.0, 병렬 해석에서 할당이 병목이었다).
+    private static readonly System.Collections.Frozen.FrozenDictionary<int, string> CommonKeywords = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(
+        new[] { "b", "B", "b*", "B*", "BDC", "BI", "BMC", "BT", "BX", "c", "cm", "CS", "cs", "d", "d0", "d1", "Do", "DP", "EI", "EMC", "ET", "EX", "f", "F", "f*", "G", "g", "gs", "h", "i", "ID", "j", "J", "K", "k", "l", "m", "M", "MP", "n", "q", "Q", "re", "RG", "rg", "ri", "s", "S", "SC", "sc", "SCN", "scn", "sh", "T*", "Tc", "Td", "TD", "Tf", "Tj", "TJ", "TL", "Tm", "Tr", "Ts", "Tw", "Tz", "v", "w", "W", "W*", "y", "'", "\"" }
+            .Select(k => KeyValuePair.Create(KeywordKey(Encoding.Latin1.GetBytes(k)), k)));
+
+    private static int KeywordKey(ReadOnlySpan<byte> s) => s.Length switch
+    {
+        1 => 1 << 24 | s[0],
+        2 => 2 << 24 | s[0] << 8 | s[1],
+        3 => 3 << 24 | s[0] << 16 | s[1] << 8 | s[2],
+        _ => 0,
+    };
+
+    private static string KeywordString(ReadOnlySpan<byte> s)
+        => s.Length is >= 1 and <= 3 && CommonKeywords.TryGetValue(KeywordKey(s), out var k) ? k : Encoding.Latin1.GetString(s);
 
     private static bool IsWs(byte b) => b is 0 or 9 or 10 or 12 or 13 or 32;
     private static bool IsDelim(byte b) => b is (byte)'(' or (byte)')' or (byte)'<' or (byte)'>' or (byte)'[' or (byte)']' or (byte)'{' or (byte)'}' or (byte)'/' or (byte)'%';
@@ -162,7 +178,7 @@ public static class ContentLexer
         while (p < d.Length && IsRegular(d[p])) p++;
         var span = new ReadOnlySpan<byte>(d, s, p - s);
         if (TryNumber(span, out double v)) return Tok(new Operand { Kind = OperandKind.Number, Number = v });
-        string word = Encoding.Latin1.GetString(span);
+        string word = KeywordString(span);
         return word switch
         {
             "true" => Tok(new Operand { Kind = OperandKind.Bool, Bool = true }),

@@ -8,6 +8,7 @@ using PdfEditor.Document.Annotations.Patching;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 using PdfSharp.Pdf.Advanced;
+using PdfEditor.Document.Saving;
 
 namespace PdfEditor.Appearance.Patching;
 
@@ -23,21 +24,34 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     /// </summary>
     public IReadOnlyList<int> RepairContent(string pdfPath, string? password)
     {
-        byte[] bytes = File.ReadAllBytes(pdfPath);
-        using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
+        PdfDocument doc;
+        using (SaveTrace.Step("7a.repair:read+pdfsharp-open")) doc = PdfReader.Open(new MemoryStream(File.ReadAllBytes(pdfPath)), password, PdfDocumentOpenMode.Modify);
+        using var docLife = doc;
         var repaired = new List<int>();
-        for (int i = 0; i < doc.PageCount; i++)
+        var scan = SaveTrace.Step("7b.repair:scan-all-pages");
+        // 0.14.0: 풀기(PDFsharp, 스레드 안전 아님)와 결과 적용은 순서대로, 해석·판단(순수 관리 코드)은 쪽마다 병렬로. 메모리를 아끼려 묶음으로 나눈다.
+        const int Batch = 16;
+        for (int b = 0; b < doc.PageCount; b += Batch)
         {
-            var page = doc.Pages[i];
-            var loaded = PageContent.LoadStreams(page);
-            if (loaded.Streams is null) continue;
-            var (fixedData, _, _) = ContentRepair.RepairStreams(loaded.Streams);
-            if (fixedData is null) continue;
-            page.Contents.Elements.Clear();
-            page.Contents.AppendContent().CreateStream(fixedData);
-            repaired.Add(i);
+            int n = Math.Min(Batch, doc.PageCount - b);
+            var streams = new IReadOnlyList<byte[]>?[n];
+            for (int j = 0; j < n; j++) streams[j] = PageContent.LoadStreams(doc.Pages[b + j]).Streams;
+            var fixedData = new byte[]?[n];
+            Parallel.For(0, n, j =>
+            {
+                if (streams[j] is { } s) fixedData[j] = ContentRepair.RepairStreamsCached(s).Data;
+            });
+            for (int j = 0; j < n; j++)
+            {
+                if (fixedData[j] is not { } data) continue;
+                var page = doc.Pages[b + j];
+                page.Contents.Elements.Clear();
+                page.Contents.AppendContent().CreateStream(data);
+                repaired.Add(b + j);
+            }
         }
-        if (repaired.Count > 0) doc.Save(pdfPath);
+        scan.Dispose();
+        using (SaveTrace.Step("7c.repair:save")) if (repaired.Count > 0) doc.Save(pdfPath);
         return repaired;
     }
 
@@ -123,8 +137,8 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         if (plan.IsEmpty) return;
 
         // 같은 경로로 다시 저장하므로 먼저 전부 읽어 파일을 놓는다.
-        byte[] bytes = File.ReadAllBytes(pdfPath);
-        using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
+        PdfDocument doc;
+        using (SaveTrace.Step("5a.patch:read+pdfsharp-open")) doc = PdfReader.Open(new MemoryStream(File.ReadAllBytes(pdfPath)), password, PdfDocumentOpenMode.Modify); using var docLife = doc;
 
         var pending = new List<(PdfDictionary Annot, string ParentNm, string? ReplyType, int Page)>();
         var popups = new List<(int Page, PdfDictionary Parent, EnsurePopup Op)>();
@@ -213,10 +227,10 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         if (!plan.ContentAppends.IsDefaultOrEmpty) AppendPageContents(doc, plan.ContentAppends);
 
         // ⑤ 객체 편집을 내용 스트림 직접 고쳐 쓰기로 확정(M4x) — PDFium이 못 다시 쓰는 쪽만
-        if (!plan.ContentRewrites.IsDefaultOrEmpty) ApplyContentRewrites(doc, plan.ContentRewrites, assets);
+        if (!plan.ContentRewrites.IsDefaultOrEmpty) using (SaveTrace.Step("5b.patch:content-rewrites")) ApplyContentRewrites(doc, plan.ContentRewrites, assets);
 
         // 임시 파일에만 쓴다. 안 쓰이게 된 객체는 PDFsharp이 저장할 때 버린다.
-        doc.Save(pdfPath);
+        using (SaveTrace.Step("5c.patch:pdfsharp-save")) doc.Save(pdfPath);
     }
 
     // ---- 쪽 내용 덧붙이기 (M4) ----
@@ -275,8 +289,8 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
     {
         var bad = new Dictionary<int, string>();
         if (pages.Count == 0) return bad;
-        byte[] bytes = File.ReadAllBytes(pdfPath);
-        using var doc = PdfReader.Open(new MemoryStream(bytes), password, PdfDocumentOpenMode.Modify);
+        PdfDocument doc;
+        using (SaveTrace.Step("4b1.probe:read+pdfsharp-open")) doc = PdfReader.Open(new MemoryStream(File.ReadAllBytes(pdfPath)), password, PdfDocumentOpenMode.Modify); using var docLife = doc;
         var sources = new Dictionary<int, SourceContent>();
         foreach (var rw in pages)
         {
@@ -311,7 +325,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             if (loaded.Data is null) throw new ContentRegenerationException(number, "source page: " + loaded.Failure);
             var parsed = ContentLexer.Parse(loaded.Data);
             var seg = ContentSegmenter.Segment(parsed, PageContent.XObjectResolver(sp));
-            var map = ObjectMap.Verify(seg, sr.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
+            ObjectMapResult map; using (SaveTrace.Step("x.objectmap-verify")) map = ObjectMap.Verify(seg, sr.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
             if (!map.Ok) throw new ContentRegenerationException(number, "source page: " + map.Reason);
             cache[sr.PageIndex] = new SourceContent(sp, parsed, seg);
         }
@@ -360,7 +374,7 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
             parsed = ContentLexer.Parse(loaded.Data);
             var resolver = PageContent.XObjectResolver(page);
             seg = ContentSegmenter.Segment(parsed, resolver);
-            var map = ObjectMap.Verify(seg, rw.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
+            ObjectMapResult map; using (SaveTrace.Step("x.objectmap-verify")) map = ObjectMap.Verify(seg, rw.Reference.Select(r => new ReferenceObject((ObjectKind)r.Kind, new Box(r.L, r.B, r.R, r.T))).ToList());
             if (!map.Ok) throw new ContentRegenerationException(number, map.Reason);
 
             res = ContentRewriter.Rewrite(parsed, seg, plan.ObjectEdits, null, resolver);

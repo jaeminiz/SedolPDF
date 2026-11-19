@@ -163,6 +163,16 @@ public sealed class ThumbnailsViewModel : ObservableObject, IDisposable
         if (clicked is not null) _tab.CurrentPageIndex = Math.Max(0, clicked.PageNumber - 1);
     }
 
+    /// <summary>
+    /// 칸을 눌렀을 때 그 쪽으로 이동한다. 이미 선택된 칸(예: 첫 쪽)을 스크롤로 멀어진 뒤 다시 누르면
+    /// 목록의 선택이 바뀌지 않아 SelectionChanged가 오지 않으므로, 누름 자체로 현재 쪽을 맞춘다.
+    /// </summary>
+    public void Activate(ThumbnailItem clicked)
+    {
+        int idx = Math.Max(0, clicked.PageNumber - 1);
+        if (_tab.CurrentPageIndex != idx) _tab.CurrentPageIndex = idx;
+    }
+
     // ---- 갱신 ----
 
     private void OnPagesChanged(PagesChangedEventArgs e) => _post(() => { if (!_disposed) Rebuild(); });

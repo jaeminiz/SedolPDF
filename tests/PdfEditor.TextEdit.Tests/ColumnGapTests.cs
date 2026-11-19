@@ -91,6 +91,26 @@ public sealed class ColumnGapTests : IDisposable
         Assert.Contains("-1924", tj);
     }
 
+    private async Task<List<string>> TextObjects(string pdf)
+    {
+        var s = await DocumentSession.OpenAsync(_t, pdf, null);
+        return await _t.InvokeAsync(() => s.GetObjectIndex(s.Pages[0].Id).Entries.Where(e => e.Type == PdfPageObjectType.Text).Select(e => e.TextPreview ?? "").ToList());
+    }
+
+    /// <summary>0.14.0 손 시험: 고친 줄을 다시 열면 칸마다 한 덩어리여야 한다(낱글자로 쪼개지면 안 됨).</summary>
+    [Theory]
+    [InlineData("N/S 191120 E.J JUNG", false)]
+    [InlineData("N/S 301111 E.J JUNG", false)]
+    [InlineData("N/S 191120 E.J JUNG", true)]
+    public async Task EditedLine_ReopensWithSameTextObjectCount(string newText, bool trailingGap)
+    {
+        var (s, r, src) = await Open(trailingGap);
+        var before = await TextObjects(src);
+        string saved = await EditAndSave(s, r, trailingGap ? newText.Replace(" JUNG", " JUNG") : newText, "reopen-" + Guid.NewGuid().ToString("N") + ".pdf");
+        var after = await TextObjects(saved);
+        Assert.True(before.Count == after.Count, "before: " + string.Join("|", before) + "  after: " + string.Join("|", after) + "\n" + TjOf(saved));
+    }
+
     [Fact]
     public async Task DifferentLengthEdit_KeepsLaterColumnsInPlace()
     {

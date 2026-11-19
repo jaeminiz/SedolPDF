@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Security.Cryptography;
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
@@ -220,6 +220,32 @@ public sealed class DocumentSession : IAsyncDisposable
         var ids = _order.ToArray();
         if (defer) _originalsGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         AnnotationsReady = LoadOriginalsAsync(ids, bytes, password);
+        StartPrescan(bytes, password);
+    }
+
+    // 0.14.0: 저장 때 "쪽 내용 고치기 검사"를 건너뛰도록, 연 뒤 배경에서 모든 쪽을 미리 검사해 지문 캐시를 채운다(ContentRepairCache).
+    // 암호 문서는 저장도 이 검사를 안 하므로 건너뛴다. 닫으면 취소. 저장과 겹쳐도 저장은 기다리지 않고 그냥 검사한다.
+    private readonly CancellationTokenSource _prescanCts = new();
+
+    /// <summary>미리 검사가 끝나면(또는 취소·건너뜀) 완료된다. 예외로 끝나지 않는다. 저장은 이것을 기다리지 않는다(측정·시험용).</summary>
+    public Task PrescanReady { get; private set; } = Task.CompletedTask;
+
+    private void StartPrescan(byte[] bytes, string? password)
+    {
+        if (IsEncrypted || password is not null) return;
+        var gate = _originalsGate;
+        var ct = _prescanCts.Token;
+        PrescanReady = Task.Run(async () =>
+        {
+            try
+            {
+                // 첫 화면 타일을 먼저 그리게 한다(원본 주석 불러오기와 같은 문). 문이 없으면 짧게 기다렸다 시작.
+                await Task.WhenAny(gate?.Task ?? Task.Delay(300, ct), Task.Delay(OriginalsGateTimeoutMs, ct)).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+                PdfEditor.ContentStream.ContentPrescan.Run(bytes, ct);
+            }
+            catch (Exception) { /* 취소 등: 덤이다 */ }
+        }, ct);
     }
 
     // 화면이 문서를 열 때만 쓴다: 첫 화면 타일이 PDFium 스레드를 먼저 쓰도록 주석 개수 세기를 미룬다.
@@ -237,23 +263,31 @@ public sealed class DocumentSession : IAsyncDisposable
             if (_originalsGate is { } gate)
                 await Task.WhenAny(gate.Task, Task.Delay(OriginalsGateTimeoutMs)).ConfigureAwait(false);
             var withAnnots = new List<int>();
+            var openCounts = new Dictionary<PageId, int>(ids.Length);
+            bool allCounted = true;
             for (int from = 0; from < ids.Length; from += CountChunk)
             {
                 int start = from;
                 var part = await Thread.InvokeAsync(() =>
                 {
-                    var r = new List<int>();
+                    var r = new List<(int I, int Count)>();
                     for (int i = start; i < Math.Min(ids.Length, start + CountChunk); i++)
                     {
                         int idx = _order.IndexOf(ids[i]);
-                        if (idx < 0) continue;
+                        if (idx < 0) { allCounted = false; continue; }
                         using var page = _doc.LoadPage(idx);
-                        if (page.AnnotationCount > 0) r.Add(i);
+                        r.Add((i, page.AnnotationCount));
                     }
                     return r;
                 }).ConfigureAwait(false);
-                withAnnots.AddRange(part);
+                foreach (var (i, count) in part)
+                {
+                    openCounts[ids[i]] = count;
+                    if (count > 0) withAnnots.Add(i);
+                }
             }
+            // 0.14.0: 저장이 주석을 다시 세지 않게 열 때의 쪽별 수를 남긴다(주석을 건드린 쪽은 PristineAnnotCount가 거른다).
+            if (allCounted) _openAnnotCounts = openCounts;
             if (withAnnots.Count == 0) return;
 
             IReadOnlyList<IReadOnlyList<OriginalAnnotation>> read;
@@ -333,6 +367,25 @@ public sealed class DocumentSession : IAsyncDisposable
     }
 
     // --- 명령용 변경 메서드 (전용 스레드 전용) ---
+
+    /// <summary>
+    /// 0.14.0: 열 때 센 그 쪽의 PDFium 주석 수. 주석을 한 번도 건드리지 않은 원래 쪽이고 그때 센 값이 있을 때만(아니면 null → 호출자가 센다).
+    /// 이 쪽의 주석은 저장 때마다 다시 세지 않아도 같다. 전용 스레드 전용. 암호 문서는 항상 null.
+    /// </summary>
+    internal int? PristineAnnotCount(PageId id)
+    {
+        Thread.AssertOnThread();
+        if (IsEncrypted || _openAnnotCounts is not { } m || !m.TryGetValue(id, out int c)) return null;
+        return Annotations.PageHasEdits(id) ? null : c;
+    }
+
+    private volatile Dictionary<PageId, int>? _openAnnotCounts;
+
+    internal PageId PageIdAt(int index)
+    {
+        Thread.AssertOnThread();
+        return _order[index];
+    }
 
     public int IndexOf(PageId id)
     {
@@ -588,6 +641,7 @@ public sealed class DocumentSession : IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        try { _prescanCts.Cancel(); } catch (ObjectDisposedException) { }
         try
         {
             await Thread.InvokeAsync(() =>
