@@ -29,16 +29,26 @@ public sealed class PdfSharpAnnotationPatcher(Func<byte[]> fontData) : IAnnotati
         using var docLife = doc;
         var repaired = new List<int>();
         var scan = SaveTrace.Step("7b.repair:scan-all-pages");
-        for (int i = 0; i < doc.PageCount; i++)
+        // 0.14.0: 풀기(PDFsharp, 스레드 안전 아님)와 결과 적용은 순서대로, 해석·판단(순수 관리 코드)은 쪽마다 병렬로. 메모리를 아끼려 묶음으로 나눈다.
+        const int Batch = 16;
+        for (int b = 0; b < doc.PageCount; b += Batch)
         {
-            var page = doc.Pages[i];
-            var loaded = PageContent.LoadStreams(page);
-            if (loaded.Streams is null) continue;
-            var (fixedData, _, _) = ContentRepair.RepairStreams(loaded.Streams);
-            if (fixedData is null) continue;
-            page.Contents.Elements.Clear();
-            page.Contents.AppendContent().CreateStream(fixedData);
-            repaired.Add(i);
+            int n = Math.Min(Batch, doc.PageCount - b);
+            var streams = new IReadOnlyList<byte[]>?[n];
+            for (int j = 0; j < n; j++) streams[j] = PageContent.LoadStreams(doc.Pages[b + j]).Streams;
+            var fixedData = new byte[]?[n];
+            Parallel.For(0, n, j =>
+            {
+                if (streams[j] is { } s) fixedData[j] = ContentRepair.RepairStreamsCached(s).Data;
+            });
+            for (int j = 0; j < n; j++)
+            {
+                if (fixedData[j] is not { } data) continue;
+                var page = doc.Pages[b + j];
+                page.Contents.Elements.Clear();
+                page.Contents.AppendContent().CreateStream(data);
+                repaired.Add(b + j);
+            }
         }
         scan.Dispose();
         using (SaveTrace.Step("7c.repair:save")) if (repaired.Count > 0) doc.Save(pdfPath);

@@ -177,6 +177,19 @@ public static class ContentRepair
         return false;
     }
 
+    /// <summary>
+    /// <see cref="RepairStreams"/>와 같은 결과를 내되, 같은 내용(스트림 경계 포함)이 이미 깨끗하다고 확인돼 있으면 해석하지 않는다(<see cref="ContentRepairCache"/>).
+    /// 깨끗한 결과(고칠 것 없음)는 캐시에 넣고, 고칠 것이 있는 쪽은 넣지 않는다. 스레드 안전.
+    /// </summary>
+    public static (byte[]? Data, int FragmentsRemoved, int RestoresRemoved) RepairStreamsCached(IReadOnlyList<byte[]> streams)
+    {
+        var key = ContentRepairCache.Fingerprint(streams);
+        if (ContentRepairCache.IsClean(key)) return (null, 0, 0);
+        var r = RepairStreams(streams);
+        if (r.Data is null) ContentRepairCache.MarkClean(key);
+        return r;
+    }
+
     private static readonly HashSet<string> PaintOps = ["S", "s", "f", "F", "f*", "B", "B*", "b", "b*"];
 
     /// <summary>
