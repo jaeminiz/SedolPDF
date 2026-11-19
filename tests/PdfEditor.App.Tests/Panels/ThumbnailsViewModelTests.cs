@@ -185,4 +185,16 @@ public class ThumbnailsViewModelTests : IAsyncLifetime
         Assert.True(vm.Items[1].IsCurrent);
         Assert.False(vm.Items[2].IsCurrent);
     }
+
+    // 회귀: 첫 칸이 이미 선택된 채 스크롤로 끝까지 내려간 뒤 첫 칸을 누르면(선택 변경 이벤트 없음) 첫 쪽으로 이동해야 한다.
+    [Fact]
+    public async Task Thumbnails_Activate_GoesToPage_EvenWhenAlreadySelected()
+    {
+        var (s, tab, vm, _) = await SetUp(3);
+        vm.SetSelection([vm.Items[0]], vm.Items[0]);
+        tab.CurrentPageIndex = 2;   // 스크롤이 현재 쪽을 끝으로 옮김(선택은 그대로)
+        vm.Activate(vm.Items[0]);
+        Assert.Equal(0, tab.CurrentPageIndex);
+        Assert.True(vm.Items[0].IsCurrent);
+    }
 }

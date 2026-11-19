@@ -73,9 +73,12 @@ public sealed partial class ThumbnailsPanel : UserControl
     private void OnThumbPressed(object? sender, PointerPressedEventArgs e)
     {
         EndDrag();
-        if (!e.GetCurrentPoint(List).Properties.IsLeftButtonPressed || _vm?.Commands is null) return;
+        if (!e.GetCurrentPoint(List).Properties.IsLeftButtonPressed) return;
         var item = (e.Source as Avalonia.Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
         if (item?.DataContext is not ThumbnailItem it) return;
+        // 수정키 없이 누르면 그 쪽으로 이동(이미 선택된 칸이라 선택 변경 이벤트가 없어도).
+        if (e.KeyModifiers == KeyModifiers.None) _vm?.Activate(it);
+        if (_vm?.Commands is null) return;
         _pressed = it;
         _pressPoint = e.GetPosition(List);
         // 여러 쪽을 고른 채 그중 하나를 눌러 끌 수 있도록, 수정키 없이 고른 쪽을 누르면 선택 정리는 손을 뗄 때(끌지 않았을 때) 한다.

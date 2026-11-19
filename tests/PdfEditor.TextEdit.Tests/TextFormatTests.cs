@@ -181,8 +181,8 @@ public sealed class TextFormatTests : IDisposable
         _sessions.Add(s2);
         var fonts = await _t.InvokeAsync(() => s2.GetObjectIndex(s2.Pages[0].Id).Entries
             .Select(x => x.TextPreview + " | " + (s2.GetReplay(s2.Pages[0].Id).Resolve(x.Ref)?.Font?.BaseName ?? "")).ToList());
-        // 앱 글꼴 줄은 글자마다 Tm으로 놓으므로 PDFium은 글자 하나씩을 객체로 본다: 그 글자들이 맑은 고딕 서브셋이어야 한다.
-        Assert.True(fonts.Count(n => n.EndsWith("+MalgunGothic", StringComparison.Ordinal)) >= ContentPdfFactory.LineArial.Count(c => c != ' '), string.Join("\n", fonts));
+        // 앱 글꼴 줄은 같은 기준선이면 TJ 하나로 쓰므로(0.14.0: 다시 열 때 한 줄로 잡힘) 그 한 줄이 맑은 고딕 서브셋 글꼴이어야 한다.
+        Assert.Contains(fonts, n => n.StartsWith(ContentPdfFactory.LineArial, StringComparison.Ordinal) && n.EndsWith("+MalgunGothic", StringComparison.Ordinal));
 
         var back = await _t.InvokeAsync(() => TextEditPlanner.PlanReplace(s, s.Pages[0].Id, ObjectRef.Inserted(app.Id), ContentPdfFactory.LineArial, Font.Value,
             format: new TextFormatOverride(Serif: false), systemFonts: lib));
