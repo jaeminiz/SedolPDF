@@ -260,23 +260,31 @@ public sealed class DocumentSession : IAsyncDisposable
             if (_originalsGate is { } gate)
                 await Task.WhenAny(gate.Task, Task.Delay(OriginalsGateTimeoutMs)).ConfigureAwait(false);
             var withAnnots = new List<int>();
+            var openCounts = new Dictionary<PageId, int>(ids.Length);
+            bool allCounted = true;
             for (int from = 0; from < ids.Length; from += CountChunk)
             {
                 int start = from;
                 var part = await Thread.InvokeAsync(() =>
                 {
-                    var r = new List<int>();
+                    var r = new List<(int I, int Count)>();
                     for (int i = start; i < Math.Min(ids.Length, start + CountChunk); i++)
                     {
                         int idx = _order.IndexOf(ids[i]);
-                        if (idx < 0) continue;
+                        if (idx < 0) { allCounted = false; continue; }
                         using var page = _doc.LoadPage(idx);
-                        if (page.AnnotationCount > 0) r.Add(i);
+                        r.Add((i, page.AnnotationCount));
                     }
                     return r;
                 }).ConfigureAwait(false);
-                withAnnots.AddRange(part);
+                foreach (var (i, count) in part)
+                {
+                    openCounts[ids[i]] = count;
+                    if (count > 0) withAnnots.Add(i);
+                }
             }
+            // 0.14.0: 저장이 주석을 다시 세지 않게 열 때의 쪽별 수를 남긴다(주석을 건드린 쪽은 PristineAnnotCount가 거른다).
+            if (allCounted) _openAnnotCounts = openCounts;
             if (withAnnots.Count == 0) return;
 
             IReadOnlyList<IReadOnlyList<OriginalAnnotation>> read;
@@ -356,6 +364,25 @@ public sealed class DocumentSession : IAsyncDisposable
     }
 
     // --- 명령용 변경 메서드 (전용 스레드 전용) ---
+
+    /// <summary>
+    /// 0.14.0: 열 때 센 그 쪽의 PDFium 주석 수. 주석을 한 번도 건드리지 않은 원래 쪽이고 그때 센 값이 있을 때만(아니면 null → 호출자가 센다).
+    /// 이 쪽의 주석은 저장 때마다 다시 세지 않아도 같다. 전용 스레드 전용. 암호 문서는 항상 null.
+    /// </summary>
+    internal int? PristineAnnotCount(PageId id)
+    {
+        Thread.AssertOnThread();
+        if (IsEncrypted || _openAnnotCounts is not { } m || !m.TryGetValue(id, out int c)) return null;
+        return Annotations.PageHasEdits(id) ? null : c;
+    }
+
+    private volatile Dictionary<PageId, int>? _openAnnotCounts;
+
+    internal PageId PageIdAt(int index)
+    {
+        Thread.AssertOnThread();
+        return _order[index];
+    }
 
     public int IndexOf(PageId id)
     {

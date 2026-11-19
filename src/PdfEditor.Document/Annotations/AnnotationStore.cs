@@ -209,6 +209,13 @@ public sealed class AnnotationStore
             if (e.Owned && !e.Deleted && e.Current.Kind == AnnotKind.Text) e.Revision++;
     }
 
+    /// <summary>0.14.0: 그 쪽의 주석이 열 때와 같은 상태가 아닐 수 있는가(새 주석·손댄/지운 원본·반영 안 된 변경이 하나라도 있었다). 전용 스레드 전용.</summary>
+    internal bool PageHasEdits(PageId page)
+    {
+        _thread.AssertOnThread();
+        return _pages.TryGetValue(page, out var st) && st.Entries.Any(e => !e.IsOriginal || e.Owned || e.Deleted || e.NeedsFlush);
+    }
+
     public bool HasUnflushedChanges
     {
         get

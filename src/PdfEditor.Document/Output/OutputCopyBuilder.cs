@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
 using PdfEditor.Document.Annotations.Patching;
@@ -9,8 +9,9 @@ namespace PdfEditor.Document.Output;
 
 /// <summary>사본을 만든 결과. ExpectedAnnotCounts: 쪽별 주석 수(패치 반영), 검증에 쓴다.</summary>
 /// <param name="HiddenTextCount">지운 원본 글 중 연산자째 지우지 못하고 보이지 않는 글자(3 Tr)로 남긴 수(M5 C12) — 0보다 크면 옛 글이 검색으로 나올 수 있다고 알린다.</param>
+/// <param name="RawAnnotBaseline">0.14.0: 주석을 건드리지 않은 쪽(ExpectedAnnotCounts는 열 때 센 값)의 사본 /Annots 원시 길이. 건드린 쪽은 -1. 검증은 그 쪽을 PDFium으로 다시 불러 세지 않고 이 값과 최종 파일의 원시 길이를 비교한다. 없으면 모든 쪽을 PDFium으로 센다.</param>
 /// <param name="RepairedPages">저장하면서 쪽 내용을 고친 쪽의 번호(0부터, ContentRepair). 없으면 null/빈 목록 — 이전 버전 저장으로 망가진 쪽을 알리는 데 쓴다.</param>
-public sealed record OutputCopy(int[] ExpectedAnnotCounts, bool ContentApplied, bool Patched, int HiddenTextCount = 0, IReadOnlyList<int>? RepairedPages = null, IReadOnlyList<LookWarning>? LookWarnings = null);
+public sealed record OutputCopy(int[] ExpectedAnnotCounts, bool ContentApplied, bool Patched, int HiddenTextCount = 0, IReadOnlyList<int>? RepairedPages = null, IReadOnlyList<LookWarning>? LookWarnings = null, int[]? RawAnnotBaseline = null);
 
 /// <summary>객체 편집을 저장하면 화면과 모양이 달라질 수 있는 쪽(PageNumber는 1부터). Reason은 개발자용 영어 사유 — error.log에 남긴다.</summary>
 public sealed record LookWarning(int PageNumber, string Reason);
@@ -42,7 +43,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
 
     private async Task<OutputCopy?> BuildCoreAsync(DocumentSession s, string path, bool always, CancellationToken ct, Action? onCopied)
     {
-        var (counts, plan, edited) = await s.Thread.InvokeAsync(() =>
+        var (counts, plan, edited, pristine) = await s.Thread.InvokeAsync(() =>
         {
             // Flush는 트랜잭션이 아니다: 예외가 나면 SaveCopy 없이 그대로 던진다(원본·기존 사본 그대로).
             PatchPlan p;
@@ -54,9 +55,9 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             if (!SavePolicy.CanPatch(s) && e.Any(x => x.Edits.OfType<InsertAppTextEdit>().Any() || x.Edits.OfType<ReplaceParagraphEdit>().Any(pe => !pe.AppLines.IsDefaultOrEmpty)
                     || x.Edits.OfType<ReplaceTextSpanEdit>().Any(te => !te.AppLines.IsDefaultOrEmpty)))
                 throw new InvalidOperationException("App-font text lines need the patch stage, which is not available for encrypted documents.");
-            if (!always && e.Count == 0 && !patch) return ((int[]?)null, p, e);
+            if (!always && e.Count == 0 && !patch) return ((int[]?)null, p, e, (bool[]?)null);
             using (SaveTrace.Step("2.pdfium-savecopy")) s.Document.SaveCopy(path);
-            using (SaveTrace.Step("3.annot-counts")) return ((int[]?)CollectAnnotCounts(s.Document), p, e);
+            using (SaveTrace.Step("3.annot-counts")) { var c = CollectAnnotCounts(s, p, out var pr); return ((int[]?)c, p, e, (bool[]?)pr); }
         }, ct).ConfigureAwait(false);
         if (counts is null) return null;
         onCopied?.Invoke();
@@ -87,6 +88,15 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                 ContentAppends = [.. plan.ContentAppends.Where(a => !pages.Contains(a.PageIndex))],
                 ContentRewrites = rewrite.Rewrites,
             };
+        }
+
+        // 0.14.0: 주석을 건드리지 않은 쪽의 검증 기준(사본의 /Annots 원시 길이). 패치·고치기 앞에서 잰다. 못 재면 모든 쪽을 PDFium으로 센다.
+        int[]? rawBaseline = null;
+        if (always && pristine is not null && pristine.Any(x => x) && s.Password is null)
+        {
+            string rawPath = path;
+            var raw = await Task.Run(() => { using var _ = SaveTrace.Step("3b.raw-annot-baseline"); return RawAnnotCounts.TryRead(rawPath, null); }, ct).ConfigureAwait(false);
+            if (raw is not null && raw.Length == counts.Length) rawBaseline = [.. raw.Select((v, i) => pristine[i] ? v : -1)];
         }
 
         bool patched = false;
@@ -121,7 +131,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             repairedPages = await Task.Run(() => { using var _ = SaveTrace.Step("7.content-repair-scan(total)"); return repairer.RepairContent(path, pw); }, ct).ConfigureAwait(false);
         }
         warnings.AddRange(rewrite?.Warnings ?? []);
-        return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0, repairedPages, warnings);
+        return new OutputCopy(counts, content, patched, patched ? (patcher as IContentRewriteReport)?.HiddenTextCount ?? 0 : 0, repairedPages, warnings, rawBaseline);
     }
 
     /// <summary>
@@ -458,12 +468,16 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         return failed;
     }
 
-    private static int[] CollectAnnotCounts(PdfDocument doc)
+    /// <summary>살아 있는 문서의 쪽별 주석 수. 주석을 건드리지 않은 쪽(PristineAnnotCount)은 열 때 센 값을 쓰고 불러오지 않는다(0.14.0). pristine[i] = 그 쪽이 그렇게 건너뛴 쪽.</summary>
+    private static int[] CollectAnnotCounts(DocumentSession s, PatchPlan plan, out bool[] pristine)
     {
+        var doc = s.Document;
         int n = doc.PageCount;
         var counts = new int[n];
+        pristine = new bool[n];
         for (int i = 0; i < n; i++)
         {
+            if (s.PristineAnnotCount(s.PageIdAt(i)) is int c && plan.CountDelta(i) == 0) { counts[i] = c; pristine[i] = true; continue; }
             using var page = doc.LoadPage(i);
             counts[i] = page.AnnotationCount;
         }
