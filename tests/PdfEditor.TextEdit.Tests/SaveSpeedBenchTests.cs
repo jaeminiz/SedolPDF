@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 using Pdf.Native;
 using PdfEditor.Appearance;
@@ -120,6 +120,8 @@ public sealed class SaveSpeedBenchTests : IDisposable
         SaveTrace.Sink = null;
         await using var s = await DocumentSession.OpenAsync(_t, src, null);
         await s.AnnotationsReady;
+        // 0.14.0: 기본은 "열고 미리 검사가 끝난 뒤 저장". SEDOL_BENCH_COLD=1이면 미리 검사 결과를 비워 "열자마자 저장(미리 검사 전)"을 잰다.
+        { await s.PrescanReady; if (Environment.GetEnvironmentVariable("SEDOL_BENCH_COLD") == "1") PdfEditor.ContentStream.ContentRepairCache.Clear(); }
         var page = s.Pages[0].Id;
         switch (edit)
         {

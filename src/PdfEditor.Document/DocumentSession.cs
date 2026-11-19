@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Security.Cryptography;
 using Pdf.Native;
 using PdfEditor.Document.Annotations;
@@ -227,12 +227,15 @@ public sealed class DocumentSession : IAsyncDisposable
     // 암호 문서는 저장도 이 검사를 안 하므로 건너뛴다. 닫으면 취소. 저장과 겹쳐도 저장은 기다리지 않고 그냥 검사한다.
     private readonly CancellationTokenSource _prescanCts = new();
 
+    /// <summary>미리 검사가 끝나면(또는 취소·건너뜀) 완료된다. 예외로 끝나지 않는다. 저장은 이것을 기다리지 않는다(측정·시험용).</summary>
+    public Task PrescanReady { get; private set; } = Task.CompletedTask;
+
     private void StartPrescan(byte[] bytes, string? password)
     {
         if (IsEncrypted || password is not null) return;
         var gate = _originalsGate;
         var ct = _prescanCts.Token;
-        _ = Task.Run(async () =>
+        PrescanReady = Task.Run(async () =>
         {
             try
             {
