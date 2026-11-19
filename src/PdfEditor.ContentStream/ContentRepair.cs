@@ -1,4 +1,4 @@
-namespace PdfEditor.ContentStream;
+﻿namespace PdfEditor.ContentStream;
 
 /// <summary>
 /// 쪽 내용의 구조 고치기. 짝 없는 Q(저장한 그래픽 상태가 없는데 복원)는 PDFium·PDF-XChange가 무시하지만 Acrobat은 오류로 보고 쪽의 나머지를 그리지 않는다.
@@ -12,28 +12,46 @@ public static class ContentRepair
     {
         var pc = ContentLexer.Parse(data);
         if (!pc.Ok) return (null, 0);
-        var drop = new List<ContentOp>();
+        return RemoveUnmatchedRestores(data, pc.Ops);
+    }
+
+    /// <summary>이미 해석한 연산자 목록(<paramref name="ops"/>는 <paramref name="data"/>를 해석한 것이고 오류 없음)으로 같은 일을 한다. 0.14.0: 해석을 되풀이하지 않는다.</summary>
+    internal static (byte[]? Data, int Removed) RemoveUnmatchedRestores(byte[] data, List<ContentOp> ops)
+    {
+        var drop = FindUnmatchedDrops(ops);
+        if (drop.Count == 0) return (null, 0);
+        return (Cut(data, drop), drop.Count);
+    }
+
+    private static List<(int Start, int End)> FindUnmatchedDrops(List<ContentOp> ops)
+    {
+        var drop = new List<(int Start, int End)>();
         int depth = 0;
-        foreach (var op in pc.Ops)
+        foreach (var op in ops)
         {
             if (op.Name == "q") depth++;
             else if (op.Name == "Q")
             {
-                if (depth == 0) drop.Add(op);
+                if (depth == 0) drop.Add((op.Start, op.End));
                 else depth--;
             }
         }
-        if (drop.Count == 0) return (null, 0);
+        return drop;
+    }
+
+    /// <summary>범위마다 지우고 그 자리에 공백 하나(앞뒤 토큰이 붙지 않게).</summary>
+    private static byte[] Cut(byte[] data, List<(int Start, int End)> drop)
+    {
         using var ms = new MemoryStream(data.Length);
         int at = 0;
-        foreach (var op in drop)
+        foreach (var (start, end) in drop)
         {
-            ms.Write(data, at, op.Start - at);
-            ms.WriteByte((byte)' ');   // 앞뒤 토큰이 붙지 않게
-            at = op.End;
+            ms.Write(data, at, start - at);
+            ms.WriteByte((byte)' ');
+            at = end;
         }
         ms.Write(data, at, data.Length - at);
-        return (ms.ToArray(), drop.Count);
+        return ms.ToArray();
     }
 
     /// <summary>
@@ -60,6 +78,7 @@ public static class ContentRepair
         int fragments = 0;
         var stack = new Stack<bool>();   // 열린 q마다: 그림 스트림에서 열렸는가(true) / 감싸기 스트림에서 열렸는가(false)
         var cleaned = new List<byte[]>(streams.Count);
+        var dropEnds = new int[streams.Count];   // 스트림마다 지운 꼬리 조각의 끝(없으면 -1)
         for (int k = 0; k < streams.Count; k++)
         {
             var ops = parsed[k].Ops;
@@ -79,6 +98,7 @@ public static class ContentRepair
                 }
                 if (stack.Count > 0) stack.Pop();
             }
+            dropEnds[k] = dropEnd;
             if (dropEnd < 0) { cleaned.Add(streams[k]); continue; }
             var s = streams[k];
             var fixedStream = new byte[s.Length - dropEnd + 1];
@@ -87,13 +107,74 @@ public static class ContentRepair
             cleaned.Add(fixedStream);
         }
 
-        var joined = Join(cleaned);
         // 스트림이 이미 하나로 합쳐진 파일(0.9.0 이하의 고치기가 합쳤다)은 경계가 없어 위 규칙이 못 본다 — 꼬리 조각의 모양으로 찾는다.
-        var (noFragments, merged) = RemoveDanglingFragments(joined);
-        fragments += merged;
-        var (data, restores) = RemoveUnmatchedRestores(noFragments ?? joined);
-        if (fragments == 0 && restores == 0) return (null, 0, 0);
-        return (data ?? noFragments ?? joined, fragments, restores);
+        // 0.14.0: 스트림별로 해석한 결과를 이어(위치만 옮겨) 합친 내용의 연산자 목록을 만든다. 합친 내용을 다시 해석하던 두 번이 없어진다.
+        // 스트림 끝에 키워드 없는 피연산자가 남았거나 인라인 이미지(BI)가 있으면 합쳐 해석한 결과와 달라질 수 있어 예전처럼 합쳐서 해석한다.
+        var mergedOps = TryMergeOps(streams, parsed, cleaned, dropEnds);
+        byte[]? joined = null;
+        List<ContentOp> opsOfJoined;
+        if (mergedOps is not null) opsOfJoined = mergedOps;
+        else { joined = Join(cleaned); var pj = ContentLexer.Parse(joined); opsOfJoined = pj.Ok ? pj.Ops : null!; }
+
+        List<(int Start, int End)> dangling = opsOfJoined is null ? [] : FindDanglingDrops(opsOfJoined);
+        fragments += dangling.Count;
+        byte[]? noFragments = null;
+        int restores;
+        byte[]? data;
+        if (dangling.Count == 0)
+        {
+            if (opsOfJoined is null) { joined ??= Join(cleaned); (data, restores) = (null, 0); }
+            else
+            {
+                // 고칠 것이 없는 쪽(거의 전부)은 합친 바이트도 만들지 않는다.
+                var drop = FindUnmatchedDrops(opsOfJoined);
+                restores = drop.Count;
+                data = null;
+                if (restores > 0) { joined ??= Join(cleaned); data = Cut(joined, drop); }
+            }
+            if (fragments == 0 && restores == 0) return (null, 0, 0);
+            joined ??= Join(cleaned);
+            return (data ?? joined, fragments, restores);
+        }
+        joined ??= Join(cleaned);
+        noFragments = Cut(joined, dangling);
+        (data, restores) = RemoveUnmatchedRestores(noFragments);   // 바뀐 내용은 새로 해석한다(꼬리 조각이 있는 드문 쪽만)
+        return (data ?? noFragments, fragments, restores);
+    }
+
+    /// <summary>스트림별 해석 결과로 <c>Join(cleaned)</c>를 해석한 것과 같은 연산자 목록을 만든다. 같게 만들 수 없으면 null.</summary>
+    private static List<ContentOp>? TryMergeOps(IReadOnlyList<byte[]> streams, List<ParsedContent> parsed, List<byte[]> cleaned, int[] dropEnds)
+    {
+        var all = new List<ContentOp>();
+        int offset = 0;
+        for (int k = 0; k < streams.Count; k++)
+        {
+            var ops = parsed[k].Ops;
+            if (ops.Any(o => o.Name == "BI") || HasTrailingOperands(streams[k], ops)) return null;
+            int dropEnd = dropEnds[k];
+            int shift = dropEnd < 0 ? offset : offset + 1 - dropEnd;
+            foreach (var o in ops)
+            {
+                if (dropEnd >= 0 && o.Start < dropEnd) continue;   // 지워진 꼬리 조각(연산자는 순서대로라 앞쪽만 해당)
+                all.Add(new ContentOp { Name = o.Name, Start = o.Start + shift, OpStart = o.OpStart + shift, End = o.End + shift, Operands = o.Operands });
+            }
+            offset += cleaned[k].Length + 1;
+        }
+        return all;
+    }
+
+    /// <summary>마지막 연산자 뒤에 공백·주석 말고 남은 것(키워드 없이 끝난 피연산자)이 있는가.</summary>
+    private static bool HasTrailingOperands(byte[] d, List<ContentOp> ops)
+    {
+        int p = ops.Count == 0 ? 0 : ops[^1].End;
+        while (p < d.Length)
+        {
+            byte b = d[p];
+            if (b is 0 or 9 or 10 or 12 or 13 or 32) p++;
+            else if (b == '%') { while (p < d.Length && d[p] != 10 && d[p] != 13) p++; }
+            else return true;
+        }
+        return false;
     }
 
     private static readonly HashSet<string> PaintOps = ["S", "s", "f", "F", "f*", "B", "B*", "b", "b*"];
@@ -106,7 +187,13 @@ public static class ContentRepair
     {
         var pc = ContentLexer.Parse(data);
         if (!pc.Ok) return (null, 0);
-        var ops = pc.Ops;
+        var drop = FindDanglingDrops(pc.Ops);
+        if (drop.Count == 0) return (null, 0);
+        return (Cut(data, drop), drop.Count);
+    }
+
+    private static List<(int Start, int End)> FindDanglingDrops(List<ContentOp> ops)
+    {
         var drop = new List<(int Start, int End)>();
         bool havePoint = false;
         for (int i = 0; i < ops.Count; i++)
@@ -127,17 +214,7 @@ public static class ContentRepair
                 havePoint = false;
             }
         }
-        if (drop.Count == 0) return (null, 0);
-        using var ms = new MemoryStream(data.Length);
-        int at = 0;
-        foreach (var (start, end) in drop)
-        {
-            ms.Write(data, at, start - at);
-            ms.WriteByte((byte)' ');
-            at = end;
-        }
-        ms.Write(data, at, data.Length - at);
-        return (ms.ToArray(), drop.Count);
+        return drop;
     }
 
     private static byte[] Join(IReadOnlyList<byte[]> streams)
