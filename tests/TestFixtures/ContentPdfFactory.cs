@@ -175,6 +175,51 @@ public static class ContentPdfFactory
     }
 
 
+    public const string TrickyLineSplit = "ABCDEF";   // 한 BT 안에서 두 번 나눠 보이는 줄(두 번째 Tj는 Tm을 모른다), 기준선 (60,100)
+    public const string TrickyLinePlain = "GHIJKL";    // 보통 글 한 줄 (60,160)
+
+    /// <summary>
+    /// 0.15.0: 그러데이션(셰이딩 패턴) 사각형 + 글 두 줄이 있는 A4 1쪽. "ABCDEF"는 `BT … &lt;앞 절반&gt; Tj &lt;뒤 절반&gt; Tj ET`로 다시 써서
+    /// 두 번째 Tj의 글 위치(Tm)를 바로 알 수 없게 한다(복제·이동이 막히던 꼴). 보통 줄은 그대로.
+    /// </summary>
+    public static void CreateGradientWithTrickyText(string path)
+    {
+        string tmp = path + ".tmp";
+        using (var doc = new PdfDocument())
+        {
+            var page = doc.AddPage();
+            page.Width = XUnit.FromPoint(595);
+            page.Height = XUnit.FromPoint(842);
+            var opt = new XPdfFontOptions(PdfFontEncoding.Unicode);
+            using var g = XGraphics.FromPdfPage(page);
+            g.DrawRectangle(new XLinearGradientBrush(new XPoint(100, 300), new XPoint(400, 420), XColors.Yellow, XColors.Purple), 100, 300, 300, 120);
+            var f = new XFont("Arial", 12, XFontStyleEx.Regular, opt);
+            g.DrawString(TrickyLineSplit, f, XBrushes.Black, new XPoint(60, 100));
+            g.DrawString(TrickyLinePlain, f, XBrushes.Black, new XPoint(60, 160));
+            g.DrawRectangle(new XPen(XColors.Red, 2), 100, 500, 80, 50);
+            g.DrawRectangle(new XPen(XColors.Blue, 1), XBrushes.LightGreen, 250, 500, 80, 50);
+            g.DrawLine(new XPen(XColors.Black, 1), 60, 600, 400, 600);
+            doc.Save(tmp);
+        }
+        using (var doc = PdfReader.Open(tmp, PdfDocumentOpenMode.Modify))
+        {
+            var content = doc.Pages[0].Contents.CreateSingleContent();
+            string text = Encoding.Latin1.GetString(content.Stream.UnfilteredValue);
+            var m = System.Text.RegularExpressions.Regex.Matches(text, @"<([0-9A-Fa-f]{24})>\s*Tj").FirstOrDefault()
+                ?? throw new InvalidOperationException("unexpected content: " + text);
+            string h = m.Groups[1].Value;
+            text = text.Remove(m.Index, m.Length).Insert(m.Index, $"<{h[..12]}> Tj <{h[12..]}> Tj");
+            content.Elements.Remove("/Filter");
+            var bytes = Encoding.Latin1.GetBytes(text);
+            content.Stream.Value = bytes;
+            content.Elements.SetInteger("/Length", bytes.Length);
+            if (content.Reference is null) doc.Internals.AddObject(content);
+            doc.Pages[0].Elements.SetReference("/Contents", content);
+            doc.Save(path);
+        }
+        File.Delete(tmp);
+    }
+
     /// <summary>
     /// 표제란 한 줄(세 칸) 시험용 A4 1쪽: Arial 서브셋(ToUnicode)으로 쓴 "N/S" "190510" "E.J JUNG" 세 토막을 <b>한 TJ</b>(칸 사이 큰 이동값 -3394·-1924, 글자 사이 작은 자간)로 합쳐 다시 쓴다.
     /// 0~9 숫자가 쪽의 다른 글에 모두 보이게 해 코드북에 있게 한다. 기준선 (60,100), 글자 크기 12.
