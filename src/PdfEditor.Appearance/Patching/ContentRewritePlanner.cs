@@ -56,6 +56,8 @@ public static class ContentRewritePlanner
     {
         var origDisabled = new HashSet<int>();
         var origThen = new Dictionary<int, Mat>();
+        var origStyle = new Dictionary<int, PathStyle>();   // 0.15.0: 원본 경로의 선·채움 바꾸기(마지막 것이 이긴다 — 화면 replay와 같다)
+        var origColor = new Dictionary<int, (double R, double G, double B)>();   // 0.15.0: 원본 글자 색
         var textRemoved = new HashSet<int>();   // 문단 편집이 끄는 원본 객체: 글이면 완전 제거를 시도
         var ins = new Dictionary<long, Ins>();
         var spanEdits = new Dictionary<int, (int Unit, List<TextSpanReplace> Spans)>();   // 찾아 바꾸기: 원본 글 객체마다 낱말 바꾸기를 합친다
@@ -71,6 +73,9 @@ public static class ContentRewritePlanner
                 case DuplicateObjectEdit du: ins[du.Id] = new Ins { Order = order++, Kind = 'D', Dup = du, M = ToMat(du.Then) }; break;
                 case SetTextColorEdit tc when tc.Target.IsInserted && ins.TryGetValue(tc.Target.InsertedId, out var dc) && dc.Kind == 'D':
                     dc.TextColor = tc.Color;
+                    break;
+                case SetTextColorEdit tc when !tc.Target.IsInserted && tc.Target.OriginalIndex >= 0:
+                    origColor[tc.Target.OriginalIndex] = (tc.Color.R / 255.0, tc.Color.G / 255.0, tc.Color.B / 255.0);
                     break;
                 case ReplaceParagraphEdit pe:
                     // 끄기: 문단이 대체하는 원본 글 — 문자열이 파일에 남지 않게 연산자째 지운다(C12, 안전하지 않으면 숨김).
@@ -140,9 +145,14 @@ public static class ContentRewritePlanner
                     else origThen[tr.Target.OriginalIndex] = origThen.GetValueOrDefault(tr.Target.OriginalIndex, Mat.Identity).Then(m);
                     break;
                 }
+                case SetShapeStyleEdit ss when !ss.Target.IsInserted && ss.Target.OriginalIndex >= 0:
+                    origStyle[ss.Target.OriginalIndex] = new PathStyle(
+                        ss.Style.Stroke is { } sc ? (sc.R / 255.0, sc.G / 255.0, sc.B / 255.0) : null, ss.Style.Width,
+                        ss.Style.Fill is { } fc ? (fc.R / 255.0, fc.G / 255.0, fc.B / 255.0) : null);
+                    break;
                 case SetShapeStyleEdit ss:
-                    if (!ss.Target.IsInserted || !ins.TryGetValue(ss.Target.InsertedId, out var s) || s.Kind != 'S')
-                        return Fail("changing the style of an original shape needs the PDFium path");
+                    if (!ins.TryGetValue(ss.Target.InsertedId, out var s) || s.Kind != 'S')
+                        return Fail("changing the style of this inserted object needs the PDFium path");
                     s.Shape = s.Shape! with { Style = ss.Style };
                     break;
                 default: return Fail("unsupported edit " + e.GetType().Name);
@@ -150,21 +160,24 @@ public static class ContentRewritePlanner
         }
 
         var objEdits = new List<ObjectEdit>();
-        foreach (int i in origDisabled.Union(origThen.Keys).OrderBy(x => x))
+        foreach (int i in origDisabled.Union(origThen.Keys).Union(origStyle.Keys).Union(origColor.Keys).OrderBy(x => x))
         {
-            if (origDisabled.Contains(i)) objEdits.Add(new DisableObject(i, textRemoved.Contains(i)));
-            else if (origThen[i] != Mat.Identity) objEdits.Add(new TransformObject(i, origThen[i]));
+            if (origDisabled.Contains(i)) { objEdits.Add(new DisableObject(i, textRemoved.Contains(i))); continue; }
+            var then = origThen.GetValueOrDefault(i, Mat.Identity);
+            origStyle.TryGetValue(i, out var style);
+            (double R, double G, double B)? color = origColor.TryGetValue(i, out var oc) ? oc : null;
+            if (then != Mat.Identity || style is not null || color is not null) objEdits.Add(new TransformObject(i, then, style, color));
         }
 
         foreach (var (idx, (unit, spans)) in spanEdits.OrderBy(kv => kv.Key))
         {
-            if (origDisabled.Contains(idx) || origThen.ContainsKey(idx)) return Fail("a replaced text object was also deleted or moved (needs the PDFium path)");
+            if (origDisabled.Contains(idx) || origThen.ContainsKey(idx) || origColor.ContainsKey(idx)) return Fail("a replaced text object was also deleted, moved or recolored (needs the PDFium path)");
             objEdits.Add(new ReplaceTextSpans(idx, unit, spans));
         }
 
         foreach (var (idx, (unit, swaps)) in codeSwaps.OrderBy(kv => kv.Key))
         {
-            if (origDisabled.Contains(idx) || origThen.ContainsKey(idx) || spanEdits.ContainsKey(idx)) return Fail("a code-swapped text object was also deleted, moved or span-replaced (needs the PDFium path)");
+            if (origDisabled.Contains(idx) || origThen.ContainsKey(idx) || origColor.ContainsKey(idx) || spanEdits.ContainsKey(idx)) return Fail("a code-swapped text object was also deleted, moved, recolored or span-replaced (needs the PDFium path)");
             objEdits.Add(new ReplaceCodes(idx, unit, swaps));
         }
 

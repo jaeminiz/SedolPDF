@@ -51,8 +51,7 @@ public static class ObjectSnippet
                 string? color = null;
                 if (textColor is { } c)
                 {
-                    string rgb = $"{Mat.Fmt(c.R)} {Mat.Fmt(c.G)} {Mat.Fmt(c.B)}";
-                    color = s.Tr is 1 or 2 or 5 or 6 ? $"{rgb} rg {rgb} RG" : $"{rgb} rg";
+                    color = ContentRewriter.TextColorOps(c, s.Tr);
                 }
                 CollectUses(ops, s.ReplayOps, uses);
                 CollectUses(ops, [s.FontOp], uses);
