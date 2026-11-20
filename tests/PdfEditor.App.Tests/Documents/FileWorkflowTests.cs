@@ -137,6 +137,26 @@ public class FileWorkflowTests : IAsyncLifetime
         Assert.Contains(_p.Infos, m => m.Contains('1'));
     }
     [Fact]
+    public async Task Save_CannotRewrite_DoesNotAsk_ShowsTheCauseOnce_AndKeepsTheFile()
+    {
+        // 복제한 객체는 고쳐 쓰기로만 저장된다. 패처가 없으면(고쳐 쓰기 불가) "그래도 저장"을 물을 이유가 없다 — 눌러도 같은 이유로 또 실패하기 때문.
+        string path = P("c.pdf");
+        PdfEditor.TestFixtures.ContentPdfFactory.CreateDrawingLike(path, gradient: true);
+        var wf = Wf();
+        var s = (await Open(wf, path))!;
+        var id = s.Pages[0].Id;
+        int idx = await _t.InvokeAsync(() => s.GetObjectIndex(id).Entries.First(e => e.Type == Pdf.Native.PdfPageObjectType.Path).Ref.OriginalIndex);
+        await s.Commands.ExecuteAsync(new PdfEditor.Document.Content.ContentEditCommand(id, [new PdfEditor.Document.Content.DuplicateObjectEdit(s.Content.NewId(), id, idx, Pdf.Native.PdfMatrix.Translate(5, 5))]));
+        byte[] before = File.ReadAllBytes(path);
+        _p.LookAnswer = true;   // 물으면 예라고 할 것 — 그래도 물어서는 안 된다
+        Assert.False(await wf.SaveAsync(s));
+        Assert.Empty(_p.LookAsks);
+        var err = Assert.Single(_p.Errors);
+        Assert.Equal(string.Format(PdfEditor.App.Resources.Strings.Err_Save_ObjectEditUnsupported, 1, PdfEditor.App.Resources.Strings.Err_Save_Reason_Other), err);
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
     public async Task IsBusy_TrueDuringSave_FalseAfter()
     {
         string path = P("a.pdf");

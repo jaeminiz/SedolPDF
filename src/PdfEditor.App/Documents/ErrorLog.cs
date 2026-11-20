@@ -24,6 +24,13 @@ public static class ErrorLog
         catch (Exception) { }
     }
 
+    /// <summary>예외 기록에 한 줄 덧붙인다(0.15.0: 저장 실패 때 그 쪽의 편집 종류별 개수).</summary>
+    public static void Write(string area, Exception ex, string? extra)
+    {
+        if (string.IsNullOrEmpty(extra)) { Write(area, ex); return; }
+        Write(area, ex.ToString() + Environment.NewLine + extra);
+    }
+
     public static void Write(string area, Exception ex)
     {
         try

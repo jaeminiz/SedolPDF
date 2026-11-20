@@ -178,6 +178,11 @@
   <data name="Err_Pdfium_Unknown" xml:space="preserve"><value>An error occurred while processing the PDF. (Error code {0})</value></data>
   <data name="Err_Save_Write" xml:space="preserve"><value>The file could not be written, so it was not saved. Your original file is unchanged.</value></data>
   <data name="Err_Save_ContentRegeneration" xml:space="preserve"><value>Page {0} contains content (gradients, pattern fills, image masks, etc.) that would look different if the object edits were saved, so it was not saved. Your original file is unchanged. Undo the object edits on this page, then save.</value></data>
+  <data name="Err_Save_ObjectEditUnsupported" xml:space="preserve"><value>Some object edits on page {0} cannot be saved in this PDF ({1}), so the file was not saved. Your original file is unchanged. Undo that edit, then save.</value></data>
+  <data name="Err_Save_Reason_Text" xml:space="preserve"><value>structure of the copied or moved text</value></data>
+  <data name="Err_Save_Reason_Clip" xml:space="preserve"><value>an object under a clipping path</value></data>
+  <data name="Err_Save_Reason_Structure" xml:space="preserve"><value>page content structure</value></data>
+  <data name="Err_Save_Reason_Other" xml:space="preserve"><value>the edited object</value></data>
   <data name="Err_Save_PostProcess" xml:space="preserve"><value>An error occurred while finishing the save, so it was not saved. Your original file is unchanged.</value></data>
   <data name="Err_Save_Verify" xml:space="preserve"><value>The saved file could not be verified, so it was not saved. Your original file is unchanged.</value></data>
   <data name="Err_Save_Replace" xml:space="preserve"><value>The original file could not be replaced, so it was not saved. Your original file is unchanged.</value></data>
