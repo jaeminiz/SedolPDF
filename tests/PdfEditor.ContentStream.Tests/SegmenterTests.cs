@@ -95,6 +95,24 @@ public class SegmenterTests
     }
 
     [Fact]
+    public void Text_BtState_And_EtCtm_ForReplay()
+    {
+        // BT 머리 상태(Tc/Tw/Tz/TL/Ts/글꼴)와 ET 시점의 CTM: BT 안의 cm 때문에 그 글의 CTM과 ET의 CTM이 달라진다.
+        var s = Seg("2 Tc /F1 10 Tf 1 0 0 1 50 0 cm BT 1 0 0 1 20 30 Tm (A) Tj 1 0 0 1 5 0 cm (B) Tj ET");
+        Assert.Equal(2, s.Objects.Count);
+        var a = s.Objects[0].Text!; var b = s.Objects[1].Text!;
+        Assert.NotNull(a.BtState);
+        Assert.Equal(2, a.BtState!.Tc);
+        Assert.Equal(1, a.BtState.FontOp);                       // `2 Tc`=0, `/F1 10 Tf`=1
+        Assert.Same(a.BtState, b.BtState);
+        Assert.Equal(new Mat(1, 0, 0, 1, 55, 0), a.EtCtm);       // ET 시점 CTM(= 5 이동이 더해진 것)
+        Assert.Equal(new Mat(1, 0, 0, 1, 50, 0), s.Objects[0].Ctm);
+        Assert.Equal(new Mat(1, 0, 0, 1, 55, 0), s.Objects[1].Ctm);
+        Assert.Equal(a.EtCtm, b.EtCtm);
+        Assert.False(a.Movable);                                   // 앞 글 뒤에 BT 안 cm이 있어 이동 불가(= BT 머리 다시 보내기 길)
+    }
+
+    [Fact]
     public void BadOperands_Fail_ParseFailure_Propagates()
     {
         var pc = ContentLexer.Parse(LexerTests.B("1 0 0 cm"));

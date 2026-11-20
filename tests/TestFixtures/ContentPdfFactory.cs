@@ -177,6 +177,7 @@ public static class ContentPdfFactory
 
     public const string TrickyLineSplit = "ABCDEF";   // 한 BT 안에서 두 번 나눠 보이는 줄(두 번째 Tj는 Tm을 모른다), 기준선 (60,100)
     public const string TrickyLinePlain = "GHIJKL";    // 보통 글 한 줄 (60,160)
+    public const string TrickyLineCm = "MNOPQR";       // 한 BT 안에 `cm`이 낀 줄: `<앞> Tj 1 0 0 1 5 0 cm <뒤> Tj` (60,220)
 
     /// <summary>
     /// 0.15.0: 그러데이션(셰이딩 패턴) 사각형 + 글 두 줄이 있는 A4 1쪽. "ABCDEF"는 `BT … &lt;앞 절반&gt; Tj &lt;뒤 절반&gt; Tj ET`로 다시 써서
@@ -196,6 +197,7 @@ public static class ContentPdfFactory
             var f = new XFont("Arial", 12, XFontStyleEx.Regular, opt);
             g.DrawString(TrickyLineSplit, f, XBrushes.Black, new XPoint(60, 100));
             g.DrawString(TrickyLinePlain, f, XBrushes.Black, new XPoint(60, 160));
+            g.DrawString(TrickyLineCm, f, XBrushes.Black, new XPoint(60, 220));
             g.DrawRectangle(new XPen(XColors.Red, 2), 100, 500, 80, 50);
             g.DrawRectangle(new XPen(XColors.Blue, 1), XBrushes.LightGreen, 250, 500, 80, 50);
             g.DrawLine(new XPen(XColors.Black, 1), 60, 600, 400, 600);
@@ -205,10 +207,14 @@ public static class ContentPdfFactory
         {
             var content = doc.Pages[0].Contents.CreateSingleContent();
             string text = Encoding.Latin1.GetString(content.Stream.UnfilteredValue);
-            var m = System.Text.RegularExpressions.Regex.Matches(text, @"<([0-9A-Fa-f]{24})>\s*Tj").FirstOrDefault()
-                ?? throw new InvalidOperationException("unexpected content: " + text);
-            string h = m.Groups[1].Value;
-            text = text.Remove(m.Index, m.Length).Insert(m.Index, $"<{h[..12]}> Tj <{h[12..]}> Tj");
+            var ms = System.Text.RegularExpressions.Regex.Matches(text, @"<([0-9A-Fa-f]{24})>\s*Tj");
+            if (ms.Count < 3) throw new InvalidOperationException("unexpected content: " + text);
+            // 뒤에서부터 바꿔야 앞 위치가 어긋나지 않는다: 셋째 = BT 안 cm, 첫째 = 이어 쓰기(둘째 Tj는 Tm을 모름).
+            foreach (var (idx, joiner) in new[] { (2, " 1 0 0 1 5 0 cm "), (0, " ") })
+            {
+                var m = ms[idx]; string h = m.Groups[1].Value;
+                text = text.Remove(m.Index, m.Length).Insert(m.Index, $"<{h[..12]}> Tj{joiner}<{h[12..]}> Tj");
+            }
             content.Elements.Remove("/Filter");
             var bytes = Encoding.Latin1.GetBytes(text);
             content.Stream.Value = bytes;

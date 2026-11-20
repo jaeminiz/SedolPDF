@@ -6,7 +6,7 @@ namespace PdfEditor.ContentStream;
 public sealed record ResourceUse(string Category, string Name);
 
 /// <summary>객체 하나를 혼자 서는 조각으로 꺼낸 결과. Failure가 null이면 성공.</summary>
-public sealed record SnippetResult(string? Content, IReadOnlyList<ResourceUse> Uses, string? Failure)
+public sealed record SnippetResult(string? Content, IReadOnlyList<ResourceUse> Uses, string? Failure, int ExtraTextObjects = 0)
 {
     public bool Ok => Failure is null;
 }
@@ -40,12 +40,13 @@ public static class ObjectSnippet
         string open = $"q {then.ToOperands()} cm {clip}{obj.Ctm.ToOperands()} cm ";
 
         string content;
+        int extraText = 0;
         switch (obj.Kind)
         {
             case ObjectKind.Text:
             {
                 var s = obj.Text!;
-                if (!s.Movable || s.EtOp < 0 || s.FontOp < 0) return Fail($"object {objectIndex}: text not copyable (position unknown or state changed inside BT)");
+                if (!ContentRewriter.TextCopyable(s, obj.OpIndex)) return Fail($"object {objectIndex}: text not copyable (position unknown or state changed inside BT)");
                 if (s.Tr >= 4) return Fail($"object {objectIndex}: text render mode {s.Tr} clips");
                 string? color = null;
                 if (textColor is { } c)
@@ -55,7 +56,9 @@ public static class ObjectSnippet
                 }
                 CollectUses(ops, s.ReplayOps, uses);
                 CollectUses(ops, [s.FontOp], uses);
-                content = ContentRewriter.TextCopy(data, ops, main, s, open, color);
+                CollectUses(ops, ContentRewriter.ReplayHeadFontOps(ops, s, obj.OpIndex), uses);   // BT 머리 다시 보내기가 쓰는 글꼴
+                extraText = ContentRewriter.ReplayHeadShows(ops, s, obj.OpIndex);
+                content = ContentRewriter.TextCopy(data, ops, main, obj.OpIndex, s, open, color);
                 break;
             }
             case ObjectKind.Path:
@@ -88,7 +91,7 @@ public static class ObjectSnippet
             default:
                 return Fail($"object {objectIndex}: unsupported kind {obj.Kind}");
         }
-        return new SnippetResult(content, uses.Distinct().ToList(), null);
+        return new SnippetResult(content, uses.Distinct().ToList(), null, extraText);
     }
 
     /// <summary>경로를 짓는 도중에 끼어 있는 상태 연산자(색·선 굵기·점선 등). 규격은 허용하지 않지만 실제 PDF(이 앱이 전에 저장한 것 포함)에 있고 그리는 쪽은 그대로 따른다.</summary>
