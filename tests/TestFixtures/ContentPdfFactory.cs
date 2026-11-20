@@ -183,7 +183,8 @@ public static class ContentPdfFactory
     /// 0.15.0: 그러데이션(셰이딩 패턴) 사각형 + 글 두 줄이 있는 A4 1쪽. "ABCDEF"는 `BT … &lt;앞 절반&gt; Tj &lt;뒤 절반&gt; Tj ET`로 다시 써서
     /// 두 번째 Tj의 글 위치(Tm)를 바로 알 수 없게 한다(복제·이동이 막히던 꼴). 보통 줄은 그대로.
     /// </summary>
-    public static void CreateGradientWithTrickyText(string path)
+    /// <param name="clipText">참이면 쪽 끝에 글 잘림(`7 Tr`) 글 하나를 덧붙인다 — 복제·이동을 고쳐 쓰기로 할 수 없는 글(0.15.0 저장 실패 종류 시험).</param>
+    public static void CreateGradientWithTrickyText(string path, bool clipText = false)
     {
         string tmp = path + ".tmp";
         using (var doc = new PdfDocument())
@@ -215,6 +216,7 @@ public static class ContentPdfFactory
                 var m = ms[idx]; string h = m.Groups[1].Value;
                 text = text.Remove(m.Index, m.Length).Insert(m.Index, $"<{h[..12]}> Tj{joiner}<{h[12..]}> Tj");
             }
+            if (clipText) text += "\nq BT /F0 12 Tf 7 Tr 1 0 0 1 60 700 Tm <002400250026> Tj ET Q\n";
             content.Elements.Remove("/Filter");
             var bytes = Encoding.Latin1.GetBytes(text);
             content.Stream.Value = bytes;
