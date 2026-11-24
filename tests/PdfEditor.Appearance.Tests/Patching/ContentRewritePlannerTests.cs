@@ -98,8 +98,42 @@ public class ContentRewritePlannerTests
     public void Unsupported_Edits_Fail()
     {
         Assert.False(ContentRewritePlanner.Plan([new InsertTextLikeEdit(1, ObjectRef.Original(0), "x")]).Ok);
-        Assert.False(ContentRewritePlanner.Plan([new SetShapeStyleEdit(1, ObjectRef.Original(0), ShapeStyle.Default)]).Ok);
+        Assert.False(ContentRewritePlanner.Plan([new SetShapeStyleEdit(1, ObjectRef.Inserted(77), ShapeStyle.Default)]).Ok);
         Assert.False(ContentRewritePlanner.Plan([new DeactivateEdit(1, ObjectRef.Inserted(77))]).Ok);
+        Assert.False(ContentRewritePlanner.Plan([new SetTextColorEdit(1, ObjectRef.Inserted(77), new PdfColor(1, 2, 3))]).Ok);
+    }
+
+    [Fact]
+    public void Plan_OriginalStyleAndTextColor_FoldIntoOneTransformObject()
+    {
+        // 0.15.0: 원본 도형 스타일·원본 글자 색도 고쳐 쓰기로 저장한다. 옮기기와 같은 객체면 한 편집으로 접는다("edited twice" 방지).
+        var plan = ContentRewritePlanner.Plan([
+            new TransformEdit(1, ObjectRef.Original(2), PdfMatrix.Translate(5, 0)),
+            new SetShapeStyleEdit(2, ObjectRef.Original(2), new ShapeStyle(new PdfColor(255, 0, 0), 3f, null)),
+            new SetShapeStyleEdit(3, ObjectRef.Original(2), new ShapeStyle(null, 1f, new PdfColor(0, 0, 255))),   // 마지막 것이 이긴다
+            new SetTextColorEdit(4, ObjectRef.Original(7), new PdfColor(0, 255, 0)),
+        ]);
+        Assert.True(plan.Ok, plan.Failure);
+        Assert.Equal(2, plan.ObjectEdits.Count);
+        var path = Assert.IsType<TransformObject>(plan.ObjectEdits[0]);
+        Assert.Equal(2, path.ObjectIndex);
+        Assert.Equal(Mat.Translate(5, 0), path.Then);
+        Assert.Null(path.Style!.Stroke);
+        Assert.Equal((0.0, 0.0, 1.0), path.Style.Fill);
+        var text = Assert.IsType<TransformObject>(plan.ObjectEdits[1]);
+        Assert.Equal(Mat.Identity, text.Then);
+        Assert.Equal((0.0, 1.0, 0.0), text.TextColor);
+    }
+
+    [Fact]
+    public void Plan_OriginalStyle_OnDeletedObject_IsDropped()
+    {
+        var plan = ContentRewritePlanner.Plan([
+            new SetShapeStyleEdit(1, ObjectRef.Original(2), ShapeStyle.Default),
+            new DeactivateEdit(2, ObjectRef.Original(2)),
+        ]);
+        Assert.True(plan.Ok, plan.Failure);
+        Assert.IsType<DisableObject>(Assert.Single(plan.ObjectEdits));
     }
 
     [Fact]

@@ -28,7 +28,14 @@ public sealed class TextSnapshot
     public int EtOp { get; internal set; } = -1;
     /// <summary>글 위치(Tm)를 알 수 있고 BT 안에서 cm/q/Q가 없었는가 — 거짓이면 옮기기 불가.</summary>
     public bool Movable { get; internal set; }
+    /// <summary>0.15.0: BT를 만난 순간의 글 상태(글 위치를 모르는 글을 BT 머리부터 다시 보내 복제·이동할 때 쓴다). null이면 BT 밖.</summary>
+    public BtTextState? BtState { get; init; }
+    /// <summary>0.15.0: 짝이 되는 ET 시점의 CTM(BT 안에 cm/q/Q가 있으면 이 글의 CTM과 다르다). 분할이 끝난 뒤 채운다. null이면 ET 없음.</summary>
+    public Mat? EtCtm { get; internal set; }
 }
+
+/// <summary>BT 시점의 글 상태.</summary>
+public sealed record BtTextState(double Tc, double Tw, double Tz, double TL, double Ts, int FontOp);
 
 /// <summary>
 /// 상속한 잘림의 재료. Paths: 쪽 공간 절대 좌표로 적은 잘림 경로들(`… W n`). ClipDepth: 처음 잘림이 걸린 q 깊이(0이면 풀리지 않음). OuterCtm: 그 q 바깥의 CTM. ObjectDepth: 객체를 그린 q 깊이.
@@ -112,6 +119,7 @@ public static class ContentSegmenter
         // 글
         bool inText = false, tmKnown = false, textDirty = false;
         int btOp = -1;
+        BtTextState? btState = null;
         Mat tm = Mat.Identity, tlm = Mat.Identity;
         var textInBt = new List<TextSnapshot>();
 
@@ -227,9 +235,9 @@ public static class ContentSegmenter
                     break;
 
                 // --- 글 ---
-                case "BT": inText = true; tmKnown = true; textDirty = false; tm = tlm = Mat.Identity; btOp = i; break;
+                case "BT": inText = true; tmKnown = true; textDirty = false; tm = tlm = Mat.Identity; btOp = i; btState = new BtTextState(g.Tc, g.Tw, g.Tz, g.TL, g.Ts, g.FontOp); break;
                 case "ET":
-                    foreach (var s in textInBt) if (s.BtOp == btOp) { s.EtOp = i; if (textDirty) s.Movable = false; }   // 보인 뒤에 cm/q/Q가 있으면 ET 시점의 CTM이 달라진다
+                    foreach (var s in textInBt) if (s.BtOp == btOp) { s.EtOp = i; s.EtCtm = g.Ctm; if (textDirty) s.Movable = false; }   // 보인 뒤에 cm/q/Q가 있으면 ET 시점의 CTM이 달라진다
                     textInBt.Clear();
                     inText = false; tmKnown = false;
                     break;
@@ -262,7 +270,7 @@ public static class ContentSegmenter
                         var snap = new TextSnapshot
                         {
                             Tm = tm, Tc = g.Tc, Tw = g.Tw, Tz = g.Tz, TL = g.TL, Ts = g.Ts, Tr = g.Tr, FontOp = g.FontOp,
-                            ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke], BtOp = btOp,
+                            ReplayOps = [.. g.Misc, .. g.Fill, .. g.Stroke], BtOp = btOp, BtState = inText ? btState : null,
                             Movable = inText && tmKnown && !textDirty && g.FontOp >= 0,
                         };
                         if (inText) textInBt.Add(snap);
@@ -323,7 +331,7 @@ public static class ContentSegmenter
         return true;
     }
 
-    private static bool HasGlyphs(ContentOp op)
+    internal static bool HasGlyphs(ContentOp op)
     {
         static bool Any(Operand o) => o.Kind switch
         {

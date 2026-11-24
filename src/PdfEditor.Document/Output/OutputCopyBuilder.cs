@@ -117,7 +117,7 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             var changed = await s.Thread.InvokeAsync(() => { using var _ = SaveTrace.Step("6.look-check-after-patch"); return FindChangedPages(s.Thread, path, pw, rewrite.Look, rewrite.Masks); }, ct).ConfigureAwait(false);
             if (changed.Count > 0)
             {
-                if (!AcceptLookChanges) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look");
+                if (!AcceptLookChanges) throw new ContentRegenerationException(changed[0] + 1, "content-stream rewrite changed the look", RegenerationFailure.LookChanged);
                 warnings.AddRange(changed.Select(i => new LookWarning(i + 1, "content-stream rewrite changed the look")));
             }
         }
@@ -213,18 +213,20 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
         var rewritePages = force && canRewrite ? edited.Select(x => x.Index).ToHashSet() : new HashSet<int>();   // PDFium이 못 다시 쓰는 쪽 → 내용 스트림 고쳐 쓰기(M4x)
         // 개체 복제(0.9.0)가 있는 쪽은 PDFium GenerateContent가 화면용 근사 객체를 쓰게 되므로 반드시 고쳐 쓰기로만 저장한다. 원천 쪽이 자기 편집을 갖고 있으면
         // PDFium이 객체 번호를 바꿔 버리므로 그 쪽도 고쳐 쓰기로 보낸다(원천은 어느 쪽도 고치기 전에 해석한다).
+        var dupPages = new HashSet<int>();   // 복제가 있는 쪽과 그 원천 쪽: PDFium 대안이 없어 고쳐 쓰기를 못 하면 처음부터 CannotRewrite
         var dupEdited = edited.Where(x => x.Edits.OfType<DuplicateObjectEdit>().Any()).ToList();
         if (dupEdited.Count > 0)
         {
-            if (!canRewrite) throw new ContentRegenerationException(dupEdited[0].Index + 1, "copied objects need the content-stream rewrite, which is not available for this document");
+            if (!canRewrite) throw new ContentRegenerationException(dupEdited[0].Index + 1, "copied objects need the content-stream rewrite, which is not available for this document", RegenerationFailure.CannotRewrite);
             foreach (var x in dupEdited)
             {
                 rewritePages.Add(x.Index);
+                dupPages.Add(x.Index);
                 foreach (var d in x.Edits.OfType<DuplicateObjectEdit>())
                 {
                     int si = s.IndexOf(d.SourcePage);
                     if (si < 0) throw new ContentRegenerationException(x.Index + 1, "copied object source page is gone");
-                    if (edited.Any(e => e.Index == si)) rewritePages.Add(si);
+                    if (edited.Any(e => e.Index == si)) { rewritePages.Add(si); dupPages.Add(si); }
                 }
             }
         }
@@ -235,6 +237,24 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
             // 객체 번호 대응·글꼴·상태 문제로 거절된 쪽만 PDFium 경로(줄마다 글 객체 + 충실도 보호)로 내려간다. 거절 이유는 둘 다 안 될 때 저장 거절 문구에 쓴다.
             var refCache = new Dictionary<int, ImmutableArray<ReferenceObj>>();   // 문단 편집 쪽은 시험 적용과 실제 고쳐 쓰기 사이에 객체 경계 목록을 두 번 읽지 않는다
             var rejected = new Dictionary<int, string>();
+            // 0.15.0: 고쳐 쓰기로 보낼 쪽은 먼저 시험 적용(파일을 바꾸지 않는다)으로 되는지 안다 → 안 될 때 "그래도 저장"이 같은 이유로 다시 실패하는 일이 없다.
+            Dictionary<int, string> ProbePages(IReadOnlyCollection<int> pageIdx)
+            {
+                var result = new Dictionary<int, string>();
+                if (pageIdx.Count == 0) return result;
+                ImmutableArray<PageContentRewrite> cands;
+                using (SaveTrace.Step("4a.read-rewrites(probe input)")) cands = ReadRewrites(s, path, pw, edited.Where(x => pageIdx.Contains(x.Index)).OrderBy(x => x.Index).ToList(), out _, null, refCache);
+                IReadOnlyDictionary<int, string>? bad0;
+                using (SaveTrace.Step("4b.rewrite-probe(pdfsharp dry run)")) bad0 = probe?.CheckContentRewrites(path, pw, cands, assets);
+                foreach (var i in pageIdx.OrderBy(i => i))
+                    if (bad0 is null) result[i] = "no content-rewrite probe"; else if (bad0.TryGetValue(i, out var why)) result[i] = why;
+                return result;
+            }
+            if (dupPages.Count > 0)
+            {
+                var dupBad = ProbePages([.. dupPages]);
+                if (dupBad.Count > 0) { var first = dupBad.First(); throw new ContentRegenerationException(first.Key + 1, first.Value, RegenerationFailure.CannotRewrite); }
+            }
             var paraPages = edited.Where(x => x.Edits.OfType<ReplaceParagraphEdit>().Any() || x.Edits.OfType<ReplaceTextSpanEdit>().Any()).Select(x => x.Index).Except(rewritePages).OrderBy(i => i).ToList();
             if (paraPages.Count > 0 && canRewrite)
             {
@@ -276,18 +296,23 @@ public sealed class OutputCopyBuilder(IAppearanceSource? appearance, IAnnotation
                     if (accept)
                     {
                         // 어쩔 수 없는 쪽은 경고로 남기고 PDFium이 쓴 모양 그대로 저장한다. 고쳐 쓰기를 쓸 수 있는 쪽은 그쪽으로 보낸다.
+                        var probeBad = ProbePages([.. failed.Where(i => canRewrite && !rejected.ContainsKey(i))]);
                         foreach (var i in failed)
-                            if (!canRewrite || rejected.ContainsKey(i))
+                            if (!canRewrite || rejected.ContainsKey(i) || probeBad.ContainsKey(i))
                             {
                                 accepted.Add(i);
-                                warnings.Add(new LookWarning(i + 1, rejected.TryGetValue(i, out var rj) ? "paragraph edit: direct text writing was rejected (" + rj + ") and the PDFium path changed the look" : "PDFium content rewrite changed the look and the content-stream rewrite is not available"));
+                                warnings.Add(new LookWarning(i + 1, rejected.TryGetValue(i, out var rj) ? "paragraph edit: direct text writing was rejected (" + rj + ") and the PDFium path changed the look"
+                                    : probeBad.TryGetValue(i, out var pb) ? "PDFium content rewrite changed the look and the content-stream rewrite was rejected (" + pb + ")"
+                                    : "PDFium content rewrite changed the look and the content-stream rewrite is not available"));
                             }
                             else rewritePages.Add(i);
                         continue;
                     }
                     var both = failed.FirstOrDefault(i => rejected.ContainsKey(i), -1);
-                    if (both >= 0) throw new ContentRegenerationException(both + 1, "paragraph edit: direct text writing was rejected (" + rejected[both] + ") and the PDFium path changed the look");
-                    if (!canRewrite) throw new ContentRegenerationException(failed[0] + 1, "PDFium content rewrite changed the look and the content-stream rewrite is not available");
+                    if (both >= 0) throw new ContentRegenerationException(both + 1, "paragraph edit: direct text writing was rejected (" + rejected[both] + ") and the PDFium path changed the look", RegenerationFailure.LookChanged);
+                    if (!canRewrite) throw new ContentRegenerationException(failed[0] + 1, "PDFium content rewrite changed the look and the content-stream rewrite is not available", RegenerationFailure.LookChanged);
+                    var failBad = ProbePages(failed);
+                    if (failBad.Count > 0) { var fb = failBad.First(); throw new ContentRegenerationException(fb.Key + 1, "PDFium changed the look; content-stream rewrite rejected: " + fb.Value, RegenerationFailure.LookChanged); }
                     foreach (var i in failed) rewritePages.Add(i);
                     continue;
                 }

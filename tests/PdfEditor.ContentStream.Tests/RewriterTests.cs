@@ -160,11 +160,15 @@ public class RewriterTests
         (pc, seg) = Load("0 0 m 1 w 5 5 l S");
         Assert.True(ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(1, 1))]).Ok);
 
-        // 글 뒤에 위치를 모르는 글 / BT 안 cm
+        // 0.15.0: 글 뒤에 위치를 모르는 글 / BT 안 cm — 이제 BT 머리를 다시 보내 옮긴다(글꼴을 모르는 글만 거절).
         (pc, seg) = Load("BT /F1 9 Tf (a) Tj (b) Tj ET");
-        Assert.False(ContentRewriter.Rewrite(pc, seg, [new TransformObject(1, Mat.Translate(1, 1))]).Ok);
+        Assert.True(ContentRewriter.Rewrite(pc, seg, [new TransformObject(1, Mat.Translate(1, 1))]).Ok);
         (pc, seg) = Load("BT /F1 9 Tf (a) Tj 2 0 0 2 0 0 cm ET");
-        Assert.False(ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(1, 1))]).Ok);
+        Assert.True(ContentRewriter.Rewrite(pc, seg, [new TransformObject(0, Mat.Translate(1, 1))]).Ok);
+        (pc, seg) = Load("BT (a) Tj (b) Tj ET");   // 글꼴을 모름
+        Assert.False(ContentRewriter.Rewrite(pc, seg, [new TransformObject(1, Mat.Translate(1, 1))]).Ok);
+        (pc, seg) = Load("BT /F1 9 Tf 7 Tr (a) Tj (b) Tj ET");   // 잘림 글
+        Assert.False(ContentRewriter.Rewrite(pc, seg, [new TransformObject(1, Mat.Translate(1, 1))]).Ok);
 
         // 번호 범위·중복
         (pc, seg) = Load("0 0 m 5 5 l S");

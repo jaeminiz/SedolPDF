@@ -236,10 +236,10 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
             {
                 await save.SaveAsync(s, path).ConfigureAwait(true);
             }
-            catch (Exception ex) when ((ex as PdfEditor.Document.Output.ContentRegenerationException ?? ex.InnerException as PdfEditor.Document.Output.ContentRegenerationException) is { } look)
+            catch (Exception ex) when ((ex as PdfEditor.Document.Output.ContentRegenerationException ?? ex.InnerException as PdfEditor.Document.Output.ContentRegenerationException) is { Kind: PdfEditor.Document.Output.RegenerationFailure.LookChanged } look)
             {
                 // 화면 모양≡저장 모양 검사에 걸렸다: 막지 않고 사용자에게 묻는다. 어떤 이유였는지는 error.log에 남긴다.
-                ErrorLog.Write("save-look-check", ex);
+                ErrorLog.Write("save-look-check", ex, EditSummary(s, look.PageNumber));
                 string? backup = File.Exists(path) ? Path.GetFileName(Path.ChangeExtension(path, ".bak.pdf")) : null;
                 if (!await prompts.AskSaveDespiteLookChangeAsync(look.PageNumber.ToString(), backup).ConfigureAwait(true)) return false;
                 await save.SaveAsync(s, path, acceptLookChanges: true).ConfigureAwait(true);
@@ -252,7 +252,8 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
         }
         catch (Exception ex)
         {
-            ErrorLog.Write("save", ex);
+            var regen = ex as PdfEditor.Document.Output.ContentRegenerationException ?? ex.InnerException as PdfEditor.Document.Output.ContentRegenerationException;
+            ErrorLog.Write("save", ex, regen is null ? null : EditSummary(s, regen.PageNumber));
             await prompts.ShowErrorAsync(ErrorMessages.For(ex)).ConfigureAwait(true);
             return false;
         }
@@ -271,6 +272,25 @@ public sealed class FileWorkflow(PdfiumThread t, SaveService save, SettingsStore
             if (reopen) ReopenRequested?.Invoke(s);
         }
         return true;
+    }
+
+    /// <summary>0.15.0: 저장 실패 기록에 그 쪽의 객체 편집 종류별 개수를 덧붙인다(고객 파일 없이 원인을 알 수 있게). 예: "edits: Duplicate×3(src p1#10), Transform×2".</summary>
+    private static string EditSummary(DocumentSession s, int pageNumber)
+    {
+        try
+        {
+            if (pageNumber < 1 || pageNumber > s.Pages.Length) return "edits: (page unknown)";
+            var edits = s.Content.For(s.Pages[pageNumber - 1].Id);
+            var parts = edits.GroupBy(e => e.GetType().Name.Replace("Edit", "")).Select(g =>
+            {
+                string detail = g.Key == "DuplicateObject"
+                    ? "(" + string.Join(", ", g.OfType<PdfEditor.Document.Content.DuplicateObjectEdit>().Take(5).Select(d => $"src p{s.IndexOf(d.SourcePage) + 1}#{d.SourceIndex}")) + ")"
+                    : "";
+                return $"{g.Key}×{g.Count()}{detail}";
+            });
+            return "edits: " + string.Join(", ", parts);
+        }
+        catch (Exception) { return "edits: (unavailable)"; }
     }
 
     // 여러 문서를 한꺼번에 닫는 중(앱 끝내기·창 닫기)인지와, 거기서 "모두 저장/모두 저장 안 함"을 골랐는지.

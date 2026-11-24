@@ -11,8 +11,14 @@ public abstract record ObjectEdit(int ObjectIndex);
 /// </summary>
 public sealed record DisableObject(int ObjectIndex, bool RemoveText = false) : ObjectEdit(ObjectIndex);
 
-/// <summary>객체를 쪽 공간 변환 <see cref="Then"/>(원래 모양에 이어서 적용)만큼 옮기거나 키운다.</summary>
-public sealed record TransformObject(int ObjectIndex, Mat Then) : ObjectEdit(ObjectIndex);
+/// <summary>경로의 새 선·채움(0.15.0). 색은 0~1의 RGB, Width는 선 굵기(그 경로의 `w` 값). Stroke/Fill이 null이면 선/채움 없음. 화면(ApplyStyle)과 같은 규칙이다.</summary>
+public sealed record PathStyle((double R, double G, double B)? Stroke, double Width, (double R, double G, double B)? Fill);
+
+/// <summary>
+/// 객체를 쪽 공간 변환 <see cref="Then"/>(원래 모양에 이어서 적용)만큼 옮기거나 키운다. 0.15.0: 같은 객체의 경로 스타일(<see cref="Style"/>)·글자 색(<see cref="TextColor"/>)도 한 번에 접는다
+/// (같은 객체를 두 번 고치면 "edited twice"로 거절되므로). Then이 단위 행렬이면 제자리에서 스타일·색만 바꾼다. Style은 경로에만, TextColor는 글에만 쓰인다(화면 replay와 같이 다른 종류에는 무시).
+/// </summary>
+public sealed record TransformObject(int ObjectIndex, Mat Then, PathStyle? Style = null, (double R, double G, double B)? TextColor = null) : ObjectEdit(ObjectIndex);
 
 /// <summary>글 보이기 연산자 안의 연속한 글 코드 범위(Str번째 문자열의 FromCode번째부터 Count개). AdvanceText = 그 글자들이 차지하던 글 공간 이동량(자간·낱말 간격 포함, Tz 적용 전).</summary>
 public sealed record TextCut(int Str, int FromCode, int Count, double AdvanceText);
@@ -110,17 +116,22 @@ public static class ContentRewriter
                     var inv = c.Invert();
                     if (inv is null) return Fail($"object {edit.ObjectIndex}: singular CTM");
                     if (!t.Then.IsFinite) return Fail("non-finite transform");
-                    if (obj.InheritsClip && !ClipIsHarmless(obj, ops, main, t.Then))
+                    bool moves = !t.Then.Equals(Mat.Identity);
+                    var style = obj.Kind == ObjectKind.Path ? t.Style : null;
+                    var textColor = obj.Kind == ObjectKind.Text ? t.TextColor : null;
+                    if (!moves && style is null && textColor is null) break;   // 할 일이 없다
+                    if (moves && obj.InheritsClip && !ClipIsHarmless(obj, ops, main, t.Then))
                     {
                         // 잘림이 따라 움직여야 하므로 바깥 q에서 빼낸다: 원본은 제자리에서 숨기고, 옮긴 잘림 + 옮긴 객체를 잘림이 풀리는 곳(그 q의 Q 바로 뒤)에 다시 그린다.
-                        string? why = RedrawOutsideClip(pc, seg, edit.ObjectIndex, t.Then, Insert, Replace, out bool isText);
+                        if (style is not null) return Fail($"object {edit.ObjectIndex}: style change together with a move out of a clip is not supported");
+                        string? why = RedrawOutsideClip(pc, seg, edit.ObjectIndex, t.Then, textColor, Insert, Replace, out int addedText);
                         if (why is not null) return Fail(why);
-                        if (isText) textCopies++;
+                        textCopies += addedText;
                         break;
                     }
-                    var x = c.Then(t.Then).Then(inv.Value);
+                    var x = moves ? c.Then(t.Then).Then(inv.Value) : Mat.Identity;
                     if (!x.IsFinite) return Fail("non-finite matrix");
-                    string open = $"q {x.ToOperands()} cm ";
+                    string open = moves ? $"q {x.ToOperands()} cm " : "q ";
                     switch (obj.Kind)
                     {
                         case ObjectKind.Path:
@@ -133,16 +144,33 @@ public static class ContentRewriter
                             for (int k = obj.FirstOpIndex; k < obj.OpIndex; k++)
                                 if (ObjectSnippet.IsStateOp(ops[k].Name)) carried.Append(' ').Append(Encoding.Latin1.GetString(data, ops[k].Start, ops[k].End - ops[k].Start));
                             Insert(ops[obj.FirstOpIndex].Start, open, OrderOpen);
+                            if (style is not null)
+                            {
+                                // 0.15.0: 선·채움 바꾸기. 상태 연산자는 칠하기 바로 앞에 넣어 경로 중간에 낀 상태 연산자보다 뒤에 오게 한다.
+                                string paint = PaintOp(main.Name, style);
+                                Replace(main.Start, main.End, StyleOps(style) + paint);
+                                if (paint == "n") Bump(removedKinds, ObjectKind.Path);   // 선도 채움도 없으면 객체가 아니다
+                            }
                             Insert(main.End, " Q" + carried, OrderClose);
                             break;
                         case ObjectKind.Text:
                         {
                             var s = obj.Text!;
-                            if (!s.Movable || s.EtOp < 0) return Fail($"object {edit.ObjectIndex}: text not movable (position unknown or state changed inside BT)");
+                            if (!TextCopyable(s, obj.OpIndex)) return Fail($"object {edit.ObjectIndex}: text not movable (position unknown or state changed inside BT)");
                             if (s.Tr >= 4) return Fail($"object {edit.ObjectIndex}: text render mode {s.Tr} clips");
                             if (s.Tr != 3) HideText(obj, main, Insert);
-                            Insert(ops[s.EtOp].End, TextCopy(data, ops, main, s, open), OrderOpen);
-                            textCopies++;
+                            // 사본은 ET 뒤(CTM = EtCtm)에 그려진다: X = C·Then·EtCtm⁻¹. 글 위치를 아는 글은 BT 안에 cm이 없어 C = EtCtm이라 같은 값이다.
+                            string textOpen = open;
+                            if (s.EtCtm is { } ec && !ec.Equals(c))
+                            {
+                                var einv = ec.Invert();
+                                if (einv is null) return Fail($"object {edit.ObjectIndex}: singular CTM at ET");
+                                var xe = moves ? c.Then(t.Then).Then(einv.Value) : c.Then(einv.Value);
+                                if (!xe.IsFinite) return Fail("non-finite matrix");
+                                textOpen = $"q {xe.ToOperands()} cm ";
+                            }
+                            Insert(ops[s.EtOp].End, TextCopy(data, ops, main, obj.OpIndex, s, textOpen, textColor is { } tcol ? TextColorOps(tcol, s.Tr) : null), OrderOpen);
+                            textCopies += 1 + ReplayHeadShows(ops, s, obj.OpIndex);   // BT 머리를 다시 보낸 사본은 앞 글의 안 보이는 사본도 객체로 센다
                             break;
                         }
                         default:
@@ -308,16 +336,16 @@ public static class ContentRewriter
     /// <summary>
     /// 상속한 잘림이 있는 객체를 옮길 때: 원본을 제자리에서 지우고(경로 `n`, 글 보이지 않게, 그 밖에는 빈칸 — 객체 수는 그대로 한 개 빠지고 한 개 느는 셈),
     /// 잘림 경로와 객체를 같은 변환으로 옮겨 잘림이 풀리는 곳에 다시 그린다. 그려지는 차례는 같은 잘림 묶음의 뒤쪽 객체들보다 뒤로 밀릴 뿐이다.
-    /// 실패하면 이유를, 성공하면 null. isText는 글 사본이 하나 늘었는지(객체 수 점검용).
+    /// 실패하면 이유를, 성공하면 null. addedText는 늘어난 글 객체 수(객체 수 점검용).
     /// </summary>
-    private static string? RedrawOutsideClip(ParsedContent pc, Segmentation seg, int index, Mat then, Action<int, string, int> insert, Action<int, int, string> replace, out bool isText)
+    private static string? RedrawOutsideClip(ParsedContent pc, Segmentation seg, int index, Mat then, (double R, double G, double B)? textColor, Action<int, string, int> insert, Action<int, int, string> replace, out int addedText)
     {
-        isText = false;
+        addedText = 0;
         var obj = seg.Objects[index];
         var ops = pc.Ops;
         var main = ops[obj.OpIndex];
         if (obj.ClipSource is not { } cs) return $"object {index}: inherits a clip; cannot transform in place";
-        var snip = ObjectSnippet.Extract(pc, seg, index, then, withClip: true);
+        var snip = ObjectSnippet.Extract(pc, seg, index, then, textColor, withClip: true);
         if (!snip.Ok) return snip.Failure;
 
         // 그리는 차례를 지키는 길(글 제외): 객체 자리에서 q를 잘림이 걸린 곳 바깥까지 닫고, 옮긴 객체를 그린 뒤, 그 q들을 상태 연산자만 다시 보내 열어 둔다.
@@ -366,7 +394,7 @@ public static class ContentRewriter
                 break;
             case ObjectKind.Text:
                 if (obj.Text!.Tr != 3) HideText(obj, main, insert);
-                isText = true;
+                addedText = 1 + snip.ExtraTextObjects;
                 break;
             default:
                 replace(main.Start, main.End, " ");
@@ -376,6 +404,32 @@ public static class ContentRewriter
         string suffix = prefix.Length > 0 ? " Q" : "";
         insert(pos, "\n" + prefix + snip.Content + suffix + "\n", OrderOpen);
         return null;
+    }
+
+    /// <summary>글자 색을 덮어쓰는 연산자: 렌더 모드가 선도 그리면(1·2·5·6) 선 색도 함께.</summary>
+    internal static string TextColorOps((double R, double G, double B) c, int tr)
+    {
+        string rgb = $"{Mat.Fmt(c.R)} {Mat.Fmt(c.G)} {Mat.Fmt(c.B)}";
+        return tr is 1 or 2 or 5 or 6 ? $"{rgb} rg {rgb} RG" : $"{rgb} rg";
+    }
+
+    private static string StyleOps(PathStyle st)
+    {
+        var sb = new StringBuilder();
+        if (st.Stroke is { } s) sb.Append($"{Mat.Fmt(s.R)} {Mat.Fmt(s.G)} {Mat.Fmt(s.B)} RG {Mat.Fmt(st.Width)} w ");
+        if (st.Fill is { } f) sb.Append($"{Mat.Fmt(f.R)} {Mat.Fmt(f.G)} {Mat.Fmt(f.B)} rg ");
+        return sb.ToString();
+    }
+
+    /// <summary>원래 칠하기 연산자의 짝홀 규칙(f*/B*/b*)과 닫힘(s/b/b*)을 지키며 새 스타일의 칠하기 연산자를 고른다. 선도 채움도 없으면 n.</summary>
+    private static string PaintOp(string original, PathStyle st)
+    {
+        bool evenOdd = original is "f*" or "B*" or "b*", close = original is "s" or "b" or "b*";
+        bool fill = st.Fill is not null, stroke = st.Stroke is not null;
+        if (fill && stroke) return close ? (evenOdd ? "b*" : "b") : (evenOdd ? "B*" : "B");
+        if (fill) return evenOdd ? "f*" : "f";
+        if (stroke) return close ? "s" : "S";
+        return "n";
     }
 
     private const int MaxReplayOps = 4000;
@@ -408,7 +462,77 @@ public static class ContentRewriter
         insert(show.End, $" {obj.Text!.Tr} Tr", OrderClose);
     }
 
-    internal static string TextCopy(byte[] data, List<ContentOp> ops, ContentOp show, TextSnapshot s, string open, string? colorOps = null)
+    /// <summary>BT 머리부터 다시 보내는 길(글 위치를 모를 때)을 쓸 BT 안 연산자 수의 한도(제곱 비용 방지).</summary>
+    private const int MaxBtReplayOps = 5000;
+
+    /// <summary>이 글을 다른 자리에 다시 그릴 수 있나: 글 위치를 알거나(0.4.0 방식), 아니면 BT 머리부터 다시 보낼 수 있을 때(0.15.0).</summary>
+    internal static bool TextCopyable(TextSnapshot s, int showIndex)
+        => s.EtOp >= 0 && s.FontOp >= 0
+           && (s.Movable || (s.BtState is not null && s.BtOp >= 0 && s.EtCtm is not null && showIndex > s.BtOp && showIndex - s.BtOp <= MaxBtReplayOps));
+
+    internal static string TextCopy(byte[] data, List<ContentOp> ops, ContentOp show, int showIdx, TextSnapshot s, string open, string? colorOps = null)
+        => s.Movable ? TextCopyAt(data, ops, show, s, open, colorOps) : TextCopyReplay(data, ops, show, showIdx, s, open, colorOps);
+
+    /// <summary>
+    /// 글 위치(Tm)를 바로 알 수 없는 글(한 BT 안의 두 번째 Tj, BT 안의 cm/q/Q 등): 그 글의 BT부터 글 위치·글 상태 연산자를 그대로 다시 보내고
+    /// 앞선 보이기는 `3 Tr`(안 보임)로 보내 글자 이동량만 반영한 뒤, 이 글만 원래 Tr로 보인다.
+    /// 글 위치는 마지막 위치 연산자(Tm/Td/TD/T*/'/") 이후의 Tj/TJ 이동량에만 기대므로, 그 앞의 보이기는 위치 이동만 남기고 뺀다(BT 하나에 글이 많아도 사본이 제곱으로 늘지 않게).
+    /// </summary>
+    private static string TextCopyReplay(byte[] data, List<ContentOp> ops, ContentOp show, int showIdx, TextSnapshot s, string open, string? colorOps)
+    {
+        var b = s.BtState!;
+        var sb = new StringBuilder();
+        sb.Append('\n').Append(open);
+        foreach (int k in s.ReplayOps) sb.Append(Slice(data, ops[k])).Append(' ');
+        if (colorOps is not null) sb.Append(colorOps).Append(' ');
+        if (b.FontOp >= 0) sb.Append(Slice(data, ops[b.FontOp])).Append(' ');
+        sb.Append($"{Mat.Fmt(b.Tc)} Tc {Mat.Fmt(b.Tw)} Tw {Mat.Fmt(b.Tz)} Tz {Mat.Fmt(b.TL)} TL {Mat.Fmt(b.Ts)} Ts 3 Tr BT ");
+        int lastPos = LastPositioningOp(ops, s.BtOp, showIdx);
+        for (int k = s.BtOp + 1; k < showIdx; k++)
+        {
+            string n = ops[k].Name;
+            if (n is "Tf" or "Tc" or "Tw" or "Tz" or "TL" or "Ts" or "Tm" or "Td" or "TD" or "T*") sb.Append(Slice(data, ops[k])).Append(' ');
+            else if (n is "Tj" or "TJ") { if (k > lastPos) sb.Append(Slice(data, ops[k])).Append(' '); }
+            else if (n is "'" or "\"") sb.Append(ShowReplacement(data, ops[k])).Append(' ');   // 이동·간격 지정만 남긴다
+        }
+        sb.Append(Slice(data, ops[s.FontOp])).Append(' ');
+        sb.Append($"{Mat.Fmt(s.Tc)} Tc {Mat.Fmt(s.Tw)} Tw {Mat.Fmt(s.Tz)} Tz {Mat.Fmt(s.TL)} TL {Mat.Fmt(s.Ts)} Ts {s.Tr} Tr ");
+        if (show.Name is "'" or "\"")
+        {
+            var str = show.Operands[^1];
+            sb.Append("T* ").Append(Latin1S(data, str.Start, str.End)).Append(" Tj");
+        }
+        else sb.Append(Slice(data, show));
+        sb.Append(" ET Q\n");
+        return sb.ToString();
+    }
+
+    private static int LastPositioningOp(List<ContentOp> ops, int btOp, int showIdx)
+    {
+        for (int k = showIdx - 1; k > btOp; k--)
+            if (ops[k].Name is "Tm" or "Td" or "TD" or "T*" or "'" or "\"") return k;
+        return btOp;
+    }
+
+    /// <summary>BT 머리 다시 보내기가 이 글 앞에 남기는 (안 보이는) 글 보이기 수 = 사본이 만드는 글 객체의 덤. 글 위치를 아는 글은 0.</summary>
+    internal static int ReplayHeadShows(List<ContentOp> ops, TextSnapshot s, int showIdx)
+    {
+        if (s.Movable) return 0;
+        int lastPos = LastPositioningOp(ops, s.BtOp, showIdx), n = 0;
+        for (int k = lastPos + 1; k < showIdx; k++)
+            if (ops[k].Name is "Tj" or "TJ" && ContentSegmenter.HasGlyphs(ops[k])) n++;
+        return n;
+    }
+
+    /// <summary>BT 머리 다시 보내기가 쓰는 글꼴 설정 연산자(자원 복사용). 글 위치를 아는 글은 비어 있다.</summary>
+    internal static IEnumerable<int> ReplayHeadFontOps(List<ContentOp> ops, TextSnapshot s, int showIdx)
+    {
+        if (s.Movable) yield break;
+        if (s.BtState is { FontOp: >= 0 } b) yield return b.FontOp;
+        for (int k = s.BtOp + 1; k < showIdx; k++) if (ops[k].Name == "Tf") yield return k;
+    }
+
+    private static string TextCopyAt(byte[] data, List<ContentOp> ops, ContentOp show, TextSnapshot s, string open, string? colorOps)
     {
         var sb = new StringBuilder();
         sb.Append('\n').Append(open);
